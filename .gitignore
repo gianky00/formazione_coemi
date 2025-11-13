@@ -22,3 +22,4 @@ __pycache__/
 "Lib/" 
 "Scripts/" 
 "Include/" 
+app/api/__pycache__/main.cpython-312.pyc
