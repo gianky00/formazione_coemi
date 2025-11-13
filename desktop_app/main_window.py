@@ -4,6 +4,7 @@ from PyQt6.QtGui import QAction
 from PyQt6.QtCore import QTimer
 from desktop_app.import_view import ImportView
 from desktop_app.dashboard_view import DashboardView
+from desktop_app.config_view import ConfigView
 
 class MainWindow(QMainWindow):
     def __init__(self, screenshot_path=None):
@@ -22,10 +23,12 @@ class MainWindow(QMainWindow):
         # Instantiate views
         self.import_view = ImportView()
         self.dashboard_view = DashboardView()
+        self.config_view = ConfigView()
 
         # Add views to stacked widget
         self.stacked_widget.addWidget(self.import_view)
         self.stacked_widget.addWidget(self.dashboard_view)
+        self.stacked_widget.addWidget(self.config_view)
 
         self.create_menu()
 
@@ -43,6 +46,10 @@ class MainWindow(QMainWindow):
         dashboard_action = QAction("Dashboard", self)
         dashboard_action.triggered.connect(lambda: self.stacked_widget.setCurrentWidget(self.dashboard_view))
         view_menu.addAction(dashboard_action)
+
+        config_action = QAction("Configurazione", self)
+        config_action.triggered.connect(lambda: self.stacked_widget.setCurrentWidget(self.config_view))
+        view_menu.addAction(config_action)
 
     def take_screenshot_and_exit(self):
         screen = QApplication.primaryScreen()

@@ -14,6 +14,10 @@ def read_root():
 def get_corsi(db: Session = Depends(get_db)):
     return db.query(CorsiMaster).all()
 
+@router.get("/health")
+def health_check():
+    return {"status": "ok"}
+
 @router.post("/upload-pdf/")
 async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)):
     file_path = ocr.save_uploaded_file(file)
