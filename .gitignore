@@ -19,7 +19,3 @@ uploads/
 # Python cache
 __pycache__/
 *.pyc
-"Lib/" 
-"Scripts/" 
-"Include/" 
-app/api/__pycache__/main.cpython-312.pyc
