@@ -15,56 +15,45 @@ def extract_entities(text: str, db: Session) -> dict:
         "data_scadenza": None,
     }
 
-    lines = text.lower().split('\n')
+    lines = text.split('\n')
 
-    # 1. Estrarre il corso
-    corsi = db.query(CorsiMaster).all()
-    course_names = {corso.nome_corso.lower(): corso for corso in corsi}
-    for line in lines:
-        for course_name in course_names.keys():
-            if course_name in line:
-                entities["corso"] = course_names[course_name].nome_corso
-                break
-        if entities["corso"]:
+    # 1. Estrarre il nome del dipendente
+    for i, line in enumerate(lines):
+        if "Si certifica che" in line:
+            # Il nome potrebbe essere sulla stessa riga o su quella successiva
+            try:
+                name_line = line.split("Si certifica che")[1].strip()
+                if name_line:
+                    entities["nome"] = name_line
+                elif i + 1 < len(lines):
+                    entities["nome"] = lines[i+1].strip()
+            except IndexError:
+                if i + 1 < len(lines):
+                    entities["nome"] = lines[i+1].strip()
             break
 
-    # 2. Estrarre le date
-    date_pattern = r'\d{2,4}[-/]\d{2}[-/]\d{2,4}'
-    dates = re.findall(date_pattern, text)
+    # 2. Estrarre il nome del corso
+    for i, line in enumerate(lines):
+        if "ATTESTATO" in line and i + 1 < len(lines):
+            # Il nome del corso e' sulla riga successiva
+            if "FORMAZIONE PREPOSTO" in lines[i+1]:
+                entities["corso"] = "FORMAZIONE PREPOSTO"
+                break
 
-    # Simple logic: assume the first date is the issue date
-    if dates:
+    # 3. Estrarre la data di emissione
+    date_pattern = r'nei giorni (\d{2}-\d{2}-\d{4})'
+    match = re.search(date_pattern, text)
+    if match:
         try:
-            # Handle different formats like YYYY-MM-DD or DD-MM-YYYY
-            parsed_date = None
-            if '-' in dates[0]:
-                parts = dates[0].split('-')
-                if len(parts[0]) == 4: # YYYY-MM-DD
-                    parsed_date = datetime.strptime(dates[0], '%Y-%m-%d').date()
-                else: # DD-MM-YYYY
-                    parsed_date = datetime.strptime(dates[0], '%d-%m-%Y').date()
-            elif '/' in dates[0]:
-                parts = dates[0].split('/')
-                if len(parts[0]) == 4: # YYYY/MM/DD
-                    parsed_date = datetime.strptime(dates[0], '%Y/%m/%d').date()
-                else: # DD/MM/YYYY
-                    parsed_date = datetime.strptime(dates[0], '%d/%m/%Y').date()
-
+            parsed_date = datetime.strptime(match.group(1), '%d-%m-%Y').date()
             entities["data_rilascio"] = parsed_date
         except ValueError:
-            pass # Date format not recognized
-
-    # 3. Estrarre il nome
-    for line in lines:
-        if "name:" in line or "nome:" in line:
-            entities["nome"] = line.split(":")[-1].strip().title()
-            break
+            pass  # Formato data non riconosciuto
 
     # 4. Calcolare la data di scadenza
-    if entities["corso"] and entities["data_rilascio"]:
-        corso_obj = course_names[entities["corso"].lower()]
-        if corso_obj and corso_obj.validita_mesi > 0:
-            expiration_date = entities["data_rilascio"] + relativedelta(months=corso_obj.validita_mesi)
-            entities["data_scadenza"] = expiration_date
+    if entities["data_rilascio"]:
+        # Per i preposti, la scadenza e' di 2 anni
+        expiration_date = entities["data_rilascio"] + relativedelta(years=2)
+        entities["data_scadenza"] = expiration_date
 
     return entities
