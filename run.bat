@@ -1,17 +1,24 @@
 @echo off
+
+REM --- ATTIVA L'AMBIENTE VIRTUALE ---
+echo Activating virtual environment...
+CALL .\formazione_coemi\Scripts\activate
+
+REM --- Ora tutti i comandi 'python' e 'pip' useranno l'ambiente ---
+
 echo Ensuring pip is installed...
-py -m ensurepip --upgrade
+python -m pip install --upgrade pip
 
 echo Installing dependencies...
-py -m pip install -r requirements.txt
+python -m pip install -r requirements.txt
 
 echo Installing Playwright dependencies...
 playwright install --with-deps
 
 echo Starting the backend server...
 set PYTHONPATH=.
-start /b py app/main.py
+start /b python app/main.py
 
 echo Starting the application...
-py desktop_app/main_window.py
+python desktop_app/main_window.py
 pause
