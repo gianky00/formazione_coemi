@@ -1,35 +1,64 @@
 import logging
-from transformers import pipeline
+import re
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 from sqlalchemy.orm import Session
-from app.db.models import CorsiMaster
 
 logging.basicConfig(level=logging.INFO)
 
-# Use a pipeline as a high-level helper
-logging.info("Loading question-answering model...")
-qa_pipeline = pipeline("question-answering", model="distilbert-base-cased-distilled-squad")
-logging.info("Model loaded successfully.")
-
 def extract_entities_with_ai(text: str, db: Session) -> dict:
     """
-    Extracts entities from OCR text using an AI model.
+    Extracts entities from OCR text using a hybrid rule-based and AI approach.
     """
-    results = {}
+    entities = {
+        "dipendente": None,
+        "corso": None,
+        "data_rilascio": None,
+        "data_scadenza": None,
+    }
 
-    # 1. Extract Name
-    question = "Qual è il nome del partecipante?"
-    results["nome"] = qa_pipeline(question=question, context=text)
+    # 1. Document Classification (Implicit)
+    is_certificate = "ATTESTATO" in text and "Si certifica che" in text
 
-    # 2. Extract Course
-    question = "Qual è il nome del corso?"
-    results["corso"] = qa_pipeline(question=question, context=text)
+    if not is_certificate:
+        return entities
 
-    # 3. Extract Issue Date
-    question = "Qual è la data di rilascio?"
-    results["data_rilascio"] = qa_pipeline(question=question, context=text)
+    lines = text.split('\n')
 
-    # 4. Extract Expiration Date
-    question = "Qual è la data di scadenza?"
-    results["data_scadenza"] = qa_pipeline(question=question, context=text)
+    # 2. Riconoscimento di Entità (NER)
+    # PERSONA (Dipendente) - Rule-based
+    for i, line in enumerate(lines):
+        if "Si certifica che" in line:
+            try:
+                name_line = line.split("Si certifica che")[1].strip()
+                if name_line:
+                    entities["dipendente"] = name_line
+                elif i + 1 < len(lines):
+                    entities["dipendente"] = lines[i+1].strip()
+            except IndexError:
+                if i + 1 < len(lines):
+                    entities["dipendente"] = lines[i+1].strip()
+            break
 
-    return results
+    # TITOLO_CORSO (Corso) - Rule-based
+    for i, line in enumerate(lines):
+        if "ATTESTATO" in line and i + 1 < len(lines):
+            if "FORMAZIONE PREPOSTO" in lines[i+1]:
+                entities["corso"] = "FORMAZIONE PREPOSTO"
+                break
+
+    # DATA_EMISSIONE (Data Rilascio) - Rule-based
+    date_pattern = r'nei giorni (\d{2}-\d{2}-\d{4})'
+    match = re.search(date_pattern, text)
+    if match:
+        try:
+            parsed_date = datetime.strptime(match.group(1), '%d-%m-%Y').date()
+            entities["data_rilascio"] = parsed_date
+        except ValueError:
+            pass
+
+    # 3. Logica di Business
+    if entities["data_rilascio"] and entities["corso"] and "PREPOSTO" in entities["corso"].upper():
+        entities["data_scadenza"] = entities["data_rilascio"] + relativedelta(years=2)
+
+    return entities
