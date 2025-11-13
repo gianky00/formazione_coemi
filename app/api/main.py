@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, UploadFile, File
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.db.models import CorsiMaster
-from app.services import ocr, entity_extraction
+from app.services import ocr, ai_extraction
 
 router = APIRouter()
 
@@ -22,5 +22,5 @@ def health_check():
 async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)):
     file_path = ocr.save_uploaded_file(file)
     text = ocr.extract_text_from_pdf(file_path)
-    entities = entity_extraction.extract_entities(text, db)
+    entities = ai_extraction.extract_entities_with_ai(text, db)
     return {"filename": file.filename, "text": text, "entities": entities}
