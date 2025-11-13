@@ -1,0 +1,21 @@
+# Virtual Environment
+/Include
+/Lib
+/Scripts
+
+# Local Database
+database.db
+
+# Log files
+*.log
+
+# Uploaded files
+uploads/
+
+# IDE specific files
+.idea/
+.vscode/
+
+# Python cache
+__pycache__/
+*.pyc
