@@ -8,7 +8,8 @@ logging.basicConfig(level=logging.INFO)
 
 def extract_entities_with_ai(text: str, db: Session) -> dict:
     """
-    Extracts entities from OCR text using a hybrid rule-based and AI approach.
+    Extracts entities from OCR text using a rule-based engine.
+    This function is a fallback to a rule-based system to avoid heavy dependencies.
     """
     entities = {
         "dipendente": None,
@@ -25,8 +26,8 @@ def extract_entities_with_ai(text: str, db: Session) -> dict:
 
     lines = text.split('\n')
 
-    # 2. Riconoscimento di Entità (NER)
-    # PERSONA (Dipendente) - Rule-based
+    # 2. Riconoscimento di Entità (NER) - Rule-based
+    # PERSONA (Dipendente)
     for i, line in enumerate(lines):
         if "Si certifica che" in line:
             try:
@@ -40,14 +41,14 @@ def extract_entities_with_ai(text: str, db: Session) -> dict:
                     entities["dipendente"] = lines[i+1].strip()
             break
 
-    # TITOLO_CORSO (Corso) - Rule-based
+    # TITOLO_CORSO (Corso)
     for i, line in enumerate(lines):
         if "ATTESTATO" in line and i + 1 < len(lines):
             if "FORMAZIONE PREPOSTO" in lines[i+1]:
                 entities["corso"] = "FORMAZIONE PREPOSTO"
                 break
 
-    # DATA_EMISSIONE (Data Rilascio) - Rule-based
+    # DATA_EMISSIONE (Data Rilascio)
     date_pattern = r'nei giorni (\d{2}-\d{2}-\d{4})'
     match = re.search(date_pattern, text)
     if match:
