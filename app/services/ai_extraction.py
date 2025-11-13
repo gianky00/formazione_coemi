@@ -8,8 +8,9 @@ logging.basicConfig(level=logging.INFO)
 
 def extract_entities_with_ai(text: str, db: Session) -> dict:
     """
-    Extracts entities from OCR text using a rule-based engine.
-    This function is a fallback to a rule-based system to avoid heavy dependencies.
+    Extracts entities from OCR text using a robust rule-based engine.
+    This function was named `extract_entities_with_ai` but now uses a rule-based system
+    to ensure reliability and avoid heavy dependencies.
     """
     entities = {
         "dipendente": None,
