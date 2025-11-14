@@ -1,10 +1,22 @@
-from fastapi import APIRouter, Depends, UploadFile, File
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.db.models import CorsiMaster
+from app.db.models import CorsiMaster, Attestati, ValidationStatus
 from app.services import ocr, ai_extraction
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
+from pydantic import BaseModel
+from typing import Optional, List
+
+class CertificatoSchema(BaseModel):
+    id: int
+    nome: str
+    corso: str
+    data_rilascio: str
+    data_scadenza: str
+
+    class Config:
+        orm_mode = True
 
 router = APIRouter()
 
@@ -56,11 +68,11 @@ def calculate_expiration_date(extracted_data: dict, db: Session) -> dict:
                     entities["data_scadenza"] = expiration_date
                 break
 
-    # 3. Formatta le date come stringhe YYYY-MM-DD prima di restituirle
+    # 3. Formatta le date come stringhe DD/MM/YYYY prima di restituirle
     if entities.get("data_rilascio"):
-        entities["data_rilascio"] = entities["data_rilascio"].strftime('%Y-%m-%d')
+        entities["data_rilascio"] = entities["data_rilascio"].strftime('%d/%m/%Y')
     if entities.get("data_scadenza"):
-        entities["data_scadenza"] = entities["data_scadenza"].strftime('%Y-%m-%d')
+        entities["data_scadenza"] = entities["data_scadenza"].strftime('%d/%m/%Y')
 
     return entities
 
@@ -80,3 +92,56 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
     final_entities = calculate_expiration_date(extracted_data, db)
 
     return {"filename": file.filename, "text": text, "entities": final_entities}
+
+@router.get("/certificati/", response_model=List[CertificatoSchema])
+def get_certificati(db: Session = Depends(get_db)):
+    attestati = db.query(Attestati).all()
+    result = []
+    for attestato in attestati:
+        result.append(CertificatoSchema(
+            id=attestato.id,
+            nome=f"{attestato.dipendente.nome} {attestato.dipendente.cognome}",
+            corso=attestato.corso.nome_corso,
+            data_rilascio=attestato.data_rilascio.strftime('%d/%m/%Y'),
+            data_scadenza=attestato.data_scadenza_calcolata.strftime('%d/%m/%Y')
+        ))
+    return result
+
+@router.put("/certificati/{certificato_id}", response_model=CertificatoSchema)
+def update_certificato(certificato_id: int, nome: str, corso: str, data_rilascio: str, data_scadenza: str, db: Session = Depends(get_db)):
+    db_certificato = db.query(Attestati).filter(Attestati.id == certificato_id).first()
+    if not db_certificato:
+        raise HTTPException(status_code=404, detail="Certificato non trovato")
+
+    # Simple update for now, will need to handle name and course changes
+    db_certificato.data_rilascio = datetime.strptime(data_rilascio, '%d/%m/%Y').date()
+    db_certificato.data_scadenza_calcolata = datetime.strptime(data_scadenza, '%d/%m/%Y').date()
+    db.commit()
+    db.refresh(db_certificato)
+    return CertificatoSchema(
+        id=db_certificato.id,
+        nome=f"{db_certificato.dipendente.nome} {db_certificato.dipendente.cognome}",
+        corso=db_certificato.corso.nome_corso,
+        data_rilascio=db_certificato.data_rilascio.strftime('%d/%m/%Y'),
+        data_scadenza=db_certificato.data_scadenza_calcolata.strftime('%d/%m/%Y')
+    )
+
+@router.put("/certificati/{certificato_id}/valida")
+def valida_certificato(certificato_id: int, db: Session = Depends(get_db)):
+    db_certificato = db.query(Attestati).filter(Attestati.id == certificato_id).first()
+    if not db_certificato:
+        raise HTTPException(status_code=404, detail="Certificato non trovato")
+
+    db_certificato.stato_validazione = ValidationStatus.MANUAL
+    db.commit()
+    db.refresh(db_certificato)
+    return {"message": "Certificato validato con successo"}
+
+@router.delete("/certificati/{certificato_id}")
+def delete_certificato(certificato_id: int, db: Session = Depends(get_db)):
+    db_certificato = db.query(Attestati).filter(Attestati.id == certificato_id).first()
+    if not db_certificato:
+        raise HTTPException(status_code=404, detail="Certificato non trovato")
+    db.delete(db_certificato)
+    db.commit()
+    return {"message": "Certificato cancellato con successo"}
