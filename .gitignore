@@ -28,5 +28,4 @@ __pycache__/
 
 # Environment variables
 .env
-app/db/__pycache__/models.cpython-312.pyc
-app/api/__pycache__/main.cpython-312.pyc
+app/services/__pycache__/ocr.cpython-312.pyc
