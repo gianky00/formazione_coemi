@@ -22,7 +22,7 @@ class CertificatoCreateSchema(BaseModel):
     nome: str
     corso: str
     data_rilascio: str
-    data_scadenza: str
+    data_scadenza: Optional[str] = None
 
 router = APIRouter()
 
@@ -171,7 +171,7 @@ def create_certificato(certificato: CertificatoCreateSchema, db: Session = Depen
     )
 
 @router.put("/certificati/{certificato_id}", response_model=CertificatoSchema)
-def update_certificato(certificato_id: int, nome: str, corso: str, data_rilascio: str, data_scadenza: str, db: Session = Depends(get_db)):
+def update_certificato(certificato_id: int, nome: str, corso: str, data_rilascio: str, data_scadenza: Optional[str] = None, db: Session = Depends(get_db)):
     db_certificato = db.query(Attestati).filter(Attestati.id == certificato_id).first()
     if not db_certificato:
         raise HTTPException(status_code=404, detail="Certificato non trovato")
@@ -192,7 +192,7 @@ def update_certificato(certificato_id: int, nome: str, corso: str, data_rilascio
     db_certificato.id_corso = db_corso.id
 
     db_certificato.data_rilascio = datetime.strptime(data_rilascio, '%d/%m/%Y').date()
-    db_certificato.data_scadenza_calcolata = datetime.strptime(data_scadenza, '%d/%m/%Y').date()
+    db_certificato.data_scadenza_calcolata = datetime.strptime(data_scadenza, '%d/%m/%Y').date() if data_scadenza else None
     db.commit()
     db.refresh(db_certificato)
     return CertificatoSchema(
@@ -200,7 +200,7 @@ def update_certificato(certificato_id: int, nome: str, corso: str, data_rilascio
         nome=f"{db_certificato.dipendente.nome} {db_certificato.dipendente.cognome}",
         corso=db_certificato.corso.nome_corso,
         data_rilascio=db_certificato.data_rilascio.strftime('%d/%m/%Y'),
-        data_scadenza=db_certificato.data_scadenza_calcolata.strftime('%d/%m/%Y')
+        data_scadenza=db_certificato.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_certificato.data_scadenza_calcolata else None
     )
 
 @router.put("/certificati/{certificato_id}/valida")
