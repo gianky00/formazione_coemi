@@ -87,11 +87,11 @@ def calculate_expiration_date(extracted_data: dict, db: Session) -> dict:
             logging.warning(f"Categoria '{categoria_estratta}' non trovata in CorsiMaster. Scadenza non calcolata.")
 
 
-    # 3. Formatta le date come stringhe YYYY-MM-DD prima di restituirle
+    # 3. Formatta le date come stringhe DD/MM/YYYY prima di restituirle
     if entities.get("data_rilascio"):
-        entities["data_rilascio"] = entities["data_rilascio"].strftime('%Y-%m-%d')
+        entities["data_rilascio"] = entities["data_rilascio"].strftime('%d/%m/%Y')
     if entities.get("data_scadenza"):
-        entities["data_scadenza"] = entities["data_scadenza"].strftime('%Y-%m-%d')
+        entities["data_scadenza"] = entities["data_scadenza"].strftime('%d/%m/%Y')
 
     return entities
 
