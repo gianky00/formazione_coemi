@@ -16,7 +16,7 @@ try:
     if not api_key:
         raise ValueError("GEMINI_API_KEY non trovata nel file .env")
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-pro')
+    model = genai.GenerativeModel('gemini-1.5-flash-latest')
     logging.info("Modello Gemini Pro configurato con successo.")
 except Exception as e:
     logging.error(f"Errore di configurazione Gemini: {e}")
