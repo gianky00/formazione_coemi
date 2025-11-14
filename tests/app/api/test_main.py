@@ -106,3 +106,36 @@ def test_update_certificato(test_client: TestClient, db_session: Session):
     db_session.refresh(certificato)
     assert certificato.corso.nome_corso == "Updated Course"
     assert certificato.data_rilascio == date(2025, 2, 1)
+
+def test_update_certificato_get_or_create(test_client: TestClient, db_session: Session):
+    """
+    Testa la logica "Get or Create" dell'endpoint di aggiornamento.
+    """
+    # Crea dati iniziali
+    dipendente = Dipendente(nome="Old", cognome="Employee")
+    corso = Corso(nome_corso="Old Course", validita_mesi=12, categoria_corso="General")
+    certificato = Certificato(
+        dipendente=dipendente,
+        corso=corso,
+        data_rilascio=date(2025, 1, 1),
+    )
+    db_session.add_all([dipendente, corso, certificato])
+    db_session.commit()
+
+    # Dati di aggiornamento con nuovo dipendente e nuovo corso
+    update_data = {
+        "nome": "New Employee",
+        "corso": "New Course",
+        "categoria": "General",
+        "data_rilascio": "01/03/2025",
+        "data_scadenza": "01/03/2026"
+    }
+
+    response = test_client.put(f"/certificati/{certificato.id}", json=update_data)
+    assert response.status_code == 200
+
+    # Verifica che il nuovo dipendente e il nuovo corso siano stati creati
+    new_dipendente = db_session.query(Dipendente).filter_by(nome="New", cognome="Employee").first()
+    new_corso = db_session.query(Corso).filter_by(nome_corso="New Course").first()
+    assert new_dipendente is not None
+    assert new_corso is not None

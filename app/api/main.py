@@ -278,9 +278,20 @@ def update_certificato(certificato_id: int, certificato: CertificatoUpdateSchema
     # Handle name and course changes
     try:
         nome_parts = certificato.nome.split()
-        db_dipendente = db.query(Dipendente).filter(Dipendente.nome == nome_parts[0], Dipendente.cognome == nome_parts[1]).first()
+        # Try Lastname Firstname
+        db_dipendente = db.query(Dipendente).filter(Dipendente.nome == nome_parts[1], Dipendente.cognome == nome_parts[0]).first()
+        # Try Firstname Lastname
         if not db_dipendente:
-            raise HTTPException(status_code=404, detail="Dipendente non trovato")
+            db_dipendente = db.query(Dipendente).filter(Dipendente.nome == nome_parts[0], Dipendente.cognome == nome_parts[1]).first()
+
+        if not db_dipendente:
+            print(f"Dipendente '{certificato.nome}' non trovato, lo creo...")
+            db_dipendente = Dipendente(
+                nome=nome_parts[0],
+                cognome=nome_parts[1]
+            )
+            db.add(db_dipendente)
+            db.flush()
         db_certificato.dipendente_id = db_dipendente.id
     except IndexError:
         raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
