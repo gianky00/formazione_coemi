@@ -66,7 +66,7 @@ Estrai le seguenti informazioni e restituisci ESCLUSIVAMENTE un oggetto JSON val
 - "nome": Il nome completo del partecipante.
 - "corso": Il titolo esatto del corso frequentato, come appare nel testo.
 - "data_rilascio": La data di emissione o di rilascio dell'attestato (formato DD-MM-YYYY).
-- "corso_master": La categoria dalla "Lista dei Corsi Master" che meglio corrisponde al corso frequentato.
+- "corso_master": DEVI scegliere ESATTAMENTE una delle seguenti categorie dalla "Lista dei Corsi Master" che meglio rappresenta il corso frequentato. Non inventare nuove categorie.
 
 Se un campo non è presente, il suo valore deve essere null.
 
