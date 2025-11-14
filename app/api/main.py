@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.db.models import CorsiMaster, Attestati, ValidationStatus, Dipendenti
+import logging
 from app.services import ocr, ai_extraction
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
@@ -41,38 +42,50 @@ def health_check():
 def calculate_expiration_date(extracted_data: dict, db: Session) -> dict:
     """
     Applica la logica di business per calcolare la data di scadenza.
+    Usa la 'categoria' estratta dall'AI per trovare la corrispondenza nel DB.
     """
-    # Adatta i dati estratti allo schema interno
+
+    # Prendi i dati estratti dall'IA
+    nome_estratto = extracted_data.get("nome")
+    corso_estratto = extracted_data.get("corso")
+    data_rilascio_str = extracted_data.get("data_rilascio")
+    categoria_estratta = extracted_data.get("categoria") # <-- NUOVO CAMPO
+
+    # Adatta i dati allo schema interno
     entities = {
-        "nome": extracted_data.get("nome"),
-        "corso": extracted_data.get("corso"),
+        "nome": nome_estratto,
+        "corso": corso_estratto,
+        "categoria": categoria_estratta, # <-- Salviamo anche la categoria
         "data_rilascio": None,
         "data_scadenza": None
     }
 
-    data_rilascio_str = extracted_data.get("data_rilascio")
-
     # 1. Parsing della data
     if data_rilascio_str:
         try:
-            # Gemini dovrebbe restituire DD-MM-YYYY, facciamo il parsing
             parsed_date = datetime.strptime(data_rilascio_str, '%d-%m-%Y').date()
             entities["data_rilascio"] = parsed_date
         except (ValueError, TypeError):
             entities["data_rilascio"] = None
 
     # 2. Logica di Business (Calcolo Scadenza)
-    if entities["corso"] and entities["data_rilascio"]:
-        corsi = db.query(CorsiMaster).all()
-        course_names = {corso.nome_corso.lower(): corso for corso in corsi}
-        extracted_course_lower = entities["corso"].lower()
+    # Ora usiamo la CATEGORIA per un confronto 1-a-1, molto più robusto
+    if categoria_estratta and entities["data_rilascio"]:
 
-        for course_name, corso_obj in course_names.items():
-            if course_name in extracted_course_lower:
-                if corso_obj.validita_mesi > 0:
-                    expiration_date = entities["data_rilascio"] + relativedelta(months=corso_obj.validita_mesi)
-                    entities["data_scadenza"] = expiration_date
-                break
+        # Cerca nel DB un corso master che corrisponda ESATTAMENTE alla categoria
+        # (Assicurati che i nomi in CorsiMaster corrispondano alla tua lista statica!)
+        corso_obj = db.query(CorsiMaster).filter(
+            CorsiMaster.nome_corso.ilike(categoria_estratta)
+        ).first()
+
+        if corso_obj:
+            if corso_obj.validita_mesi > 0:
+                expiration_date = entities["data_rilascio"] + relativedelta(months=corso_obj.validita_mesi)
+                entities["data_scadenza"] = expiration_date
+        else:
+            # Opzionale: gestione se la categoria non è nel DB CorsiMaster
+            logging.warning(f"Categoria '{categoria_estratta}' non trovata in CorsiMaster. Scadenza non calcolata.")
+
 
     # 3. Formatta le date come stringhe DD/MM/YYYY prima di restituirle
     if entities.get("data_rilascio"):

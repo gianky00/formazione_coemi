@@ -1,85 +1,75 @@
-import os
-import json
-import logging
-import re
 import google.generativeai as genai
+import os
+import logging
+import json
 from dotenv import load_dotenv
 
-# Carica le variabili d'ambiente dal file .env
+# Carica le variabili d'ambiente (per la API_KEY)
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO)
+# Lista statica delle categorie
+CATEGORIE_STATICHE = [
+    "ANTINCENDIO E PRIMO SOCCORSO", "ASPP", "RSPP", "ATEX", "BLSD",
+    "CARROPONTE", "DIRETTIVA SEVESO", "DIRIGENTI E FORMATORI",
+    "GRU A TORRE E PONTE", "H2S", "IMBRACATORE",
+    "AGGIORNAMENTO LAVORATORI ART.37", "PREPOSTO", "GRU SU AUTOCARRO",
+    "PLE", "PES PAV PEI C CANTIERE", "LAVORI IN QUOTA",
+    "MACCHINE OPERATRICI", "MANITOU P.ROTATIVE", "MEDICO COMPETENTE",
+    "MULETTO CARRELISTI", "SOPRAVVIVENZA E SALVATAGGIO IN MARE",
+    "SPAZI CONFINATI DPI III E AUTORESPIRATORI", "HLO", "ALTRO"
+]
 
-# Configura l'API di Gemini
+model = None
 try:
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise ValueError("GEMINI_API_KEY non trovata nel file .env")
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('models/gemini-2.5-pro')
-    logging.info("Modello Gemini Pro configurato con successo.")
+    API_KEY = os.environ.get("GEMINI_API_KEY")
+    if not API_KEY:
+        logging.error("Errore di configurazione Gemini: GEMINI_API_KEY non trovata nel file .env")
+    else:
+        genai.configure(api_key=API_KEY)
+        model = genai.GenerativeModel('models/gemini-2.5-pro') # O il modello che preferisci
+        logging.info("Modello Gemini Pro configurato con successo.")
 except Exception as e:
     logging.error(f"Errore di configurazione Gemini: {e}")
-    model = None
-
-def build_prompt(text: str) -> str:
-    """
-    Costruisce il prompt per l'API di Gemini.
-    """
-    return f"""
-Sei un assistente AI specializzato nell'analisi e nell'estrazione di dati da attestati di formazione sulla sicurezza sul lavoro.
-
-Analizza il seguente testo estratto da un certificato:
----
-{text}
----
-
-Estrai le seguenti informazioni e restituisci ESCLUSIVAMENTE un oggetto JSON valido.
-
-- "nome": Il nome completo del partecipante.
-- "corso": Il titolo esatto del corso frequentato.
-- "data_rilascio": La data di emissione o di rilascio dell'attestato (formato DD-MM-YYYY).
-
-Se un campo non è presente, il suo valore deve essere null.
-
-JSON:
-"""
 
 def extract_entities_with_ai(text: str) -> dict:
-    """
-    Estrae entità dal testo OCR utilizzando l'API di Gemini Pro.
-    """
-    if not model:
-        return {"error": "Modello Gemini non configurato."}
+    if model is None:
+        return {"error": "Modello Gemini non inizializzato."}
 
-    prompt = build_prompt(text)
+    # Converti la lista di categorie in una stringa per il prompt
+    categorie_str = ", ".join(f'"{c}"' for c in CATEGORIE_STATICHE)
+
+    prompt = f"""
+    Sei un assistente AI specializzato nell'analisi e nell'estrazione di dati da attestati di formazione sulla sicurezza sul lavoro.
+
+    Analizza il seguente testo estratto da un certificato:
+    ---
+    {text}
+    ---
+
+    Estrai le seguenti quattro informazioni e restituisci ESCLUSIVAMENTE un oggetto JSON valido.
+
+    1. "nome": Il nome completo del partecipante (es. "MARIO ROSSI").
+    2. "corso": Il titolo esatto e completo del corso frequentato (es. "FORMAZIONE PER ADDETTI Al LAVORI IN QUOTA...").
+    3. "data_rilascio": La data di emissione o di rilascio dell'attestato (formato DD-MM-AAAA).
+    4. "categoria": Analizza il titolo del corso e classificalo in UNA SOLA delle seguenti categorie: {categorie_str}. Scegli la categoria più specifica e pertinente. Se nessuna corrisponde, usa "ALTRO".
+
+    JSON:
+    """
 
     try:
         logging.info("Interrogazione Gemini Pro in corso...")
         response = model.generate_content(prompt)
 
         # Pulisci ed estrai il JSON dalla risposta
-        # Gemini potrebbe aggiungere ```json ... ``` alla risposta, puliamolo.
-        json_response_text = response.text.strip()
+        json_response_text = response.text.strip().replace("```json", "").replace("```", "")
 
-        # Usa un'espressione regolare per trovare il JSON nel testo
-        match = re.search(r'\{.*\}', json_response_text, re.DOTALL)
-        if not match:
-            logging.error(f"Nessun JSON valido trovato nella risposta di Gemini: {response.text}")
-            return {"error": "Risposta non valida da Gemini."}
-
-        json_response_text = match.group(0)
-
-        # Converti la stringa JSON in un dizionario Python
         dati_estratti = json.loads(json_response_text)
-
         logging.info(f"Dati estratti dall'AI: {dati_estratti}")
         return dati_estratti
 
     except json.JSONDecodeError:
-        logging.error(f"Errore: Gemini non ha restituito un JSON valido.")
-        logging.error(f"Risposta ricevuta: {response.text}")
-        return {"error": "JSON non valido da Gemini."}
+        logging.error(f"Errore: Gemini non ha restituito un JSON valido. Risposta: {response.text}")
+        return {"error": "Risposta AI non valida (JSON)"}
     except Exception as e:
         logging.error(f"Errore durante la chiamata a Gemini: {e}")
-        return {"error": f"Errore API Gemini: {e}"}
+        return {"error": str(e)}
