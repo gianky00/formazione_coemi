@@ -18,7 +18,7 @@ class TestBusinessLogic(unittest.TestCase):
         session = Session()
         # Use a master course name that exists in our master list
         corso1 = CorsiMaster(nome_corso="L2 PREPOSTI", validita_mesi=24) # 2 anni
-        corso2 = CorsiMaster(nome_corso="PRIMO SOCCORSO (D.M. 388/03)", validita_mesi=36) # 3 anni
+        corso2 = CorsiMaster(nome_corso="PRIMO SOCCORSO", validita_mesi=36) # 3 anni
         session.add(corso1)
         session.add(corso2)
         session.commit()
