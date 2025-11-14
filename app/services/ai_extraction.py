@@ -11,8 +11,8 @@ try:
         logging.error("Errore di configurazione Gemini: GEMINI_API_KEY non trovata.")
     else:
         genai.configure(api_key=settings.GEMINI_API_KEY)
-        model = genai.GenerativeModel(settings.GEMINI_MODEL_NAME)
-        logging.info(f"Modello Gemini '{settings.GEMINI_MODEL_NAME}' configurato con successo.")
+        model = genai.GenerativeModel('models/gemini-2.5-pro')
+        logging.info("Modello Gemini 'models/gemini-2.5-pro' configurato con successo.")
 except Exception as e:
     logging.error(f"Errore di configurazione Gemini: {e}")
 
