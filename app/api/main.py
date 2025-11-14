@@ -24,6 +24,7 @@ class CertificatoSchema(BaseModel):
 class CertificatoCreateSchema(BaseModel):
     nome: str
     corso: str
+    categoria: str
     data_rilascio: str
     data_scadenza: Optional[str] = None
 
@@ -211,13 +212,16 @@ def create_certificato(certificato: CertificatoCreateSchema, db: Session = Depen
         db.add(db_dipendente)
         db.flush()
 
-    db_corso = db.query(CorsiMaster).filter(CorsiMaster.nome_corso == certificato.corso).first()
+    db_master_course = db.query(CorsiMaster).filter(CorsiMaster.categoria_corso.ilike(f"%{certificato.categoria}%")).first()
+    if not db_master_course:
+        raise HTTPException(status_code=404, detail=f"Categoria '{certificato.categoria}' non trovata.")
+
+    db_corso = db.query(CorsiMaster).filter(CorsiMaster.nome_corso.ilike(f"%{certificato.corso}%")).first()
     if not db_corso:
-        print(f"Corso '{certificato.corso}' non trovato, lo creo...")
         db_corso = CorsiMaster(
             nome_corso=certificato.corso,
-            validita_mesi=0,  # Default to 0 months validity
-            categoria_corso="General"
+            validita_mesi=db_master_course.validita_mesi,
+            categoria_corso=db_master_course.categoria_corso
         )
         db.add(db_corso)
         db.flush()
@@ -248,7 +252,7 @@ def create_certificato(certificato: CertificatoCreateSchema, db: Session = Depen
     )
 
 @router.put("/certificati/{certificato_id}", response_model=CertificatoSchema)
-def update_certificato(certificato_id: int, nome: str, corso: str, data_rilascio: str, data_scadenza: Optional[str] = None, db: Session = Depends(get_db)):
+def update_certificato(certificato_id: int, nome: str, corso: str, categoria: str, data_rilascio: str, data_scadenza: Optional[str] = None, db: Session = Depends(get_db)):
     db_certificato = db.query(Attestati).filter(Attestati.id == certificato_id).first()
     if not db_certificato:
         raise HTTPException(status_code=404, detail="Certificato non trovato")
@@ -263,9 +267,19 @@ def update_certificato(certificato_id: int, nome: str, corso: str, data_rilascio
     except IndexError:
         raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
 
-    db_corso = db.query(CorsiMaster).filter(CorsiMaster.nome_corso == corso).first()
+    db_master_course = db.query(CorsiMaster).filter(CorsiMaster.categoria_corso.ilike(f"%{categoria}%")).first()
+    if not db_master_course:
+        raise HTTPException(status_code=404, detail=f"Categoria '{categoria}' non trovata.")
+
+    db_corso = db.query(CorsiMaster).filter(CorsiMaster.nome_corso.ilike(f"%{corso}%")).first()
     if not db_corso:
-        raise HTTPException(status_code=404, detail="Corso non trovato")
+        db_corso = CorsiMaster(
+            nome_corso=corso,
+            validita_mesi=db_master_course.validita_mesi,
+            categoria_corso=db_master_course.categoria_corso
+        )
+        db.add(db_corso)
+        db.flush()
     db_certificato.id_corso = db_corso.id
 
     db_certificato.data_rilascio = datetime.strptime(data_rilascio, '%d/%m/%Y').date()
