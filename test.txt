@@ -1,4 +1,0 @@
-This is a test file.
-Course: L4 GRU SU AUTOCARRO
-Date: 2024-01-01
-Name: Mario Rossi
