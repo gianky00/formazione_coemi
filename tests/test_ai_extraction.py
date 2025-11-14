@@ -33,12 +33,12 @@ class TestAIExtraction(unittest.TestCase):
         """
         entities = extract_entities_with_ai(text, session)
 
-        self.assertEqual(entities['dipendente'], 'ANDRIANI SAVERIO')
+        self.assertEqual(entities['nome'], 'ANDRIANI SAVERIO')
         self.assertEqual(entities['corso'], 'FORMAZIONE PREPOSTO')
-        self.assertEqual(str(entities['data_rilascio']), '2021-09-03')
+        self.assertEqual(entities['data_rilascio'], '2021-09-03')
         # La data di scadenza dipende dalla logica di business e dai dati in CorsiMaster
         # Assumiamo che "FORMAZIONE PREPOSTO" abbia una validità di 60 mesi (5 anni)
-        self.assertEqual(str(entities['data_scadenza']), '2026-09-03')
+        self.assertEqual(entities['data_scadenza'], '2026-09-03')
 
         session.close()
 
