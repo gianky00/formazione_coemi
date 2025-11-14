@@ -120,12 +120,18 @@ class DashboardView(QWidget):
         new_corso, ok2 = QInputDialog.getText(self, "Modifica Corso", "Corso:", text=current_corso)
         new_categoria, ok5 = QInputDialog.getText(self, "Modifica Categoria", "Categoria:", text=self.df.iloc[row]['categoria'])
         new_data_rilascio, ok3 = QInputDialog.getText(self, "Modifica Data Rilascio", "Data Rilascio (DD/MM/YYYY):", text=current_data_rilascio)
-        new_data_scadenza, ok4 = QInputDialog.getText(self, "Modifica Data Scadenza", "Data Scadenza (DD/MM/YYYY):", text=current_data_scadenza)
+        new_data_scadenza, ok4 = QInputDialog.getText(self, "Modifica Data Scadenza", "Data Scadenza (DD/MM/YYYY):", text=str(current_data_scadenza))
 
         if ok1 and ok2 and ok3 and ok4 and ok5:
             try:
-                response = requests.put(f"http://127.0.0.1:8000/certificati/{certificato_id}",
-                                        params={"nome": new_nome, "corso": new_corso, "categoria": new_categoria, "data_rilascio": new_data_rilascio, "data_scadenza": new_data_scadenza})
+                payload = {
+                    "nome": new_nome,
+                    "corso": new_corso,
+                    "categoria": new_categoria,
+                    "data_rilascio": new_data_rilascio,
+                    "data_scadenza": new_data_scadenza
+                }
+                response = requests.put(f"http://127.0.0.1:8000/certificati/{certificato_id}", json=payload)
                 if response.status_code == 200:
                     QMessageBox.information(self, "Successo", "Dati aggiornati con successo.")
                     self.load_data()
