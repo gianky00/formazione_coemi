@@ -13,6 +13,7 @@ class CertificatoSchema(BaseModel):
     id: int
     nome: str
     corso: str
+    categoria: str
     data_rilascio: str
     data_scadenza: Optional[str] = None
     stato_certificato: str
@@ -145,6 +146,7 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
             id=attestato.id,
             nome=f"{attestato.dipendente.nome} {attestato.dipendente.cognome}",
             corso=attestato.corso.nome_corso,
+            categoria=attestato.corso.categoria_corso,
             data_rilascio=attestato.data_rilascio.strftime('%d/%m/%Y'),
             data_scadenza=attestato.data_scadenza_calcolata.strftime('%d/%m/%Y') if attestato.data_scadenza_calcolata else None,
             stato_certificato=stato
@@ -205,6 +207,7 @@ def create_certificato(certificato: CertificatoCreateSchema, db: Session = Depen
         id=db_attestato.id,
         nome=f"{db_attestato.dipendente.nome} {db_attestato.dipendente.cognome}",
         corso=db_attestato.corso.nome_corso,
+        categoria=db_attestato.corso.categoria_corso,
         data_rilascio=db_attestato.data_rilascio.strftime('%d/%m/%Y'),
         data_scadenza=db_attestato.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_attestato.data_scadenza_calcolata else None,
         stato_certificato=stato
@@ -253,6 +256,7 @@ def update_certificato(certificato_id: int, nome: str, corso: str, data_rilascio
         id=db_certificato.id,
         nome=f"{db_certificato.dipendente.nome} {db_certificato.dipendente.cognome}",
         corso=db_certificato.corso.nome_corso,
+        categoria=db_certificato.corso.categoria_corso,
         data_rilascio=db_certificato.data_rilascio.strftime('%d/%m/%Y'),
         data_scadenza=db_certificato.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_certificato.data_scadenza_calcolata else None,
         stato_certificato=stato
