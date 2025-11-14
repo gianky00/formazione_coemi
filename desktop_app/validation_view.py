@@ -1,8 +1,18 @@
 
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QMessageBox
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QMessageBox, QStyledItemDelegate, QLineEdit
 from PyQt6.QtCore import QAbstractTableModel, Qt
 import pandas as pd
 import requests
+
+class CustomDelegate(QStyledItemDelegate):
+    def createEditor(self, parent, option, index):
+        editor = super().createEditor(parent, option, index)
+        return editor
+
+    def setEditorData(self, editor, index):
+        super().setEditorData(editor, index)
+        if isinstance(editor, QLineEdit):
+            editor.selectAll()
 
 class PandasModel(QAbstractTableModel):
     def __init__(self, data):
@@ -28,7 +38,10 @@ class PandasModel(QAbstractTableModel):
         return False
 
     def flags(self, index):
-        return super().flags(index) | Qt.ItemFlag.ItemIsEditable
+        flags = super().flags(index)
+        if index.column() != 0:  # Allow editing for all columns except the first one (ID)
+            flags |= Qt.ItemFlag.ItemIsEditable
+        return flags
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
@@ -55,21 +68,10 @@ class ValidationView(QWidget):
         # Table
         self.table_view = QTableView()
         self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table_view.setItemDelegate(CustomDelegate())
         self.layout.addWidget(self.table_view)
 
-        # Connect the doubleClicked signal to a custom slot
-        self.table_view.doubleClicked.connect(self.on_double_click)
-
         self.load_data()
-
-    def on_double_click(self, index):
-        # Open the editor for the cell
-        self.table_view.edit(index)
-        # Get the editor widget
-        editor = self.table_view.indexWidget(index)
-        if editor:
-            # Select all text in the editor
-            editor.selectAll()
 
     def load_data(self):
         try:
