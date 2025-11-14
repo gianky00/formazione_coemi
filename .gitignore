@@ -1,7 +1,13 @@
 # Virtual Environment
-/Include
-/Lib
-/Scripts
+/Include/
+/Lib/
+/Scripts/
+/bin/
+/lib/
+/lib64/
+/share/
+/pyvenv.cfg
+/pip-selfcheck.json
 
 # Local Database
 database.db
@@ -19,13 +25,6 @@ uploads/
 # Python cache
 __pycache__/
 *.pyc
-"Lib/" 
-"Scripts/" 
-"Include/" 
-app/api/__pycache__/main.cpython-312.pyc
 
 # Environment variables
 .env
-/desktop_app/__pycache__
-/app/services/__pycache__
-/app/services/__pycache__
