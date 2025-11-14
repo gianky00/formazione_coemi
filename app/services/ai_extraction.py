@@ -48,7 +48,7 @@ def extract_entities_with_ai(text: str) -> dict:
 
     Estrai le seguenti quattro informazioni e restituisci ESCLUSIVAMENTE un oggetto JSON valido.
 
-    1. "nome": Il nome completo del partecipante (es. "MARIO ROSSI").
+    1. "nome": Il nome e cognome completo del partecipante (es. "MARIO ROSSI").
     2. "corso": Il titolo esatto e completo del corso frequentato (es. "FORMAZIONE PER ADDETTI Al LAVORI IN QUOTA...").
     3. "data_rilascio": La data di emissione o di rilascio dell'attestato (formato DD-MM-AAAA).
     4. "categoria": Analizza il titolo del corso e classificalo in UNA SOLA delle seguenti categorie: {categorie_str}. Scegli la categoria più specifica e pertinente. Se nessuna corrisponde, usa "ALTRO".
