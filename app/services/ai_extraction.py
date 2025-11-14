@@ -4,7 +4,6 @@ import logging
 import json
 from dotenv import load_dotenv
 from pathlib import Path
-import PIL.Image
 
 # --- Configurazione API Key ---
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -23,7 +22,7 @@ try:
         logging.error("Errore di configurazione Gemini: GEMINI_API_KEY non trovata nel file .env")
     else:
         genai.configure(api_key=API_KEY)
-        model = genai.GenerativeModel('models/gemini-2.5-pro') # O il modello che preferisci
+        model = genai.GenerativeModel('models/gemini-2.5-pro')
         logging.info("Modello Gemini Pro configurato con successo.")
 except Exception as e:
     logging.error(f"Errore di configurazione Gemini: {e}")
@@ -39,20 +38,20 @@ CATEGORIE_STATICHE = [
     "HLO", "ALTRO"
 ]
 
-# --- NUOVA FUNZIONE MULTIMODALE ---
-def extract_entities_with_ai(images: list[PIL.Image.Image]) -> dict:
+# --- NUOVA FUNZIONE PER PDF ---
+def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
     """
-    Estrae entità da una lista di immagini (pagine PDF) usando un modello multimodale.
+    Estrae entità da un file PDF (in bytes) usando un modello multimodale.
     """
     if model is None:
         return {"error": "Modello Gemini non inizializzato."}
 
     categorie_str = ", ".join(f'"{c}"' for c in CATEGORIE_STATICHE)
 
-    # Questo prompt ora chiede a Gemini di GUARDARE le immagini
+    # Questo prompt ora chiede a Gemini di analizzare il PDF.
     prompt = f"""
 Sei un assistente AI specializzato nell'analisi di attestati di formazione.
-Analizza le immagini del certificato che ti fornisco.
+Analizza il certificato in formato PDF che ti fornisco.
 
 Estrai le seguenti quattro informazioni e restituisci ESCLUSIVAMENTE un oggetto JSON valido.
 
@@ -64,14 +63,14 @@ Estrai le seguenti quattro informazioni e restituisci ESCLUSIVAMENTE un oggetto 
 JSON:
 """
 
-    # Costruisci l'input multimodale: prima il prompt, poi tutte le immagini
-    model_input = [prompt]
-    model_input.extend(images)
+    # Costruisci l'input multimodale: prima il PDF, poi il prompt
+    pdf_file = {"mime_type": "application/pdf", "data": pdf_bytes}
+    model_input = [pdf_file, prompt]
 
     try:
-        logging.info("Interrogazione Gemini Pro (Multimodale) in corso...")
+        logging.info("Interrogazione Gemini Pro (Multimodale con PDF) in corso...")
 
-        # Invia la richiesta con testo e immagini
+        # Invia la richiesta con PDF e testo
         response = model.generate_content(model_input)
 
         json_response_text = response.text.strip().replace("```json", "").replace("```", "")

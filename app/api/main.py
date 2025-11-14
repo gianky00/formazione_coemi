@@ -8,7 +8,6 @@ from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
 from pydantic import BaseModel
 from typing import Optional, List
-from pdf2image import convert_from_path
 
 class CertificatoSchema(BaseModel):
     id: int
@@ -110,28 +109,20 @@ def calculate_expiration_date(extracted_data: dict, db: Session) -> dict:
 @router.post("/upload-pdf/")
 async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)):
 
-    # 1. Salva il PDF temporaneamente
-    file_path = ocr.save_uploaded_file(file)
+    # 1. Leggi i bytes del PDF direttamente dalla richiesta
+    pdf_bytes = await file.read()
 
-    # 2. Converti il PDF in una lista di immagini (PIL.Image)
-    # Assicurati che Poppler sia installato e nel PATH!
-    try:
-        images = convert_from_path(file_path)
-    except Exception as e:
-        logging.error(f"Errore durante conversione PDF (Poppler): {e}")
-        return {"error": f"Errore Poppler: {e}"}
-
-    # 3. Chiama il servizio AI (ora invia le IMMAGINI, non il testo)
-    extracted_data = ai_extraction.extract_entities_with_ai(images)
+    # 2. Chiama il servizio AI con i bytes del PDF
+    extracted_data = ai_extraction.extract_entities_with_ai(pdf_bytes)
 
     if "error" in extracted_data:
         return {"filename": file.filename, "entities": {}, "error": extracted_data["error"]}
 
-    # 4. Applica la logica di business e formatta i dati
+    # 3. Applica la logica di business e formatta i dati
     final_entities = calculate_expiration_date(extracted_data, db)
 
-    # 5. Restituisci il risultato (non abbiamo più la variabile 'text' di Tesseract)
-    return {"filename": file.filename, "text": "Estrazione Multimodale Eseguita", "entities": final_entities}
+    # 4. Restituisci il risultato
+    return {"filename": file.filename, "text": "Estrazione PDF Diretta Eseguita", "entities": final_entities}
 
 @router.get("/certificati/", response_model=List[CertificatoSchema])
 def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depends(get_db)):
