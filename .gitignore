@@ -28,3 +28,4 @@ app/api/__pycache__/main.cpython-312.pyc
 .env
 /desktop_app/__pycache__
 /app/services/__pycache__
+/app/services/__pycache__
