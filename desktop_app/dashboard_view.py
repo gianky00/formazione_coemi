@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QComboBox, QLabel
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QComboBox, QLabel, QFileDialog, QMessageBox, QInputDialog
 from PyQt6.QtCore import QAbstractTableModel, Qt
 import pandas as pd
 import requests
@@ -35,8 +35,6 @@ class DashboardView(QWidget):
 
         self.employee_filter = QComboBox()
         self.course_filter = QComboBox()
-        self.load_filters_button = QPushButton("Carica Filtri")
-        self.load_filters_button.clicked.connect(self.load_filters)
         self.filter_button = QPushButton("Filtra")
         self.filter_button.clicked.connect(self.load_data)
         self.export_button = QPushButton("Esporta in CSV")
@@ -46,30 +44,140 @@ class DashboardView(QWidget):
         controls_layout.addWidget(self.employee_filter)
         controls_layout.addWidget(QLabel("Corso:"))
         controls_layout.addWidget(self.course_filter)
-        controls_layout.addWidget(self.load_filters_button)
         controls_layout.addWidget(self.filter_button)
         controls_layout.addWidget(self.export_button)
+
+        self.edit_button = QPushButton("Modifica")
+        self.edit_button.clicked.connect(self.edit_data)
+        self.delete_button = QPushButton("Cancella")
+        self.delete_button.clicked.connect(self.delete_data)
+        self.validate_button = QPushButton("Convalida")
+        self.validate_button.clicked.connect(self.validate_data)
+        controls_layout.addWidget(self.edit_button)
+        controls_layout.addWidget(self.delete_button)
+        controls_layout.addWidget(self.validate_button)
 
         # Table
         self.table_view = QTableView()
         self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.layout.addWidget(self.table_view)
-
-    def load_filters(self):
-        # In a real app, you would populate these from the database
-        self.employee_filter.addItems(["Tutti", "Mario Rossi", "John Doe"])
-        self.course_filter.addItems(["Tutti", "L4 GRU SU AUTOCARRO", "ANTINCENDIO"])
+        self.load_data()
 
     def load_data(self):
-        # Placeholder for API call
-        data = {'Nome': ['Mario Rossi', 'John Doe'],
-                'Corso': ['L4 GRU SU AUTOCARRO', 'ANTINCENDIO'],
-                'Data Rilascio': ['2024-01-01', '2023-05-10'],
-                'Data Scadenza': ['2029-01-01', '2026-05-10']}
-        self.df = pd.DataFrame(data)
-        self.model = PandasModel(self.df)
-        self.table_view.setModel(self.model)
+        try:
+            response = requests.get("http://127.0.0.1:8000/certificati/")
+            if response.status_code == 200:
+                data = response.json()
+                self.df = pd.DataFrame(data)
 
+                # Populate filters
+                employees = ["Tutti"] + sorted(list(set([item['nome'] for item in data])))
+                courses = ["Tutti"] + sorted(list(set([item['corso'] for item in data])))
+
+                # Save current filter selection
+                current_employee = self.employee_filter.currentText()
+                current_course = self.course_filter.currentText()
+
+                self.employee_filter.clear()
+                self.employee_filter.addItems(employees)
+                self.course_filter.clear()
+                self.course_filter.addItems(courses)
+
+                # Restore filter selection
+                if current_employee in employees:
+                    self.employee_filter.setCurrentText(current_employee)
+                if current_course in courses:
+                    self.course_filter.setCurrentText(current_course)
+
+                employee = self.employee_filter.currentText()
+                course = self.course_filter.currentText()
+
+                if employee != "Tutti":
+                    self.df = self.df[self.df['nome'] == employee]
+                if course != "Tutti":
+                    self.df = self.df[self.df['corso'] == course]
+
+                self.model = PandasModel(self.df)
+                self.table_view.setModel(self.model)
+        except requests.exceptions.RequestException as e:
+            QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
+
+    def edit_data(self):
+        selected_indexes = self.table_view.selectedIndexes()
+        if not selected_indexes:
+            QMessageBox.warning(self, "Nessuna Selezione", "Seleziona una riga da modificare.")
+            return
+
+        row = selected_indexes[0].row()
+        certificato_id = self.df.iloc[row]['id']
+
+        # Get current data
+        current_nome = self.df.iloc[row]['nome']
+        current_corso = self.df.iloc[row]['corso']
+        current_data_rilascio = self.df.iloc[row]['data_rilascio']
+        current_data_scadenza = self.df.iloc[row]['data_scadenza']
+
+        # Get new data from user
+        new_data_rilascio, ok1 = QInputDialog.getText(self, "Modifica Data Rilascio", "Data Rilascio (DD/MM/YYYY):", text=current_data_rilascio)
+        new_data_scadenza, ok2 = QInputDialog.getText(self, "Modifica Data Scadenza", "Data Scadenza (DD/MM/YYYY):", text=current_data_scadenza)
+
+        if ok1 and ok2:
+            try:
+                response = requests.put(f"http://127.0.0.1:8000/certificati/{certificato_id}",
+                                        params={"nome": current_nome, "corso": current_corso, "data_rilascio": new_data_rilascio, "data_scadenza": new_data_scadenza})
+                if response.status_code == 200:
+                    QMessageBox.information(self, "Successo", "Dati aggiornati con successo.")
+                    self.load_data()
+                else:
+                    QMessageBox.critical(self, "Errore", f"Errore durante l'aggiornamento: {response.text}")
+            except requests.exceptions.RequestException as e:
+                QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
+
+    def delete_data(self):
+        selected_indexes = self.table_view.selectedIndexes()
+        if not selected_indexes:
+            QMessageBox.warning(self, "Nessuna Selezione", "Seleziona una riga da cancellare.")
+            return
+
+        row = selected_indexes[0].row()
+        certificato_id = self.df.iloc[row]['id']
+
+        reply = QMessageBox.question(self, 'Conferma Cancellazione', 'Sei sicuro di voler cancellare questa riga?',
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                response = requests.delete(f"http://127.0.0.1:8000/certificati/{certificato_id}")
+                if response.status_code == 200:
+                    QMessageBox.information(self, "Successo", "Riga cancellata con successo.")
+                    self.load_data()
+                else:
+                    QMessageBox.critical(self, "Errore", f"Errore durante la cancellazione: {response.text}")
+            except requests.exceptions.RequestException as e:
+                QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
+
+    def validate_data(self):
+        selected_indexes = self.table_view.selectedIndexes()
+        if not selected_indexes:
+            QMessageBox.warning(self, "Nessuna Selezione", "Seleziona una riga da validare.")
+            return
+
+        row = selected_indexes[0].row()
+        certificato_id = self.df.iloc[row]['id']
+
+        reply = QMessageBox.question(self, 'Conferma Validazione', 'Sei sicuro di voler validare questa riga?',
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                response = requests.put(f"http://127.0.0.1:8000/certificati/{certificato_id}/valida")
+                if response.status_code == 200:
+                    QMessageBox.information(self, "Successo", "Riga validata con successo.")
+                    self.load_data()
+                else:
+                    QMessageBox.critical(self, "Errore", f"Errore durante la validazione: {response.text}")
+            except requests.exceptions.RequestException as e:
+                QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
 
     def export_to_csv(self):
         if hasattr(self, 'df'):
