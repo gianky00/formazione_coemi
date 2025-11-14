@@ -20,16 +20,18 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # List of master courses and their validity in months
 corsi_master_data = [
-    {"nome_corso": "ANTINCENDIO E PRIMO SOCCORSO", "validita_mesi": 60},
+    {"nome_corso": "ANTINCENDIO", "validita_mesi": 60}, # 5 anni
+    {"nome_corso": "PRIMO SOCCORSO", "validita_mesi": 36}, # 3 anni
     {"nome_corso": "ASPP", "validita_mesi": 60},
+    {"nome_corso": "RSPP", "validita_mesi": 60},
     {"nome_corso": "ATEX", "validita_mesi": 60},
-    {"nome_corso": "BLSD", "validita_mesi": 24},
+    {"nome_corso": "BLSD", "validita_mesi": 12}, # 1 anno
     {"nome_corso": "CARROPONTE", "validita_mesi": 60},
     {"nome_corso": "DIRETTIVA SEVESO", "validita_mesi": 60},
-    {"nome_corso": "DIRIGENTI E FORMATORI", "validita_mesi": 60}, # Assuming 5 years for Dirigenti, Formatori is 3
+    {"nome_corso": "DIRIGENTI E FORMATORI", "validita_mesi": 60},
     {"nome_corso": "GRU A TORRE E PONTE", "validita_mesi": 60},
     {"nome_corso": "H2S", "validita_mesi": 60},
-    {"nome_corso": "IMBRACATORE E SEGNALETICA GESTUALE", "validita_mesi": 60},
+    {"nome_corso": "IMBRACATORE", "validita_mesi": 60},
     {"nome_corso": "L1 ART.37", "validita_mesi": 60},
     {"nome_corso": "L2 PREPOSTI", "validita_mesi": 24},
     {"nome_corso": "L4 GRU SU AUTOCARRO", "validita_mesi": 60},
@@ -38,10 +40,11 @@ corsi_master_data = [
     {"nome_corso": "LAVORI IN QUOTA", "validita_mesi": 60},
     {"nome_corso": "MACCHINE OPERATRICI", "validita_mesi": 60},
     {"nome_corso": "MANITOU P.ROTATIVE", "validita_mesi": 60},
-    {"nome_corso": "MEDICO COMPETENTE", "validita_mesi": 36},
+    {"nome_corso": "MEDICO COMPETENTE", "validita_mesi": 0}, # Non ha scadenza
     {"nome_corso": "MULETTO CARRELISTI", "validita_mesi": 60},
-    {"nome_corso": "SOPRAVVIVENZA E SALVATAGGIO IN MARE", "validita_mesi": 48},
+    {"nome_corso": "SOPRAVVIVENZA E SALVATAGGIO IN MARE", "validita_mesi": 60},
     {"nome_corso": "SPAZI CONFINATI DPI III E AUTORESPIRATORI", "validita_mesi": 60},
+    {"nome_corso": "HLO", "validita_mesi": 0}, # Non ha scadenza
 ]
 
 def populate_corsi_master():
