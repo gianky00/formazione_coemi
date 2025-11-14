@@ -1,92 +1,85 @@
+import os
+import json
 import logging
 import re
-from transformers import pipeline
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
-from sqlalchemy.orm import Session
-from app.db.models import CorsiMaster
+import google.generativeai as genai
+from dotenv import load_dotenv
+
+# Carica le variabili d'ambiente dal file .env
+load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 
-# Carica il modello QA una sola volta
-qa_pipeline = pipeline(
-    "question-answering",
-    model="antoniocappiello/bert-base-italian-uncased-squad-it",
-    tokenizer="antoniocappiello/bert-base-italian-uncased-squad-it"
-)
+# Configura l'API di Gemini
+try:
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY non trovata nel file .env")
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel('gemini-pro')
+    logging.info("Modello Gemini Pro configurato con successo.")
+except Exception as e:
+    logging.error(f"Errore di configurazione Gemini: {e}")
+    model = None
 
-def extract_entities_with_ai(text: str, db: Session) -> dict:
+def build_prompt(text: str) -> str:
     """
-    Estrae entità dal testo OCR utilizzando un modello di Question Answering (QA).
+    Costruisce il prompt per l'API di Gemini.
     """
-    entities = {
-        "nome": None,
-        "corso": None,
-        "data_rilascio": None,
-        "data_scadenza": None,
-    }
+    return f"""
+Sei un assistente AI specializzato nell'analisi e nell'estrazione di dati da attestati di formazione sulla sicurezza sul lavoro.
 
-    # Pre-processa il testo per rimuovere i titoli che confondono il modello
-    processed_text = re.sub(r'il Sig\.|la Sig\.ra|Sig\.|Sig\.ra', '', text, flags=re.IGNORECASE)
+Analizza il seguente testo estratto da un certificato:
+---
+{text}
+---
 
-    # 1. Estrazione con QA
-    questions = {
-        "nome": "Chi ha frequentato il corso?",
-        "corso": "Qual è il nome del corso?",
-        "data_rilascio": "Qual è la data di rilascio dell'attestato?"
-    }
+Estrai le seguenti informazioni e restituisci ESCLUSIVAMENTE un oggetto JSON valido.
 
-    for key, question in questions.items():
-        result = qa_pipeline(question=question, context=processed_text)
-        answer = result['answer'].strip()
+- "nome": Il nome completo del partecipante.
+- "corso": Il titolo esatto del corso frequentato.
+- "data_rilascio": La data di emissione o di rilascio dell'attestato (formato DD-MM-YYYY).
 
-        # Post-processing for corso
-        if key == "corso":
-            answer = re.sub(r'^\s*corso di\s*', '', answer, flags=re.IGNORECASE).strip()
+Se un campo non è presente, il suo valore deve essere null.
 
-        entities[key] = answer
+JSON:
+"""
 
-    # 2. Conversione della data e calcolo della scadenza
-    if entities["data_rilascio"]:
-        try:
-            # Prova a parsare formati comuni
-            parsed_date = None
-            date_str = entities["data_rilascio"]
-            if '-' in date_str:
-                parts = date_str.split('-')
-                if len(parts[0]) == 4: # YYYY-MM-DD
-                    parsed_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-                else: # DD-MM-YYYY
-                    parsed_date = datetime.strptime(date_str, '%d-%m-%Y').date()
-            elif '/' in date_str:
-                parts = date_str.split('/')
-                if len(parts[0]) == 4: # YYYY/MM/DD
-                    parsed_date = datetime.strptime(date_str, '%Y/%m/%d').date()
-                else: # DD/MM/YYYY
-                    parsed_date = datetime.strptime(date_str, '%d/%m/%Y').date()
+def extract_entities_with_ai(text: str) -> dict:
+    """
+    Estrae entità dal testo OCR utilizzando l'API di Gemini Pro.
+    """
+    if not model:
+        return {"error": "Modello Gemini non configurato."}
 
-            entities["data_rilascio"] = parsed_date
-        except ValueError:
-            entities["data_rilascio"] = None # Non è stato possibile parsare la data
+    prompt = build_prompt(text)
 
-    # 3. Logica di Business (Calcolo Scadenza)
-    if entities["corso"] and entities["data_rilascio"]:
-        corsi = db.query(CorsiMaster).all()
-        course_names = {corso.nome_corso.lower(): corso for corso in corsi}
+    try:
+        logging.info("Interrogazione Gemini Pro in corso...")
+        response = model.generate_content(prompt)
 
-        extracted_course_lower = entities["corso"].lower()
+        # Pulisci ed estrai il JSON dalla risposta
+        # Gemini potrebbe aggiungere ```json ... ``` alla risposta, puliamolo.
+        json_response_text = response.text.strip()
 
-        for course_name, corso_obj in course_names.items():
-            if course_name in extracted_course_lower:
-                if corso_obj.validita_mesi > 0:
-                    expiration_date = entities["data_rilascio"] + relativedelta(months=corso_obj.validita_mesi)
-                    entities["data_scadenza"] = expiration_date
-                break
+        # Usa un'espressione regolare per trovare il JSON nel testo
+        match = re.search(r'\{.*\}', json_response_text, re.DOTALL)
+        if not match:
+            logging.error(f"Nessun JSON valido trovato nella risposta di Gemini: {response.text}")
+            return {"error": "Risposta non valida da Gemini."}
 
-    # Formatta le date come stringhe YYYY-MM-DD prima di restituirle
-    if entities.get("data_rilascio"):
-        entities["data_rilascio"] = entities["data_rilascio"].strftime('%Y-%m-%d')
-    if entities.get("data_scadenza"):
-        entities["data_scadenza"] = entities["data_scadenza"].strftime('%Y-%m-%d')
+        json_response_text = match.group(0)
 
-    return entities
+        # Converti la stringa JSON in un dizionario Python
+        dati_estratti = json.loads(json_response_text)
+
+        logging.info(f"Dati estratti dall'AI: {dati_estratti}")
+        return dati_estratti
+
+    except json.JSONDecodeError:
+        logging.error(f"Errore: Gemini non ha restituito un JSON valido.")
+        logging.error(f"Risposta ricevuta: {response.text}")
+        return {"error": "JSON non valido da Gemini."}
+    except Exception as e:
+        logging.error(f"Errore durante la chiamata a Gemini: {e}")
+        return {"error": f"Errore API Gemini: {e}"}
