@@ -122,13 +122,18 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
 
 @router.post("/certificati/", response_model=CertificatoSchema)
 def create_certificato(certificato: CertificatoCreateSchema, db: Session = Depends(get_db)):
-    try:
-        nome_parts = certificato.nome.split()
-        db_dipendente = db.query(Dipendenti).filter(Dipendenti.nome == nome_parts[0], Dipendenti.cognome == nome_parts[1]).first()
-        if not db_dipendente:
-            raise HTTPException(status_code=404, detail="Dipendente non trovato")
-    except IndexError:
+    nome_parts = certificato.nome.split()
+    if len(nome_parts) < 2:
         raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
+
+    # Try Lastname Firstname
+    db_dipendente = db.query(Dipendenti).filter(Dipendenti.nome == nome_parts[1], Dipendenti.cognome == nome_parts[0]).first()
+    # Try Firstname Lastname
+    if not db_dipendente:
+        db_dipendente = db.query(Dipendenti).filter(Dipendenti.nome == nome_parts[0], Dipendenti.cognome == nome_parts[1]).first()
+
+    if not db_dipendente:
+        raise HTTPException(status_code=404, detail="Dipendente non trovato")
 
     db_corso = db.query(CorsiMaster).filter(CorsiMaster.nome_corso == certificato.corso).first()
     if not db_corso:
