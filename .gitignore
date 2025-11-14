@@ -28,3 +28,4 @@ __pycache__/
 
 # Environment variables
 .env
+app/db/__pycache__/models.cpython-312.pyc
