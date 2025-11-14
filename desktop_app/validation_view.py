@@ -26,12 +26,12 @@ class PandasModel(QAbstractTableModel):
         return self._data.shape[1]
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
-        if index.isValid() and role == Qt.ItemDataRole.DisplayRole:
+        if not self._data.empty and index.isValid() and role == Qt.ItemDataRole.DisplayRole:
             return str(self._data.iloc[index.row(), index.column()])
         return None
 
     def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
-        if role == Qt.ItemDataRole.EditRole:
+        if not self._data.empty and role == Qt.ItemDataRole.EditRole:
             self._data.iloc[index.row(), index.column()] = value
             self.dataChanged.emit(index, index)
             return True
@@ -39,12 +39,12 @@ class PandasModel(QAbstractTableModel):
 
     def flags(self, index):
         flags = super().flags(index)
-        if index.column() != 0:  # Allow editing for all columns except the first one (ID)
+        if not self._data.empty and index.column() != 0:  # Allow editing for all columns except the first one (ID)
             flags |= Qt.ItemFlag.ItemIsEditable
         return flags
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
-        if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
+        if not self._data.empty and role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
             return str(self._data.columns[section])
         return None
 
