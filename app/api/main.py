@@ -116,7 +116,7 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
             nome=f"{attestato.dipendente.nome} {attestato.dipendente.cognome}",
             corso=attestato.corso.nome_corso,
             data_rilascio=attestato.data_rilascio.strftime('%d/%m/%Y'),
-            data_scadenza=attestato.data_scadenza_calcolata.strftime('%d/%m/%Y')
+            data_scadenza=attestato.data_scadenza_calcolata.strftime('%d/%m/%Y') if attestato.data_scadenza_calcolata else None
         ))
     return result
 
