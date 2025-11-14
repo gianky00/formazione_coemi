@@ -48,11 +48,28 @@ class ValidationView(QWidget):
         self.save_button.clicked.connect(self.save_changes)
         controls_layout.addWidget(self.save_button)
 
+        self.delete_button = QPushButton("Cancella Riga")
+        self.delete_button.clicked.connect(self.delete_row)
+        controls_layout.addWidget(self.delete_button)
+
         # Table
         self.table_view = QTableView()
         self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.layout.addWidget(self.table_view)
+
+        # Connect the doubleClicked signal to a custom slot
+        self.table_view.doubleClicked.connect(self.on_double_click)
+
         self.load_data()
+
+    def on_double_click(self, index):
+        # Open the editor for the cell
+        self.table_view.edit(index)
+        # Get the editor widget
+        editor = self.table_view.indexWidget(index)
+        if editor:
+            # Select all text in the editor
+            editor.selectAll()
 
     def load_data(self):
         try:
@@ -64,6 +81,29 @@ class ValidationView(QWidget):
                 self.table_view.setModel(self.model)
         except requests.exceptions.RequestException as e:
             QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
+
+    def delete_row(self):
+        selected_indexes = self.table_view.selectedIndexes()
+        if not selected_indexes:
+            QMessageBox.warning(self, "Nessuna Selezione", "Seleziona una riga da cancellare.")
+            return
+
+        row = selected_indexes[0].row()
+        certificato_id = self.df.iloc[row]['id']
+
+        reply = QMessageBox.question(self, 'Conferma Cancellazione', 'Sei sicuro di voler cancellare questa riga?',
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                response = requests.delete(f"http://127.0.0.1:8000/certificati/{certificato_id}")
+                if response.status_code == 200:
+                    QMessageBox.information(self, "Successo", "Riga cancellata con successo.")
+                    self.load_data()
+                else:
+                    QMessageBox.critical(self, "Errore", f"Errore durante la cancellazione: {response.text}")
+            except requests.exceptions.RequestException as e:
+                QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
 
     def save_changes(self):
         try:
