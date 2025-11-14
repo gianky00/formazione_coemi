@@ -192,7 +192,10 @@ def update_certificato(certificato_id: int, nome: str, corso: str, data_rilascio
     db_certificato.id_corso = db_corso.id
 
     db_certificato.data_rilascio = datetime.strptime(data_rilascio, '%d/%m/%Y').date()
-    db_certificato.data_scadenza_calcolata = datetime.strptime(data_scadenza, '%d/%m/%Y').date() if data_scadenza else None
+    if data_scadenza and data_scadenza.lower() != 'none':
+        db_certificato.data_scadenza_calcolata = datetime.strptime(data_scadenza, '%d/%m/%Y').date()
+    else:
+        db_certificato.data_scadenza_calcolata = None
     db.commit()
     db.refresh(db_certificato)
     return CertificatoSchema(
