@@ -34,7 +34,7 @@ class DashboardView(QWidget):
         self.layout.addLayout(controls_layout)
 
         self.employee_filter = QComboBox()
-        self.course_filter = QComboBox()
+        self.category_filter = QComboBox()
         self.filter_button = QPushButton("Filtra")
         self.filter_button.clicked.connect(self.load_data)
         self.export_button = QPushButton("Esporta in CSV")
@@ -42,8 +42,8 @@ class DashboardView(QWidget):
 
         controls_layout.addWidget(QLabel("Dipendente:"))
         controls_layout.addWidget(self.employee_filter)
-        controls_layout.addWidget(QLabel("Corso:"))
-        controls_layout.addWidget(self.course_filter)
+        controls_layout.addWidget(QLabel("Categoria:"))
+        controls_layout.addWidget(self.category_filter)
         controls_layout.addWidget(self.filter_button)
         controls_layout.addWidget(self.export_button)
 
@@ -69,30 +69,30 @@ class DashboardView(QWidget):
 
                 # Populate filters
                 employees = ["Tutti"] + sorted(list(set([item['nome'] for item in data])))
-                courses = ["Tutti"] + sorted(list(set([item['corso'] for item in data])))
+                categories = ["Tutti"] + sorted(list(set([item['categoria'] for item in data])))
 
                 # Save current filter selection
                 current_employee = self.employee_filter.currentText()
-                current_course = self.course_filter.currentText()
+                current_category = self.category_filter.currentText()
 
                 self.employee_filter.clear()
                 self.employee_filter.addItems(employees)
-                self.course_filter.clear()
-                self.course_filter.addItems(courses)
+                self.category_filter.clear()
+                self.category_filter.addItems(categories)
 
                 # Restore filter selection
                 if current_employee in employees:
                     self.employee_filter.setCurrentText(current_employee)
-                if current_course in courses:
-                    self.course_filter.setCurrentText(current_course)
+                if current_category in categories:
+                    self.category_filter.setCurrentText(current_category)
 
                 employee = self.employee_filter.currentText()
-                course = self.course_filter.currentText()
+                category = self.category_filter.currentText()
 
                 if employee != "Tutti":
                     self.df = self.df[self.df['nome'] == employee]
-                if course != "Tutti":
-                    self.df = self.df[self.df['corso'] == course]
+                if category != "Tutti":
+                    self.df = self.df[self.df['categoria'] == category]
 
                 self.model = PandasModel(self.df)
                 self.table_view.setModel(self.model)
