@@ -28,4 +28,3 @@ __pycache__/
 
 # Environment variables
 .env
-/app/api/__pycache__

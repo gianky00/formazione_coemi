@@ -33,6 +33,8 @@ class MainWindow(QMainWindow):
         self.stacked_widget.addWidget(self.config_view)
         self.stacked_widget.addWidget(self.validation_view)
 
+        self.stacked_widget.currentChanged.connect(self.on_view_change)
+
         self.create_menu()
 
         if self.screenshot_path:
@@ -57,6 +59,11 @@ class MainWindow(QMainWindow):
         config_action = QAction("Configurazione", self)
         config_action.triggered.connect(lambda: self.stacked_widget.setCurrentWidget(self.config_view))
         view_menu.addAction(config_action)
+
+    def on_view_change(self, index):
+        widget = self.stacked_widget.widget(index)
+        if hasattr(widget, 'load_data'):
+            widget.load_data()
 
     def take_screenshot_and_exit(self):
         screen = QApplication.primaryScreen()
