@@ -133,7 +133,13 @@ def create_certificato(certificato: CertificatoCreateSchema, db: Session = Depen
         db_dipendente = db.query(Dipendenti).filter(Dipendenti.nome == nome_parts[0], Dipendenti.cognome == nome_parts[1]).first()
 
     if not db_dipendente:
-        raise HTTPException(status_code=404, detail="Dipendente non trovato")
+        print(f"Dipendente '{certificato.nome}' non trovato, lo creo...")
+        db_dipendente = Dipendenti(
+            cognome=nome_parts[0],
+            nome=nome_parts[1]
+        )
+        db.add(db_dipendente)
+        db.flush()
 
     db_corso = db.query(CorsiMaster).filter(CorsiMaster.nome_corso == certificato.corso).first()
     if not db_corso:
@@ -144,7 +150,7 @@ def create_certificato(certificato: CertificatoCreateSchema, db: Session = Depen
         id_corso=db_corso.id,
         data_rilascio=datetime.strptime(certificato.data_rilascio, '%d/%m/%Y').date(),
         data_scadenza_calcolata=datetime.strptime(certificato.data_scadenza, '%d/%m/%Y').date(),
-        stato_validazione=ValidationStatus.MANUAL
+        stato_validazione=ValidationStatus.AUTOMATIC
     )
     db.add(db_attestato)
     db.commit()
