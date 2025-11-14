@@ -20,7 +20,7 @@ def extract_entities_with_ai(text: str, db: Session) -> dict:
     Estrae entità dal testo OCR utilizzando un modello di Question Answering (QA).
     """
     entities = {
-        "dipendente": None,
+        "nome": None,
         "corso": None,
         "data_rilascio": None,
         "data_scadenza": None,
@@ -31,7 +31,7 @@ def extract_entities_with_ai(text: str, db: Session) -> dict:
 
     # 1. Estrazione con QA
     questions = {
-        "dipendente": "Chi ha frequentato il corso?",
+        "nome": "Chi ha frequentato il corso?",
         "corso": "Qual è il nome del corso?",
         "data_rilascio": "Qual è la data di rilascio dell'attestato?"
     }
@@ -82,5 +82,11 @@ def extract_entities_with_ai(text: str, db: Session) -> dict:
                     expiration_date = entities["data_rilascio"] + relativedelta(months=corso_obj.validita_mesi)
                     entities["data_scadenza"] = expiration_date
                 break
+
+    # Formatta le date come stringhe YYYY-MM-DD prima di restituirle
+    if entities.get("data_rilascio"):
+        entities["data_rilascio"] = entities["data_rilascio"].strftime('%Y-%m-%d')
+    if entities.get("data_scadenza"):
+        entities["data_scadenza"] = entities["data_scadenza"].strftime('%Y-%m-%d')
 
     return entities
