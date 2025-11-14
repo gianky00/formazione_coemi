@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QTextEdit, QFileDialog, QFormLayout, QLineEdit
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QTextEdit, QFileDialog, QFormLayout, QLineEdit, QMessageBox
 import requests
 
 class ImportView(QWidget):
@@ -25,6 +25,26 @@ class ImportView(QWidget):
         self.form_layout.addRow("Data Rilascio:", self.data_rilascio_input)
         self.form_layout.addRow("Data Scadenza:", self.data_scadenza_input)
         self.layout.addLayout(self.form_layout)
+
+        self.validate_button = QPushButton("Convalida Dati")
+        self.validate_button.clicked.connect(self.validate_data)
+        self.layout.addWidget(self.validate_button)
+
+    def validate_data(self):
+        certificato = {
+            "nome": self.nome_input.text(),
+            "corso": self.corso_input.text(),
+            "data_rilascio": self.data_rilascio_input.text(),
+            "data_scadenza": self.data_scadenza_input.text()
+        }
+        try:
+            response = requests.post("http://localhost:8000/certificati/", json=certificato)
+            if response.status_code == 200:
+                QMessageBox.information(self, "Successo", "Dati convalidati e salvati con successo.")
+            else:
+                QMessageBox.critical(self, "Errore", f"Errore durante la convalida: {response.text}")
+        except requests.exceptions.ConnectionError as e:
+            QMessageBox.critical(self, "Errore di connessione", f"Impossibile connettersi al server: {e}")
 
     def upload_pdf(self):
         file_name, _ = QFileDialog.getOpenFileName(self, "Seleziona PDF", "", "PDF Files (*.pdf)")
