@@ -43,21 +43,18 @@ def health_check():
 
 def calculate_expiration_date(extracted_data: dict, db: Session) -> dict:
     """
-    Applica la logica di business per calcolare la data di scadenza.
-    Usa la 'categoria' estratta dall'AI per trovare la corrispondenza nel DB.
+    Applica la logica di business per calcolare la data di scadenza e determinare la categoria.
     """
-
-    # Prendi i dati estratti dall'IA
+    # Prendi i dati estratti dall'IA (ora senza categoria)
     nome_estratto = extracted_data.get("nome")
     corso_estratto = extracted_data.get("corso")
     data_rilascio_str = extracted_data.get("data_rilascio")
-    categoria_estratta = extracted_data.get("categoria") # <-- NUOVO CAMPO
 
     # Adatta i dati allo schema interno
     entities = {
         "nome": nome_estratto,
         "corso": corso_estratto,
-        "categoria": categoria_estratta, # <-- Salviamo anche la categoria
+        "categoria": "General",  # Default category
         "data_rilascio": None,
         "data_scadenza": None
     }
@@ -70,31 +67,25 @@ def calculate_expiration_date(extracted_data: dict, db: Session) -> dict:
         except (ValueError, TypeError):
             entities["data_rilascio"] = None
 
-    # 2. Logica di Business (Calcolo Scadenza con Fallback)
-    if entities["data_rilascio"]:
-        corso_obj = None
-        # Prima tenta con la categoria esatta (case-insensitive)
-        if categoria_estratta:
-            corso_obj = db.query(CorsiMaster).filter(
-                CorsiMaster.nome_corso.ilike(categoria_estratta)
-            ).first()
+    # 2. Logica di Business (Calcolo Scadenza e Categoria)
+    corso_obj = None
+    if corso_estratto:
+        # Cerca una corrispondenza nel database dei corsi master
+        tutti_i_corsi = db.query(CorsiMaster).all()
+        for master_corso in tutti_i_corsi:
+            if master_corso.nome_corso.lower() in corso_estratto.lower():
+                corso_obj = master_corso
+                logging.info(f"Corso '{corso_estratto}' associato a '{master_corso.nome_corso}'.")
+                break  # Trovata la prima corrispondenza
 
-        # Se non trova corrispondenze, prova il fallback basato su sottostringa
-        if not corso_obj and corso_estratto:
-            logging.warning(f"Categoria '{categoria_estratta}' non trovata. Tentativo di fallback su sottostringa.")
-            tutti_i_corsi = db.query(CorsiMaster).all()
-            for master_corso in tutti_i_corsi:
-                if master_corso.nome_corso.lower() in corso_estratto.lower():
-                    corso_obj = master_corso
-                    logging.info(f"Fallback riuscito: '{corso_estratto}' associato a '{master_corso.nome_corso}'.")
-                    break
-
-        if corso_obj:
-            if corso_obj.validita_mesi > 0:
-                expiration_date = entities["data_rilascio"] + relativedelta(months=corso_obj.validita_mesi)
-                entities["data_scadenza"] = expiration_date
-        else:
-            logging.warning(f"Nessun corso master corrispondente trovato per '{corso_estratto}'. Scadenza non calcolata.")
+    if corso_obj:
+        # Se viene trovato un corso, usa la sua categoria e calcola la scadenza
+        entities["categoria"] = corso_obj.categoria_corso
+        if corso_obj.validita_mesi > 0 and entities["data_rilascio"]:
+            expiration_date = entities["data_rilascio"] + relativedelta(months=corso_obj.validita_mesi)
+            entities["data_scadenza"] = expiration_date
+    else:
+        logging.warning(f"Nessun corso master corrispondente trovato per '{corso_estratto}'. Categoria impostata su 'General' e scadenza non calcolata.")
 
 
     # 3. Formatta le date come stringhe DD/MM/YYYY prima di restituirle
