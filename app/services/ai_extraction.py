@@ -3,21 +3,18 @@ import os
 import logging
 import json
 from dotenv import load_dotenv
+from pathlib import Path
+import PIL.Image
 
-# Carica le variabili d'ambiente (per la API_KEY)
-load_dotenv()
+# --- Configurazione API Key ---
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+ENV_PATH = PROJECT_ROOT / '.env'
 
-# Lista statica delle categorie
-CATEGORIE_STATICHE = [
-    "ANTINCENDIO E PRIMO SOCCORSO", "ASPP", "RSPP", "ATEX", "BLSD",
-    "CARROPONTE", "DIRETTIVA SEVESO", "DIRIGENTI E FORMATORI",
-    "GRU A TORRE E PONTE", "H2S", "IMBRACATORE",
-    "AGGIORNAMENTO LAVORATORI ART.37", "PREPOSTO", "GRU SU AUTOCARRO",
-    "PLE", "PES PAV PEI C CANTIERE", "LAVORI IN QUOTA",
-    "MACCHINE OPERATRICI", "MANITOU P.ROTATIVE", "MEDICO COMPETENTE",
-    "MULETTO CARRELISTI", "SOPRAVVIVENZA E SALVATAGGIO IN MARE",
-    "SPAZI CONFINATI DPI III E AUTORESPIRATORI", "HLO", "ALTRO"
-]
+if ENV_PATH.exists():
+    load_dotenv(dotenv_path=ENV_PATH)
+    logging.info(f"File .env caricato da: {ENV_PATH}")
+else:
+    logging.error(f".env file non trovato. Percorso cercato: {ENV_PATH}")
 
 model = None
 try:
@@ -31,36 +28,52 @@ try:
 except Exception as e:
     logging.error(f"Errore di configurazione Gemini: {e}")
 
-def extract_entities_with_ai(text: str) -> dict:
+# --- Elenco categorie ---
+CATEGORIE_STATICHE = [
+    "ANTINCENDIO E PRIMO SOCCORSO", "ASPP", "RSPP", "ATEX", "BLSD", "CARROPONTE",
+    "DIRETTIVA SEVESO", "DIRIGENTI E FORMATORI", "GRU A TORRE E PONTE", "H2S",
+    "IMBRACATORE", "AGGIORNAMENTO LAVORATORI ART.37", "PREPOSTO", "GRU SU AUTOCARRO",
+    "PLE", "PES PAV PEI C CANTIERE", "LAVORI IN QUOTA", "MACCHINE OPERATRICI",
+    "MANITOU P.ROTATIVE", "MEDICO COMPETENTE", "MULETTO CARRELISTI",
+    "SOPRAVVIVENZA E SALVATAGGIO IN MARE", "SPAZI CONFINATI DPI III E AUTORESPIRATORI",
+    "HLO", "ALTRO"
+]
+
+# --- NUOVA FUNZIONE MULTIMODALE ---
+def extract_entities_with_ai(images: list[PIL.Image.Image]) -> dict:
+    """
+    Estrae entità da una lista di immagini (pagine PDF) usando un modello multimodale.
+    """
     if model is None:
         return {"error": "Modello Gemini non inizializzato."}
 
-    # Converti la lista di categorie in una stringa per il prompt
     categorie_str = ", ".join(f'"{c}"' for c in CATEGORIE_STATICHE)
 
+    # Questo prompt ora chiede a Gemini di GUARDARE le immagini
     prompt = f"""
-    Sei un assistente AI specializzato nell'analisi e nell'estrazione di dati da attestati di formazione sulla sicurezza sul lavoro.
+Sei un assistente AI specializzato nell'analisi di attestati di formazione.
+Analizza le immagini del certificato che ti fornisco.
 
-    Analizza il seguente testo estratto da un certificato:
-    ---
-    {text}
-    ---
+Estrai le seguenti quattro informazioni e restituisci ESCLUSIVAMENTE un oggetto JSON valido.
 
-    Estrai le seguenti quattro informazioni e restituisci ESCLUSIVAMENTE un oggetto JSON valido.
+1. "nome": Il nome completo del partecipante (es. "MARIO ROSSI").
+2. "corso": Il titolo esatto e completo del corso frequentato.
+3. "data_rilascio": La data di emissione o di rilascio dell'attestato (formato DD-MM-AAAA).
+4. "categoria": Analizza il titolo del corso e classificalo in UNA SOLA delle seguenti categorie: {categorie_str}. Scegli la categoria più specifica. Se nessuna corrisponde, usa "ALTRO".
 
-    1. "nome": Il nome completo del partecipante (es. "MARIO ROSSI").
-    2. "corso": Il titolo esatto e completo del corso frequentato (es. "FORMAZIONE PER ADDETTI Al LAVORI IN QUOTA...").
-    3. "data_rilascio": La data di emissione o di rilascio dell'attestato (formato DD-MM-AAAA).
-    4. "categoria": Analizza il titolo del corso e classificalo in UNA SOLA delle seguenti categorie: {categorie_str}. Scegli la categoria più specifica e pertinente. Se nessuna corrisponde, usa "ALTRO".
+JSON:
+"""
 
-    JSON:
-    """
+    # Costruisci l'input multimodale: prima il prompt, poi tutte le immagini
+    model_input = [prompt]
+    model_input.extend(images)
 
     try:
-        logging.info("Interrogazione Gemini Pro in corso...")
-        response = model.generate_content(prompt)
+        logging.info("Interrogazione Gemini Pro (Multimodale) in corso...")
 
-        # Pulisci ed estrai il JSON dalla risposta
+        # Invia la richiesta con testo e immagini
+        response = model.generate_content(model_input)
+
         json_response_text = response.text.strip().replace("```json", "").replace("```", "")
 
         dati_estratti = json.loads(json_response_text)
