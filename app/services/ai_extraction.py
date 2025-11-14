@@ -14,7 +14,7 @@ try:
         logging.error("Errore di configurazione Gemini: GEMINI_API_KEY non trovata nel file .env")
     else:
         genai.configure(api_key=API_KEY)
-        model = genai.GenerativeModel('gemini-1.5-pro-latest') # O il modello che preferisci
+        model = genai.GenerativeModel('gemini-1.5-pro-latest')
         logging.info("Modello Gemini Pro configurato con successo.")
 except Exception as e:
     logging.error(f"Errore di configurazione Gemini: {e}")
@@ -24,24 +24,36 @@ def extract_entities_with_ai(text: str) -> dict:
         return {"error": "Modello Gemini non inizializzato."}
 
     prompt = f"""
-    Sei un assistente AI specializzato nell'analisi e nell'estrazione di dati da attestati di formazione sulla sicurezza sul lavoro.
+    Sei un assistente AI specializzato nell'estrazione di dati da attestati di formazione.
 
-    Analizza il seguente testo estratto da un certificato:
+    **ISTRUZIONI CRITICHE:**
+    1.  **Restituisci solo un oggetto JSON valido.** Non includere testo, spiegazioni o commenti aggiuntivi.
+    2.  **Il campo "nome" è FONDAMENTALE.** Deve obbligatoriamente contenere sia il nome che il cognome. Se trovi un solo nome, cerca attentamente nel testo per trovare la parte mancante. Il valore di "nome" DEVE contenere almeno due parole.
+    3.  Estrai le informazioni richieste con la massima precisione.
+
+    **ESEMPIO:**
+    Testo di input:
+    ---
+    Si certifica che AGATI GAETANO nato a Siracusa ha superato con successo il corso di FORMAZIONE PREPOSTO tenutosi in data 20-09-2022.
+    ---
+    JSON di output atteso:
+    ```json
+    {{"nome": "AGATI GAETANO", "corso": "FORMAZIONE PREPOSTO", "data_rilascio": "20-09-2022"}}
+    ```
+
+    **IL TUO COMPITO:**
+    Analizza il seguente testo e genera l'oggetto JSON corrispondente.
+
+    Testo di input:
     ---
     {text}
     ---
 
-    Estrai le seguenti tre informazioni e restituisci ESCLUSIVAMENTE un oggetto JSON valido. Non aggiungere commenti o spiegazioni.
-
-    1. "nome": Il nome e cognome completo del partecipante (es. "MARIO ROSSI").
-    2. "corso": Il titolo esatto e completo del corso frequentato (es. "FORMAZIONE PER ADDETTI Al LAVORI IN QUOTA...").
-    3. "data_rilascio": La data di emissione o di rilascio dell'attestato (formato DD-MM-AAAA).
-
-    JSON:
+    JSON di output:
     """
 
     try:
-        logging.info("Interrogazione Gemini Pro in corso...")
+        logging.info("Interrogazione Gemini Pro in corso con prompt migliorato...")
         response = model.generate_content(prompt)
 
         # Pulisci ed estrai il JSON dalla risposta

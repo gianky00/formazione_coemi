@@ -18,13 +18,17 @@ python -m pip install --upgrade pip
 echo Installing dependencies from requirements.txt...
 python -m pip install -r requirements.txt
 
-REM --- 4. Installa Dipendenze Playwright ---
+REM --- 4. Inizializza il Database ---
+echo Initializing the database...
+set PYTHONPATH=.
+python init_db.py
+
+REM --- 5. Installa Dipendenze Playwright ---
 echo Installing Playwright dependencies...
 playwright install --with-deps
 
-REM --- 5. Avvia le Applicazioni ---
+REM --- 6. Avvia le Applicazioni ---
 echo Starting the backend server...
-set PYTHONPATH=.
 start /b python app/main.py
 
 echo Starting the application...
