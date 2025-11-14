@@ -18,13 +18,13 @@ except Exception as e:
 
 # --- Elenco categorie ---
 CATEGORIE_STATICHE = [
-    "ANTINCENDIO E PRIMO SOCCORSO", "ASPP", "RSPP", "ATEX", "BLSD", "CARROPONTE",
+    "ANTINCENDIO", "PRIMO SOCCORSO", "ASPP", "RSPP", "ATEX", "BLSD", "CARROPONTE",
     "DIRETTIVA SEVESO", "DIRIGENTI E FORMATORI", "GRU A TORRE E PONTE", "H2S",
     "IMBRACATORE", "FORMAZIONE GENERICA ART.37", "PREPOSTO", "GRU SU AUTOCARRO",
     "PLE", "PES PAV PEI C CANTIERE", "LAVORI IN QUOTA", "MACCHINE OPERATRICI",
     "MANITOU P.ROTATIVE", "MEDICO COMPETENTE", "MULETTO CARRELISTI",
     "SOPRAVVIVENZA E SALVATAGGIO IN MARE", "SPAZI CONFINATI DPI III E AUTORESPIRATORI",
-    "HLO"
+    "HLO", "ALTRO"
 ]
 
 # --- NUOVA FUNZIONE PER PDF ---
@@ -66,12 +66,45 @@ JSON:
         return {"error": "Il nome del corso non è stato estratto, impossibile classificare."}
 
     categorie_str = ", ".join(f'"{c}"' for c in CATEGORIE_STATICHE)
+    esempi_categorie = """
+- ANTINCENDIO: "Addetto Antincendio Rischio Basso", "Corso Antincendio Rischio Medio", "Aggiornamento Addetto Antincendio"
+- PRIMO SOCCORSO: "Addetto al Primo Soccorso Gruppo A", "Corso Primo Soccorso Gruppo B/C", "Corso BLS (Basic Life Support)"
+- ASPP: "ASPP Modulo A", "ASPP Modulo B", "Aggiornamento ASPP"
+- RSPP: "RSPP Modulo A", "RSPP Modulo B", "RSPP - Datore di Lavoro"
+- ATEX: "Corso ATEX Atmosfere Esplosive", "Formazione Lavori in Ambienti ATEX"
+- BLSD: "Corso BLSD (Basic Life Support Defibrillation)", "Uso del Defibrillatore Semiautomatico"
+- CARROPONTE: "Addetto alla Conduzione di Carroponte", "Corso Gruista Carroponte"
+- DIRETTIVA SEVESO: "Formazione Direttiva Seveso III", "Gestione Stabilimenti a Rischio di Incidente Rilevante"
+- DIRIGENTI E FORMATORI: "Corso per Dirigenti per la Sicurezza", "Corso Formatori per la Sicurezza"
+- GRU A TORRE E PONTE: "Addetto alla Conduzione di Gru a Torre", "Corso Gruista Gru a Torre"
+- H2S: "Corso H2S - Idrogeno Solforato", "Formazione Rischio H2S"
+- IMBRACATORE: "Corso Imbracatore di Carichi", "Addetto all'Imbracatura"
+- FORMAZIONE GENERICA ART.37: "Formazione Generale Lavoratori Art. 37", "Corso Sicurezza Generale 4 ore"
+- PREPOSTO: "Corso per Preposti alla Sicurezza", "Formazione Preposto Art. 37"
+- GRU SU AUTOCARRO: "Addetto alla Conduzione di Gru su Autocarro", "Corso Gruista Autocarro"
+- PLE: "Addetto alla Conduzione di PLE", "Corso Piattaforme di Lavoro Elevabili"
+- PES PAV PEI C CANTIERE: "Corso PES PAV - Lavori Elettrici", "Formazione Rischio Elettrico CEI 11-27"
+- LAVORI IN QUOTA: "Corso Lavori in Quota con DPI Anticaduta", "Utilizzo Sistemi di Protezione Anticaduta"
+- MACCHINE OPERATRICI: "Addetto alla Conduzione di Macchine Operatrici", "Corso Escavatori Idraulici"
+- MANITOU P.ROTATIVE: "Addetto alla Conduzione di Sollevatori Telescopici Rotativi", "Corso Manitou"
+- MEDICO COMPETENTE: "Corso di Formazione per Medico Competente", "Aggiornamento Medico Competente"
+- MULETTO CARRELISTI: "Addetto alla Conduzione di Carrelli Elevatori", "Patentino Muletto"
+- SOPRAVVIVENZA E SALVATAGGIO IN MARE: "Corso STCW Basic Safety Training", "Sopravvivenza in Mare"
+- SPAZI CONFINATI DPI III E AUTORESPIRATORI: "Corso Lavori in Spazi Confinati", "DPI III Categoria e Autorespiratori"
+- HLO: "Corso HLO - Helicopter Landing Officer", "Responsabile Operazioni Eliporto"
+"""
+
     prompt_classificazione = f"""
 Sei un assistente AI esperto in sicurezza sul lavoro.
 Il documento PDF è un attestato di formazione per il corso: "{corso_estratto}".
 
 Analizza il titolo del corso e il contesto del PDF per classificarlo in UNA SOLA delle seguenti categorie predefinite:
 {categorie_str}
+
+Ecco alcuni esempi di titoli per ogni categoria per aiutarti:
+{esempi_categorie}
+
+Se nessuna categoria corrisponde, assegna "ALTRO".
 
 Restituisci ESCLUSIVAMENTE un oggetto JSON con una singola chiave "categoria".
 
@@ -82,10 +115,16 @@ JSON:
         response_classificazione = model.generate_content([pdf_file_part, prompt_classificazione])
         json_classificazione_text = response_classificazione.text.strip().replace("```json", "").replace("```", "")
         categoria_data = json.loads(json_classificazione_text)
+
+        # Fallback se la categoria non è valida o non presente
+        if "categoria" not in categoria_data or categoria_data["categoria"] not in CATEGORIE_STATICHE:
+            logging.warning(f"Categoria non valida o assente: {categoria_data.get('categoria')}. Imposto 'ALTRO'.")
+            categoria_data["categoria"] = "ALTRO"
+
         logging.info(f"Categoria classificata: {categoria_data}")
     except Exception as e:
-        logging.error(f"Errore durante la seconda chiamata AI: {e}")
-        return {"error": f"Seconda chiamata AI fallita: {e}"}
+        logging.error(f"Errore durante la seconda chiamata AI: {e}. Imposto 'ALTRO'.")
+        categoria_data = {"categoria": "ALTRO"}
 
     # --- 3. Unisci i Risultati ---
     dati_finali = {**dati_base, **categoria_data}
