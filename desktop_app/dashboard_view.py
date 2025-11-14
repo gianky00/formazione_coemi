@@ -56,7 +56,7 @@ class DashboardView(QWidget):
 
         # Table
         self.table_view = QTableView()
-        self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.layout.addWidget(self.table_view)
         self.load_data()
 
