@@ -4,6 +4,8 @@ import logging
 import re
 import google.generativeai as genai
 from dotenv import load_dotenv
+from app.db.session import SessionLocal
+from app.db.models import CorsiMaster
 
 # Carica le variabili d'ambiente dal file .env
 load_dotenv()
@@ -22,12 +24,37 @@ except Exception as e:
     logging.error(f"Errore di configurazione Gemini: {e}")
     model = None
 
+_master_courses_cache = None
+
+def get_master_courses_list():
+    """
+    Recupera la lista dei corsi master dal database e la mette in cache.
+    """
+    global _master_courses_cache
+    if _master_courses_cache is None:
+        db = SessionLocal()
+        try:
+            corsi = db.query(CorsiMaster.nome_corso).all()
+            _master_courses_cache = [corso[0] for corso in corsi]
+        finally:
+            db.close()
+    return _master_courses_cache
+
 def build_prompt(text: str) -> str:
     """
     Costruisce il prompt per l'API di Gemini.
     """
+    master_courses = get_master_courses_list()
+
     return f"""
 Sei un assistente AI specializzato nell'analisi e nell'estrazione di dati da attestati di formazione sulla sicurezza sul lavoro.
+
+Il tuo compito è estrarre le informazioni richieste e CLASSIFICARE il corso frequentato in una delle seguenti categorie master.
+
+Lista dei Corsi Master:
+---
+{", ".join(master_courses)}
+---
 
 Analizza il seguente testo estratto da un certificato:
 ---
@@ -37,8 +64,9 @@ Analizza il seguente testo estratto da un certificato:
 Estrai le seguenti informazioni e restituisci ESCLUSIVAMENTE un oggetto JSON valido.
 
 - "nome": Il nome completo del partecipante.
-- "corso": Il titolo esatto del corso frequentato.
+- "corso": Il titolo esatto del corso frequentato, come appare nel testo.
 - "data_rilascio": La data di emissione o di rilascio dell'attestato (formato DD-MM-YYYY).
+- "corso_master": La categoria dalla "Lista dei Corsi Master" che meglio corrisponde al corso frequentato.
 
 Se un campo non è presente, il suo valore deve essere null.
 

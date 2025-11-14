@@ -16,8 +16,9 @@ class TestBusinessLogic(unittest.TestCase):
         # Inserisci dati di test per i corsi
         Session = sessionmaker(bind=cls.engine)
         session = Session()
-        corso1 = CorsiMaster(nome_corso="FORMAZIONE PREPOSTO", validita_mesi=60) # 5 anni
-        corso2 = CorsiMaster(nome_corso="PRIMO SOCCORSO", validita_mesi=36) # 3 anni
+        # Use a master course name that exists in our master list
+        corso1 = CorsiMaster(nome_corso="L2 PREPOSTI", validita_mesi=24) # 2 anni
+        corso2 = CorsiMaster(nome_corso="PRIMO SOCCORSO (D.M. 388/03)", validita_mesi=36) # 3 anni
         session.add(corso1)
         session.add(corso2)
         session.commit()
@@ -34,7 +35,8 @@ class TestBusinessLogic(unittest.TestCase):
         {
           "nome": "ARGENTATI IVANOE",
           "corso": "FORMAZIONE PREPOSTO",
-          "data_rilascio": "14-01-2021"
+          "data_rilascio": "14-01-2021",
+          "corso_master": "L2 PREPOSTI"
         }
         ```
         """
@@ -62,7 +64,7 @@ class TestBusinessLogic(unittest.TestCase):
         self.assertEqual(final_entities['nome'], "ARGENTATI IVANOE")
         self.assertEqual(final_entities['corso'], "FORMAZIONE PREPOSTO")
         self.assertEqual(final_entities['data_rilascio'], "14/01/2021") # Controlla la formattazione DD/MM/YYYY
-        self.assertEqual(final_entities['data_scadenza'], "14/01/2026") # Controlla il calcolo e la formattazione
+        self.assertEqual(final_entities['data_scadenza'], "14/01/2023") # Controlla il calcolo e la formattazione (2 anni)
 
 
 if __name__ == '__main__':
