@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.db.models import CorsiMaster, Attestati, ValidationStatus, Dipendenti
 import logging
-from app.services import ocr, ai_extraction
+from app.services import ai_extraction
 from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
 from pydantic import BaseModel
@@ -116,7 +116,7 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
     extracted_data = ai_extraction.extract_entities_with_ai(pdf_bytes)
 
     if "error" in extracted_data:
-        return {"filename": file.filename, "entities": {}, "error": extracted_data["error"]}
+        raise HTTPException(status_code=500, detail=extracted_data["error"])
 
     # 3. Applica la logica di business e formatta i dati
     final_entities = calculate_expiration_date(extracted_data, db)

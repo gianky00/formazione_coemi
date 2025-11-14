@@ -1,29 +1,18 @@
 import google.generativeai as genai
-import os
 import logging
 import json
-from dotenv import load_dotenv
-from pathlib import Path
+from app.core.config import settings
+import google.generativeai as genai
 
 # --- Configurazione API Key ---
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-ENV_PATH = PROJECT_ROOT / '.env'
-
-if ENV_PATH.exists():
-    load_dotenv(dotenv_path=ENV_PATH)
-    logging.info(f"File .env caricato da: {ENV_PATH}")
-else:
-    logging.error(f".env file non trovato. Percorso cercato: {ENV_PATH}")
-
 model = None
 try:
-    API_KEY = os.environ.get("GEMINI_API_KEY")
-    if not API_KEY:
-        logging.error("Errore di configurazione Gemini: GEMINI_API_KEY non trovata nel file .env")
+    if not settings.GEMINI_API_KEY:
+        logging.error("Errore di configurazione Gemini: GEMINI_API_KEY non trovata.")
     else:
-        genai.configure(api_key=API_KEY)
-        model = genai.GenerativeModel('models/gemini-2.5-pro')
-        logging.info("Modello Gemini Pro configurato con successo.")
+        genai.configure(api_key=settings.GEMINI_API_KEY)
+        model = genai.GenerativeModel(settings.GEMINI_MODEL_NAME)
+        logging.info(f"Modello Gemini '{settings.GEMINI_MODEL_NAME}' configurato con successo.")
 except Exception as e:
     logging.error(f"Errore di configurazione Gemini: {e}")
 
