@@ -13,7 +13,7 @@ class CertificatoSchema(BaseModel):
     nome: str
     corso: str
     data_rilascio: str
-    data_scadenza: str
+    data_scadenza: Optional[str] = None
 
     class Config:
         orm_mode = True
@@ -155,7 +155,7 @@ def create_certificato(certificato: CertificatoCreateSchema, db: Session = Depen
         id_dipendente=db_dipendente.id,
         id_corso=db_corso.id,
         data_rilascio=datetime.strptime(certificato.data_rilascio, '%d/%m/%Y').date(),
-        data_scadenza_calcolata=datetime.strptime(certificato.data_scadenza, '%d/%m/%Y').date(),
+        data_scadenza_calcolata=datetime.strptime(certificato.data_scadenza, '%d/%m/%Y').date() if certificato.data_scadenza else None,
         stato_validazione=ValidationStatus.AUTOMATIC
     )
     db.add(db_attestato)
