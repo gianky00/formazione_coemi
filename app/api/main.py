@@ -18,6 +18,12 @@ class CertificatoSchema(BaseModel):
     class Config:
         orm_mode = True
 
+class CertificatoCreateSchema(BaseModel):
+    nome: str
+    corso: str
+    data_rilascio: str
+    data_scadenza: str
+
 router = APIRouter()
 
 @router.get("/")
@@ -113,6 +119,50 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
             data_scadenza=attestato.data_scadenza_calcolata.strftime('%d/%m/%Y')
         ))
     return result
+
+@router.post("/certificati/", response_model=CertificatoSchema)
+def create_certificato(certificato: CertificatoCreateSchema, db: Session = Depends(get_db)):
+    nome_parts = certificato.nome.split()
+    if len(nome_parts) < 2:
+        raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
+
+    # Try Lastname Firstname
+    db_dipendente = db.query(Dipendenti).filter(Dipendenti.nome == nome_parts[1], Dipendenti.cognome == nome_parts[0]).first()
+    # Try Firstname Lastname
+    if not db_dipendente:
+        db_dipendente = db.query(Dipendenti).filter(Dipendenti.nome == nome_parts[0], Dipendenti.cognome == nome_parts[1]).first()
+
+    if not db_dipendente:
+        print(f"Dipendente '{certificato.nome}' non trovato, lo creo...")
+        db_dipendente = Dipendenti(
+            cognome=nome_parts[0],
+            nome=nome_parts[1]
+        )
+        db.add(db_dipendente)
+        db.flush()
+
+    db_corso = db.query(CorsiMaster).filter(CorsiMaster.nome_corso == certificato.corso).first()
+    if not db_corso:
+        raise HTTPException(status_code=404, detail="Corso non trovato")
+
+    db_attestato = Attestati(
+        id_dipendente=db_dipendente.id,
+        id_corso=db_corso.id,
+        data_rilascio=datetime.strptime(certificato.data_rilascio, '%d/%m/%Y').date(),
+        data_scadenza_calcolata=datetime.strptime(certificato.data_scadenza, '%d/%m/%Y').date(),
+        stato_validazione=ValidationStatus.AUTOMATIC
+    )
+    db.add(db_attestato)
+    db.commit()
+    db.refresh(db_attestato)
+
+    return CertificatoSchema(
+        id=db_attestato.id,
+        nome=f"{db_attestato.dipendente.nome} {db_attestato.dipendente.cognome}",
+        corso=db_attestato.corso.nome_corso,
+        data_rilascio=db_attestato.data_rilascio.strftime('%d/%m/%Y'),
+        data_scadenza=db_attestato.data_scadenza_calcolata.strftime('%d/%m/%Y')
+    )
 
 @router.put("/certificati/{certificato_id}", response_model=CertificatoSchema)
 def update_certificato(certificato_id: int, nome: str, corso: str, data_rilascio: str, data_scadenza: str, db: Session = Depends(get_db)):
