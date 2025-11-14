@@ -1,48 +1,105 @@
-# Gestione Scadenze Certificati con IA - Documentazione Tecnica
+# Gestione Scadenze Certificati - Documentazione Tecnica
 
-Questo progetto è un sistema integrato per la gestione delle scadenze dei certificati di formazione sulla sicurezza. Sfrutta un'architettura client-server con un frontend desktop, un backend API e servizi di intelligenza artificiale per l'analisi automatica dei documenti.
+Questo documento fornisce una disamina tecnica approfondita del sistema di gestione dei certificati, progettato per sviluppatori e manutentori.
 
-## Architettura Generale
+## Architettura del Sistema
 
-Il sistema è composto da tre componenti principali:
+Il progetto adotta un'architettura client-server disaccoppiata, composta da un backend API RESTful e un'applicazione desktop nativa.
 
-*   **Backend API (FastAPI):** Un'applicazione Python basata su FastAPI che gestisce la logica di business, le interazioni con il database e la comunicazione con i servizi di IA.
-*   **Frontend Desktop (PyQt6):** Un'applicazione desktop multipiattaforma costruita con PyQt6 che fornisce l'interfaccia utente per l'interazione con il sistema.
-*   **Servizio di Intelligenza Artificiale (Google Gemini):** Utilizza il modello multimodale di Google Gemini per analizzare direttamente i file PDF e estrarre le informazioni pertinenti.
+-   **Backend (FastAPI):** Un server Python ad alte prestazioni che espone endpoint per tutte le operazioni CRUD, gestisce la logica di business e si interfaccia con il servizio di intelligenza artificiale.
+-   **Frontend (PyQt6):** Un'applicazione desktop Windows che fornisce l'interfaccia grafica per l'interazione dell'utente, consumando le API esposte dal backend.
+-   **Database (SQLite via SQLAlchemy):** Un database a file singolo, gestito tramite l'ORM SQLAlchemy, che garantisce la persistenza dei dati.
+-   **Servizio AI (Google Gemini):** Sfrutta il modello `gemini-2.5-pro` per l'analisi multimodale dei documenti PDF.
 
-### Stack Tecnologico
+---
 
-| Componente | Tecnologia | Descrizione |
-| --- | --- | --- |
-| **Backend** | Python 3.12, FastAPI, Uvicorn | Gestisce le richieste API, la logica di business e il server web. |
-| **Frontend** | Python 3.12, PyQt6 | Fornisce l'interfaccia utente grafica. |
-| **Database** | SQLAlchemy, SQLite | ORM per l'interazione con il database e database a file singolo. |
-| **IA** | Google Gemini (`gemini-2.5-pro`) | Estrazione di entità e classificazione da documenti PDF. |
-| **Configurazione**| Pydantic | Gestione della configurazione tramite variabili d'ambiente. |
+## Dettagli Implementativi del Backend (`app/`)
 
-## Flusso di Lavoro dei Dati
+Il backend è il cuore del sistema e gestisce tutta la logica applicativa.
 
-Il flusso di lavoro principale, dalla ricezione di un certificato PDF alla sua archiviazione e visualizzazione, è il seguente:
+### Gestione delle Dipendenze e Sessioni DB
 
-1.  **Caricamento del PDF:** L'utente seleziona un file PDF tramite la `ImportView` nell'applicazione desktop.
-2.  **Analisi con IA:** L'applicazione invia i byte del PDF all'endpoint `/upload-pdf/` del backend. Il backend, a sua volta, invia i byte a Google Gemini per l'analisi.
-3.  **Estrazione in Due Fasi:**
-    *   **Fase 1 (Estrazione Dati):** Gemini estrae le informazioni di base: `nome`, `corso`, e `data_rilascio`.
-    *   **Fase 2 (Classificazione):** Gemini classifica il `corso` estratto in una delle categorie predefinite (es. `ANTINCENDIO`, `PRIMO SOCCORSO`, ecc.). Se nessuna categoria corrisponde, viene assegnata la categoria `ALTRO`.
-4.  **Calcolo della Scadenza:** Il backend utilizza la `categoria` restituita dall'IA per cercare la validità in mesi nel database (`CorsiMaster`) e calcolare la `data_scadenza`.
-5.  **Creazione del Certificato non Validato:** I dati estratti e calcolati vengono salvati nel database con uno stato di validazione `AUTOMATIC`.
-6.  **Validazione Manuale:** L'utente visualizza i certificati non validati nella `ValidationView` e, dopo averne verificato la correttezza, li valida. Questa azione imposta lo stato a `MANUAL`.
-7.  **Visualizzazione nel Dashboard:** I certificati con stato `MANUAL` vengono visualizzati nel `DashboardView`, dove possono essere modificati o eliminati.
+La gestione delle sessioni del database è affidata al sistema di **Dependency Injection** di FastAPI.
+-   La funzione `get_db` in `app/db/session.py` agisce come un "dependency provider".
+-   Ogni endpoint che necessita di interagire con il database dichiara una dipendenza tramite `db: Session = Depends(get_db)`.
+-   Questo pattern garantisce che ogni richiesta abbia una sessione DB dedicata, che viene chiusa correttamente al termine della richiesta, prevenendo connection leak.
 
-## Configurazione dell'Ambiente
+### Validazione dei Dati con Pydantic
 
-Seguire questi passaggi per configurare l'ambiente di sviluppo.
+La validazione dei dati in entrata e in uscita è gestita tramite i modelli Pydantic.
+-   **`CertificatoCreateSchema`**: Definisce lo schema per la creazione di un certificato, validando i dati ricevuti dal client nel body della richiesta `POST /certificati/`.
+-   **`CertificatoSchema`**: Definisce lo schema per i dati in uscita. La configurazione `from_attributes = True` permette di creare istanze del modello Pydantic direttamente da oggetti SQLAlchemy, semplificando la serializzazione.
+
+### Processo di Avvio e Seeding
+
+All'avvio del server (`@router.on_event("startup")`), viene eseguita la funzione `seed_database`. Questa funzione popola la tabella `CorsiMaster` con un set predefinito di corsi e la loro validità in mesi. Questo assicura che il sistema abbia sempre i dati di base necessari per calcolare le scadenze, anche al primo avvio su un database vuoto.
+
+### Logica "Get or Create"
+
+Per evitare la duplicazione di dati, il sistema implementa una logica "Get or Create" per le entità `Dipendenti` e `CorsiMaster`.
+-   Quando un certificato viene creato (`POST /certificati/`) o aggiornato (`PUT /certificati/{id}`), il sistema prima cerca nel database un record corrispondente (es. per `nome` e `cognome` del dipendente).
+-   Se il record non esiste, viene creato al momento (`db.add(new_record)`) prima di procedere con la creazione dell'attestato. Questo approccio atomico mantiene l'integrità dei dati.
+
+---
+
+## Servizio di Analisi AI (`app/services/ai_extraction.py`)
+
+L'analisi dei PDF è un processo multimodale in due fasi, orchestrato per massimizzare l'accuratezza.
+
+### Fase 1: Estrazione Dati Grezzi
+
+-   **Input:** I byte grezzi del file PDF (`pdf_bytes`).
+-   **Modello:** `gemini-2.5-pro`.
+-   **Prompt:** Un prompt conciso e diretto che istruisce il modello a estrarre esclusivamente `nome`, `corso` e `data_rilascio` e a restituire un oggetto JSON.
+-   **Output:** Un dizionario Python con i dati estratti.
+
+### Fase 2: Classificazione della Categoria
+
+-   **Input:** I byte del PDF e il `corso` estratto nella Fase 1.
+-   **Prompt:** Un prompt più complesso e ricco di contesto (few-shot prompting).
+    1.  Viene fornito il titolo del corso.
+    2.  Viene presentata la lista statica delle categorie ammesse (`CATEGORIE_STATICHE`).
+    3.  Vengono forniti **esempi concreti** per ogni categoria per guidare il modello (es. `ANTINCENDIO: "Addetto Antincendio Rischio Basso"`).
+-   **Logica di Fallback:** Se il modello fallisce o restituisce una categoria non presente nella lista statica, il sistema imposta la categoria su `"ALTRO"` per garantire la robustezza del processo.
+
+---
+
+## Dettagli Implementativi del Frontend (`desktop_app/`)
+
+L'applicazione desktop è strutturata per essere modulare e reattiva.
+
+### Architettura a Viste con `QStackedWidget`
+
+-   La `MainWindow` agisce come contenitore principale e gestisce un `QStackedWidget`.
+-   Ogni "schermata" dell'applicazione (`ImportView`, `DashboardView`, `ValidationView`) è un widget separato che viene aggiunto allo `QStackedWidget`.
+-   La navigazione tra le viste avviene cambiando il widget corrente dello stack (`self.stacked_widget.setCurrentWidget(...)`), mantenendo il codice pulito e disaccoppiato.
+
+### Meccanismo di Aggiornamento Dati `on_view_change`
+
+Per garantire che i dati visualizzati siano sempre aggiornati, è stato implementato un meccanismo basato su segnali e slot:
+1.  Il segnale `currentChanged` dello `QStackedWidget` viene emesso ogni volta che la vista cambia.
+2.  Questo segnale è collegato allo slot `on_view_change` della `MainWindow`.
+3.  Questo metodo, tramite introspezione (`hasattr(widget, 'load_data')`), verifica se la vista appena attivata possiede un metodo `load_data`.
+4.  Se il metodo esiste, viene invocato, forzando un refresh dei dati tramite una nuova chiamata API al backend.
+
+---
+
+## Ciclo di Vita di un Certificato
+
+1.  **Caricamento e Analisi:** Un PDF viene caricato nella `ImportView`, analizzato dall'IA e i dati vengono mostrati all'utente.
+2.  **Salvataggio Iniziale:** Alla conferma dell'utente, viene inviata una `POST /certificati/`. Il backend salva il certificato con `stato_validazione = ValidationStatus.AUTOMATIC`.
+3.  **Validazione Manuale:** Il certificato appare nella `ValidationView`. L'utente lo controlla e clicca su "Convalida". Viene inviata una `PUT /certificati/{id}/valida`.
+4.  **Stato Finale:** Il backend aggiorna lo `stato_validazione` a `ValidationStatus.MANUAL`. Da questo momento, il certificato è visibile nel `DashboardView` principale.
+5.  **Stato Certificato (Attivo/Scaduto):** Questo stato non è persistito nel database. Viene calcolato **dinamicamente** dal backend a ogni richiesta `GET /certificati/`, confrontando la `data_scadenza_calcolata` con la data corrente.
+
+---
+
+## Setup e Avvio (Ambiente Windows)
 
 ### Prerequisiti
 
-*   Python 3.12 o superiore
-*   Git
-*   (Linux) `libxcb-cursor0`: Dipendenza di sistema per PyQt6. Installare con `sudo apt-get update && sudo apt-get install -y libxcb-cursor0`.
+-   Python 3.12 o superiore
+-   Git
 
 ### Installazione
 
@@ -53,71 +110,15 @@ Seguire questi passaggi per configurare l'ambiente di sviluppo.
     ```
 
 2.  **Creare il file `.env`:**
-    Nella directory principale del progetto, creare un file `.env` e aggiungere la seguente variabile:
+    Nella directory principale, creare un file `.env` e inserire la propria chiave API di Google:
     ```env
     GEMINI_API_KEY="LA_TUA_CHIAVE_API_DI_GOOGLE"
     ```
 
-3.  **Installare le dipendenze Python:**
-    ```bash
-    pip install -r requirements.txt
-    ```
+### Avvio
 
-## Avvio dell'Applicazione
-
-I comandi per avviare l'applicazione variano a seconda del sistema operativo.
-
-### Windows
-
-Eseguire il file `run.bat`. Questo script automatizza i seguenti passaggi:
-1.  Avvia il server backend FastAPI in background.
-2.  Lancia l'applicazione desktop PyQt6.
-
-### Linux
-
-1.  **Avviare il backend FastAPI:**
-    ```bash
-    PYTHONPATH=. python3 app/main.py &
-    ```
-2.  **Avviare il frontend PyQt6:**
-    ```bash
-    PYTHONPATH=. python3 desktop_app/main_window.py
-    ```
-
-## Endpoint API
-
-Di seguito è riportata una descrizione dettagliata degli endpoint API disponibili.
-
-| Metodo | URL | Descrizione |
-| --- | --- | --- |
-| `POST` | `/upload-pdf/` | Carica un file PDF, lo analizza con Gemini, calcola la data di scadenza e restituisce i dati estratti. |
-| `GET` | `/certificati/` | Recupera un elenco di certificati. Può essere filtrato per stato di validazione con `?validated=true` o `?validated=false`. |
-| `POST`| `/certificati/` | Crea un nuovo certificato nel database con stato `AUTOMATIC`. Se il dipendente o il corso non esistono, li crea. |
-| `PUT` | `/certificati/{id}` | Aggiorna un certificato esistente. Richiede `nome`, `corso`, `categoria` e `data_rilascio`. |
-| `DELETE`| `/certificati/{id}`| Elimina un certificato specifico. |
-| `PUT` | `/certificati/{id}/valida`| Imposta lo stato di validazione di un certificato su `MANUAL`. |
-| `GET` | `/corsi` | Restituisce un elenco di tutti i corsi master presenti nel database. |
-| `GET` | `/health` | Endpoint di health check per verificare che il server sia in esecuzione. |
-| `GET` | `/` | Endpoint di root che restituisce un messaggio di benvenuto. |
-
-## Struttura del Progetto
-
-```
-.
-├── app/                  # Codice del backend FastAPI
-│   ├── api/              # Definizione degli endpoint API (main.py)
-│   ├── core/             # Configurazione dell'applicazione (config.py)
-│   ├── db/               # Modelli SQLAlchemy e gestione della sessione del database
-│   ├── services/         # Logica di integrazione con servizi esterni (ai_extraction.py)
-│   └── main.py           # Punto di ingresso dell'applicazione FastAPI
-├── desktop_app/          # Codice del frontend PyQt6
-│   ├── import_view.py    # Vista per il caricamento dei PDF
-│   ├── dashboard_view.py # Vista per la visualizzazione dei certificati validati
-│   ├── validation_view.py# Vista per la validazione dei certificati estratti dall'IA
-│   ├── config_view.py    # Vista per la configurazione (attualmente non implementata)
-│   └── main_window.py    # Finestra principale dell'applicazione
-├── .env                  # File di configurazione delle variabili d'ambiente (da creare)
-├── readme.md             # Questo file
-├── requirements.txt      # Dipendenze Python
-└── run.bat               # Script di avvio per Windows
-```
+Fare doppio clic sul file `run.bat`. Lo script si occuperà di:
+1.  Creare un ambiente virtuale Python (`.venv`) se non esiste.
+2.  Installare le dipendenze da `requirements.txt`.
+3.  Avviare il server backend FastAPI in una finestra di terminale separata.
+4.  Lanciare l'applicazione desktop PyQt6.
