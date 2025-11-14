@@ -4,7 +4,7 @@ from app.db.session import get_db
 from app.db.models import CorsiMaster, Attestati, ValidationStatus, Dipendenti
 import logging
 from app.services import ocr, ai_extraction
-from datetime import datetime
+from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
 from pydantic import BaseModel
 from typing import Optional, List
@@ -15,6 +15,7 @@ class CertificatoSchema(BaseModel):
     corso: str
     data_rilascio: str
     data_scadenza: Optional[str] = None
+    stato_certificato: str
 
     class Config:
         orm_mode = True
@@ -68,23 +69,31 @@ def calculate_expiration_date(extracted_data: dict, db: Session) -> dict:
         except (ValueError, TypeError):
             entities["data_rilascio"] = None
 
-    # 2. Logica di Business (Calcolo Scadenza)
-    # Ora usiamo la CATEGORIA per un confronto 1-a-1, molto più robusto
-    if categoria_estratta and entities["data_rilascio"]:
+    # 2. Logica di Business (Calcolo Scadenza con Fallback)
+    if entities["data_rilascio"]:
+        corso_obj = None
+        # Prima tenta con la categoria esatta (case-insensitive)
+        if categoria_estratta:
+            corso_obj = db.query(CorsiMaster).filter(
+                CorsiMaster.nome_corso.ilike(categoria_estratta)
+            ).first()
 
-        # Cerca nel DB un corso master che corrisponda ESATTAMENTE alla categoria
-        # (Assicurati che i nomi in CorsiMaster corrispondano alla tua lista statica!)
-        corso_obj = db.query(CorsiMaster).filter(
-            CorsiMaster.nome_corso.ilike(categoria_estratta)
-        ).first()
+        # Se non trova corrispondenze, prova il fallback basato su sottostringa
+        if not corso_obj and corso_estratto:
+            logging.warning(f"Categoria '{categoria_estratta}' non trovata. Tentativo di fallback su sottostringa.")
+            tutti_i_corsi = db.query(CorsiMaster).all()
+            for master_corso in tutti_i_corsi:
+                if master_corso.nome_corso.lower() in corso_estratto.lower():
+                    corso_obj = master_corso
+                    logging.info(f"Fallback riuscito: '{corso_estratto}' associato a '{master_corso.nome_corso}'.")
+                    break
 
         if corso_obj:
             if corso_obj.validita_mesi > 0:
                 expiration_date = entities["data_rilascio"] + relativedelta(months=corso_obj.validita_mesi)
                 entities["data_scadenza"] = expiration_date
         else:
-            # Opzionale: gestione se la categoria non è nel DB CorsiMaster
-            logging.warning(f"Categoria '{categoria_estratta}' non trovata in CorsiMaster. Scadenza non calcolata.")
+            logging.warning(f"Nessun corso master corrispondente trovato per '{corso_estratto}'. Scadenza non calcolata.")
 
 
     # 3. Formatta le date come stringhe DD/MM/YYYY prima di restituirle
@@ -124,12 +133,21 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
     attestati = query.all()
     result = []
     for attestato in attestati:
+        stato = "Valido"
+        if attestato.data_scadenza_calcolata:
+            today = date.today()
+            if attestato.data_scadenza_calcolata < today:
+                stato = "Scaduto"
+            elif (attestato.data_scadenza_calcolata - today).days <= 30:
+                stato = "In Scadenza"
+
         result.append(CertificatoSchema(
             id=attestato.id,
             nome=f"{attestato.dipendente.nome} {attestato.dipendente.cognome}",
             corso=attestato.corso.nome_corso,
             data_rilascio=attestato.data_rilascio.strftime('%d/%m/%Y'),
-            data_scadenza=attestato.data_scadenza_calcolata.strftime('%d/%m/%Y') if attestato.data_scadenza_calcolata else None
+            data_scadenza=attestato.data_scadenza_calcolata.strftime('%d/%m/%Y') if attestato.data_scadenza_calcolata else None,
+            stato_certificato=stato
         ))
     return result
 
@@ -209,6 +227,8 @@ def update_certificato(certificato_id: int, nome: str, corso: str, data_rilascio
         db_certificato.data_scadenza_calcolata = datetime.strptime(data_scadenza, '%d/%m/%Y').date()
     else:
         db_certificato.data_scadenza_calcolata = None
+
+    db_certificato.stato_validazione = ValidationStatus.MANUAL
     db.commit()
     db.refresh(db_certificato)
     return CertificatoSchema(
