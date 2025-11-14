@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.exc import IntegrityError
 from app.db.session import get_db
-from app.db.models import CorsiMaster, Attestati, ValidationStatus, Dipendenti
+from app.db.models import Corso, Certificato, ValidationStatus, Dipendente
 import logging
-from app.services import ai_extraction
+from app.services import ai_extraction, certificate_logic
 from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
 from pydantic import BaseModel
@@ -18,8 +19,7 @@ class CertificatoSchema(BaseModel):
     data_scadenza: Optional[str] = None
     stato_certificato: str
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 class CertificatoCreateSchema(BaseModel):
     nome: str
@@ -33,6 +33,10 @@ from app.db.session import SessionLocal
 router = APIRouter()
 
 def seed_database():
+    """
+    Popola il database con i corsi master predefiniti all'avvio dell'applicazione.
+    Se un corso esiste già, viene saltato.
+    """
     db = SessionLocal()
     try:
         corsi = [
@@ -65,90 +69,43 @@ def seed_database():
         ]
 
         for corso_data in corsi:
-            db_corso = db.query(CorsiMaster).filter(CorsiMaster.nome_corso == corso_data["nome_corso"]).first()
+            db_corso = db.query(Corso).filter(Corso.nome_corso == corso_data["nome_corso"]).first()
             if not db_corso:
-                new_corso = CorsiMaster(**corso_data)
+                new_corso = Corso(**corso_data)
                 db.add(new_corso)
 
         db.commit()
     finally:
         db.close()
 
-@router.on_event("startup")
-async def startup_event():
-    seed_database()
-    logging.info("Database seeded successfully.")
-
 @router.get("/")
 def read_root():
+    """Endpoint principale che restituisce un messaggio di benvenuto."""
     return {"message": "Welcome to the Scadenziario IA API"}
 
 @router.get("/corsi")
 def get_corsi(db: Session = Depends(get_db)):
-    return db.query(CorsiMaster).all()
+    """Restituisce l'elenco di tutti i corsi master presenti nel database."""
+    return db.query(Corso).all()
 
 @router.get("/health")
 def health_check():
+    """Endpoint di health check per verificare lo stato dell'API."""
     return {"status": "ok"}
-
-def calculate_expiration_date(extracted_data: dict, db: Session) -> dict:
-    """
-    Applica la logica di business per calcolare la data di scadenza.
-    Usa la 'categoria' estratta dall'AI per trovare la corrispondenza nel DB.
-    """
-
-    # Prendi i dati estratti dall'IA
-    nome_estratto = extracted_data.get("nome")
-    corso_estratto = extracted_data.get("corso")
-    data_rilascio_str = extracted_data.get("data_rilascio")
-    categoria_estratta = extracted_data.get("categoria") # <-- NUOVO CAMPO
-
-    # Adatta i dati allo schema interno
-    entities = {
-        "nome": nome_estratto,
-        "corso": corso_estratto,
-        "categoria": categoria_estratta, # <-- Salviamo anche la categoria
-        "data_rilascio": None,
-        "data_scadenza": None
-    }
-
-    # 1. Parsing della data
-    if data_rilascio_str:
-        try:
-            parsed_date = datetime.strptime(data_rilascio_str, '%d-%m-%Y').date()
-            entities["data_rilascio"] = parsed_date
-        except (ValueError, TypeError):
-            entities["data_rilascio"] = None
-
-    # 2. Logica di Business (Calcolo Scadenza con Fallback)
-    if entities["data_rilascio"]:
-        corso_obj = None
-        # Prima tenta con la categoria esatta (case-insensitive)
-        if categoria_estratta:
-            corso_obj = db.query(CorsiMaster).filter(
-                CorsiMaster.nome_corso.ilike(f"%{categoria_estratta}%")
-            ).first()
-
-        if corso_obj:
-            if corso_obj.validita_mesi > 0:
-                expiration_date = entities["data_rilascio"] + relativedelta(months=corso_obj.validita_mesi)
-                entities["data_scadenza"] = expiration_date
-        else:
-            logging.warning(f"Nessun corso master corrispondente trovato per '{corso_estratto}'. Scadenza non calcolata.")
-
-
-    # 3. Formatta le date come stringhe DD/MM/YYYY prima di restituirle
-    if entities.get("data_rilascio"):
-        entities["data_rilascio"] = entities["data_rilascio"].strftime('%d/%m/%Y')
-    if entities.get("data_scadenza"):
-        entities["data_scadenza"] = entities["data_scadenza"].strftime('%d/%m/%Y')
-
-    return entities
 
 
 @router.post("/upload-pdf/")
 async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    """
+    Carica un file PDF, estrae le entità tramite AI e calcola la data di scadenza.
 
+    Args:
+        file: Il file PDF da caricare.
+        db: La sessione del database.
+
+    Returns:
+        Un dizionario con le entità estratte e la data di scadenza calcolata.
+    """
     # 1. Leggi i bytes del PDF direttamente dalla richiesta
     pdf_bytes = await file.read()
 
@@ -159,66 +116,108 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
         raise HTTPException(status_code=500, detail=extracted_data["error"])
 
     # 3. Applica la logica di business e formatta i dati
-    final_entities = calculate_expiration_date(extracted_data, db)
+    final_entities = {}
+    data_rilascio_str = extracted_data.get("data_rilascio")
+    if data_rilascio_str:
+        try:
+            data_rilascio = datetime.strptime(data_rilascio_str, '%d-%m-%Y').date()
+            categoria_estratta = extracted_data.get("categoria")
+            corso_obj = db.query(Corso).filter(Corso.nome_corso.ilike(f"%{categoria_estratta}%")).first()
+            if corso_obj:
+                data_scadenza = certificate_logic.calculate_expiration_date(data_rilascio, corso_obj.validita_mesi)
+                final_entities["data_scadenza"] = data_scadenza.strftime('%d/%m/%Y') if data_scadenza else None
+            final_entities["data_rilascio"] = data_rilascio.strftime('%d/%m/%Y')
+        except (ValueError, TypeError):
+            pass
+
+    final_entities.update({
+        "nome": extracted_data.get("nome"),
+        "corso": extracted_data.get("corso"),
+        "categoria": extracted_data.get("categoria"),
+    })
+
 
     # 4. Restituisci il risultato
     return {"filename": file.filename, "text": "Estrazione PDF Diretta Eseguita", "entities": final_entities}
 
 @router.get("/certificati/", response_model=List[CertificatoSchema])
 def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depends(get_db)):
-    query = db.query(Attestati)
+    """
+    Recupera un elenco di certificati, con la possibilità di filtrare per stato di validazione.
+
+    Args:
+        validated: Se True, restituisce solo i certificati validati manualmente.
+                   Se False, restituisce solo quelli con validazione automatica.
+                   Se None, restituisce tutti i certificati.
+        db: La sessione del database.
+
+    Returns:
+        Una lista di certificati che soddisfano i criteri di filtro.
+    """
+    query = db.query(Certificato).options(
+        selectinload(Certificato.dipendente),
+        selectinload(Certificato.corso)
+    )
     if validated is not None:
         if validated:
-            query = query.filter(Attestati.stato_validazione == ValidationStatus.MANUAL)
+            query = query.filter(Certificato.stato_validazione == ValidationStatus.MANUAL)
         else:
-            query = query.filter(Attestati.stato_validazione == ValidationStatus.AUTOMATIC)
+            query = query.filter(Certificato.stato_validazione == ValidationStatus.AUTOMATIC)
 
-    attestati = query.all()
+    certificati = query.all()
     result = []
-    for attestato in attestati:
-        stato = "attivo"
-        if attestato.data_scadenza_calcolata and attestato.data_scadenza_calcolata < date.today():
-            stato = "scaduto"
-
+    for certificato in certificati:
+        stato = certificate_logic.get_certificate_status(certificato.data_scadenza_calcolata)
         result.append(CertificatoSchema(
-            id=attestato.id,
-            nome=f"{attestato.dipendente.nome} {attestato.dipendente.cognome}",
-            corso=attestato.corso.nome_corso,
-            categoria=attestato.corso.categoria_corso or "General",
-            data_rilascio=attestato.data_rilascio.strftime('%d/%m/%Y'),
-            data_scadenza=attestato.data_scadenza_calcolata.strftime('%d/%m/%Y') if attestato.data_scadenza_calcolata else None,
+            id=certificato.id,
+            nome=f"{certificato.dipendente.nome} {certificato.dipendente.cognome}",
+            corso=certificato.corso.nome_corso,
+            categoria=certificato.corso.categoria_corso or "General",
+            data_rilascio=certificato.data_rilascio.strftime('%d/%m/%Y'),
+            data_scadenza=certificato.data_scadenza_calcolata.strftime('%d/%m/%Y') if certificato.data_scadenza_calcolata else None,
             stato_certificato=stato
         ))
     return result
 
 @router.post("/certificati/", response_model=CertificatoSchema)
 def create_certificato(certificato: CertificatoCreateSchema, db: Session = Depends(get_db)):
+    """
+    Crea un nuovo certificato nel database. Se il dipendente o il corso non esistono,
+    vengono creati automaticamente (logica "Get or Create").
+
+    Args:
+        certificato: I dati del certificato da creare.
+        db: La sessione del database.
+
+    Returns:
+        Il certificato appena creato.
+    """
     nome_parts = certificato.nome.split()
     if len(nome_parts) < 2:
         raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
 
     # Try Lastname Firstname
-    db_dipendente = db.query(Dipendenti).filter(Dipendenti.nome == nome_parts[1], Dipendenti.cognome == nome_parts[0]).first()
+    db_dipendente = db.query(Dipendente).filter(Dipendente.nome == nome_parts[1], Dipendente.cognome == nome_parts[0]).first()
     # Try Firstname Lastname
     if not db_dipendente:
-        db_dipendente = db.query(Dipendenti).filter(Dipendenti.nome == nome_parts[0], Dipendenti.cognome == nome_parts[1]).first()
+        db_dipendente = db.query(Dipendente).filter(Dipendente.nome == nome_parts[0], Dipendente.cognome == nome_parts[1]).first()
 
     if not db_dipendente:
         print(f"Dipendente '{certificato.nome}' non trovato, lo creo...")
-        db_dipendente = Dipendenti(
-            cognome=nome_parts[0],
-            nome=nome_parts[1]
+        db_dipendente = Dipendente(
+            nome=nome_parts[0],
+            cognome=nome_parts[1]
         )
         db.add(db_dipendente)
         db.flush()
 
-    db_master_course = db.query(CorsiMaster).filter(CorsiMaster.categoria_corso.ilike(f"%{certificato.categoria}%")).first()
+    db_master_course = db.query(Corso).filter(Corso.categoria_corso.ilike(f"%{certificato.categoria}%")).first()
     if not db_master_course:
         raise HTTPException(status_code=404, detail=f"Categoria '{certificato.categoria}' non trovata.")
 
-    db_corso = db.query(CorsiMaster).filter(CorsiMaster.nome_corso.ilike(f"%{certificato.corso}%")).first()
+    db_corso = db.query(Corso).filter(Corso.nome_corso.ilike(f"%{certificato.corso}%")).first()
     if not db_corso:
-        db_corso = CorsiMaster(
+        db_corso = Corso(
             nome_corso=certificato.corso,
             validita_mesi=db_master_course.validita_mesi,
             categoria_corso=db_master_course.categoria_corso
@@ -226,61 +225,77 @@ def create_certificato(certificato: CertificatoCreateSchema, db: Session = Depen
         db.add(db_corso)
         db.flush()
 
-    db_attestato = Attestati(
-        id_dipendente=db_dipendente.id,
-        id_corso=db_corso.id,
+    db_certificato = Certificato(
+        dipendente_id=db_dipendente.id,
+        corso_id=db_corso.id,
         data_rilascio=datetime.strptime(certificato.data_rilascio, '%d/%m/%Y').date(),
         data_scadenza_calcolata=datetime.strptime(certificato.data_scadenza, '%d/%m/%Y').date() if certificato.data_scadenza else None,
         stato_validazione=ValidationStatus.AUTOMATIC
     )
-    db.add(db_attestato)
-    db.commit()
-    db.refresh(db_attestato)
+    try:
+        db.add(db_certificato)
+        db.commit()
+        db.refresh(db_certificato)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Errore di integrità: il certificato potrebbe già esistere.")
 
-    stato = "attivo"
-    if db_attestato.data_scadenza_calcolata and db_attestato.data_scadenza_calcolata < date.today():
-        stato = "scaduto"
-
+    stato = certificate_logic.get_certificate_status(db_certificato.data_scadenza_calcolata)
     return CertificatoSchema(
-        id=db_attestato.id,
-        nome=f"{db_attestato.dipendente.nome} {db_attestato.dipendente.cognome}",
-        corso=db_attestato.corso.nome_corso,
-        categoria=db_attestato.corso.categoria_corso or "General",
-        data_rilascio=db_attestato.data_rilascio.strftime('%d/%m/%Y'),
-        data_scadenza=db_attestato.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_attestato.data_scadenza_calcolata else None,
+        id=db_certificato.id,
+        nome=f"{db_certificato.dipendente.nome} {db_certificato.dipendente.cognome}",
+        corso=db_certificato.corso.nome_corso,
+        categoria=db_certificato.corso.categoria_corso or "General",
+        data_rilascio=db_certificato.data_rilascio.strftime('%d/%m/%Y'),
+        data_scadenza=db_certificato.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_certificato.data_scadenza_calcolata else None,
         stato_certificato=stato
     )
 
 @router.put("/certificati/{certificato_id}", response_model=CertificatoSchema)
 def update_certificato(certificato_id: int, nome: str, corso: str, categoria: str, data_rilascio: str, data_scadenza: Optional[str] = None, db: Session = Depends(get_db)):
-    db_certificato = db.query(Attestati).filter(Attestati.id == certificato_id).first()
+    """
+    Aggiorna un certificato esistente.
+
+    Args:
+        certificato_id: L'ID del certificato da aggiornare.
+        nome: Il nuovo nome del dipendente.
+        corso: Il nuovo nome del corso.
+        categoria: La nuova categoria del corso.
+        data_rilascio: La nuova data di rilascio.
+        data_scadenza: La nuova data di scadenza (opzionale).
+        db: La sessione del database.
+
+    Returns:
+        Il certificato aggiornato.
+    """
+    db_certificato = db.query(Certificato).filter(Certificato.id == certificato_id).first()
     if not db_certificato:
         raise HTTPException(status_code=404, detail="Certificato non trovato")
 
     # Handle name and course changes
     try:
         nome_parts = nome.split()
-        db_dipendente = db.query(Dipendenti).filter(Dipendenti.nome == nome_parts[0], Dipendenti.cognome == nome_parts[1]).first()
+        db_dipendente = db.query(Dipendente).filter(Dipendente.nome == nome_parts[0], Dipendente.cognome == nome_parts[1]).first()
         if not db_dipendente:
             raise HTTPException(status_code=404, detail="Dipendente non trovato")
-        db_certificato.id_dipendente = db_dipendente.id
+        db_certificato.dipendente_id = db_dipendente.id
     except IndexError:
         raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
 
-    db_master_course = db.query(CorsiMaster).filter(CorsiMaster.categoria_corso.ilike(f"%{categoria}%")).first()
+    db_master_course = db.query(Corso).filter(Corso.categoria_corso.ilike(f"%{categoria}%")).first()
     if not db_master_course:
         raise HTTPException(status_code=404, detail=f"Categoria '{categoria}' non trovata.")
 
-    db_corso = db.query(CorsiMaster).filter(CorsiMaster.nome_corso.ilike(f"%{corso}%")).first()
+    db_corso = db.query(Corso).filter(Corso.nome_corso.ilike(f"%{corso}%")).first()
     if not db_corso:
-        db_corso = CorsiMaster(
+        db_corso = Corso(
             nome_corso=corso,
             validita_mesi=db_master_course.validita_mesi,
             categoria_corso=db_master_course.categoria_corso
         )
         db.add(db_corso)
         db.flush()
-    db_certificato.id_corso = db_corso.id
+    db_certificato.corso_id = db_corso.id
 
     db_certificato.data_rilascio = datetime.strptime(data_rilascio, '%d/%m/%Y').date()
     if data_scadenza and data_scadenza.lower() != 'none':
@@ -289,13 +304,14 @@ def update_certificato(certificato_id: int, nome: str, corso: str, categoria: st
         db_certificato.data_scadenza_calcolata = None
 
     db_certificato.stato_validazione = ValidationStatus.MANUAL
-    db.commit()
-    db.refresh(db_certificato)
+    try:
+        db.commit()
+        db.refresh(db_certificato)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Errore di integrità durante l'aggiornamento.")
 
-    stato = "attivo"
-    if db_certificato.data_scadenza_calcolata and db_certificato.data_scadenza_calcolata < date.today():
-        stato = "scaduto"
-
+    stato = certificate_logic.get_certificate_status(db_certificato.data_scadenza_calcolata)
     return CertificatoSchema(
         id=db_certificato.id,
         nome=f"{db_certificato.dipendente.nome} {db_certificato.dipendente.cognome}",
@@ -308,7 +324,17 @@ def update_certificato(certificato_id: int, nome: str, corso: str, categoria: st
 
 @router.put("/certificati/{certificato_id}/valida")
 def valida_certificato(certificato_id: int, db: Session = Depends(get_db)):
-    db_certificato = db.query(Attestati).filter(Attestati.id == certificato_id).first()
+    """
+    Imposta lo stato di validazione di un certificato su 'MANUAL'.
+
+    Args:
+        certificato_id: L'ID del certificato da validare.
+        db: La sessione del database.
+
+    Returns:
+        Un messaggio di conferma.
+    """
+    db_certificato = db.query(Certificato).filter(Certificato.id == certificato_id).first()
     if not db_certificato:
         raise HTTPException(status_code=404, detail="Certificato non trovato")
 
@@ -319,7 +345,17 @@ def valida_certificato(certificato_id: int, db: Session = Depends(get_db)):
 
 @router.delete("/certificati/{certificato_id}")
 def delete_certificato(certificato_id: int, db: Session = Depends(get_db)):
-    db_certificato = db.query(Attestati).filter(Attestati.id == certificato_id).first()
+    """
+    Elimina un certificato dal database.
+
+    Args:
+        certificato_id: L'ID del certificato da eliminare.
+        db: La sessione del database.
+
+    Returns:
+        Un messaggio di conferma.
+    """
+    db_certificato = db.query(Certificato).filter(Certificato.id == certificato_id).first()
     if not db_certificato:
         raise HTTPException(status_code=404, detail="Certificato non trovato")
     db.delete(db_certificato)

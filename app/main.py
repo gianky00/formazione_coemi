@@ -1,8 +1,15 @@
 import uvicorn
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
 from app.api import main as api_router
+from app.api.main import seed_database
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    seed_database()
+    yield
+
+app = FastAPI(lifespan=lifespan)
 
 app.include_router(api_router.router)
 
