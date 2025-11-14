@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.db.models import CorsiMaster, Attestati, ValidationStatus
+from app.db.models import CorsiMaster, Attestati, ValidationStatus, Dipendenti
 from app.services import ocr, ai_extraction
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
@@ -94,8 +94,15 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
     return {"filename": file.filename, "text": text, "entities": final_entities}
 
 @router.get("/certificati/", response_model=List[CertificatoSchema])
-def get_certificati(db: Session = Depends(get_db)):
-    attestati = db.query(Attestati).all()
+def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depends(get_db)):
+    query = db.query(Attestati)
+    if validated is not None:
+        if validated:
+            query = query.filter(Attestati.stato_validazione == ValidationStatus.MANUAL)
+        else:
+            query = query.filter(Attestati.stato_validazione == ValidationStatus.AUTOMATIC)
+
+    attestati = query.all()
     result = []
     for attestato in attestati:
         result.append(CertificatoSchema(
@@ -113,7 +120,21 @@ def update_certificato(certificato_id: int, nome: str, corso: str, data_rilascio
     if not db_certificato:
         raise HTTPException(status_code=404, detail="Certificato non trovato")
 
-    # Simple update for now, will need to handle name and course changes
+    # Handle name and course changes
+    try:
+        nome_parts = nome.split()
+        db_dipendente = db.query(Dipendenti).filter(Dipendenti.nome == nome_parts[0], Dipendenti.cognome == nome_parts[1]).first()
+        if not db_dipendente:
+            raise HTTPException(status_code=404, detail="Dipendente non trovato")
+        db_certificato.id_dipendente = db_dipendente.id
+    except IndexError:
+        raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
+
+    db_corso = db.query(CorsiMaster).filter(CorsiMaster.nome_corso == corso).first()
+    if not db_corso:
+        raise HTTPException(status_code=404, detail="Corso non trovato")
+    db_certificato.id_corso = db_corso.id
+
     db_certificato.data_rilascio = datetime.strptime(data_rilascio, '%d/%m/%Y').date()
     db_certificato.data_scadenza_calcolata = datetime.strptime(data_scadenza, '%d/%m/%Y').date()
     db.commit()
