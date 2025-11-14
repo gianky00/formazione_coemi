@@ -30,7 +30,18 @@ CATEGORIE_STATICHE = [
 # --- NUOVA FUNZIONE PER PDF ---
 def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
     """
-    Estrae entità da un file PDF (in bytes) usando un modello multimodale in due passaggi.
+    Estrae entità da un file PDF in bytes utilizzando un modello multimodale.
+
+    Il processo avviene in due fasi:
+    1. Estrazione delle informazioni di base (nome, corso, data di rilascio).
+    2. Classificazione del corso estratto in una delle categorie predefinite.
+
+    Args:
+        pdf_bytes: I bytes del file PDF da analizzare.
+
+    Returns:
+        Un dizionario contenente le entità estratte, inclusa la categoria.
+        In caso di errore, restituisce un dizionario con una chiave 'error'.
     """
     if model is None:
         return {"error": "Modello Gemini non inizializzato."}
@@ -63,10 +74,11 @@ JSON:
     # --- 2. Seconda Chiamata: Classificazione Categoria ---
     corso_estratto = dati_base.get("corso")
     if not corso_estratto:
-        return {"error": "Il nome del corso non è stato estratto, impossibile classificare."}
-
-    categorie_str = ", ".join(f'"{c}"' for c in CATEGORIE_STATICHE)
-    esempi_categorie = """
+        logging.warning("Il nome del corso non è stato estratto. Salto la classificazione e imposto 'ALTRO'.")
+        categoria_data = {"categoria": "ALTRO"}
+    else:
+        categorie_str = ", ".join(f'"{c}"' for c in CATEGORIE_STATICHE)
+        esempi_categorie = """
 - ANTINCENDIO: "Addetto Antincendio Rischio Basso", "Corso Antincendio Rischio Medio", "Aggiornamento Addetto Antincendio"
 - PRIMO SOCCORSO: "Addetto al Primo Soccorso Gruppo A", "Corso Primo Soccorso Gruppo B/C", "Corso BLS (Basic Life Support)"
 - ASPP: "ASPP Modulo A", "ASPP Modulo B", "Aggiornamento ASPP"
@@ -94,7 +106,7 @@ JSON:
 - HLO: "Corso HLO - Helicopter Landing Officer", "Responsabile Operazioni Eliporto"
 """
 
-    prompt_classificazione = f"""
+        prompt_classificazione = f"""
 Sei un assistente AI esperto in sicurezza sul lavoro.
 Il documento PDF è un attestato di formazione per il corso: "{corso_estratto}".
 
@@ -110,24 +122,29 @@ Restituisci ESCLUSIVAMENTE un oggetto JSON con una singola chiave "categoria".
 
 JSON:
 """
-    try:
-        logging.info(f"Seconda chiamata AI: Classificazione del corso '{corso_estratto}'...")
-        response_classificazione = model.generate_content([pdf_file_part, prompt_classificazione])
-        json_classificazione_text = response_classificazione.text.strip().replace("```json", "").replace("```", "")
-        categoria_data = json.loads(json_classificazione_text)
+        try:
+            logging.info(f"Seconda chiamata AI: Classificazione del corso '{corso_estratto}'...")
+            response_classificazione = model.generate_content([pdf_file_part, prompt_classificazione])
+            json_classificazione_text = response_classificazione.text.strip().replace("```json", "").replace("```", "")
+            categoria_data = json.loads(json_classificazione_text)
 
-        # Fallback se la categoria non è valida o non presente
-        if "categoria" not in categoria_data or categoria_data["categoria"] not in CATEGORIE_STATICHE:
-            logging.warning(f"Categoria non valida o assente: {categoria_data.get('categoria')}. Imposto 'ALTRO'.")
-            categoria_data["categoria"] = "ALTRO"
+            # Fallback se la categoria non è valida o non presente
+            if "categoria" not in categoria_data or categoria_data["categoria"] not in CATEGORIE_STATICHE:
+                logging.warning(f"Categoria non valida o assente: {categoria_data.get('categoria')}. Imposto 'ALTRO'.")
+                categoria_data["categoria"] = "ALTRO"
 
-        logging.info(f"Categoria classificata: {categoria_data}")
-    except Exception as e:
-        logging.error(f"Errore durante la seconda chiamata AI: {e}. Imposto 'ALTRO'.")
-        categoria_data = {"categoria": "ALTRO"}
+            logging.info(f"Categoria classificata: {categoria_data}")
+        except Exception as e:
+            logging.error(f"Errore durante la seconda chiamata AI: {e}. Imposto 'ALTRO'.")
+            categoria_data = {"categoria": "ALTRO"}
 
     # --- 3. Unisci i Risultati ---
-    dati_finali = {**dati_base, **categoria_data}
+    dati_finali = {
+        "nome": dati_base.get("nome"),
+        "corso": dati_base.get("corso"),
+        "data_rilascio": dati_base.get("data_rilascio"),
+        **categoria_data
+    }
     logging.info(f"Dati finali combinati: {dati_finali}")
 
     return dati_finali
