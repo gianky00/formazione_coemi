@@ -20,6 +20,16 @@ class PandasModel(QAbstractTableModel):
             return str(self._data.iloc[index.row(), index.column()])
         return None
 
+    def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
+        if role == Qt.ItemDataRole.EditRole:
+            self._data.iloc[index.row(), index.column()] = value
+            self.dataChanged.emit(index, index)
+            return True
+        return False
+
+    def flags(self, index):
+        return super().flags(index) | Qt.ItemFlag.ItemIsEditable
+
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
             return str(self._data.columns[section])
@@ -34,9 +44,9 @@ class ValidationView(QWidget):
         controls_layout = QHBoxLayout()
         self.layout.addLayout(controls_layout)
 
-        self.validate_button = QPushButton("Convalida")
-        self.validate_button.clicked.connect(self.validate_data)
-        controls_layout.addWidget(self.validate_button)
+        self.save_button = QPushButton("Salva Modifiche")
+        self.save_button.clicked.connect(self.save_changes)
+        controls_layout.addWidget(self.save_button)
 
         # Table
         self.table_view = QTableView()
@@ -55,25 +65,31 @@ class ValidationView(QWidget):
         except requests.exceptions.RequestException as e:
             QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
 
-    def validate_data(self):
-        selected_indexes = self.table_view.selectedIndexes()
-        if not selected_indexes:
-            QMessageBox.warning(self, "Nessuna Selezione", "Seleziona una riga da validare.")
-            return
+    def save_changes(self):
+        try:
+            for row in range(self.model.rowCount()):
+                certificato_id = self.df.iloc[row]['id']
+                nome = self.model.data(self.model.index(row, 1))
+                corso = self.model.data(self.model.index(row, 2))
+                data_rilascio = self.model.data(self.model.index(row, 3))
+                data_scadenza = self.model.data(self.model.index(row, 4))
 
-        row = selected_indexes[0].row()
-        certificato_id = self.df.iloc[row]['id']
+                # Create the payload with all fields, ensuring none are missing
+                payload = {
+                    "nome": nome,
+                    "corso": corso,
+                    "data_rilascio": data_rilascio,
+                    "data_scadenza": data_scadenza
+                }
 
-        reply = QMessageBox.question(self, 'Conferma Validazione', 'Sei sicuro di voler validare questa riga?',
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+                response = requests.put(f"http://127.0.0.1:8000/certificati/{certificato_id}", params=payload)
 
-        if reply == QMessageBox.StandardButton.Yes:
-            try:
-                response = requests.put(f"http://127.0.0.1:8000/certificati/{certificato_id}/valida")
-                if response.status_code == 200:
-                    QMessageBox.information(self, "Successo", "Riga validata con successo.")
-                    self.load_data()
-                else:
-                    QMessageBox.critical(self, "Errore", f"Errore durante la validazione: {response.text}")
-            except requests.exceptions.RequestException as e:
-                QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
+                if response.status_code != 200:
+                    QMessageBox.critical(self, "Errore", f"Errore durante l'aggiornamento della riga {row}: {response.text}")
+                    return
+
+            QMessageBox.information(self, "Successo", "Modifiche salvate con successo.")
+            self.load_data()
+
+        except requests.exceptions.RequestException as e:
+            QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
