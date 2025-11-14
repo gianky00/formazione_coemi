@@ -142,11 +142,14 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
             elif (attestato.data_scadenza_calcolata - today).days <= 30:
                 stato = "In Scadenza"
 
+        # Handle cases where categoria_corso might be None
+        categoria = attestato.corso.categoria_corso if attestato.corso.categoria_corso else "General"
+
         result.append(CertificatoSchema(
             id=attestato.id,
             nome=f"{attestato.dipendente.nome} {attestato.dipendente.cognome}",
             corso=attestato.corso.nome_corso,
-            categoria=attestato.corso.categoria_corso,
+            categoria=categoria,
             data_rilascio=attestato.data_rilascio.strftime('%d/%m/%Y'),
             data_scadenza=attestato.data_scadenza_calcolata.strftime('%d/%m/%Y') if attestato.data_scadenza_calcolata else None,
             stato_certificato=stato
