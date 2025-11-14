@@ -5,6 +5,7 @@ from PyQt6.QtCore import QTimer
 from desktop_app.import_view import ImportView
 from desktop_app.dashboard_view import DashboardView
 from desktop_app.config_view import ConfigView
+from desktop_app.validation_view import ValidationView
 
 class MainWindow(QMainWindow):
     def __init__(self, screenshot_path=None):
@@ -24,11 +25,13 @@ class MainWindow(QMainWindow):
         self.import_view = ImportView()
         self.dashboard_view = DashboardView()
         self.config_view = ConfigView()
+        self.validation_view = ValidationView()
 
         # Add views to stacked widget
         self.stacked_widget.addWidget(self.import_view)
         self.stacked_widget.addWidget(self.dashboard_view)
         self.stacked_widget.addWidget(self.config_view)
+        self.stacked_widget.addWidget(self.validation_view)
 
         self.create_menu()
 
@@ -46,6 +49,10 @@ class MainWindow(QMainWindow):
         dashboard_action = QAction("Dashboard", self)
         dashboard_action.triggered.connect(lambda: self.stacked_widget.setCurrentWidget(self.dashboard_view))
         view_menu.addAction(dashboard_action)
+
+        validation_action = QAction("Convalida Dati", self)
+        validation_action.triggered.connect(lambda: self.stacked_widget.setCurrentWidget(self.validation_view))
+        view_menu.addAction(validation_action)
 
         config_action = QAction("Configurazione", self)
         config_action.triggered.connect(lambda: self.stacked_widget.setCurrentWidget(self.config_view))

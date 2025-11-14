@@ -51,11 +51,8 @@ class DashboardView(QWidget):
         self.edit_button.clicked.connect(self.edit_data)
         self.delete_button = QPushButton("Cancella")
         self.delete_button.clicked.connect(self.delete_data)
-        self.validate_button = QPushButton("Convalida")
-        self.validate_button.clicked.connect(self.validate_data)
         controls_layout.addWidget(self.edit_button)
         controls_layout.addWidget(self.delete_button)
-        controls_layout.addWidget(self.validate_button)
 
         # Table
         self.table_view = QTableView()
@@ -65,7 +62,7 @@ class DashboardView(QWidget):
 
     def load_data(self):
         try:
-            response = requests.get("http://127.0.0.1:8000/certificati/")
+            response = requests.get("http://127.0.0.1:8000/certificati/?validated=true")
             if response.status_code == 200:
                 data = response.json()
                 self.df = pd.DataFrame(data)
@@ -118,13 +115,15 @@ class DashboardView(QWidget):
         current_data_scadenza = self.df.iloc[row]['data_scadenza']
 
         # Get new data from user
-        new_data_rilascio, ok1 = QInputDialog.getText(self, "Modifica Data Rilascio", "Data Rilascio (DD/MM/YYYY):", text=current_data_rilascio)
-        new_data_scadenza, ok2 = QInputDialog.getText(self, "Modifica Data Scadenza", "Data Scadenza (DD/MM/YYYY):", text=current_data_scadenza)
+        new_nome, ok1 = QInputDialog.getText(self, "Modifica Nome", "Nome e Cognome:", text=current_nome)
+        new_corso, ok2 = QInputDialog.getText(self, "Modifica Corso", "Corso:", text=current_corso)
+        new_data_rilascio, ok3 = QInputDialog.getText(self, "Modifica Data Rilascio", "Data Rilascio (DD/MM/YYYY):", text=current_data_rilascio)
+        new_data_scadenza, ok4 = QInputDialog.getText(self, "Modifica Data Scadenza", "Data Scadenza (DD/MM/YYYY):", text=current_data_scadenza)
 
-        if ok1 and ok2:
+        if ok1 and ok2 and ok3 and ok4:
             try:
                 response = requests.put(f"http://127.0.0.1:8000/certificati/{certificato_id}",
-                                        params={"nome": current_nome, "corso": current_corso, "data_rilascio": new_data_rilascio, "data_scadenza": new_data_scadenza})
+                                        params={"nome": new_nome, "corso": new_corso, "data_rilascio": new_data_rilascio, "data_scadenza": new_data_scadenza})
                 if response.status_code == 200:
                     QMessageBox.information(self, "Successo", "Dati aggiornati con successo.")
                     self.load_data()
@@ -153,29 +152,6 @@ class DashboardView(QWidget):
                     self.load_data()
                 else:
                     QMessageBox.critical(self, "Errore", f"Errore durante la cancellazione: {response.text}")
-            except requests.exceptions.RequestException as e:
-                QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
-
-    def validate_data(self):
-        selected_indexes = self.table_view.selectedIndexes()
-        if not selected_indexes:
-            QMessageBox.warning(self, "Nessuna Selezione", "Seleziona una riga da validare.")
-            return
-
-        row = selected_indexes[0].row()
-        certificato_id = self.df.iloc[row]['id']
-
-        reply = QMessageBox.question(self, 'Conferma Validazione', 'Sei sicuro di voler validare questa riga?',
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
-
-        if reply == QMessageBox.StandardButton.Yes:
-            try:
-                response = requests.put(f"http://127.0.0.1:8000/certificati/{certificato_id}/valida")
-                if response.status_code == 200:
-                    QMessageBox.information(self, "Successo", "Riga validata con successo.")
-                    self.load_data()
-                else:
-                    QMessageBox.critical(self, "Errore", f"Errore durante la validazione: {response.text}")
             except requests.exceptions.RequestException as e:
                 QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
 
