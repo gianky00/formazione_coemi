@@ -28,3 +28,4 @@ __pycache__/
 
 # Environment variables
 .env
+app/services/__pycache__/ocr.cpython-312.pyc
