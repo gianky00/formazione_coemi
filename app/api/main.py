@@ -257,7 +257,7 @@ def update_certificato(certificato_id: int, nome: str, corso: str, data_rilascio
         id=db_certificato.id,
         nome=f"{db_certificato.dipendente.nome} {db_certificato.dipendente.cognome}",
         corso=db_certificato.corso.nome_corso,
-        categoria=db_certificato.corso.categoria_corso,
+        categoria=db_certificato.corso.categoria_corso or "General",
         data_rilascio=db_certificato.data_rilascio.strftime('%d/%m/%Y'),
         data_scadenza=db_certificato.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_certificato.data_scadenza_calcolata else None,
         stato_certificato=stato
