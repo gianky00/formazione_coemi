@@ -62,17 +62,12 @@ def calculate_expiration_date(extracted_data: dict, db: Session) -> dict:
             entities["data_rilascio"] = None
 
     # 2. Logica di Business (Calcolo Scadenza)
-    if entities["corso"] and entities["data_rilascio"]:
-        corsi = db.query(CorsiMaster).all()
-        course_names = {corso.nome_corso.lower(): corso for corso in corsi}
-        extracted_course_lower = entities["corso"].lower()
-
-        for course_name, corso_obj in course_names.items():
-            if course_name in extracted_course_lower:
-                if corso_obj.validita_mesi > 0:
-                    expiration_date = entities["data_rilascio"] + relativedelta(months=corso_obj.validita_mesi)
-                    entities["data_scadenza"] = expiration_date
-                break
+    corso_master_nome = extracted_data.get("corso_master")
+    if corso_master_nome and entities["data_rilascio"]:
+        corso_master_obj = db.query(CorsiMaster).filter(CorsiMaster.nome_corso == corso_master_nome).first()
+        if corso_master_obj and corso_master_obj.validita_mesi > 0:
+            expiration_date = entities["data_rilascio"] + relativedelta(months=corso_master_obj.validita_mesi)
+            entities["data_scadenza"] = expiration_date
 
     # 3. Formatta le date come stringhe DD/MM/YYYY prima di restituirle
     if entities.get("data_rilascio"):
