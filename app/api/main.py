@@ -13,7 +13,7 @@ class CertificatoSchema(BaseModel):
     nome: str
     corso: str
     data_rilascio: str
-    data_scadenza: str
+    data_scadenza: Optional[str] = None
 
     class Config:
         orm_mode = True
@@ -143,13 +143,19 @@ def create_certificato(certificato: CertificatoCreateSchema, db: Session = Depen
 
     db_corso = db.query(CorsiMaster).filter(CorsiMaster.nome_corso == certificato.corso).first()
     if not db_corso:
-        raise HTTPException(status_code=404, detail="Corso non trovato")
+        print(f"Corso '{certificato.corso}' non trovato, lo creo...")
+        db_corso = CorsiMaster(
+            nome_corso=certificato.corso,
+            validita_mesi=0  # Default to 0 months validity
+        )
+        db.add(db_corso)
+        db.flush()
 
     db_attestato = Attestati(
         id_dipendente=db_dipendente.id,
         id_corso=db_corso.id,
         data_rilascio=datetime.strptime(certificato.data_rilascio, '%d/%m/%Y').date(),
-        data_scadenza_calcolata=datetime.strptime(certificato.data_scadenza, '%d/%m/%Y').date(),
+        data_scadenza_calcolata=datetime.strptime(certificato.data_scadenza, '%d/%m/%Y').date() if certificato.data_scadenza else None,
         stato_validazione=ValidationStatus.AUTOMATIC
     )
     db.add(db_attestato)
