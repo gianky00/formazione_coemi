@@ -26,3 +26,4 @@ app/api/__pycache__/main.cpython-312.pyc
 
 # Environment variables
 .env
+/desktop_app/__pycache__
