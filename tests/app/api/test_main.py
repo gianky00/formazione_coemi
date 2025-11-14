@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from app.db.models import Dipendente, Corso, Certificato, ValidationStatus
+from datetime import date
 
 def test_create_certificato(test_client: TestClient, db_session: Session):
     """
@@ -67,3 +68,41 @@ def test_validate_certificato(test_client: TestClient, db_session: Session):
     # Verifica che lo stato del certificato sia stato aggiornato nel database
     db_session.refresh(certificato)
     assert certificato.stato_validazione == ValidationStatus.MANUAL
+
+def test_update_certificato(test_client: TestClient, db_session: Session):
+    """
+    Testa l'aggiornamento di un certificato tramite l'endpoint PUT /certificati/{id}.
+    """
+    # Crea dati iniziali
+    dipendente = Dipendente(nome="Test", cognome="User")
+    corso = Corso(nome_corso="Initial Course", validita_mesi=12, categoria_corso="General")
+    certificato = Certificato(
+        dipendente=dipendente,
+        corso=corso,
+        data_rilascio=date(2025, 1, 1),
+        stato_validazione=ValidationStatus.MANUAL
+    )
+    db_session.add_all([dipendente, corso, certificato])
+    db_session.commit()
+
+    # Dati di aggiornamento
+    update_data = {
+        "nome": "Test User",
+        "corso": "Updated Course",
+        "categoria": "General",
+        "data_rilascio": "01/02/2025",
+        "data_scadenza": "01/02/2026"
+    }
+
+    # Esegui la richiesta di aggiornamento
+    response = test_client.put(f"/certificati/{certificato.id}", json=update_data)
+
+    # Verifica la risposta
+    assert response.status_code == 200
+    data = response.json()
+    assert data["corso"] == "Updated Course"
+
+    # Verifica che i dati siano stati aggiornati nel database
+    db_session.refresh(certificato)
+    assert certificato.corso.nome_corso == "Updated Course"
+    assert certificato.data_rilascio == date(2025, 2, 1)

@@ -28,6 +28,13 @@ class CertificatoCreateSchema(BaseModel):
     data_rilascio: str
     data_scadenza: Optional[str] = None
 
+class CertificatoUpdateSchema(BaseModel):
+    nome: str
+    corso: str
+    categoria: str
+    data_rilascio: str
+    data_scadenza: Optional[str] = None
+
 from app.db.session import SessionLocal
 
 router = APIRouter()
@@ -252,17 +259,13 @@ def create_certificato(certificato: CertificatoCreateSchema, db: Session = Depen
     )
 
 @router.put("/certificati/{certificato_id}", response_model=CertificatoSchema)
-def update_certificato(certificato_id: int, nome: str, corso: str, categoria: str, data_rilascio: str, data_scadenza: Optional[str] = None, db: Session = Depends(get_db)):
+def update_certificato(certificato_id: int, certificato: CertificatoUpdateSchema, db: Session = Depends(get_db)):
     """
     Aggiorna un certificato esistente.
 
     Args:
         certificato_id: L'ID del certificato da aggiornare.
-        nome: Il nuovo nome del dipendente.
-        corso: Il nuovo nome del corso.
-        categoria: La nuova categoria del corso.
-        data_rilascio: La nuova data di rilascio.
-        data_scadenza: La nuova data di scadenza (opzionale).
+        certificato: I dati del certificato da aggiornare.
         db: La sessione del database.
 
     Returns:
@@ -274,7 +277,7 @@ def update_certificato(certificato_id: int, nome: str, corso: str, categoria: st
 
     # Handle name and course changes
     try:
-        nome_parts = nome.split()
+        nome_parts = certificato.nome.split()
         db_dipendente = db.query(Dipendente).filter(Dipendente.nome == nome_parts[0], Dipendente.cognome == nome_parts[1]).first()
         if not db_dipendente:
             raise HTTPException(status_code=404, detail="Dipendente non trovato")
@@ -282,14 +285,14 @@ def update_certificato(certificato_id: int, nome: str, corso: str, categoria: st
     except IndexError:
         raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
 
-    db_master_course = db.query(Corso).filter(Corso.categoria_corso.ilike(f"%{categoria}%")).first()
+    db_master_course = db.query(Corso).filter(Corso.categoria_corso.ilike(f"%{certificato.categoria}%")).first()
     if not db_master_course:
-        raise HTTPException(status_code=404, detail=f"Categoria '{categoria}' non trovata.")
+        raise HTTPException(status_code=404, detail=f"Categoria '{certificato.categoria}' non trovata.")
 
-    db_corso = db.query(Corso).filter(Corso.nome_corso.ilike(f"%{corso}%")).first()
+    db_corso = db.query(Corso).filter(Corso.nome_corso.ilike(f"%{certificato.corso}%")).first()
     if not db_corso:
         db_corso = Corso(
-            nome_corso=corso,
+            nome_corso=certificato.corso,
             validita_mesi=db_master_course.validita_mesi,
             categoria_corso=db_master_course.categoria_corso
         )
@@ -297,9 +300,9 @@ def update_certificato(certificato_id: int, nome: str, corso: str, categoria: st
         db.flush()
     db_certificato.corso_id = db_corso.id
 
-    db_certificato.data_rilascio = datetime.strptime(data_rilascio, '%d/%m/%Y').date()
-    if data_scadenza and data_scadenza.lower() != 'none':
-        db_certificato.data_scadenza_calcolata = datetime.strptime(data_scadenza, '%d/%m/%Y').date()
+    db_certificato.data_rilascio = datetime.strptime(certificato.data_rilascio, '%d/%m/%Y').date()
+    if certificato.data_scadenza and certificato.data_scadenza.lower() != 'none':
+        db_certificato.data_scadenza_calcolata = datetime.strptime(certificato.data_scadenza, '%d/%m/%Y').date()
     else:
         db_certificato.data_scadenza_calcolata = None
 
