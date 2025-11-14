@@ -193,12 +193,21 @@ def create_certificato(certificato: CertificatoCreateSchema, db: Session = Depen
     db.commit()
     db.refresh(db_attestato)
 
+    stato = "Valido"
+    if db_attestato.data_scadenza_calcolata:
+        today = date.today()
+        if db_attestato.data_scadenza_calcolata < today:
+            stato = "Scaduto"
+        elif (db_attestato.data_scadenza_calcolata - today).days <= 30:
+            stato = "In Scadenza"
+
     return CertificatoSchema(
         id=db_attestato.id,
         nome=f"{db_attestato.dipendente.nome} {db_attestato.dipendente.cognome}",
         corso=db_attestato.corso.nome_corso,
         data_rilascio=db_attestato.data_rilascio.strftime('%d/%m/%Y'),
-        data_scadenza=db_attestato.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_attestato.data_scadenza_calcolata else None
+        data_scadenza=db_attestato.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_attestato.data_scadenza_calcolata else None,
+        stato_certificato=stato
     )
 
 @router.put("/certificati/{certificato_id}", response_model=CertificatoSchema)
@@ -231,12 +240,22 @@ def update_certificato(certificato_id: int, nome: str, corso: str, data_rilascio
     db_certificato.stato_validazione = ValidationStatus.MANUAL
     db.commit()
     db.refresh(db_certificato)
+
+    stato = "Valido"
+    if db_certificato.data_scadenza_calcolata:
+        today = date.today()
+        if db_certificato.data_scadenza_calcolata < today:
+            stato = "Scaduto"
+        elif (db_certificato.data_scadenza_calcolata - today).days <= 30:
+            stato = "In Scadenza"
+
     return CertificatoSchema(
         id=db_certificato.id,
         nome=f"{db_certificato.dipendente.nome} {db_certificato.dipendente.cognome}",
         corso=db_certificato.corso.nome_corso,
         data_rilascio=db_certificato.data_rilascio.strftime('%d/%m/%Y'),
-        data_scadenza=db_certificato.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_certificato.data_scadenza_calcolata else None
+        data_scadenza=db_certificato.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_certificato.data_scadenza_calcolata else None,
+        stato_certificato=stato
     )
 
 @router.put("/certificati/{certificato_id}/valida")
