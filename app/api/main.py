@@ -8,6 +8,7 @@ from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
 from pydantic import BaseModel
 from typing import Optional, List
+from pdf2image import convert_from_path
 
 class CertificatoSchema(BaseModel):
     id: int
@@ -108,19 +109,29 @@ def calculate_expiration_date(extracted_data: dict, db: Session) -> dict:
 
 @router.post("/upload-pdf/")
 async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    file_path = ocr.save_uploaded_file(file)
-    text = ocr.extract_text_from_pdf(file_path)
 
-    # Chiama il servizio AI (ora basato su Gemini)
-    extracted_data = ai_extraction.extract_entities_with_ai(text)
+    # 1. Salva il PDF temporaneamente
+    file_path = ocr.save_uploaded_file(file)
+
+    # 2. Converti il PDF in una lista di immagini (PIL.Image)
+    # Assicurati che Poppler sia installato e nel PATH!
+    try:
+        images = convert_from_path(file_path)
+    except Exception as e:
+        logging.error(f"Errore durante conversione PDF (Poppler): {e}")
+        return {"error": f"Errore Poppler: {e}"}
+
+    # 3. Chiama il servizio AI (ora invia le IMMAGINI, non il testo)
+    extracted_data = ai_extraction.extract_entities_with_ai(images)
 
     if "error" in extracted_data:
-        return {"filename": file.filename, "text": text, "entities": {}, "error": extracted_data["error"]}
+        return {"filename": file.filename, "entities": {}, "error": extracted_data["error"]}
 
-    # Applica la logica di business e formatta i dati
+    # 4. Applica la logica di business e formatta i dati
     final_entities = calculate_expiration_date(extracted_data, db)
 
-    return {"filename": file.filename, "text": text, "entities": final_entities}
+    # 5. Restituisci il risultato (non abbiamo più la variabile 'text' di Tesseract)
+    return {"filename": file.filename, "text": "Estrazione Multimodale Eseguita", "entities": final_entities}
 
 @router.get("/certificati/", response_model=List[CertificatoSchema])
 def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depends(get_db)):
@@ -257,7 +268,7 @@ def update_certificato(certificato_id: int, nome: str, corso: str, data_rilascio
         id=db_certificato.id,
         nome=f"{db_certificato.dipendente.nome} {db_certificato.dipendente.cognome}",
         corso=db_certificato.corso.nome_corso,
-        categoria=db_certificato.corso.categoria_corso,
+        categoria=db_certificato.corso.categoria_corso or "General",
         data_rilascio=db_certificato.data_rilascio.strftime('%d/%m/%Y'),
         data_scadenza=db_certificato.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_certificato.data_scadenza_calcolata else None,
         stato_certificato=stato
