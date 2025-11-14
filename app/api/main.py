@@ -143,7 +143,13 @@ def create_certificato(certificato: CertificatoCreateSchema, db: Session = Depen
 
     db_corso = db.query(CorsiMaster).filter(CorsiMaster.nome_corso == certificato.corso).first()
     if not db_corso:
-        raise HTTPException(status_code=404, detail="Corso non trovato")
+        print(f"Corso '{certificato.corso}' non trovato, lo creo...")
+        db_corso = CorsiMaster(
+            nome_corso=certificato.corso,
+            validita_mesi=0  # Default to 0 months validity
+        )
+        db.add(db_corso)
+        db.flush()
 
     db_attestato = Attestati(
         id_dipendente=db_dipendente.id,
