@@ -24,10 +24,60 @@ class CertificatoSchema(BaseModel):
 class CertificatoCreateSchema(BaseModel):
     nome: str
     corso: str
+    categoria: str
     data_rilascio: str
     data_scadenza: Optional[str] = None
 
+from app.db.session import SessionLocal
+
 router = APIRouter()
+
+def seed_database():
+    db = SessionLocal()
+    try:
+        corsi = [
+            {"nome_corso": "ANTINCENDIO", "validita_mesi": 60, "categoria_corso": "ANTINCENDIO"},
+            {"nome_corso": "PRIMO SOCCORSO", "validita_mesi": 36, "categoria_corso": "PRIMO SOCCORSO"},
+            {"nome_corso": "ASPP", "validita_mesi": 60, "categoria_corso": "ASPP"},
+            {"nome_corso": "RSPP", "validita_mesi": 60, "categoria_corso": "RSPP"},
+            {"nome_corso": "ATEX", "validita_mesi": 60, "categoria_corso": "ATEX"},
+            {"nome_corso": "BLSD", "validita_mesi": 12, "categoria_corso": "BLSD"},
+            {"nome_corso": "CARROPONTE", "validita_mesi": 60, "categoria_corso": "CARROPONTE"},
+            {"nome_corso": "DIRETTIVA SEVESO", "validita_mesi": 60, "categoria_corso": "DIRETTIVA SEVESO"},
+            {"nome_corso": "DIRIGENTI E FORMATORI", "validita_mesi": 60, "categoria_corso": "DIRIGENTI E FORMATORI"},
+            {"nome_corso": "GRU A TORRE E PONTE", "validita_mesi": 60, "categoria_corso": "GRU A TORRE E PONTE"},
+            {"nome_corso": "H2S", "validita_mesi": 60, "categoria_corso": "H2S"},
+            {"nome_corso": "IMBRACATORE", "validita_mesi": 60, "categoria_corso": "IMBRACATORE"},
+            {"nome_corso": "FORMAZIONE GENERICA ART.37", "validita_mesi": 60, "categoria_corso": "FORMAZIONE GENERICA ART.37"},
+            {"nome_corso": "PREPOSTO", "validita_mesi": 24, "categoria_corso": "PREPOSTO"},
+            {"nome_corso": "GRU SU AUTOCARRO", "validita_mesi": 60, "categoria_corso": "GRU SU AUTOCARRO"},
+            {"nome_corso": "PLE", "validita_mesi": 60, "categoria_corso": "PLE"},
+            {"nome_corso": "PES PAV PEI C CANTIERE", "validita_mesi": 60, "categoria_corso": "PES PAV PEI C CANTIERE"},
+            {"nome_corso": "LAVORI IN QUOTA", "validita_mesi": 60, "categoria_corso": "LAVORI IN QUOTA"},
+            {"nome_corso": "MACCHINE OPERATRICI", "validita_mesi": 60, "categoria_corso": "MACCHINE OPERATRICI"},
+            {"nome_corso": "MANITOU P.ROTATIVE", "validita_mesi": 60, "categoria_corso": "MANITOU P.ROTATIVE"},
+            {"nome_corso": "MEDICO COMPETENTE", "validita_mesi": 0, "categoria_corso": "MEDICO COMPETENTE"},
+            {"nome_corso": "MULETTO CARRELISTI", "validita_mesi": 60, "categoria_corso": "MULETTO CARRELISTI"},
+            {"nome_corso": "SOPRAVVIVENZA E SALVATAGGIO IN MARE", "validita_mesi": 60, "categoria_corso": "SOPRAVVIVENZA E SALVATAGGIO IN MARE"},
+            {"nome_corso": "SPAZI CONFINATI DPI III E AUTORESPIRATORI", "validita_mesi": 60, "categoria_corso": "SPAZI CONFINATI DPI III E AUTORESPIRATORI"},
+            {"nome_corso": "HLO", "validita_mesi": 0, "categoria_corso": "HLO"},
+            {"nome_corso": "ALTRO", "validita_mesi": 0, "categoria_corso": "ALTRO"},
+        ]
+
+        for corso_data in corsi:
+            db_corso = db.query(CorsiMaster).filter(CorsiMaster.nome_corso == corso_data["nome_corso"]).first()
+            if not db_corso:
+                new_corso = CorsiMaster(**corso_data)
+                db.add(new_corso)
+
+        db.commit()
+    finally:
+        db.close()
+
+@router.on_event("startup")
+async def startup_event():
+    seed_database()
+    logging.info("Database seeded successfully.")
 
 @router.get("/")
 def read_root():
@@ -76,18 +126,8 @@ def calculate_expiration_date(extracted_data: dict, db: Session) -> dict:
         # Prima tenta con la categoria esatta (case-insensitive)
         if categoria_estratta:
             corso_obj = db.query(CorsiMaster).filter(
-                CorsiMaster.nome_corso.ilike(categoria_estratta)
+                CorsiMaster.nome_corso.ilike(f"%{categoria_estratta}%")
             ).first()
-
-        # Se non trova corrispondenze, prova il fallback basato su sottostringa
-        if not corso_obj and corso_estratto:
-            logging.warning(f"Categoria '{categoria_estratta}' non trovata. Tentativo di fallback su sottostringa.")
-            tutti_i_corsi = db.query(CorsiMaster).all()
-            for master_corso in tutti_i_corsi:
-                if master_corso.nome_corso.lower() in corso_estratto.lower():
-                    corso_obj = master_corso
-                    logging.info(f"Fallback riuscito: '{corso_estratto}' associato a '{master_corso.nome_corso}'.")
-                    break
 
         if corso_obj:
             if corso_obj.validita_mesi > 0:
@@ -136,13 +176,9 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
     attestati = query.all()
     result = []
     for attestato in attestati:
-        stato = "Valido"
-        if attestato.data_scadenza_calcolata:
-            today = date.today()
-            if attestato.data_scadenza_calcolata < today:
-                stato = "Scaduto"
-            elif (attestato.data_scadenza_calcolata - today).days <= 30:
-                stato = "In Scadenza"
+        stato = "attivo"
+        if attestato.data_scadenza_calcolata and attestato.data_scadenza_calcolata < date.today():
+            stato = "scaduto"
 
         result.append(CertificatoSchema(
             id=attestato.id,
@@ -176,13 +212,16 @@ def create_certificato(certificato: CertificatoCreateSchema, db: Session = Depen
         db.add(db_dipendente)
         db.flush()
 
-    db_corso = db.query(CorsiMaster).filter(CorsiMaster.nome_corso == certificato.corso).first()
+    db_master_course = db.query(CorsiMaster).filter(CorsiMaster.categoria_corso.ilike(f"%{certificato.categoria}%")).first()
+    if not db_master_course:
+        raise HTTPException(status_code=404, detail=f"Categoria '{certificato.categoria}' non trovata.")
+
+    db_corso = db.query(CorsiMaster).filter(CorsiMaster.nome_corso.ilike(f"%{certificato.corso}%")).first()
     if not db_corso:
-        print(f"Corso '{certificato.corso}' non trovato, lo creo...")
         db_corso = CorsiMaster(
             nome_corso=certificato.corso,
-            validita_mesi=0,  # Default to 0 months validity
-            categoria_corso="General"
+            validita_mesi=db_master_course.validita_mesi,
+            categoria_corso=db_master_course.categoria_corso
         )
         db.add(db_corso)
         db.flush()
@@ -198,13 +237,9 @@ def create_certificato(certificato: CertificatoCreateSchema, db: Session = Depen
     db.commit()
     db.refresh(db_attestato)
 
-    stato = "Valido"
-    if db_attestato.data_scadenza_calcolata:
-        today = date.today()
-        if db_attestato.data_scadenza_calcolata < today:
-            stato = "Scaduto"
-        elif (db_attestato.data_scadenza_calcolata - today).days <= 30:
-            stato = "In Scadenza"
+    stato = "attivo"
+    if db_attestato.data_scadenza_calcolata and db_attestato.data_scadenza_calcolata < date.today():
+        stato = "scaduto"
 
     return CertificatoSchema(
         id=db_attestato.id,
@@ -217,7 +252,7 @@ def create_certificato(certificato: CertificatoCreateSchema, db: Session = Depen
     )
 
 @router.put("/certificati/{certificato_id}", response_model=CertificatoSchema)
-def update_certificato(certificato_id: int, nome: str, corso: str, data_rilascio: str, data_scadenza: Optional[str] = None, db: Session = Depends(get_db)):
+def update_certificato(certificato_id: int, nome: str, corso: str, categoria: str, data_rilascio: str, data_scadenza: Optional[str] = None, db: Session = Depends(get_db)):
     db_certificato = db.query(Attestati).filter(Attestati.id == certificato_id).first()
     if not db_certificato:
         raise HTTPException(status_code=404, detail="Certificato non trovato")
@@ -232,9 +267,19 @@ def update_certificato(certificato_id: int, nome: str, corso: str, data_rilascio
     except IndexError:
         raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
 
-    db_corso = db.query(CorsiMaster).filter(CorsiMaster.nome_corso == corso).first()
+    db_master_course = db.query(CorsiMaster).filter(CorsiMaster.categoria_corso.ilike(f"%{categoria}%")).first()
+    if not db_master_course:
+        raise HTTPException(status_code=404, detail=f"Categoria '{categoria}' non trovata.")
+
+    db_corso = db.query(CorsiMaster).filter(CorsiMaster.nome_corso.ilike(f"%{corso}%")).first()
     if not db_corso:
-        raise HTTPException(status_code=404, detail="Corso non trovato")
+        db_corso = CorsiMaster(
+            nome_corso=corso,
+            validita_mesi=db_master_course.validita_mesi,
+            categoria_corso=db_master_course.categoria_corso
+        )
+        db.add(db_corso)
+        db.flush()
     db_certificato.id_corso = db_corso.id
 
     db_certificato.data_rilascio = datetime.strptime(data_rilascio, '%d/%m/%Y').date()
@@ -247,13 +292,9 @@ def update_certificato(certificato_id: int, nome: str, corso: str, data_rilascio
     db.commit()
     db.refresh(db_certificato)
 
-    stato = "Valido"
-    if db_certificato.data_scadenza_calcolata:
-        today = date.today()
-        if db_certificato.data_scadenza_calcolata < today:
-            stato = "Scaduto"
-        elif (db_certificato.data_scadenza_calcolata - today).days <= 30:
-            stato = "In Scadenza"
+    stato = "attivo"
+    if db_certificato.data_scadenza_calcolata and db_certificato.data_scadenza_calcolata < date.today():
+        stato = "scaduto"
 
     return CertificatoSchema(
         id=db_certificato.id,

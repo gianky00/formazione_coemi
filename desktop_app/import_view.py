@@ -37,6 +37,7 @@ class ImportView(QWidget):
                     certificato = {
                         "nome": entities.get('nome', ''),
                         "corso": entities.get('corso', ''),
+                        "categoria": entities.get('categoria', 'ALTRO'),
                         "data_rilascio": entities.get('data_rilascio', ''),
                         "data_scadenza": entities.get('data_scadenza', '')
                     }
