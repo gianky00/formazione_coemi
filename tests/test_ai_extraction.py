@@ -63,8 +63,8 @@ class TestBusinessLogic(unittest.TestCase):
         # 4. Verifica il risultato finale
         self.assertEqual(final_entities['nome'], "ARGENTATI IVANOE")
         self.assertEqual(final_entities['corso'], "FORMAZIONE PREPOSTO")
-        self.assertEqual(final_entities['data_rilascio'], "2021-01-14") # Controlla la formattazione YYYY-MM-DD
-        self.assertEqual(final_entities['data_scadenza'], "2023-01-14") # Controlla il calcolo e la formattazione (2 anni)
+        self.assertEqual(final_entities['data_rilascio'], "14/01/2021") # Controlla la formattazione DD/MM/YYYY
+        self.assertEqual(final_entities['data_scadenza'], "14/01/2023") # Controlla il calcolo e la formattazione (2 anni)
 
 
 if __name__ == '__main__':
