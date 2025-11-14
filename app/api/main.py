@@ -19,7 +19,7 @@ class CertificatoSchema(BaseModel):
     stato_certificato: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class CertificatoCreateSchema(BaseModel):
     nome: str
@@ -146,7 +146,7 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
             id=attestato.id,
             nome=f"{attestato.dipendente.nome} {attestato.dipendente.cognome}",
             corso=attestato.corso.nome_corso,
-            categoria=attestato.corso.categoria_corso,
+            categoria=attestato.corso.categoria_corso or "General",
             data_rilascio=attestato.data_rilascio.strftime('%d/%m/%Y'),
             data_scadenza=attestato.data_scadenza_calcolata.strftime('%d/%m/%Y') if attestato.data_scadenza_calcolata else None,
             stato_certificato=stato
@@ -208,7 +208,7 @@ def create_certificato(certificato: CertificatoCreateSchema, db: Session = Depen
         id=db_attestato.id,
         nome=f"{db_attestato.dipendente.nome} {db_attestato.dipendente.cognome}",
         corso=db_attestato.corso.nome_corso,
-        categoria=db_attestato.corso.categoria_corso,
+        categoria=db_attestato.corso.categoria_corso or "General",
         data_rilascio=db_attestato.data_rilascio.strftime('%d/%m/%Y'),
         data_scadenza=db_attestato.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_attestato.data_scadenza_calcolata else None,
         stato_certificato=stato
