@@ -112,13 +112,14 @@ class DashboardView(QWidget):
         # Get current data
         current_nome = self.df.iloc[row]['nome']
         current_corso = self.df.iloc[row]['corso']
+        current_categoria = self.df.iloc[row]['categoria']
         current_data_rilascio = self.df.iloc[row]['data_rilascio']
         current_data_scadenza = self.df.iloc[row]['data_scadenza']
 
         # Get new data from user
         new_nome, ok1 = QInputDialog.getText(self, "Modifica Nome", "Nome e Cognome:", text=current_nome)
         new_corso, ok2 = QInputDialog.getText(self, "Modifica Corso", "Corso:", text=current_corso)
-        new_categoria, ok5 = QInputDialog.getText(self, "Modifica Categoria", "Categoria:", text=self.df.iloc[row]['categoria'])
+        new_categoria, ok5 = QInputDialog.getText(self, "Modifica Categoria", "Categoria:", text=current_categoria)
         new_data_rilascio, ok3 = QInputDialog.getText(self, "Modifica Data Rilascio", "Data Rilascio (DD/MM/YYYY):", text=current_data_rilascio)
         new_data_scadenza, ok4 = QInputDialog.getText(self, "Modifica Data Scadenza", "Data Scadenza (DD/MM/YYYY):", text=str(current_data_scadenza))
 
@@ -131,7 +132,13 @@ class DashboardView(QWidget):
                     "data_rilascio": new_data_rilascio,
                     "data_scadenza": new_data_scadenza
                 }
-                response = requests.put(f"http://127.0.0.1:8000/certificati/{certificato_id}", json=payload)
+                import json
+                headers = {'Content-Type': 'application/json'}
+                response = requests.put(
+                    f"http://127.0.0.1:8000/certificati/{certificato_id}",
+                    data=json.dumps(payload),
+                    headers=headers
+                )
                 if response.status_code == 200:
                     QMessageBox.information(self, "Successo", "Dati aggiornati con successo.")
                     self.load_data()
