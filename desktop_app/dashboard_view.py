@@ -15,12 +15,12 @@ class PandasModel(QAbstractTableModel):
         return self._data.shape[1]
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
-        if index.isValid() and role == Qt.ItemDataRole.DisplayRole:
+        if not self._data.empty and index.isValid() and role == Qt.ItemDataRole.DisplayRole:
             return str(self._data.iloc[index.row(), index.column()])
         return None
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
-        if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
+        if not self._data.empty and role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
             return str(self._data.columns[section])
         return None
 
