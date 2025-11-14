@@ -49,26 +49,33 @@ def build_prompt(text: str) -> str:
     return f"""
 Sei un assistente AI specializzato nell'analisi e nell'estrazione di dati da attestati di formazione sulla sicurezza sul lavoro.
 
-Il tuo compito è estrarre le informazioni richieste e CLASSIFICARE il corso frequentato in una delle seguenti categorie master.
+Il tuo compito è estrarre le informazioni richieste e, cosa più importante, CLASSIFICARE il corso in una delle categorie ufficiali fornite.
 
-Lista dei Corsi Master:
+**Istruzioni Rigorose:**
+1.  **Analizza** il testo del certificato.
+2.  **Estrai** il nome, il titolo esatto del corso e la data di rilascio.
+3.  **CLASSIFICA** il titolo del corso in una delle categorie presenti nella `Lista dei Corsi Master`. Il valore di `corso_master` DEVE essere uno di quelli della lista.
+
+**Esempio Pratico:**
+Se dal testo estrai un corso chiamato "Corso di formazione teorico-pratico per addetti alla conduzione di carrelli elevatori semoventi con conducente a bordo", il tuo output per `corso_master` DEVE essere "MULETTO CARRELISTI".
+
+**Lista dei Corsi Master Ufficiali:**
 ---
 {", ".join(master_courses)}
 ---
 
-Analizza il seguente testo estratto da un certificato:
+**Testo da Analizzare:**
 ---
 {text}
 ---
 
-Estrai le seguenti informazioni e restituisci ESCLUSIVAMENTE un oggetto JSON valido.
+**Output (esclusivamente JSON):**
+Estrai le seguenti informazioni e restituisci un oggetto JSON valido.
 
-- "nome": Il nome completo del partecipante.
-- "corso": Il titolo esatto del corso frequentato, come appare nel testo.
-- "data_rilascio": La data di emissione o di rilascio dell'attestato (formato DD-MM-YYYY).
-- "corso_master": DEVI scegliere ESATTAMENTE una delle seguenti categorie dalla "Lista dei Corsi Master" che meglio rappresenta il corso frequentato. Non inventare nuove categorie.
-
-Se un campo non è presente, il suo valore deve essere null.
+- `nome`: Il nome completo del partecipante.
+- `corso`: Il titolo esatto del corso, così com'è scritto nel testo.
+- `data_rilascio`: La data di emissione (formato DD-MM-YYYY).
+- `corso_master`: La categoria scelta ESATTAMENTE dalla `Lista dei Corsi Master Ufficiali`.
 
 JSON:
 """
