@@ -167,7 +167,7 @@ def create_certificato(certificato: CertificatoCreateSchema, db: Session = Depen
         nome=f"{db_attestato.dipendente.nome} {db_attestato.dipendente.cognome}",
         corso=db_attestato.corso.nome_corso,
         data_rilascio=db_attestato.data_rilascio.strftime('%d/%m/%Y'),
-        data_scadenza=db_attestato.data_scadenza_calcolata.strftime('%d/%m/%Y')
+        data_scadenza=db_attestato.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_attestato.data_scadenza_calcolata else None
     )
 
 @router.put("/certificati/{certificato_id}", response_model=CertificatoSchema)
