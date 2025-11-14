@@ -179,7 +179,8 @@ def create_certificato(certificato: CertificatoCreateSchema, db: Session = Depen
         print(f"Corso '{certificato.corso}' non trovato, lo creo...")
         db_corso = CorsiMaster(
             nome_corso=certificato.corso,
-            validita_mesi=0  # Default to 0 months validity
+            validita_mesi=0,  # Default to 0 months validity
+            categoria_corso="General"
         )
         db.add(db_corso)
         db.flush()
