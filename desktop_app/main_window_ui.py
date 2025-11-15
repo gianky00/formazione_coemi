@@ -143,13 +143,19 @@ class MainWindow(QMainWindow):
         current_year = QDate.currentDate().year()
         msg_box.setText(f"""
             <b>AVVISO LEGALE SU PROPRIETÀ INTELLETTUALE E SEGRETO INDUSTRIALE</b><br><br>
-            Questo software, inclusi la sua architettura, logica di funzionamento e interfaccia utente, costituisce Segreto Industriale (Know-How) e informazione confidenziale.
+            Questo software, inclusi la sua architettura, logica di funzionamento e interfaccia utente, costituisce Segreto Industriale (Know-How) e informazione confidenziale, protetto ai sensi del <b>Codice della Proprietà Industriale (D.Lgs. 30/2005)</b> e della normativa sui segreti commerciali <b>(Art. 98-99 CPI; Art. 623 Codice Penale)</b>.
             <br><br>
-            Esso è protetto ai sensi della normativa vigente in materia di segreti commerciali, del diritto d’autore e del Codice della Proprietà Industriale.
+            Inoltre, il software è un'opera dell'ingegno di carattere creativo, protetta dalla <b>Legge sul Diritto d'Autore (L. 633/1941)</b>.
             <br><br>
-            <b>È fatto assoluto divieto</b> di copiare, decompilare, modificare, distribuire o utilizzare il software, in tutto o in parte, al di fuori degli scopi autorizzati senza preventivo consenso scritto.
-            <br><br>
-            La violazione delle presenti disposizioni costituisce un illecito civile e penale e sarà perseguita a norma di legge.
+            <b>È fatto assoluto divieto di:</b>
+            <ul>
+                <li>Copiare, duplicare o riprodurre il software in qualsiasi forma.</li>
+                <li>Decompilare, disassemblare o effettuare reverse engineering.</li>
+                <li>Modificare, adattare o creare opere derivate.</li>
+                <li>Distribuire, noleggiare, vendere o cedere in licenza a terzi.</li>
+                <li>Utilizzare il software per scopi illeciti o non autorizzati.</li>
+            </ul>
+            La violazione di tali disposizioni costituisce un illecito che comporta <b>sanzioni civili</b> (risarcimento del danno) e <b>penali</b> (reclusione e multa, ai sensi degli art. 171 e seguenti della Legge sul Diritto d'Autore e dell'art. 623 del Codice Penale).
             <br><br>
             Copyright © {current_year}. Tutti i diritti riservati.
         """)
