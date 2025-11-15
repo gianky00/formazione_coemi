@@ -134,6 +134,11 @@ class DashboardView(QWidget):
         except requests.exceptions.RequestException as e:
             QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
 
+    def toggle_select_all(self, state):
+        check_state = Qt.CheckState(state)
+        for i in range(self.model.rowCount()):
+            self.model.setData(self.model.index(i, 0), check_state.value, Qt.ItemDataRole.CheckStateRole)
+
     def get_selected_ids(self):
         selected_ids = []
         for i in range(self.model.rowCount()):
