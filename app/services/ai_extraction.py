@@ -22,7 +22,7 @@ CATEGORIE_STATICHE = [
     "DIRETTIVA SEVESO", "DIRIGENTI E FORMATORI", "GRU A TORRE E PONTE", "H2S",
     "IMBRACATORE", "FORMAZIONE GENERICA ART.37", "PREPOSTO", "GRU SU AUTOCARRO",
     "PLE", "PES PAV PEI C CANTIERE", "LAVORI IN QUOTA", "MACCHINE OPERATRICI",
-    "MANITOU P.ROTATIVE", "MEDICO COMPETENTE", "MULETTO CARRELISTI",
+    "MANITOU P.ROTATIVE", "MEDICO COMPETENTE", "MULETTO CARRELISTI", "NOMINE",
     "SOPRAVVIVENZA E SALVATAGGIO IN MARE", "SPAZI CONFINATI DPI III E AUTORESPIRATORI",
     "HLO", "ALTRO"
 ]
@@ -101,6 +101,7 @@ JSON:
 - MANITOU P.ROTATIVE: "Addetto alla Conduzione di Sollevatori Telescopici Rotativi", "Corso Manitou"
 - MEDICO COMPETENTE: "Corso di Formazione per Medico Competente", "Aggiornamento Medico Competente"
 - MULETTO CARRELISTI: "Addetto alla Conduzione di Carrelli Elevatori", "Patentino Muletto"
+- NOMINE: "NOMINA CAPO CANTIERE", "NOMINA RAPPRESENTANTE LEGALE"
 - SOPRAVVIVENZA E SALVATAGGIO IN MARE: "Corso STCW Basic Safety Training", "Sopravvivenza in Mare"
 - SPAZI CONFINATI DPI III E AUTORESPIRATORI: "Corso Lavori in Spazi Confinati", "DPI III Categoria e Autorespiratori"
 - HLO: "Corso HLO - Helicopter Landing Officer", "Responsabile Operazioni Eliporto"
