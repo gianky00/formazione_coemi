@@ -1,5 +1,5 @@
 
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLineEdit, QDateEdit, QCheckBox, QDialogButtonBox, QFormLayout, QLabel, QComboBox
+from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLineEdit, QDateEdit, QCheckBox, QDialogButtonBox, QFormLayout, QLabel, QComboBox, QListView
 from PyQt6.QtCore import QDate, Qt
 
 class EditCertificatoDialog(QDialog):
@@ -35,9 +35,15 @@ class EditCertificatoDialog(QDialog):
         self.nome_edit = QLineEdit(data['nome'])
         self.corso_edit = QLineEdit(data['corso'])
         self.categoria_edit = QComboBox()
-        self.categoria_edit.addItems(categories)
+
+        unique_categories = sorted(list(set(categories)))
+        self.categoria_edit.addItems(unique_categories)
+
         self.categoria_edit.setCurrentText(data['categoria'])
         self.categoria_edit.setEditable(False)
+        self.categoria_edit.setView(QListView())
+        self.categoria_edit.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+
 
         self.data_rilascio_edit = QDateEdit()
         self.data_rilascio_edit.setDisplayFormat("dd/MM/yyyy")

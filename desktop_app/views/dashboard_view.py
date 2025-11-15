@@ -107,6 +107,7 @@ class DashboardView(QWidget):
         # Table
         self.table_view = QTableView()
         self.table_view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
+        self.table_view.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
         self.table_view.setAlternatingRowColors(True)
         self.table_view.setMouseTracking(True)
         self.table_view.entered.connect(self.table_view.viewport().update)
