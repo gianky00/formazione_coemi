@@ -12,7 +12,20 @@ def main():
     # Splash Screen
     splash_pix = QPixmap("desktop_app/assets/logo.png")
     splash = QSplashScreen(splash_pix, Qt.WindowType.WindowStaysOnTopHint)
+    splash.setWindowOpacity(0)
     splash.show()
+
+    # Fade-in animation
+    for i in range(100):
+        splash.setWindowOpacity(i / 100.0)
+        time.sleep(0.01)
+
+    splash.showMessage("Inizializzazione del motore AI...", Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignCenter, Qt.GlobalColor.white)
+    time.sleep(1)
+    splash.showMessage("Connessione al database...", Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignCenter, Qt.GlobalColor.white)
+    time.sleep(1)
+    splash.showMessage("Avvio dell'interfaccia...", Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignCenter, Qt.GlobalColor.white)
+    time.sleep(1)
 
     # Set a modern font
     font = QFont("Segoe UI")
@@ -56,11 +69,11 @@ def main():
         QTableView {
             border: none;
             gridline-color: #E0E0E0;
-            selection-background-color: #0052CC;
+            selection-background-color: #2c3e50;
             alternate-background-color: #F7F8FC;
         }
         QTableView::item:selected {
-            color: white;
+            color: #FFFFFF;
         }
         QHeaderView::section {
             background-color: #FFFFFF;
