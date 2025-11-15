@@ -34,6 +34,7 @@ def test_extract_entities_with_ai_success(monkeypatch, mocker):
         "nome": "Mario Rossi",
         "corso": "ANTINCENDIO",
         "data_rilascio": "14-11-2025",
+        "data_scadenza": None,
         "categoria": "ANTINCENDIO"
     }
 
@@ -91,5 +92,6 @@ def test_extract_entities_with_ai_incomplete_json(monkeypatch, mocker):
         "nome": "Mario Rossi",
         "corso": None,
         "data_rilascio": None,
+        "data_scadenza": None,
         "categoria": "ALTRO"
     }
