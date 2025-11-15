@@ -1,8 +1,8 @@
 import sys
 import time
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QStackedWidget, QMenuBar, QProgressBar, QMessageBox
+from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QStackedWidget, QMenuBar, QProgressBar, QMessageBox, QLabel, QHBoxLayout
 from PyQt6.QtGui import QAction
-from PyQt6.QtCore import QTimer, QDate
+from PyQt6.QtCore import QTimer, QDate, Qt
 from desktop_app.views.import_view import ImportView
 from desktop_app.views.dashboard_view import DashboardView
 from desktop_app.views.config_view import ConfigView
@@ -23,12 +23,19 @@ class MainWindow(QMainWindow):
         self.layout.addWidget(self.stacked_widget)
 
         # Progress Bar
+        self.progress_layout = QHBoxLayout()
+        self.progress_label = QLabel("")
+        self.progress_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.progress_bar = QProgressBar(self)
-        self.progress_bar.setVisible(False)
-        self.layout.addWidget(self.progress_bar)
+        self.progress_layout.addWidget(self.progress_label)
+        self.progress_layout.addWidget(self.progress_bar)
+        self.progress_widget = QWidget()
+        self.progress_widget.setLayout(self.progress_layout)
+        self.progress_widget.setVisible(False)
+        self.layout.addWidget(self.progress_widget)
 
         # Instantiate views
-        self.import_view = ImportView(self.progress_bar)
+        self.import_view = ImportView(self.progress_widget, self.progress_bar, self.progress_label)
         self.dashboard_view = DashboardView()
         self.config_view = ConfigView()
         self.validation_view = ValidationView()
@@ -142,11 +149,11 @@ class MainWindow(QMainWindow):
 
         self.menuBar().setStyleSheet(f"""
             {base_style}
-            {hover_style}
             QMenuBar::item[active="true"] {{
                 background-color: #555555;
                 color: white;
             }}
+            {hover_style}
         """)
 
     def take_screenshot_and_exit(self):
