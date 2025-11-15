@@ -7,7 +7,7 @@ import logging
 from app.services import ai_extraction, certificate_logic
 from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 
 class CertificatoSchema(BaseModel):
@@ -22,18 +22,42 @@ class CertificatoSchema(BaseModel):
     model_config = {"from_attributes": True}
 
 class CertificatoCreateSchema(BaseModel):
-    nome: str
-    corso: str
-    categoria: str
-    data_rilascio: str
-    data_scadenza: Optional[str] = None
+    nome: str = Field(..., min_length=1, description="Nome e cognome del dipendente")
+    corso: str = Field(..., min_length=1, description="Nome del corso")
+    categoria: str = Field(..., min_length=1, description="Categoria del corso")
+    data_rilascio: str = Field(..., description="Data di rilascio in formato DD/MM/YYYY")
+    data_scadenza: Optional[str] = Field(None, description="Data di scadenza in formato DD/MM/YYYY")
+
+    @field_validator('data_rilascio', 'data_scadenza')
+    def validate_date_format(cls, v):
+        if v is None:
+            return v
+        if not v:
+            raise ValueError("La data non può essere vuota.")
+        try:
+            datetime.strptime(v, '%d/%m/%Y')
+        except ValueError:
+            raise ValueError("Formato data non valido. Usare DD/MM/YYYY.")
+        return v
 
 class CertificatoUpdateSchema(BaseModel):
-    nome: str
-    corso: str
-    categoria: str
-    data_rilascio: str
-    data_scadenza: Optional[str] = None
+    nome: str = Field(..., min_length=1, description="Nome e cognome del dipendente")
+    corso: str = Field(..., min_length=1, description="Nome del corso")
+    categoria: str = Field(..., min_length=1, description="Categoria del corso")
+    data_rilascio: str = Field(..., description="Data di rilascio in formato DD/MM/YYYY")
+    data_scadenza: Optional[str] = Field(None, description="Data di scadenza in formato DD/MM/YYYY")
+
+    @field_validator('data_rilascio', 'data_scadenza')
+    def validate_date_format(cls, v):
+        if v is None:
+            return v
+        if not v:
+            raise ValueError("La data non può essere vuota.")
+        try:
+            datetime.strptime(v, '%d/%m/%Y')
+        except ValueError:
+            raise ValueError("Formato data non valido. Usare DD/MM/YYYY.")
+        return v
 
 from app.db.session import SessionLocal
 
