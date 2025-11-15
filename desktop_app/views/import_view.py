@@ -82,8 +82,13 @@ class DropZone(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFrameShape(QFrame.Shape.StyledPanel)
-        self.setFrameShadow(QFrame.Shadow.Sunken)
-        self.setStyleSheet("QFrame { border: 2px dashed #aaa; border-radius: 15px; }")
+        self.setStyleSheet("""
+            QFrame {
+                border: 1px solid #E0E0E0;
+                border-radius: 15px;
+                background-color: #F7F8FC;
+            }
+        """)
         self.setAcceptDrops(True)
 
         layout = QVBoxLayout(self)

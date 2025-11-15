@@ -15,16 +15,16 @@ def main():
     app.setStyleSheet("""
         QMainWindow, QWidget {
             background-color: #F7F8FC;
+            color: #212121;
         }
 
         /* Sidebar Styles */
-        Sidebar > QVBoxLayout {
+        Sidebar {
             background-color: #FFFFFF;
             border-right: 1px solid #E0E0E0;
         }
-        Sidebar QLabel {
-            padding-top: 10px;
-            padding-bottom: 10px;
+        Sidebar QLabel#logo {
+            padding: 10px;
         }
         Sidebar QPushButton {
             text-align: left;
@@ -33,55 +33,70 @@ def main():
             font-size: 14px;
             color: #555;
             border-radius: 5px;
-            margin: 5px;
+            margin: 5px 10px;
         }
         Sidebar QPushButton:hover {
             background-color: #E8F0FE;
         }
         Sidebar QPushButton:checked {
-            background-color: #D6E4FF;
-            color: #0052CC;
+            background-color: #4A90E2;
+            color: white;
             font-weight: bold;
-        }
-
-        /* Content Area Styles */
-        QFrame {
-            background-color: #FFFFFF;
-            border: none;
         }
 
         /* Table Styles */
         QTableView {
-            border: 1px solid #E0E0E0;
+            border: none;
             gridline-color: #E0E0E0;
             selection-background-color: #D6E4FF;
             alternate-background-color: #F7F8FC;
-            background-color: #FFFFFF;
         }
         QHeaderView::section {
-            background-color: #F7F8FC;
-            padding: 8px;
+            background-color: #FFFFFF;
+            padding: 10px;
             border: none;
-            border-bottom: 1px solid #E0E0E0;
+            border-bottom: 2px solid #E0E0E0;
             font-weight: bold;
+            font-size: 13px;
+        }
+        QTableView::item {
+            padding: 5px;
+            border-bottom: 1px solid #E0E0E0;
+        }
+
+        /* Checkbox Styles */
+        QCheckBox::indicator {
+            width: 18px;
+            height: 18px;
+        }
+        QCheckBox::indicator:unchecked {
+            border: 2px solid #B0B0B0;
+            border-radius: 4px;
+        }
+        QCheckBox::indicator:checked {
+            background-color: #4A90E2;
+            border: 2px solid #4A90E2;
+            border-radius: 4px;
+            image: url(desktop_app/icons/check.svg);
         }
 
         /* Button Styles */
         QPushButton {
             padding: 8px 16px;
-            border: 1px solid #0052CC;
+            border: 1px solid #4A90E2;
             border-radius: 5px;
-            background-color: #0052CC;
+            background-color: #4A90E2;
             color: white;
             font-size: 14px;
+            font-weight: bold;
         }
         QPushButton:hover {
-            background-color: #0065FF;
+            background-color: #357ABD;
         }
         QPushButton:disabled {
-            background-color: #E0E0E0;
-            border-color: #E0E0E0;
-            color: #999;
+            background-color: #D3D3D3;
+            border-color: #C0C0C0;
+            color: #A0A0A0;
         }
 
         /* ComboBox and LineEdit Styles */
@@ -90,12 +105,20 @@ def main():
             border: 1px solid #E0E0E0;
             border-radius: 5px;
             font-size: 14px;
+            background-color: #FDFDFD;
         }
         QComboBox::drop-down {
-            border: none;
+            subcontrol-origin: padding;
+            subcontrol-position: top right;
+            width: 25px;
+            border-left-width: 1px;
+            border-left-color: #E0E0E0;
+            border-left-style: solid;
+            border-top-right-radius: 5px;
+            border-bottom-right-radius: 5px;
         }
         QComboBox::down-arrow {
-            image: url(desktop_app/icons/down-arrow.svg); /* You'll need an icon for this */
+            image: url(desktop_app/icons/down-arrow.svg);
         }
     """)
 
