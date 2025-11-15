@@ -43,12 +43,16 @@ class DashboardView(QWidget):
         self.export_button = QPushButton("Esporta in CSV")
         self.export_button.clicked.connect(self.export_to_csv)
 
-        controls_layout.addWidget(QLabel("Dipendente:"))
-        controls_layout.addWidget(self.employee_filter)
-        controls_layout.addWidget(QLabel("Categoria:"))
-        controls_layout.addWidget(self.category_filter)
-        controls_layout.addWidget(QLabel("Stato:"))
-        controls_layout.addWidget(self.status_filter)
+        filter_group = QHBoxLayout()
+        filter_group.addWidget(QLabel("Dipendente:"))
+        filter_group.addWidget(self.employee_filter)
+        filter_group.addWidget(QLabel("Categoria:"))
+        filter_group.addWidget(self.category_filter)
+        filter_group.addWidget(QLabel("Stato:"))
+        filter_group.addWidget(self.status_filter)
+        filter_group.addStretch()
+        controls_layout.addLayout(filter_group)
+
         controls_layout.addWidget(self.filter_button)
         controls_layout.addWidget(self.export_button)
 
@@ -62,7 +66,7 @@ class DashboardView(QWidget):
         # Table
         self.table_view = QTableView()
         self.table_view.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
-        self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.layout.addWidget(self.table_view)
         self.load_data()
 

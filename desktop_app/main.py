@@ -15,7 +15,7 @@ def main():
 
 
     main_win = MainWindow(screenshot_path=screenshot_path)
-    main_win.show()
+    main_win.showMaximized()
     sys.exit(app.exec())
 
 if __name__ == "__main__":
