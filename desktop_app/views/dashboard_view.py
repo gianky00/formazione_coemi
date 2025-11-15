@@ -70,6 +70,10 @@ class DashboardView(QWidget):
         self.filter_button.clicked.connect(self.load_data)
         self.export_button = QPushButton("Esporta in CSV")
         self.export_button.clicked.connect(self.export_to_csv)
+        self.edit_button = QPushButton("Modifica")
+        self.edit_button.clicked.connect(self.edit_data)
+        self.delete_button = QPushButton("Cancella")
+        self.delete_button.clicked.connect(self.delete_data)
 
         filter_group = QHBoxLayout()
         filter_group.addWidget(QLabel("Dipendente:"))
