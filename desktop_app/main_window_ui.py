@@ -117,27 +117,37 @@ class MainWindow(QMainWindow):
     def update_menu_styles(self, current_index):
         current_widget = self.stacked_widget.widget(current_index)
 
-        for name, action in self.menu_actions.items():
-            font = action.font()
-            font.setBold(False)
-            action.setFont(font)
+        base_style = "QMenuBar::item { padding: 5px 10px; }"
+        hover_style = "QMenuBar::item:selected { background-color: #3e3e3e; color: white; }"
 
+        for action in self.menu_actions.values():
+            action.setFont(self.font()) # Reset font
+            action.setProperty("active", False)
+
+        active_action = None
         if current_widget == self.import_view:
-            font = self.menu_actions["Analizza"].font()
-            font.setBold(True)
-            self.menu_actions["Analizza"].setFont(font)
+            active_action = self.menu_actions["Analizza"]
         elif current_widget == self.validation_view:
-            font = self.menu_actions["Convalida Dati"].font()
-            font.setBold(True)
-            self.menu_actions["Convalida Dati"].setFont(font)
+            active_action = self.menu_actions["Convalida Dati"]
         elif current_widget == self.dashboard_view:
-            font = self.menu_actions["Database"].font()
-            font.setBold(True)
-            self.menu_actions["Database"].setFont(font)
+            active_action = self.menu_actions["Database"]
         elif current_widget == self.config_view:
-            font = self.menu_actions["Addestra"].font()
+            active_action = self.menu_actions["Addestra"]
+
+        if active_action:
+            font = active_action.font()
             font.setBold(True)
-            self.menu_actions["Addestra"].setFont(font)
+            active_action.setFont(font)
+            active_action.setProperty("active", True)
+
+        self.menuBar().setStyleSheet(f"""
+            {base_style}
+            {hover_style}
+            QMenuBar::item[active="true"] {{
+                background-color: #555555;
+                color: white;
+            }}
+        """)
 
     def take_screenshot_and_exit(self):
         screen = QApplication.primaryScreen()

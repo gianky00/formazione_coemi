@@ -1,5 +1,5 @@
 
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QMessageBox, QStyledItemDelegate, QLineEdit
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QMessageBox, QStyledItemDelegate, QLineEdit, QCheckBox
 from PyQt6.QtCore import QAbstractTableModel, Qt
 import pandas as pd
 import requests
@@ -15,38 +15,55 @@ class CustomDelegate(QStyledItemDelegate):
         if isinstance(editor, QLineEdit):
             editor.selectAll()
 
-class PandasModel(QAbstractTableModel):
+class CheckboxTableModel(QAbstractTableModel):
     def __init__(self, data):
         super().__init__()
         self._data = data
+        self.check_states = [Qt.CheckState.Unchecked] * self._data.shape[0]
 
     def rowCount(self, parent=None):
         return self._data.shape[0]
 
     def columnCount(self, parent=None):
-        return self._data.shape[1]
+        return self._data.shape[1] + 1
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
-        if not self._data.empty and index.isValid() and role == Qt.ItemDataRole.DisplayRole:
-            return str(self._data.iloc[index.row(), index.column()])
+        if not index.isValid():
+            return None
+
+        if role == Qt.ItemDataRole.CheckStateRole and index.column() == 0:
+            return self.check_states[index.row()].value
+
+        if role == Qt.ItemDataRole.DisplayRole and index.column() > 0:
+            return str(self._data.iloc[index.row(), index.column() - 1])
+
         return None
 
     def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
-        if not self._data.empty and role == Qt.ItemDataRole.EditRole:
-            self._data.iloc[index.row(), index.column()] = value
+        if role == Qt.ItemDataRole.CheckStateRole and index.column() == 0:
+            self.check_states[index.row()] = Qt.CheckState(value)
+            self.dataChanged.emit(index, index)
+            return True
+
+        if role == Qt.ItemDataRole.EditRole and index.column() > 0:
+            self._data.iloc[index.row(), index.column() - 1] = value
             self.dataChanged.emit(index, index)
             return True
         return False
 
     def flags(self, index):
         flags = super().flags(index)
-        if not self._data.empty and index.column() != 0:  # Allow editing for all columns except the first one (ID)
+        if index.column() == 0:
+            flags |= Qt.ItemFlag.ItemIsUserCheckable
+        else:
             flags |= Qt.ItemFlag.ItemIsEditable
         return flags
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
-        if not self._data.empty and role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
-            return str(self._data.columns[section])
+        if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
+            if section == 0:
+                return ""
+            return str(self._data.columns[section - 1])
         return None
 
 class ValidationView(QWidget):
@@ -56,23 +73,22 @@ class ValidationView(QWidget):
 
         # Controls
         controls_layout = QHBoxLayout()
-        self.layout.addLayout(controls_layout)
+        self.select_all_checkbox = QCheckBox("Seleziona Tutto")
+        self.select_all_checkbox.stateChanged.connect(self.toggle_select_all)
+        controls_layout.addWidget(self.select_all_checkbox)
+        controls_layout.addStretch()
 
-        self.validate_button = QPushButton("Convalida Selezionato")
+        self.validate_button = QPushButton("Convalida")
         self.validate_button.clicked.connect(self.validate_selected)
         controls_layout.addWidget(self.validate_button)
 
-        self.validate_all_button = QPushButton("Convalida Tutto")
-        self.validate_all_button.clicked.connect(self.validate_all)
-        controls_layout.addWidget(self.validate_all_button)
-
-        self.delete_button = QPushButton("Cancella Selezionato")
+        self.delete_button = QPushButton("Cancella")
         self.delete_button.clicked.connect(self.delete_selected)
         controls_layout.addWidget(self.delete_button)
+        self.layout.addLayout(controls_layout)
 
         # Table
         self.table_view = QTableView()
-        self.table_view.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
         self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table_view.setItemDelegate(CustomDelegate())
         self.layout.addWidget(self.table_view)
@@ -85,33 +101,58 @@ class ValidationView(QWidget):
             if response.status_code == 200:
                 data = response.json()
                 self.df = pd.DataFrame(data)
-                self.model = PandasModel(self.df)
+                self.model = CheckboxTableModel(self.df)
                 self.table_view.setModel(self.model)
-                self.table_view.resizeColumnsToContents()
+                self.table_view.setColumnWidth(0, 40)
         except requests.exceptions.RequestException as e:
             QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
 
-    def validate_all(self):
-        if not hasattr(self, 'df') or self.df.empty:
-            QMessageBox.information(self, "Nessuna Azione", "Non ci sono certificati da validare.")
+    def toggle_select_all(self, state):
+        check_state = Qt.CheckState(state)
+        for i in range(self.model.rowCount()):
+            self.model.setData(self.model.index(i, 0), check_state.value, Qt.ItemDataRole.CheckStateRole)
+
+    def delete_selected(self):
+        selected_ids = self.get_selected_ids()
+        if not selected_ids:
+            QMessageBox.warning(self, "Nessuna Selezione", "Seleziona una o più righe da cancellare.")
             return
 
-        reply = QMessageBox.question(self, 'Conferma Validazione Multipla',
-                                     f"Sei sicuro di voler validare tutti i {len(self.df)} certificati visualizzati?",
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                                     QMessageBox.StandardButton.No)
+        reply = QMessageBox.question(self, 'Conferma Cancellazione', f'Sei sicuro di voler cancellare {len(selected_ids)} righe selezionate?',
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
 
-        if reply == QMessageBox.StandardButton.No:
+        if reply == QMessageBox.StandardButton.Yes:
+            self.perform_action("delete", selected_ids)
+
+    def validate_selected(self):
+        selected_ids = self.get_selected_ids()
+        if not selected_ids:
+            QMessageBox.warning(self, "Nessuna Selezione", "Seleziona una o più righe da validare.")
             return
 
-        error_count = 0
+        reply = QMessageBox.question(self, 'Conferma Validazione', f'Sei sicuro di voler validare {len(selected_ids)} righe selezionate?',
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+
+        if reply == QMessageBox.StandardButton.Yes:
+            self.perform_action("validate", selected_ids)
+
+    def get_selected_ids(self):
+        selected_ids = []
+        for i in range(self.model.rowCount()):
+            if self.model.data(self.model.index(i, 0), Qt.ItemDataRole.CheckStateRole) == Qt.CheckState.Checked.value:
+                selected_ids.append(self.df.iloc[i]['id'])
+        return selected_ids
+
+    def perform_action(self, action_type, ids):
         success_count = 0
-
-        certificato_ids = self.df['id'].tolist()
-
-        for cert_id in certificato_ids:
+        error_count = 0
+        for cert_id in ids:
             try:
-                response = requests.put(f"{API_URL}/certificati/{cert_id}/valida")
+                if action_type == "validate":
+                    response = requests.put(f"{API_URL}/certificati/{cert_id}/valida")
+                else:
+                    response = requests.delete(f"{API_URL}/certificati/{cert_id}")
+
                 if response.status_code == 200:
                     success_count += 1
                 else:
@@ -119,61 +160,6 @@ class ValidationView(QWidget):
             except requests.exceptions.RequestException:
                 error_count += 1
 
-        summary_message = f"Validazione completata.\n\n" \
-                          f"Certificati validati con successo: {success_count}\n" \
-                          f"Errori riscontrati: {error_count}"
-
-        QMessageBox.information(self, "Risultato Validazione", summary_message)
+        action_str = "validate" if action_type == "validate" else "cancellate"
+        QMessageBox.information(self, f"Risultato {action_type.capitalize()}", f"{success_count} righe {action_str} con successo, {error_count} errori.")
         self.load_data()
-
-    def delete_selected(self):
-        selected_rows = self.table_view.selectionModel().selectedRows()
-        if not selected_rows:
-            QMessageBox.warning(self, "Nessuna Selezione", "Seleziona una o più righe da cancellare.")
-            return
-
-        reply = QMessageBox.question(self, 'Conferma Cancellazione', f'Sei sicuro di voler cancellare {len(selected_rows)} righe selezionate?',
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
-
-        if reply == QMessageBox.StandardButton.Yes:
-            ids_to_delete = [self.df.iloc[index.row()]['id'] for index in selected_rows]
-            success_count = 0
-            error_count = 0
-            for cert_id in ids_to_delete:
-                try:
-                    response = requests.delete(f"{API_URL}/certificati/{cert_id}")
-                    if response.status_code == 200:
-                        success_count += 1
-                    else:
-                        error_count += 1
-                except requests.exceptions.RequestException:
-                    error_count += 1
-
-            QMessageBox.information(self, "Risultato Cancellazione", f"{success_count} righe cancellate con successo, {error_count} errori.")
-            self.load_data()
-
-    def validate_selected(self):
-        selected_rows = self.table_view.selectionModel().selectedRows()
-        if not selected_rows:
-            QMessageBox.warning(self, "Nessuna Selezione", "Seleziona una o più righe da validare.")
-            return
-
-        reply = QMessageBox.question(self, 'Conferma Validazione', f'Sei sicuro di voler validare {len(selected_rows)} righe selezionate?',
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
-
-        if reply == QMessageBox.StandardButton.Yes:
-            ids_to_validate = [self.df.iloc[index.row()]['id'] for index in selected_rows]
-            success_count = 0
-            error_count = 0
-            for cert_id in ids_to_validate:
-                try:
-                    response = requests.put(f"{API_URL}/certificati/{cert_id}/valida")
-                    if response.status_code == 200:
-                        success_count += 1
-                    else:
-                        error_count += 1
-                except requests.exceptions.RequestException:
-                    error_count += 1
-
-            QMessageBox.information(self, "Risultato Validazione", f"{success_count} righe validate con successo, {error_count} errori.")
-            self.load_data()

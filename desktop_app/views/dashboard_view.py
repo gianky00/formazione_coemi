@@ -117,7 +117,6 @@ class DashboardView(QWidget):
 
                 self.model = PandasModel(self.df)
                 self.table_view.setModel(self.model)
-                self.table_view.resizeColumnsToContents()
         except requests.exceptions.RequestException as e:
             QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
 
