@@ -5,6 +5,8 @@ from fastapi.testclient import TestClient
 
 # Imposta una chiave API fittizia per i test
 os.environ["GEMINI_API_KEY"] = "test_key"
+os.environ["GOOGLE_CLOUD_PROJECT"] = "test-project"
+os.environ["GCS_BUCKET_NAME"] = "test-bucket"
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from sqlalchemy import create_engine
