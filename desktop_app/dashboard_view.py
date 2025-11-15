@@ -1,7 +1,8 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QComboBox, QLabel, QFileDialog, QMessageBox, QInputDialog
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QComboBox, QLabel, QFileDialog, QMessageBox
 from PyQt6.QtCore import QAbstractTableModel, Qt
 import pandas as pd
 import requests
+from .edit_dialog import EditCertificatoDialog
 
 class PandasModel(QAbstractTableModel):
     def __init__(self, data):
@@ -108,39 +109,21 @@ class DashboardView(QWidget):
 
         row = selected_indexes[0].row()
         certificato_id = self.df.iloc[row]['id']
+        current_data = self.df.iloc[row].to_dict()
 
-        # Get current data
-        current_nome = self.df.iloc[row]['nome']
-        current_corso = self.df.iloc[row]['corso']
-        current_categoria = self.df.iloc[row]['categoria']
-        current_data_rilascio = self.df.iloc[row]['data_rilascio']
-        current_data_scadenza = self.df.iloc[row]['data_scadenza']
-
-        # Get new data from user
-        new_nome, ok1 = QInputDialog.getText(self, "Modifica Nome", "Nome e Cognome:", text=current_nome)
-        new_corso, ok2 = QInputDialog.getText(self, "Modifica Corso", "Corso:", text=current_corso)
-        new_categoria, ok5 = QInputDialog.getText(self, "Modifica Categoria", "Categoria:", text=current_categoria)
-        new_data_rilascio, ok3 = QInputDialog.getText(self, "Modifica Data Rilascio", "Data Rilascio (DD/MM/YYYY):", text=current_data_rilascio)
-        new_data_scadenza, ok4 = QInputDialog.getText(self, "Modifica Data Scadenza", "Data Scadenza (DD/MM/YYYY):", text=str(current_data_scadenza))
-
-        if ok1 and ok2 and ok3 and ok4 and ok5:
+        dialog = EditCertificatoDialog(current_data, self)
+        if dialog.exec():
+            new_data = dialog.get_data()
             try:
-                payload = {
-                    "nome": new_nome,
-                    "corso": new_corso,
-                    "categoria": new_categoria,
-                    "data_rilascio": new_data_rilascio,
-                    "data_scadenza": new_data_scadenza
-                }
                 response = requests.put(
                     f"http://127.0.0.1:8000/certificati/{certificato_id}",
-                    json=payload
+                    json=new_data
                 )
                 if response.status_code == 200:
                     QMessageBox.information(self, "Successo", "Dati aggiornati con successo.")
                     self.load_data()
                 else:
-                    QMessageBox.critical(self, "Errore", f"Errore durante l'aggiornamento: {response.text}")
+                    QMessageBox.critical(self, "Errore", f"Errore durante l'aggiornamento: {response.json().get('detail', response.text)}")
             except requests.exceptions.RequestException as e:
                 QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
 
