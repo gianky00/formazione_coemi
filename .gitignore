@@ -33,4 +33,3 @@ uploads/
 # Script di test temporanei
 check_list_AI.py
 tests/test_ai_extraction_old.py
-crea_env.bat
