@@ -8,7 +8,7 @@ class EditCertificatoDialog(QDialog):
         self.layout = QVBoxLayout(self)
 
         self.form_layout = QFormLayout()
-        self.nome_edit = QLineEdit(data['nome'])
+        self.dipendente_edit = QLineEdit(data['dipendente'])
         self.corso_edit = QLineEdit(data['corso'])
         self.categoria_edit = QLineEdit(data['categoria'])
 
@@ -32,7 +32,7 @@ class EditCertificatoDialog(QDialog):
 
         self.scadenza_checkbox.toggled.connect(self.data_scadenza_edit.setEnabled)
 
-        self.form_layout.addRow(QLabel("Nome e Cognome:"), self.nome_edit)
+        self.form_layout.addRow(QLabel("Nome e Cognome:"), self.dipendente_edit)
         self.form_layout.addRow(QLabel("Corso:"), self.corso_edit)
         self.form_layout.addRow(QLabel("Categoria:"), self.categoria_edit)
         self.form_layout.addRow(QLabel("Data Rilascio:"), self.data_rilascio_edit)
@@ -48,7 +48,7 @@ class EditCertificatoDialog(QDialog):
     def get_data(self):
         data_scadenza = self.data_scadenza_edit.date().toString("dd/MM/yyyy") if self.scadenza_checkbox.isChecked() else None
         return {
-            "nome": self.nome_edit.text(),
+            "dipendente": self.dipendente_edit.text(),
             "corso": self.corso_edit.text(),
             "categoria": self.categoria_edit.text(),
             "data_rilascio": self.data_rilascio_edit.date().toString("dd/MM/yyyy"),

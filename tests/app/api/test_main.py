@@ -19,7 +19,7 @@ def test_create_certificato(test_client: TestClient, db_session: Session):
 
     # Dati di esempio
     certificato_data = {
-        "nome": "Mario Rossi",
+        "dipendente": "Mario Rossi",
         "corso": "ANTINCENDIO",
         "categoria": "ANTINCENDIO",
         "data_rilascio": "14/11/2025",
@@ -89,7 +89,7 @@ def test_update_certificato(test_client: TestClient, db_session: Session):
     db_session.commit()
 
     update_payload = {
-        "nome": "Test User",
+        "dipendente": "Test User",
         "corso": "Updated Course",
         "categoria": "General",
         "data_rilascio": "01/02/2025",
@@ -126,7 +126,7 @@ def test_update_certificato_get_or_create(test_client: TestClient, db_session: S
 
     # Dati di aggiornamento con nuovo dipendente e nuovo corso
     update_data = {
-        "nome": "New Employee",
+        "dipendente": "New Employee",
         "corso": "New Course",
         "categoria": "General",
         "data_rilascio": "01/03/2025",
@@ -146,10 +146,10 @@ def test_update_certificato_get_or_create(test_client: TestClient, db_session: S
     ({"data_rilascio": ""}, 422, "La data non può essere vuota"),
     ({"data_rilascio": "14-11-2025"}, 422, "Formato data non valido"),
     ({"data_rilascio": "2025/11/14"}, 422, "Formato data non valido"),
-    ({"nome": ""}, 422, "at least 1 character"),
+    ({"dipendente": ""}, 422, "at least 1 character"),
     ({"corso": ""}, 422, "at least 1 character"),
     ({"categoria": ""}, 422, "at least 1 character"),
-    ({"nome": "Mario"}, 400, "Formato nome non valido"),
+    ({"dipendente": "Mario"}, 400, "Formato nome non valido"),
 ])
 def test_create_certificato_invalid_payload_fails(test_client: TestClient, db_session: Session, payload_override, expected_status_code, error_detail_part):
     """
@@ -163,7 +163,7 @@ def test_create_certificato_invalid_payload_fails(test_client: TestClient, db_se
 
     # Payload di base valido
     valid_payload = {
-        "nome": "Mario Rossi",
+        "dipendente": "Mario Rossi",
         "corso": "Corso Antincendio Base",
         "categoria": "ANTINCENDIO",
         "data_rilascio": "14/11/2025",
@@ -207,7 +207,7 @@ def test_update_certificato_data_scadenza_variations(test_client: TestClient, db
     db_session.commit()
 
     update_payload = {
-        "nome": "Jane Doe",
+        "dipendente": "Jane Doe",
         "corso": "Test Course",
         "categoria": "General",
         "data_rilascio": "01/01/2025",

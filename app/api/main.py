@@ -22,7 +22,7 @@ class CertificatoSchema(BaseModel):
     model_config = {"from_attributes": True}
 
 class CertificatoCreazioneSchema(BaseModel):
-    nome: str = Field(..., min_length=1, description="Nome e cognome del dipendente")
+    dipendente: str = Field(..., min_length=1, description="Nome e cognome del dipendente")
     corso: str = Field(..., min_length=1, description="Nome del corso")
     categoria: str = Field(..., min_length=1, description="Categoria del corso")
     data_rilascio: str = Field(..., description="Data di rilascio in formato DD/MM/YYYY")
@@ -49,7 +49,7 @@ class CertificatoCreazioneSchema(BaseModel):
         return v
 
 class CertificatoAggiornamentoSchema(BaseModel):
-    nome: str = Field(..., min_length=1, description="Nome e cognome del dipendente")
+    dipendente: str = Field(..., min_length=1, description="Nome e cognome del dipendente")
     corso: str = Field(..., min_length=1, description="Nome del corso")
     categoria: str = Field(..., min_length=1, description="Categoria del corso")
     data_rilascio: str = Field(..., description="Data di rilascio in formato DD/MM/YYYY")
@@ -214,6 +214,8 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
     certificati = query.all()
     result = []
     for certificato in certificati:
+        if not certificato.dipendente or not certificato.corso:
+            continue
         stato = certificate_logic.get_certificate_status(certificato.data_scadenza_calcolata)
         result.append(CertificatoSchema(
             id=certificato.id,
@@ -239,7 +241,7 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
     Returns:
         Il certificato appena creato.
     """
-    nome_parts = certificato.nome.split()
+    nome_parts = certificato.dipendente.split()
     if len(nome_parts) < 2:
         raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
 
@@ -250,7 +252,7 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
         db_dipendente = db.query(Dipendente).filter(Dipendente.nome == nome_parts[0], Dipendente.cognome == nome_parts[1]).first()
 
     if not db_dipendente:
-        print(f"Dipendente '{certificato.nome}' non trovato, lo creo...")
+        print(f"Dipendente '{certificato.dipendente}' non trovato, lo creo...")
         db_dipendente = Dipendente(
             nome=nome_parts[0],
             cognome=nome_parts[1]
@@ -317,7 +319,7 @@ def update_certificato(certificato_id: int, certificato: CertificatoAggiornament
 
     # Handle name and course changes
     try:
-        nome_parts = certificato.nome.split()
+        nome_parts = certificato.dipendente.split()
         # Try Lastname Firstname
         db_dipendente = db.query(Dipendente).filter(Dipendente.nome == nome_parts[1], Dipendente.cognome == nome_parts[0]).first()
         # Try Firstname Lastname
@@ -325,7 +327,7 @@ def update_certificato(certificato_id: int, certificato: CertificatoAggiornament
             db_dipendente = db.query(Dipendente).filter(Dipendente.nome == nome_parts[0], Dipendente.cognome == nome_parts[1]).first()
 
         if not db_dipendente:
-            print(f"Dipendente '{certificato.nome}' non trovato, lo creo...")
+            print(f"Dipendente '{certificato.dipendente}' non trovato, lo creo...")
             db_dipendente = Dipendente(
                 nome=nome_parts[0],
                 cognome=nome_parts[1]
