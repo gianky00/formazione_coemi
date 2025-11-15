@@ -10,6 +10,7 @@ class PdfWorker(QObject):
     finished = pyqtSignal()
     progress = pyqtSignal(int)
     log_message = pyqtSignal(str)
+    status_update = pyqtSignal(str)
 
     def __init__(self, pdf_files, folder_path):
         super().__init__()
@@ -17,7 +18,9 @@ class PdfWorker(QObject):
         self.folder_path = folder_path
 
     def run(self):
+        total_files = len(self.pdf_files)
         for i, pdf_file in enumerate(self.pdf_files):
+            self.status_update.emit(f"Elaborazione file {i+1} di {total_files}...")
             file_path = os.path.join(self.folder_path, pdf_file)
             self.process_pdf(file_path)
             self.progress.emit(i + 1)
@@ -41,15 +44,7 @@ class PdfWorker(QObject):
             if response.status_code == 200:
                 data = response.json()
                 entities = data.get('entities', {})
-
-                certificato = {
-                    "nome": entities.get('nome', ''),
-                    "corso": entities.get('corso', ''),
-                    "categoria": entities.get('categoria', 'ALTRO'),
-                    "data_rilascio": entities.get('data_rilascio', ''),
-                    "data_scadenza": entities.get('data_scadenza', '')
-                }
-
+                certificato = { "nome": entities.get('nome', ''), "corso": entities.get('corso', ''), "categoria": entities.get('categoria', 'ALTRO'), "data_rilascio": entities.get('data_rilascio', ''), "data_scadenza": entities.get('data_scadenza', '') }
                 save_response = requests.post(f"{API_URL}/certificati/", json=certificato)
 
                 if save_response.status_code == 200:
@@ -58,15 +53,16 @@ class PdfWorker(QObject):
                         nome = entities.get('nome', 'NOME_NON_TROVATO')
                         categoria = entities.get('categoria', 'CATEGORIA_NON_TROVATA')
                         data_rilascio_str = entities.get('data_rilascio', '')
-
                         dt_object = datetime.strptime(data_rilascio_str, '%d/%m/%Y')
                         formatted_date = dt_object.strftime('%d-%m-%Y')
-
                         new_filename = f"{nome} {categoria} {formatted_date}.pdf"
                         shutil.move(file_path, os.path.join(analyzed_folder, new_filename))
                     except Exception as e:
                         self.log_message.emit(f"Errore durante lo spostamento del file {original_filename}: {e}")
                         shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
+                elif save_response.status_code == 409:
+                    self.log_message.emit(f"{original_filename} - Documento risulta già in Database.")
+                    shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
                 else:
                     self.log_message.emit(f"Errore durante il salvaggio di {original_filename}: {save_response.text}")
                     shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
@@ -81,9 +77,11 @@ class PdfWorker(QObject):
                 self.log_message.emit(f"Impossibile spostare il file {original_filename}: {move_error}")
 
 class ImportView(QWidget):
-    def __init__(self, progress_bar):
+    def __init__(self, progress_widget, progress_bar, progress_label):
         super().__init__()
+        self.progress_widget = progress_widget
         self.progress_bar = progress_bar
+        self.progress_label = progress_label
         self.layout = QVBoxLayout(self)
 
         self.upload_folder_button = QPushButton("Carica Cartella PDF")
@@ -94,7 +92,6 @@ class ImportView(QWidget):
         self.results_display.setReadOnly(True)
         self.layout.addWidget(self.results_display)
 
-
     def upload_folder(self):
         folder_path = QFileDialog.getExistingDirectory(self, "Seleziona Cartella")
         if folder_path:
@@ -104,7 +101,7 @@ class ImportView(QWidget):
 
             self.progress_bar.setRange(0, len(pdf_files))
             self.progress_bar.setValue(0)
-            self.progress_bar.setVisible(True)
+            self.progress_widget.setVisible(True)
             self.upload_folder_button.setEnabled(False)
 
             self.thread = QThread()
@@ -117,10 +114,11 @@ class ImportView(QWidget):
             self.thread.finished.connect(self.thread.deleteLater)
             self.worker.progress.connect(self.progress_bar.setValue)
             self.worker.log_message.connect(self.results_display.append)
+            self.worker.status_update.connect(self.progress_label.setText)
 
             self.thread.finished.connect(
                 lambda: (
-                    self.progress_bar.setVisible(False),
+                    self.progress_widget.setVisible(False),
                     self.upload_folder_button.setEnabled(True),
                     self.results_display.append("\nElaborazione completata.")
                 )
