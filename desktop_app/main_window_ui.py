@@ -35,7 +35,7 @@ class MainWindow(QMainWindow):
         self.stacked_widget.addWidget(self.validation_view)
 
         # Introduce a delay before loading data to prevent race condition
-        time.sleep(2)
+        time.sleep(6)
 
         self.stacked_widget.currentChanged.connect(self.on_view_change)
 
