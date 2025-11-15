@@ -6,10 +6,15 @@ from app.api.main import seed_database
 from app.db.models import Base
 from app.db.session import engine
 
+import google.generativeai as genai
+from app.core.config import settings
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     seed_database()
+    if settings.GEMINI_API_KEY:
+        genai.configure(api_key=settings.GEMINI_API_KEY)
     yield
 
 app = FastAPI(lifespan=lifespan)

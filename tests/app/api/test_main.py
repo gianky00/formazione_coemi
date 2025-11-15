@@ -63,7 +63,9 @@ def test_validate_certificato(test_client: TestClient, db_session: Session):
 
     # Verifica la risposta
     assert response.status_code == 200
-    assert response.json()["message"] == "Certificato validato con successo"
+    data = response.json()
+    assert data["stato_certificato"] == "attivo"
+    assert data["id"] == certificato.id
 
     # Verifica che lo stato del certificato sia stato aggiornato nel database
     db_session.refresh(certificato)

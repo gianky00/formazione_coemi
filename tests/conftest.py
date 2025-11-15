@@ -66,3 +66,10 @@ def db_session():
     finally:
         db.close()
         Base.metadata.drop_all(bind=engine)
+
+@pytest.fixture
+def mock_ai_service(mocker):
+    """
+    Mock the AI service to return predictable data.
+    """
+    return mocker.patch("app.api.main.ai_extraction.extract_entities_with_ai")
