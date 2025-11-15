@@ -6,8 +6,9 @@ from datetime import datetime
 from ..api_client import API_URL
 
 class ImportView(QWidget):
-    def __init__(self):
+    def __init__(self, progress_bar):
         super().__init__()
+        self.progress_bar = progress_bar
         self.layout = QVBoxLayout(self)
 
         self.upload_folder_button = QPushButton("Carica Cartella PDF")
@@ -22,11 +23,20 @@ class ImportView(QWidget):
     def upload_folder(self):
         folder_path = QFileDialog.getExistingDirectory(self, "Seleziona Cartella")
         if folder_path:
+            self.results_display.clear()
             pdf_files = [f for f in os.listdir(folder_path) if f.endswith('.pdf')]
             self.results_display.setText(f"Trovati {len(pdf_files)} file PDF. Inizio elaborazione...")
-            for pdf_file in pdf_files:
+
+            self.progress_bar.setRange(0, len(pdf_files))
+            self.progress_bar.setValue(0)
+            self.progress_bar.setVisible(True)
+
+            for i, pdf_file in enumerate(pdf_files):
                 file_path = os.path.join(folder_path, pdf_file)
                 self.process_pdf(file_path)
+                self.progress_bar.setValue(i + 1)
+
+            self.progress_bar.setVisible(False)
 
     def process_pdf(self, file_path):
         base_folder = os.path.dirname(file_path)
