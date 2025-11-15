@@ -89,8 +89,10 @@ class ValidationView(QWidget):
 
         # Table
         self.table_view = QTableView()
-        self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.table_view.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header = self.table_view.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        header.setColumnWidth(0, 40)
         self.table_view.setItemDelegate(CustomDelegate())
         self.layout.addWidget(self.table_view)
 
