@@ -1,29 +1,52 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QComboBox, QLabel, QFileDialog, QMessageBox, QListView
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QComboBox, QLabel, QFileDialog, QMessageBox, QListView, QCheckBox
 from PyQt6.QtCore import QAbstractTableModel, Qt
 import pandas as pd
 import requests
 from .edit_dialog import EditCertificatoDialog
 from ..api_client import API_URL
 
-class PandasModel(QAbstractTableModel):
+class CheckboxTableModel(QAbstractTableModel):
     def __init__(self, data):
         super().__init__()
         self._data = data
+        self.check_states = [Qt.CheckState.Unchecked] * self._data.shape[0]
 
     def rowCount(self, parent=None):
         return self._data.shape[0]
 
     def columnCount(self, parent=None):
-        return self._data.shape[1]
+        return self._data.shape[1] + 1
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
-        if not self._data.empty and index.isValid() and role == Qt.ItemDataRole.DisplayRole:
-            return str(self._data.iloc[index.row(), index.column()])
+        if not index.isValid():
+            return None
+
+        if role == Qt.ItemDataRole.CheckStateRole and index.column() == 0:
+            return self.check_states[index.row()].value
+
+        if role == Qt.ItemDataRole.DisplayRole and index.column() > 0:
+            return str(self._data.iloc[index.row(), index.column() - 1])
+
         return None
 
+    def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
+        if role == Qt.ItemDataRole.CheckStateRole and index.column() == 0:
+            self.check_states[index.row()] = Qt.CheckState(value)
+            self.dataChanged.emit(index, index)
+            return True
+        return False
+
+    def flags(self, index):
+        flags = super().flags(index)
+        if index.column() == 0:
+            flags |= Qt.ItemFlag.ItemIsUserCheckable
+        return flags
+
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
-        if not self._data.empty and role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
-            return str(self._data.columns[section])
+        if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
+            if section == 0:
+                return ""
+            return str(self._data.columns[section - 1])
         return None
 
 class DashboardView(QWidget):
@@ -33,7 +56,10 @@ class DashboardView(QWidget):
 
         # Controls
         controls_layout = QHBoxLayout()
-        self.layout.addLayout(controls_layout)
+        self.select_all_checkbox = QCheckBox("Seleziona Tutto")
+        self.select_all_checkbox.stateChanged.connect(self.toggle_select_all)
+        controls_layout.addWidget(self.select_all_checkbox)
+        controls_layout.addStretch()
 
         self.employee_filter = QComboBox()
         self.employee_filter.setView(QListView())
@@ -53,22 +79,19 @@ class DashboardView(QWidget):
         filter_group.addWidget(QLabel("Stato:"))
         filter_group.addWidget(self.status_filter)
         filter_group.addStretch()
-        controls_layout.addLayout(filter_group)
 
-        controls_layout.addWidget(self.filter_button)
-        controls_layout.addWidget(self.export_button)
-
-        self.edit_button = QPushButton("Modifica")
-        self.edit_button.clicked.connect(self.edit_data)
-        self.delete_button = QPushButton("Cancella")
-        self.delete_button.clicked.connect(self.delete_data)
-        controls_layout.addWidget(self.edit_button)
-        controls_layout.addWidget(self.delete_button)
+        top_layout = QHBoxLayout()
+        top_layout.addLayout(filter_group)
+        top_layout.addWidget(self.filter_button)
+        top_layout.addWidget(self.export_button)
+        top_layout.addWidget(self.edit_button)
+        top_layout.addWidget(self.delete_button)
+        self.layout.addLayout(top_layout)
 
         # Table
         self.table_view = QTableView()
-        self.table_view.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
         self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table_view.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.layout.addWidget(self.table_view)
         self.load_data()
 
@@ -79,12 +102,10 @@ class DashboardView(QWidget):
                 data = response.json()
                 self.df = pd.DataFrame(data)
 
-                # Populate filters
                 employees = ["Tutti"] + sorted(list(set([item['nome'] for item in data])))
                 categories = ["Tutti"] + sorted(list(set([item['categoria'] for item in data])))
                 stati = ["Tutti", "attivo", "scaduto", "rinnovato"]
 
-                # Save current filter selection
                 current_employee = self.employee_filter.currentText()
                 current_category = self.category_filter.currentText()
                 current_status = self.status_filter.currentText()
@@ -96,51 +117,47 @@ class DashboardView(QWidget):
                 self.status_filter.clear()
                 self.status_filter.addItems(stati)
 
-                # Restore filter selection
-                if current_employee in employees:
-                    self.employee_filter.setCurrentText(current_employee)
-                if current_category in categories:
-                    self.category_filter.setCurrentText(current_category)
-                if current_status in stati:
-                    self.status_filter.setCurrentText(current_status)
+                if current_employee in employees: self.employee_filter.setCurrentText(current_employee)
+                if current_category in categories: self.category_filter.setCurrentText(current_category)
+                if current_status in stati: self.status_filter.setCurrentText(current_status)
 
                 employee = self.employee_filter.currentText()
                 category = self.category_filter.currentText()
                 status = self.status_filter.currentText()
 
-                if employee != "Tutti":
-                    self.df = self.df[self.df['nome'] == employee]
-                if category != "Tutti":
-                    self.df = self.df[self.df['categoria'] == category]
-                if status != "Tutti":
-                    self.df = self.df[self.df['stato_certificato'] == status]
+                if employee != "Tutti": self.df = self.df[self.df['nome'] == employee]
+                if category != "Tutti": self.df = self.df[self.df['categoria'] == category]
+                if status != "Tutti": self.df = self.df[self.df['stato_certificato'] == status]
 
-                self.model = PandasModel(self.df)
+                self.model = CheckboxTableModel(self.df)
                 self.table_view.setModel(self.model)
         except requests.exceptions.RequestException as e:
             QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
 
+    def get_selected_ids(self):
+        selected_ids = []
+        for i in range(self.model.rowCount()):
+            if self.model.data(self.model.index(i, 0), Qt.ItemDataRole.CheckStateRole) == Qt.CheckState.Checked.value:
+                selected_ids.append(self.df.iloc[i]['id'])
+        return selected_ids
+
     def edit_data(self):
-        selected_rows = self.table_view.selectionModel().selectedRows()
-        if not selected_rows:
+        selected_ids = self.get_selected_ids()
+        if not selected_ids:
             QMessageBox.warning(self, "Nessuna Selezione", "Seleziona una riga da modificare.")
             return
-        if len(selected_rows) > 1:
+        if len(selected_ids) > 1:
             QMessageBox.warning(self, "Selezione Multipla", "La modifica è consentita solo per una riga alla volta.")
             return
 
-        row = selected_rows[0].row()
-        certificato_id = self.df.iloc[row]['id']
+        row = [i for i, cert_id in enumerate(self.df['id']) if cert_id == selected_ids[0]][0]
         current_data = self.df.iloc[row].to_dict()
 
         dialog = EditCertificatoDialog(current_data, self)
         if dialog.exec():
             new_data = dialog.get_data()
             try:
-                response = requests.put(
-                    f"{API_URL}/certificati/{certificato_id}",
-                    json=new_data
-                )
+                response = requests.put(f"{API_URL}/certificati/{selected_ids[0]}", json=new_data)
                 if response.status_code == 200:
                     QMessageBox.information(self, "Successo", "Dati aggiornati con successo.")
                     self.load_data()
@@ -150,19 +167,18 @@ class DashboardView(QWidget):
                 QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
 
     def delete_data(self):
-        selected_rows = self.table_view.selectionModel().selectedRows()
-        if not selected_rows:
+        selected_ids = self.get_selected_ids()
+        if not selected_ids:
             QMessageBox.warning(self, "Nessuna Selezione", "Seleziona una o più righe da cancellare.")
             return
 
-        reply = QMessageBox.question(self, 'Conferma Cancellazione', f'Sei sicuro di voler cancellare {len(selected_rows)} righe selezionate?',
+        reply = QMessageBox.question(self, 'Conferma Cancellazione', f'Sei sicuro di voler cancellare {len(selected_ids)} righe selezionate?',
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
 
         if reply == QMessageBox.StandardButton.Yes:
-            ids_to_delete = [self.df.iloc[index.row()]['id'] for index in selected_rows]
             success_count = 0
             error_count = 0
-            for cert_id in ids_to_delete:
+            for cert_id in selected_ids:
                 try:
                     response = requests.delete(f"{API_URL}/certificati/{cert_id}")
                     if response.status_code == 200:
