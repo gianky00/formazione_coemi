@@ -36,8 +36,16 @@ class DashboardView(QWidget):
 
         self.employee_filter = QComboBox()
         self.category_filter = QComboBox()
+        self.status_filter = QComboBox()
+        self.status_filter.addItems(["Tutti", "attivo", "scaduto"])
+        self.search_bar = QLineEdit()
+        self.search_bar.setPlaceholderText("Cerca...")
         self.filter_button = QPushButton("Filtra")
-        self.filter_button.clicked.connect(self.load_data)
+        self.filter_button.clicked.connect(self.apply_filters)
+        self.employee_filter.currentTextChanged.connect(self.apply_filters)
+        self.category_filter.currentTextChanged.connect(self.apply_filters)
+        self.status_filter.currentTextChanged.connect(self.apply_filters)
+        self.search_bar.textChanged.connect(self.apply_filters)
         self.export_button = QPushButton("Esporta in CSV")
         self.export_button.clicked.connect(self.export_to_csv)
 
@@ -45,6 +53,9 @@ class DashboardView(QWidget):
         controls_layout.addWidget(self.employee_filter)
         controls_layout.addWidget(QLabel("Categoria:"))
         controls_layout.addWidget(self.category_filter)
+        controls_layout.addWidget(QLabel("Stato:"))
+        controls_layout.addWidget(self.status_filter)
+        controls_layout.addWidget(self.search_bar)
         controls_layout.addWidget(self.filter_button)
         controls_layout.addWidget(self.export_button)
 
@@ -66,38 +77,48 @@ class DashboardView(QWidget):
             response = requests.get("http://127.0.0.1:8000/certificati/?validated=true")
             if response.status_code == 200:
                 data = response.json()
-                self.df = pd.DataFrame(data)
+                self.full_df = pd.DataFrame(data)  # Store the full dataset
 
-                # Populate filters
-                employees = ["Tutti"] + sorted(list(set([item['nome'] for item in data])))
-                categories = ["Tutti"] + sorted(list(set([item['categoria'] for item in data])))
+                # Populate filters if they are empty
+                if self.employee_filter.count() == 0:
+                    employees = ["Tutti"] + sorted(list(set([item['nome'] for item in data])))
+                    self.employee_filter.addItems(employees)
+                if self.category_filter.count() == 0:
+                    categories = ["Tutti"] + sorted(list(set([item['categoria'] for item in data])))
+                    self.category_filter.addItems(categories)
 
-                # Save current filter selection
-                current_employee = self.employee_filter.currentText()
-                current_category = self.category_filter.currentText()
+                self.apply_filters() # Apply filters to the full dataset
+        except requests.exceptions.RequestException as e:
+            QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
 
-                self.employee_filter.clear()
-                self.employee_filter.addItems(employees)
-                self.category_filter.clear()
-                self.category_filter.addItems(categories)
+    def apply_filters(self):
+        filtered_df = self.full_df.copy()
 
-                # Restore filter selection
-                if current_employee in employees:
-                    self.employee_filter.setCurrentText(current_employee)
-                if current_category in categories:
-                    self.category_filter.setCurrentText(current_category)
+        # Apply dropdown filters
+        employee = self.employee_filter.currentText()
+        if employee != "Tutti":
+            filtered_df = filtered_df[filtered_df['nome'] == employee]
 
-                employee = self.employee_filter.currentText()
-                category = self.category_filter.currentText()
+        category = self.category_filter.currentText()
+        if category != "Tutti":
+            filtered_df = filtered_df[filtered_df['categoria'] == category]
 
-                if employee != "Tutti":
-                    self.df = self.df[self.df['nome'] == employee]
-                if category != "Tutti":
-                    self.df = self.df[self.df['categoria'] == category]
+        status = self.status_filter.currentText()
+        if status != "Tutti":
+            filtered_df = filtered_df[filtered_df['stato_certificato'] == status]
 
-                self.model = PandasModel(self.df)
-                self.table_view.setModel(self.model)
-                self.table_view.resizeColumnsToContents()
+        # Apply search bar filter (case-insensitive)
+        search_text = self.search_bar.text().lower()
+        if search_text:
+            filtered_df = filtered_df[filtered_df.apply(
+                lambda row: any(search_text in str(cell).lower() for cell in row),
+                axis=1
+            )]
+
+        self.df = filtered_df
+        self.model = PandasModel(self.df)
+        self.table_view.setModel(self.model)
+        self.table_view.resizeColumnsToContents()
         except requests.exceptions.RequestException as e:
             QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
 
