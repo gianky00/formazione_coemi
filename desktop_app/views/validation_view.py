@@ -90,6 +90,7 @@ class ValidationView(QWidget):
         # Table
         self.table_view = QTableView()
         self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table_view.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.table_view.setItemDelegate(CustomDelegate())
         self.layout.addWidget(self.table_view)
 
@@ -103,7 +104,6 @@ class ValidationView(QWidget):
                 self.df = pd.DataFrame(data)
                 self.model = CheckboxTableModel(self.df)
                 self.table_view.setModel(self.model)
-                self.table_view.setColumnWidth(0, 40)
         except requests.exceptions.RequestException as e:
             QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
 
