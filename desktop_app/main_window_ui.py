@@ -61,15 +61,6 @@ class MainWindow(QMainWindow):
 
     def create_menu(self):
         menu_bar = self.menuBar()
-        menu_bar.setStyleSheet("""
-            QMenuBar::item:selected {
-                background-color: #3e3e3e;
-                color: white;
-            }
-            QMenuBar::item:pressed {
-                background-color: #555555;
-            }
-        """)
 
         # Analizza Menu
         self.menu_actions["Analizza"] = QAction("Analizza", self)
@@ -123,39 +114,51 @@ class MainWindow(QMainWindow):
 
     def update_menu_styles(self, current_index):
         current_widget = self.stacked_widget.widget(current_index)
-
-        base_style = "QMenuBar::item { padding: 5px 10px; }"
-        hover_style = "QMenuBar::item:selected { background-color: #3e3e3e; color: white; }"
-
-        for action in self.menu_actions.values():
-            action.setFont(self.font()) # Reset font
-            action.setProperty("active", False)
-
         active_action = None
-        if current_widget == self.import_view:
-            active_action = self.menu_actions["Analizza"]
-        elif current_widget == self.validation_view:
-            active_action = self.menu_actions["Convalida Dati"]
-        elif current_widget == self.dashboard_view:
-            active_action = self.menu_actions["Database"]
-        elif current_widget == self.config_view:
-            active_action = self.menu_actions["Addestra"]
+
+        for name, action in self.menu_actions.items():
+            font = action.font()
+            is_active = False
+            if name == "Analizza" and current_widget == self.import_view:
+                is_active = True
+            elif name == "Convalida Dati" and current_widget == self.validation_view:
+                is_active = True
+            elif name == "Database" and current_widget == self.dashboard_view:
+                is_active = True
+            elif name == "Addestra" and current_widget == self.config_view:
+                is_active = True
+
+            font.setBold(is_active)
+            action.setFont(font)
+            if is_active:
+                active_action = action
+
+        stylesheet = """
+            QMenuBar::item {
+                padding: 5px 10px;
+                background-color: transparent;
+            }
+            QMenuBar::item:selected {
+                background-color: #3e3e3e;
+                color: white;
+            }
+            QMenuBar::item:pressed {
+                background-color: #555555;
+            }
+        """
 
         if active_action:
-            font = active_action.font()
-            font.setBold(True)
-            active_action.setFont(font)
-            active_action.setProperty("active", True)
-
-        self.menuBar().setStyleSheet(f"""
-            {base_style}
-            QMenuBar::item[active="true"] {{
+            # A more reliable way to style the active item is to target it by text.
+            # Using custom properties on QMenuBar::item is not universally supported.
+            stylesheet += f"""
+            QMenuBar::item:contains("{active_action.text()}") {{
                 background-color: #0078d7;
                 color: white;
                 font-weight: bold;
             }}
-            {hover_style}
-        """)
+            """
+
+        self.menuBar().setStyleSheet(stylesheet)
 
     def take_screenshot_and_exit(self):
         screen = QApplication.primaryScreen()

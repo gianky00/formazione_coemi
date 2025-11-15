@@ -13,6 +13,7 @@ class EditCertificatoDialog(QDialog):
         self.categoria_edit = QComboBox()
         self.categoria_edit.addItems(categories)
         self.categoria_edit.setCurrentText(data['categoria'])
+        self.categoria_edit.setEditable(False)
 
         self.data_rilascio_edit = QDateEdit()
         self.data_rilascio_edit.setDisplayFormat("dd/MM/yyyy")
@@ -46,6 +47,9 @@ class EditCertificatoDialog(QDialog):
 
         self.layout.addLayout(self.form_layout)
         self.layout.addWidget(self.button_box)
+
+        # Set a minimum width for better layout and adjust size to content
+        self.setMinimumWidth(400)
         self.adjustSize()
 
     def get_data(self):
