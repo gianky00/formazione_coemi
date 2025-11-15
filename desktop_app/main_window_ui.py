@@ -42,23 +42,26 @@ class MainWindow(QMainWindow):
 
     def create_menu(self):
         menu_bar = self.menuBar()
-        view_menu = menu_bar.addMenu("Viste")
 
-        import_action = QAction("Importa", self)
-        import_action.triggered.connect(lambda: self.stacked_widget.setCurrentWidget(self.import_view))
-        view_menu.addAction(import_action)
+        # Analizza Menu
+        analizza_action = QAction("Analizza", self)
+        analizza_action.triggered.connect(lambda: self.stacked_widget.setCurrentWidget(self.import_view))
+        menu_bar.addAction(analizza_action)
 
-        dashboard_action = QAction("Database", self)
-        dashboard_action.triggered.connect(lambda: self.stacked_widget.setCurrentWidget(self.dashboard_view))
-        view_menu.addAction(dashboard_action)
-
+        # Convalida Dati Menu
         validation_action = QAction("Convalida Dati", self)
         validation_action.triggered.connect(lambda: self.stacked_widget.setCurrentWidget(self.validation_view))
-        view_menu.addAction(validation_action)
+        menu_bar.addAction(validation_action)
 
-        config_action = QAction("Configurazione", self)
-        config_action.triggered.connect(lambda: self.stacked_widget.setCurrentWidget(self.config_view))
-        view_menu.addAction(config_action)
+        # Database Menu
+        database_action = QAction("Database", self)
+        database_action.triggered.connect(lambda: self.stacked_widget.setCurrentWidget(self.dashboard_view))
+        menu_bar.addAction(database_action)
+
+        # Addestra Menu
+        addestra_action = QAction("Addestra", self)
+        addestra_action.triggered.connect(lambda: self.stacked_widget.setCurrentWidget(self.config_view))
+        menu_bar.addAction(addestra_action)
 
     def on_view_change(self, index):
         widget = self.stacked_widget.widget(index)
