@@ -107,7 +107,7 @@ class DashboardView(QWidget):
         header = self.table_view.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
-        header.setColumnWidth(0, 40)
+        self.table_view.setColumnWidth(0, 40)
         self.layout.addWidget(self.table_view)
         self.load_data()
 
