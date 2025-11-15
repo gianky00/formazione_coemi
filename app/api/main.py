@@ -112,6 +112,7 @@ def seed_database():
             {"nome_corso": "SOPRAVVIVENZA E SALVATAGGIO IN MARE", "validita_mesi": 60, "categoria_corso": "SOPRAVVIVENZA E SALVATAGGIO IN MARE"},
             {"nome_corso": "SPAZI CONFINATI DPI III E AUTORESPIRATORI", "validita_mesi": 60, "categoria_corso": "SPAZI CONFINATI DPI III E AUTORESPIRATORI"},
             {"nome_corso": "HLO", "validita_mesi": 0, "categoria_corso": "HLO"},
+            {"nome_corso": "NOMINE", "validita_mesi": 0, "categoria_corso": "NOMINE"},
             {"nome_corso": "ALTRO", "validita_mesi": 0, "categoria_corso": "ALTRO"},
         ]
 
