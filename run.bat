@@ -18,4 +18,4 @@ playwright install --with-deps > nul 2>&1
 REM --- 5. Avvia le Applicazioni ---
 set PYTHONPATH=.
 start /b python app/main.py > backend.log 2>&1
-python desktop_app/main.py > nul 2>&1
+pythonw desktop_app/main.py
