@@ -36,6 +36,7 @@ class DashboardView(QWidget):
 
         self.employee_filter = QComboBox()
         self.category_filter = QComboBox()
+        self.status_filter = QComboBox()
         self.filter_button = QPushButton("Filtra")
         self.filter_button.clicked.connect(self.load_data)
         self.export_button = QPushButton("Esporta in CSV")
@@ -45,6 +46,8 @@ class DashboardView(QWidget):
         controls_layout.addWidget(self.employee_filter)
         controls_layout.addWidget(QLabel("Categoria:"))
         controls_layout.addWidget(self.category_filter)
+        controls_layout.addWidget(QLabel("Stato:"))
+        controls_layout.addWidget(self.status_filter)
         controls_layout.addWidget(self.filter_button)
         controls_layout.addWidget(self.export_button)
 
@@ -71,29 +74,38 @@ class DashboardView(QWidget):
                 # Populate filters
                 employees = ["Tutti"] + sorted(list(set([item['nome'] for item in data])))
                 categories = ["Tutti"] + sorted(list(set([item['categoria'] for item in data])))
+                stati = ["Tutti", "attivo", "scaduto"]
 
                 # Save current filter selection
                 current_employee = self.employee_filter.currentText()
                 current_category = self.category_filter.currentText()
+                current_status = self.status_filter.currentText()
 
                 self.employee_filter.clear()
                 self.employee_filter.addItems(employees)
                 self.category_filter.clear()
                 self.category_filter.addItems(categories)
+                self.status_filter.clear()
+                self.status_filter.addItems(stati)
 
                 # Restore filter selection
                 if current_employee in employees:
                     self.employee_filter.setCurrentText(current_employee)
                 if current_category in categories:
                     self.category_filter.setCurrentText(current_category)
+                if current_status in stati:
+                    self.status_filter.setCurrentText(current_status)
 
                 employee = self.employee_filter.currentText()
                 category = self.category_filter.currentText()
+                status = self.status_filter.currentText()
 
                 if employee != "Tutti":
                     self.df = self.df[self.df['nome'] == employee]
                 if category != "Tutti":
                     self.df = self.df[self.df['categoria'] == category]
+                if status != "Tutti":
+                    self.df = self.df[self.df['stato_certificato'] == status]
 
                 self.model = PandasModel(self.df)
                 self.table_view.setModel(self.model)
