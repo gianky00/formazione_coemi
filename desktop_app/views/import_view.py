@@ -147,16 +147,36 @@ class ImportView(QWidget):
     def upload_folder(self, folder_path):
         self.results_display.clear()
         pdf_files = [f for f in os.listdir(folder_path) if f.endswith('.pdf')]
+
+        if not pdf_files:
+            self.results_display.setText("Nessun file PDF trovato.")
+            return
+
         self.results_display.setText(f"Trovati {len(pdf_files)} file PDF. Inizio elaborazione...")
+
+        if self.progress_widget and self.progress_bar and self.progress_label:
+            self.progress_bar.setMaximum(len(pdf_files))
+            self.progress_bar.setValue(0)
+            self.progress_label.setText("Inizio...")
+            self.progress_widget.setVisible(True)
 
         self.thread = QThread()
         self.worker = PdfWorker(pdf_files, folder_path)
         self.worker.moveToThread(self.thread)
 
         self.thread.started.connect(self.worker.run)
+        self.worker.finished.connect(self.on_processing_finished)
         self.worker.finished.connect(self.thread.quit)
         self.worker.finished.connect(self.worker.deleteLater)
         self.thread.finished.connect(self.thread.deleteLater)
         self.worker.log_message.connect(self.results_display.append)
 
+        if self.progress_bar and self.progress_label:
+            self.worker.progress.connect(self.progress_bar.setValue)
+            self.worker.status_update.connect(self.progress_label.setText)
+
         self.thread.start()
+
+    def on_processing_finished(self):
+        if self.progress_label:
+            self.progress_label.setText("Elaborazione completata.")

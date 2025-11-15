@@ -1,6 +1,6 @@
 
 import sys
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget, QPushButton, QLabel, QFrame, QMessageBox
+from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget, QPushButton, QLabel, QFrame, QMessageBox, QMenu, QProgressBar
 from PyQt6.QtGui import QIcon, QPixmap
 from PyQt6.QtCore import Qt, QSize, QDate
 
@@ -8,6 +8,8 @@ from desktop_app.views.import_view import ImportView
 from desktop_app.views.dashboard_view import DashboardView
 from desktop_app.views.config_view import ConfigView
 from desktop_app.views.validation_view import ValidationView
+from desktop_app.views.contact_dialog import ContactDialog
+from desktop_app.views.guide_dialog import GuideDialog
 
 class Sidebar(QWidget):
     def __init__(self, parent=None):
@@ -17,7 +19,7 @@ class Sidebar(QWidget):
         self.layout.setSpacing(0)
 
         self.logo_label = QLabel()
-        self.logo_pixmap = QPixmap("desktop_app/icons/logo.svg")
+        self.logo_pixmap = QPixmap("desktop_app/assets/logo.png")
         self.logo_label.setPixmap(self.logo_pixmap.scaled(160, 40, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(self.logo_label)
@@ -52,7 +54,7 @@ class Sidebar(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self, screenshot_path=None):
         super().__init__()
-        self.setWindowTitle("CertiSync AI")
+        self.setWindowTitle("Intelleo")
         self.setGeometry(100, 100, 1200, 800)
         self.screenshot_path = screenshot_path
 
@@ -71,7 +73,35 @@ class MainWindow(QMainWindow):
         self.content_layout.addWidget(self.stacked_widget)
         self.main_layout.addWidget(self.content_area, 1)
 
-        self.import_view = ImportView()
+        # Status Bar
+        self.status_bar = QFrame()
+        self.status_bar.setFixedHeight(30)
+        self.status_bar_layout = QHBoxLayout(self.status_bar)
+        self.status_bar_layout.setContentsMargins(10, 0, 10, 0)
+
+        self.progress_label = QLabel("Pronto.")
+        self.status_bar_layout.addWidget(self.progress_label)
+        self.status_bar_layout.addStretch()
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setMaximumWidth(200)
+        self.progress_bar.setTextVisible(False)
+
+        self.progress_widget = QWidget()
+        progress_layout = QHBoxLayout(self.progress_widget)
+        progress_layout.setContentsMargins(0,0,0,0)
+        progress_layout.addWidget(self.progress_label)
+        progress_layout.addWidget(self.progress_bar)
+        self.status_bar_layout.addWidget(self.progress_widget)
+        self.progress_widget.setVisible(False)
+
+        self.content_layout.addWidget(self.status_bar)
+
+        self.import_view = ImportView(
+            progress_widget=self.progress_widget,
+            progress_bar=self.progress_bar,
+            progress_label=self.progress_label
+        )
         self.dashboard_view = DashboardView()
         self.config_view = ConfigView()
         self.validation_view = ValidationView()
@@ -85,9 +115,26 @@ class MainWindow(QMainWindow):
         self.sidebar.buttons["Convalida Dati"].clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.validation_view))
         self.sidebar.buttons["Database"].clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.dashboard_view))
         self.sidebar.buttons["Addestra"].clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.config_view))
-        self.sidebar.help_button.clicked.connect(self.show_legal_notice)
+
+        help_menu = QMenu(self)
+        legal_action = help_menu.addAction("Avviso Legale")
+        legal_action.triggered.connect(self.show_legal_notice)
+        contact_action = help_menu.addAction("Contatti")
+        contact_action.triggered.connect(self.show_contact_form)
+        guide_action = help_menu.addAction("Guida")
+        guide_action.triggered.connect(self.show_guide)
+        self.sidebar.help_button.setMenu(help_menu)
+
 
         self.sidebar.buttons["Analizza"].setChecked(True)
+
+    def show_contact_form(self):
+        dialog = ContactDialog(self)
+        dialog.exec()
+
+    def show_guide(self):
+        dialog = GuideDialog(self)
+        dialog.exec()
 
     def show_legal_notice(self):
         msg_box = QMessageBox()
@@ -96,8 +143,15 @@ class MainWindow(QMainWindow):
         current_year = QDate.currentDate().year()
         msg_box.setText(f"""
             <b>AVVISO LEGALE SU PROPRIETÀ INTELLETTUALE E SEGRETO INDUSTRIALE</b><br><br>
-            Questo software, inclusi la sua architettura, logica di funzionamento e interfaccia utente, costituisce Segreto Industriale (Know-How) e informazione confidenziale.<br><br>
-            Esso è protetto ai sensi della normativa vigente...
+            Questo software, inclusi la sua architettura, logica di funzionamento e interfaccia utente, costituisce Segreto Industriale (Know-How) e informazione confidenziale.
+            <br><br>
+            Esso è protetto ai sensi della normativa vigente in materia di segreti commerciali, del diritto d’autore e del Codice della Proprietà Industriale.
+            <br><br>
+            <b>È fatto assoluto divieto</b> di copiare, decompilare, modificare, distribuire o utilizzare il software, in tutto o in parte, al di fuori degli scopi autorizzati senza preventivo consenso scritto.
+            <br><br>
+            La violazione delle presenti disposizioni costituisce un illecito civile e penale e sarà perseguita a norma di legge.
+            <br><br>
+            Copyright © {current_year}. Tutti i diritti riservati.
         """)
         msg_box.setStyleSheet("""
             QMessageBox {
@@ -114,6 +168,7 @@ class MainWindow(QMainWindow):
                 color: white;
             }
         """)
+        msg_box.setMinimumSize(600, 400)
         msg_box.exec()
 
     def take_screenshot_and_exit(self):
