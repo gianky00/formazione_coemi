@@ -89,6 +89,8 @@ class DashboardView(QWidget):
         filters_layout.addSpacing(15)
         filters_layout.addWidget(QLabel("Stato:"))
         filters_layout.addWidget(self.status_filter)
+        filters_layout.addSpacing(15)
+        filters_layout.addWidget(self.filter_button)
         filters_layout.addStretch()
         self.layout.addLayout(filters_layout)
 
@@ -96,7 +98,6 @@ class DashboardView(QWidget):
         controls_layout = QHBoxLayout()
         controls_layout.addWidget(self.select_all_checkbox)
         controls_layout.addStretch()
-        controls_layout.addWidget(self.filter_button)
         controls_layout.addWidget(self.export_button)
         controls_layout.addWidget(self.edit_button)
         controls_layout.addWidget(self.delete_button)
@@ -187,8 +188,19 @@ class DashboardView(QWidget):
         row = [i for i, cert_id in enumerate(self.df['id']) if cert_id == selected_ids[0]][0]
         current_data = self.df.iloc[row].to_dict()
 
-        categories = [self.category_filter.itemText(i) for i in range(self.category_filter.count()) if self.category_filter.itemText(i) != "Tutti"]
-        dialog = EditCertificatoDialog(current_data, categories, self)
+        # Fetch all master categories for the dropdown
+        try:
+            response = requests.get(f"{API_URL}/corsi/")
+            if response.status_code == 200:
+                master_categories = [corso['categoria'] for corso in response.json()]
+            else:
+                QMessageBox.warning(self, "Errore API", "Impossibile caricare l'elenco completo delle categorie.")
+                master_categories = sorted(list(set(self.df['categoria'].unique()))) # Fallback to current categories
+        except requests.exceptions.RequestException:
+            QMessageBox.critical(self, "Errore di Connessione", "Impossibile recuperare le categorie dal server.")
+            return
+
+        dialog = EditCertificatoDialog(current_data, master_categories, self)
         if dialog.exec():
             new_data = dialog.get_data()
             try:
