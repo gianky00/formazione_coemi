@@ -1,93 +1,124 @@
-# Manuale Tecnico per Sviluppatori - Gestione Scadenziario Certificati IA
+# Gestione Scadenze Certificati - Documentazione Tecnica
 
-Questo documento fornisce un'analisi tecnica approfondita del progetto, destinata agli sviluppatori. Spiega le decisioni architetturali, le dinamiche interne del codice e le best practice adottate.
+Questo documento fornisce una disamina tecnica approfondita del sistema di gestione dei certificati, progettato per sviluppatori e manutentori.
 
-## 1. Filosofia e Decisioni Architetturali
+## Architettura del Sistema
 
-La progettazione di questo sistema si basa su alcuni principi chiave: robustezza, manutenibilità e separazione delle competenze.
+Il progetto adotta un'architettura client-server disaccoppiata, composta da un backend API RESTful e un'applicazione desktop nativa.
 
--   **Architettura Client-Server:** La scelta di un'architettura disaccoppiata con un backend **FastAPI** e un frontend **PyQt6** è strategica. Permette di:
-    -   **Separare la Logica di Business dall'UI:** Il backend gestisce in modo centralizzato i dati e l'integrazione con l'IA, mentre il frontend si occupa esclusivamente della presentazione e dell'interazione con l'utente.
-    -   **Scalabilità e Flessibilità:** In futuro, sarà possibile sviluppare nuovi client (es. un'app web) senza modificare il backend.
+-   **Backend (FastAPI):** Un server Python ad alte prestazioni che espone endpoint per tutte le operazioni CRUD, gestisce la logica di business e si interfaccia con il servizio di intelligenza artificiale.
+-   **Frontend (PyQt6):** Un'applicazione desktop Windows che fornisce l'interfaccia grafica per l'interazione dell'utente, consumando le API esposte dal backend.
+-   **Database (SQLite via SQLAlchemy):** Un database a file singolo, gestito tramite l'ORM SQLAlchemy, che garantisce la persistenza dei dati.
+-   **Servizio AI (Google Gemini):** Sfrutta il modello `gemini-2.5-pro` per l'analisi multimodale dei documenti PDF.
 
--   **Perché FastAPI?** È stato scelto per le sue performance elevate e per la sua integrazione nativa con **Pydantic**, che permette di definire "schemi" di dati chiari e di ottenere una validazione automatica e robusta degli input API, un punto cruciale per la stabilità del sistema.
+---
 
--   **Perché PyQt6?** Offre un'esperienza utente nativa e reattiva su Windows. La sua natura event-driven si integra bene con un backend RESTful.
+## Dettagli Implementativi del Backend (`app/`)
 
-## 2. Approfondimento sul Backend (`app/`)
+Il backend è il cuore del sistema e gestisce tutta la logica applicativa.
 
-### 2.1. Validazione Robusta con Pydantic (`app/api/main.py`)
+### Gestione delle Dipendenze e Sessioni DB
 
-La stabilità dell'API si fonda su una rigorosa validazione a livello di modello, implementata tramite i `field_validator` di Pydantic V2.
+La gestione delle sessioni del database è affidata al sistema di **Dependency Injection** di FastAPI.
+-   La funzione `get_db` in `app/db/session.py` agisce come un "dependency provider".
+-   Ogni endpoint che necessita di interagire con il database dichiara una dipendenza tramite `db: Session = Depends(get_db)`.
+-   Questo pattern garantisce che ogni richiesta abbia una sessione DB dedicata, che viene chiusa correttamente al termine della richiesta, prevenendo connection leak.
 
--   **Prevenzione degli Errori 500:** La validazione intercetta i dati non conformi *prima* che raggiungano la logica di business. Questo trasforma potenziali `ValueError` (che causerebbero un 500 Internal Server Error) in risposte `422 Unprocessable Entity` con messaggi di errore chiari per il client.
--   **Gestione Flessibile della `data_scadenza`:** Il validatore per `data_scadenza` è un esempio di design difensivo.
-    ```python
-    @field_validator('data_scadenza')
-    def validate_data_scadenza_format(cls, v):
-        if v is None or not v.strip() or v.strip().lower() == 'none':
-            return None
-        # ... conversione a data
+### Validazione dei Dati con Pydantic
+
+La validazione dei dati in entrata e in uscita è gestita tramite i modelli Pydantic.
+-   **`CertificatoCreateSchema`**: Definisce lo schema per la creazione di un certificato, validando i dati ricevuti dal client nel body della richiesta `POST /certificati/`.
+-   **`CertificatoSchema`**: Definisce lo schema per i dati in uscita. La configurazione `from_attributes = True` permette di creare istanze del modello Pydantic direttamente da oggetti SQLAlchemy, semplificando la serializzazione.
+
+### Processo di Avvio e Seeding
+
+All'avvio del server (`@router.on_event("startup")`), viene eseguita la funzione `seed_database`. Questa funzione popola la tabella `CorsiMaster` con un set predefinito di corsi e la loro validità in mesi. Questo assicura che il sistema abbia sempre i dati di base necessari per calcolare le scadenze, anche al primo avvio su un database vuoto.
+
+### Logica "Get or Create"
+
+Per evitare la duplicazione di dati, il sistema implementa una logica "Get or Create" per le entità `Dipendenti` e `CorsiMaster`.
+-   Quando un certificato viene creato (`POST /certificati/`) o aggiornato (`PUT /certificati/{id}`), il sistema prima cerca nel database un record corrispondente (es. per `nome` e `cognome` del dipendente).
+-   Se il record non esiste, viene creato al momento (`db.add(new_record)`) prima di procedere con la creazione dell'attestato. Questo approccio atomico mantiene l'integrità dei dati.
+
+---
+
+## Servizio di Analisi AI (`app/services/ai_extraction.py`)
+
+L'analisi dei PDF è un processo multimodale in due fasi, orchestrato per massimizzare l'accuratezza.
+
+### Fase 1: Estrazione Dati Grezzi
+
+-   **Input:** I byte grezzi del file PDF (`pdf_bytes`).
+-   **Modello:** `gemini-2.5-pro`.
+-   **Prompt:** Un prompt conciso e diretto che istruisce il modello a estrarre esclusivamente `nome`, `corso` e `data_rilascio` e a restituire un oggetto JSON.
+-   **Output:** Un dizionario Python con i dati estratti.
+
+### Fase 2: Classificazione della Categoria
+
+-   **Input:** I byte del PDF e il `corso` estratto nella Fase 1.
+-   **Prompt:** Un prompt più complesso e ricco di contesto (few-shot prompting).
+    1.  Viene fornito il titolo del corso.
+    2.  Viene presentata la lista statica delle categorie ammesse (`CATEGORIE_STATICHE`).
+    3.  Vengono forniti **esempi concreti** per ogni categoria per guidare il modello (es. `ANTINCENDIO: "Addetto Antincendio Rischio Basso"`).
+-   **Logica di Fallback:** Se il modello fallisce o restituisce una categoria non presente nella lista statica, il sistema imposta la categoria su `"ALTRO"` per garantire la robustezza del processo.
+
+---
+
+## Dettagli Implementativi del Frontend (`desktop_app/`)
+
+L'applicazione desktop è strutturata per essere modulare e reattiva.
+
+### Architettura a Viste con `QStackedWidget`
+
+-   La `MainWindow` agisce come contenitore principale e gestisce un `QStackedWidget`.
+-   Ogni "schermata" dell'applicazione (`ImportView`, `DashboardView`, `ValidationView`) è un widget separato che viene aggiunto allo `QStackedWidget`.
+-   La navigazione tra le viste avviene cambiando il widget corrente dello stack (`self.stacked_widget.setCurrentWidget(...)`), mantenendo il codice pulito e disaccoppiato.
+
+### Meccanismo di Aggiornamento Dati `on_view_change`
+
+Per garantire che i dati visualizzati siano sempre aggiornati, è stato implementato un meccanismo basato su segnali e slot:
+1.  Il segnale `currentChanged` dello `QStackedWidget` viene emesso ogni volta che la vista cambia.
+2.  Questo segnale è collegato allo slot `on_view_change` della `MainWindow`.
+3.  Questo metodo, tramite introspezione (`hasattr(widget, 'load_data')`), verifica se la vista appena attivata possiede un metodo `load_data`.
+4.  Se il metodo esiste, viene invocato, forzando un refresh dei dati tramite una nuova chiamata API al backend.
+
+---
+
+## Ciclo di Vita di un Certificato
+
+1.  **Caricamento e Analisi:** Un PDF viene caricato nella `ImportView`, analizzato dall'IA e i dati vengono mostrati all'utente.
+2.  **Salvataggio Iniziale:** Alla conferma dell'utente, viene inviata una `POST /certificati/`. Il backend salva il certificato con `stato_validazione = ValidationStatus.AUTOMATIC`.
+3.  **Validazione Manuale:** Il certificato appare nella `ValidationView`. L'utente lo controlla e clicca su "Convalida". Viene inviata una `PUT /certificati/{id}/valida`.
+4.  **Stato Finale:** Il backend aggiorna lo `stato_validazione` a `ValidationStatus.MANUAL`. Da questo momento, il certificato è visibile nel `DashboardView` principale.
+5.  **Stato Certificato (Attivo/Scaduto):** Questo stato non è persistito nel database. Viene calcolato **dinamicamente** dal backend a ogni richiesta `GET /certificati/`, confrontando la `data_scadenza_calcolata` con la data corrente.
+
+---
+
+## Setup e Avvio (Ambiente Windows)
+
+### Prerequisiti
+
+-   Python 3.12 o superiore
+-   Git
+
+### Installazione
+
+1.  **Clonare il repository:**
+    ```bash
+    git clone <URL_DEL_REPOSITORY>
+    cd <NOME_DELLA_CARTELLA>
     ```
-    Questa logica accetta non solo `null` (JSON), ma anche stringhe vuote (`""`) o la stringa letterale `"none"`. Questo rende l'API resiliente a diverse rappresentazioni di un valore nullo inviate da client diversi o in seguito a modifiche accidentali.
 
-### 2.2. Efficienza del Database con SQLAlchemy
-
--   **Prevenzione delle N+1 Query:** Per evitare problemi di performance, l'endpoint `GET /certificati/` utilizza l'eager loading di SQLAlchemy.
-    ```python
-    query = db.query(Certificato).options(
-        selectinload(Certificato.dipendente),
-        selectinload(Certificato.corso)
-    )
+2.  **Creare il file `.env`:**
+    Nella directory principale, creare un file `.env` e inserire la propria chiave API di Google:
+    ```env
+    GEMINI_API_KEY="LA_TUA_CHIAVE_API_DI_GOOGLE"
     ```
-    `selectinload` istruisce SQLAlchemy a caricare le relazioni (`dipendente`, `corso`) con query aggiuntive ma efficienti (una per ogni relazione), piuttosto che una query per ogni certificato, prevenendo il classico problema delle "N+1 query".
 
--   **Pattern "Get or Create":** Durante la creazione e l'aggiornamento di un certificato, il sistema non fallisce se il dipendente o il corso non esistono. Invece, li crea al volo. Questa logica:
-    -   Migliora l'esperienza utente, che non deve pre-caricare entità correlate.
-    -   Garantisce l'integrità referenziale, poiché un certificato non può essere associato a un ID inesistente.
+### Avvio
 
-### 2.3. Integrazione del Servizio AI (`app/services/ai_extraction.py`)
-
-L'analisi dei PDF è un processo a due fasi per massimizzare l'accuratezza:
-
-1.  **Estrazione delle Entità:** Una prima chiamata al modello Gemini Pro analizza i byte del PDF per estrarre le entità principali (nome, corso, date).
-2.  **Classificazione della Categoria:** Una seconda chiamata, più mirata, classifica il `nome_corso` estratto in una delle categorie predefinite (`CorsiMaster`). Questo approccio è stato scelto perché la classificazione richiede un "ragionamento" diverso rispetto alla semplice estrazione, e separare i compiti migliora l'affidabilità del risultato finale.
-
-## 3. Approfondimento sul Frontend (`desktop_app/`)
-
-### 3.1. Integrità dei Dati alla Fonte (`desktop_app/edit_dialog.py`)
-
-Il problema persistente degli errori 422 è stato risolto non sul backend, ma alla sua origine: il frontend.
-
--   **Da `QInputDialog` a `EditCertificatoDialog`:** La catena di `QInputDialog` era fragile perché permetteva l'inserimento di qualsiasi testo in qualsiasi campo.
--   **La Soluzione Strategica:** Il nuovo `EditCertificatoDialog` utilizza widget specifici:
-    -   `QLineEdit` per il testo.
-    -   `QDateEdit` per le date. Questo widget **costringe** l'utente a inserire una data valida, eliminando alla radice la possibilità di inviare testo errato (es. "LAVORI IN QUOTA") in un campo data.
-    -   Una `QCheckBox` per la `data_scadenza` permette di gestire il valore opzionale in modo chiaro e di inviare `null` al backend quando deselezionata.
-
-## 4. Strategia di Testing Avanzata (`tests/`)
-
-La suite di test è progettata per essere veloce, deterministica e completa.
-
--   **Database In-Memory (`tests/conftest.py`):** I test non usano il database di produzione, ma un database SQLite in-memory. L'uso di `StaticPool` garantisce una connessione singola e stabile per l'intera sessione di test, prevenendo errori di "table not found".
--   **Mocking del Servizio AI (`tests/app/api/test_main.py`):** Le chiamate al servizio AI Gemini sono mockate con `pytest-mock`.
-    ```python
-    mocker.patch(
-        "app.api.main.ai_extraction.extract_entities_with_ai",
-        return_value=mocked_extracted_data
-    )
-    ```
-    Questo rende i test:
-    -   **Veloci:** Non vengono effettuate chiamate di rete.
-    -   **Deterministi:** La risposta dell'AI è controllata e prevedibile.
-    -   **Economici:** Non vengono consumati token API.
--   **Copertura con Parametrizzazione:** Per testare in modo efficiente la validazione degli input, si usa `pytest.mark.parametrize`.
-    ```python
-    @pytest.mark.parametrize("input_scadenza, expected_db_value, ...", [
-        ("15/12/2030", date(2030, 12, 15), ...),
-        (None, None, ...),
-        ("", None, ...),
-        ("None", None, ...),
-    ])
-    ```
-    Questo approccio permette di testare decine di scenari di input con un'unica funzione di test, garantendo una copertura completa della logica di validazione.
+Fare doppio clic sul file `run.bat`. Lo script si occuperà di:
+1.  Creare un ambiente virtuale Python (`.venv`) se non esiste.
+2.  Installare le dipendenze da `requirements.txt`.
+3.  Avviare il server backend FastAPI in una finestra di terminale separata.
+4.  Lanciare l'applicazione desktop PyQt6.
