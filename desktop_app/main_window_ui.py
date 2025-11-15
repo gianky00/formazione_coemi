@@ -1,6 +1,6 @@
 import sys
 import time
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QStackedWidget, QMenuBar, QProgressBar, QMessageBox, QLabel
+from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QStackedWidget, QMenuBar, QProgressBar, QMessageBox, QLabel, QHBoxLayout
 from PyQt6.QtGui import QAction
 from PyQt6.QtCore import QTimer, QDate, Qt
 from desktop_app.views.import_view import ImportView
