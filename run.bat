@@ -28,6 +28,6 @@ set PYTHONPATH=.
 start /b python app/main.py
 
 echo Starting the application...
-python desktop_app/main_window.py
+python desktop_app/main.py
 
 pause
