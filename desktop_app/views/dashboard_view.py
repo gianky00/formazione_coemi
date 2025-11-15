@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QComboBox, QLabel, QFileDialog, QMessageBox, QListView, QCheckBox
-from PyQt6.QtCore import QAbstractTableModel, Qt
+from PyQt6.QtCore import QAbstractTableModel, Qt, QItemSelection, QItemSelectionModel
 import pandas as pd
 import requests
 from .edit_dialog import EditCertificatoDialog
@@ -104,12 +104,24 @@ class DashboardView(QWidget):
 
         # Table
         self.table_view = QTableView()
+        self.table_view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         header = self.table_view.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         self.table_view.setColumnWidth(0, 40)
         self.layout.addWidget(self.table_view)
         self.load_data()
+
+    def on_data_changed(self, top_left, bottom_right):
+        if top_left.column() == 0:
+            selection_model = self.table_view.selectionModel()
+            for row in range(top_left.row(), bottom_right.row() + 1):
+                is_checked = self.model.data(self.model.index(row, 0), Qt.ItemDataRole.CheckStateRole) == Qt.CheckState.Checked.value
+                selection = QItemSelection(self.model.index(row, 0), self.model.index(row, self.model.columnCount() - 1))
+                if is_checked:
+                    selection_model.select(selection, QItemSelectionModel.SelectionFlag.Select)
+                else:
+                    selection_model.select(selection, QItemSelectionModel.SelectionFlag.Deselect)
 
     def load_data(self):
         try:
@@ -147,6 +159,7 @@ class DashboardView(QWidget):
 
                 self.model = CheckboxTableModel(self.df)
                 self.table_view.setModel(self.model)
+                self.model.dataChanged.connect(self.on_data_changed)
         except requests.exceptions.RequestException as e:
             QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
 
@@ -174,7 +187,8 @@ class DashboardView(QWidget):
         row = [i for i, cert_id in enumerate(self.df['id']) if cert_id == selected_ids[0]][0]
         current_data = self.df.iloc[row].to_dict()
 
-        dialog = EditCertificatoDialog(current_data, self)
+        categories = [self.category_filter.itemText(i) for i in range(self.category_filter.count()) if self.category_filter.itemText(i) != "Tutti"]
+        dialog = EditCertificatoDialog(current_data, categories, self)
         if dialog.exec():
             new_data = dialog.get_data()
             try:

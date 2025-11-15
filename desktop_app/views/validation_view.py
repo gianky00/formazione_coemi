@@ -1,6 +1,6 @@
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QMessageBox, QStyledItemDelegate, QLineEdit, QCheckBox
-from PyQt6.QtCore import QAbstractTableModel, Qt
+from PyQt6.QtCore import QAbstractTableModel, Qt, QItemSelection, QItemSelectionModel
 import pandas as pd
 import requests
 from ..api_client import API_URL
@@ -89,6 +89,7 @@ class ValidationView(QWidget):
 
         # Table
         self.table_view = QTableView()
+        self.table_view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         header = self.table_view.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
@@ -98,6 +99,17 @@ class ValidationView(QWidget):
 
         self.load_data()
 
+    def on_data_changed(self, top_left, bottom_right):
+        if top_left.column() == 0:
+            selection_model = self.table_view.selectionModel()
+            for row in range(top_left.row(), bottom_right.row() + 1):
+                is_checked = self.model.data(self.model.index(row, 0), Qt.ItemDataRole.CheckStateRole) == Qt.CheckState.Checked.value
+                selection = QItemSelection(self.model.index(row, 0), self.model.index(row, self.model.columnCount() - 1))
+                if is_checked:
+                    selection_model.select(selection, QItemSelectionModel.SelectionFlag.Select)
+                else:
+                    selection_model.select(selection, QItemSelectionModel.SelectionFlag.Deselect)
+
     def load_data(self):
         try:
             response = requests.get(f"{API_URL}/certificati/?validated=false")
@@ -106,6 +118,7 @@ class ValidationView(QWidget):
                 self.df = pd.DataFrame(data)
                 self.model = CheckboxTableModel(self.df)
                 self.table_view.setModel(self.model)
+                self.model.dataChanged.connect(self.on_data_changed)
         except requests.exceptions.RequestException as e:
             QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
 

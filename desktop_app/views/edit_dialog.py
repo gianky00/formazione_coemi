@@ -1,8 +1,8 @@
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLineEdit, QDateEdit, QCheckBox, QDialogButtonBox, QFormLayout, QLabel
+from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLineEdit, QDateEdit, QCheckBox, QDialogButtonBox, QFormLayout, QLabel, QComboBox
 from PyQt6.QtCore import QDate, Qt
 
 class EditCertificatoDialog(QDialog):
-    def __init__(self, data, parent=None):
+    def __init__(self, data, categories, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Modifica Certificato")
         self.layout = QVBoxLayout(self)
@@ -10,7 +10,9 @@ class EditCertificatoDialog(QDialog):
         self.form_layout = QFormLayout()
         self.nome_edit = QLineEdit(data['nome'])
         self.corso_edit = QLineEdit(data['corso'])
-        self.categoria_edit = QLineEdit(data['categoria'])
+        self.categoria_edit = QComboBox()
+        self.categoria_edit.addItems(categories)
+        self.categoria_edit.setCurrentText(data['categoria'])
 
         self.data_rilascio_edit = QDateEdit()
         self.data_rilascio_edit.setDisplayFormat("dd/MM/yyyy")
@@ -44,13 +46,14 @@ class EditCertificatoDialog(QDialog):
 
         self.layout.addLayout(self.form_layout)
         self.layout.addWidget(self.button_box)
+        self.adjustSize()
 
     def get_data(self):
         data_scadenza = self.data_scadenza_edit.date().toString("dd/MM/yyyy") if self.scadenza_checkbox.isChecked() else None
         return {
             "nome": self.nome_edit.text(),
             "corso": self.corso_edit.text(),
-            "categoria": self.categoria_edit.text(),
+            "categoria": self.categoria_edit.currentText(),
             "data_rilascio": self.data_rilascio_edit.date().toString("dd/MM/yyyy"),
             "data_scadenza": data_scadenza
         }
