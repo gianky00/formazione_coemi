@@ -1,3 +1,4 @@
+
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLineEdit, QDateEdit, QCheckBox, QDialogButtonBox, QFormLayout, QLabel, QComboBox
 from PyQt6.QtCore import QDate, Qt
 
@@ -5,6 +6,29 @@ class EditCertificatoDialog(QDialog):
     def __init__(self, data, categories, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Modifica Certificato")
+
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #FFFFFF;
+                border: 1px solid #E0E0E0;
+                border-radius: 15px;
+            }
+            QLabel {
+                font-size: 14px;
+            }
+            QLineEdit, QComboBox, QDateEdit {
+                padding: 8px;
+                border: 1px solid #E0E0E0;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton {
+                padding: 8px 16px;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+        """)
+
         self.layout = QVBoxLayout(self)
 
         self.form_layout = QFormLayout()
@@ -13,6 +37,7 @@ class EditCertificatoDialog(QDialog):
         self.categoria_edit = QComboBox()
         self.categoria_edit.addItems(categories)
         self.categoria_edit.setCurrentText(data['categoria'])
+        self.categoria_edit.setEditable(False)
 
         self.data_rilascio_edit = QDateEdit()
         self.data_rilascio_edit.setDisplayFormat("dd/MM/yyyy")
@@ -44,8 +69,16 @@ class EditCertificatoDialog(QDialog):
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
 
+        # Style buttons
+        ok_button = self.button_box.button(QDialogButtonBox.StandardButton.Ok)
+        ok_button.setStyleSheet("background-color: #0052CC; color: white;")
+        cancel_button = self.button_box.button(QDialogButtonBox.StandardButton.Cancel)
+        cancel_button.setStyleSheet("background-color: transparent; border: 1px solid #E0E0E0; color: #555;")
+
         self.layout.addLayout(self.form_layout)
         self.layout.addWidget(self.button_box)
+
+        self.setMinimumWidth(400)
         self.adjustSize()
 
     def get_data(self):

@@ -1,3 +1,4 @@
+
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QComboBox, QLabel, QFileDialog, QMessageBox, QListView, QCheckBox
 from PyQt6.QtCore import QAbstractTableModel, Qt, QItemSelection, QItemSelectionModel
 import pandas as pd
@@ -33,6 +34,7 @@ class CheckboxTableModel(QAbstractTableModel):
         if role == Qt.ItemDataRole.CheckStateRole and index.column() == 0:
             self.check_states[index.row()] = Qt.CheckState(value)
             self.dataChanged.emit(index, index)
+            self.parent().update_button_states()
             return True
         return False
 
@@ -53,75 +55,83 @@ class DashboardView(QWidget):
     def __init__(self):
         super().__init__()
         self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(20, 20, 20, 20)
+        self.layout.setSpacing(15)
 
-        # Controls
-        controls_layout = QHBoxLayout()
-        self.select_all_checkbox = QCheckBox("Seleziona Tutto")
-        self.select_all_checkbox.stateChanged.connect(self.toggle_select_all)
-        controls_layout.addWidget(self.select_all_checkbox)
-        controls_layout.addStretch()
+        # Title
+        title = QLabel("Database Certificati")
+        title.setStyleSheet("font-size: 24px; font-weight: bold;")
+        self.layout.addWidget(title)
 
+        # Control Bar
+        control_bar_layout = QHBoxLayout()
+
+        # Filters
+        control_bar_layout.addWidget(QLabel("Dipendente:"))
         self.employee_filter = QComboBox()
-        self.employee_filter.setView(QListView())
-        self.employee_filter.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        control_bar_layout.addWidget(self.employee_filter)
+
+        control_bar_layout.addSpacing(15)
+
+        control_bar_layout.addWidget(QLabel("Categoria:"))
         self.category_filter = QComboBox()
-        self.category_filter.setView(QListView())
-        self.category_filter.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        control_bar_layout.addWidget(self.category_filter)
+
+        control_bar_layout.addSpacing(15)
+
+        control_bar_layout.addWidget(QLabel("Stato:"))
         self.status_filter = QComboBox()
-        self.status_filter.setView(QListView())
-        self.status_filter.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        control_bar_layout.addWidget(self.status_filter)
+
         self.filter_button = QPushButton("Filtra")
         self.filter_button.clicked.connect(self.load_data)
+        control_bar_layout.addWidget(self.filter_button)
+
+        control_bar_layout.addStretch()
+
+        # Action Buttons
         self.export_button = QPushButton("Esporta in CSV")
         self.export_button.clicked.connect(self.export_to_csv)
+        control_bar_layout.addWidget(self.export_button)
+
         self.edit_button = QPushButton("Modifica")
         self.edit_button.clicked.connect(self.edit_data)
+        control_bar_layout.addWidget(self.edit_button)
+
         self.delete_button = QPushButton("Cancella")
         self.delete_button.clicked.connect(self.delete_data)
+        control_bar_layout.addWidget(self.delete_button)
 
-        # Top layout for filters
-        filters_layout = QHBoxLayout()
-        filters_layout.addWidget(QLabel("Dipendente:"))
-        filters_layout.addWidget(self.employee_filter)
-        filters_layout.addSpacing(15)
-        filters_layout.addWidget(QLabel("Categoria:"))
-        filters_layout.addWidget(self.category_filter)
-        filters_layout.addSpacing(15)
-        filters_layout.addWidget(QLabel("Stato:"))
-        filters_layout.addWidget(self.status_filter)
-        filters_layout.addStretch()
-        self.layout.addLayout(filters_layout)
-
-        # Bottom layout for controls
-        controls_layout = QHBoxLayout()
-        controls_layout.addWidget(self.select_all_checkbox)
-        controls_layout.addStretch()
-        controls_layout.addWidget(self.filter_button)
-        controls_layout.addWidget(self.export_button)
-        controls_layout.addWidget(self.edit_button)
-        controls_layout.addWidget(self.delete_button)
-        self.layout.addLayout(controls_layout)
+        self.layout.addLayout(control_bar_layout)
 
         # Table
         self.table_view = QTableView()
         self.table_view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
+        self.table_view.setAlternatingRowColors(True)
+        self.table_view.setMouseTracking(True)
+        self.table_view.entered.connect(self.table_view.viewport().update)
+
         header = self.table_view.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         self.table_view.setColumnWidth(0, 40)
-        self.layout.addWidget(self.table_view)
-        self.load_data()
+        self.table_view.clicked.connect(self.on_row_clicked)
 
-    def on_data_changed(self, top_left, bottom_right):
-        if top_left.column() == 0:
-            selection_model = self.table_view.selectionModel()
-            for row in range(top_left.row(), bottom_right.row() + 1):
-                is_checked = self.model.data(self.model.index(row, 0), Qt.ItemDataRole.CheckStateRole) == Qt.CheckState.Checked.value
-                selection = QItemSelection(self.model.index(row, 0), self.model.index(row, self.model.columnCount() - 1))
-                if is_checked:
-                    selection_model.select(selection, QItemSelectionModel.SelectionFlag.Select)
-                else:
-                    selection_model.select(selection, QItemSelectionModel.SelectionFlag.Deselect)
+        self.layout.addWidget(self.table_view)
+
+        self.load_data()
+        self.update_button_states()
+
+    def on_row_clicked(self, index):
+        if hasattr(self, 'model'):
+            check_state = self.model.data(self.model.index(index.row(), 0), Qt.ItemDataRole.CheckStateRole)
+            new_state = Qt.CheckState.Checked if check_state == Qt.CheckState.Unchecked.value else Qt.CheckState.Unchecked
+            self.model.setData(self.model.index(index.row(), 0), new_state.value, Qt.ItemDataRole.CheckStateRole)
+
+    def update_button_states(self):
+        selected_ids = self.get_selected_ids()
+        self.edit_button.setEnabled(len(selected_ids) == 1)
+        self.delete_button.setEnabled(len(selected_ids) > 0)
 
     def load_data(self):
         try:
@@ -158,72 +168,62 @@ class DashboardView(QWidget):
                 if status != "Tutti": self.df = self.df[self.df['stato_certificato'] == status]
 
                 self.model = CheckboxTableModel(self.df)
+                self.model.setParent(self)
                 self.table_view.setModel(self.model)
-                self.model.dataChanged.connect(self.on_data_changed)
         except requests.exceptions.RequestException as e:
             QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
 
-    def toggle_select_all(self, state):
-        check_state = Qt.CheckState(state)
-        for i in range(self.model.rowCount()):
-            self.model.setData(self.model.index(i, 0), check_state.value, Qt.ItemDataRole.CheckStateRole)
-
     def get_selected_ids(self):
         selected_ids = []
-        for i in range(self.model.rowCount()):
-            if self.model.data(self.model.index(i, 0), Qt.ItemDataRole.CheckStateRole) == Qt.CheckState.Checked.value:
-                selected_ids.append(self.df.iloc[i]['id'])
+        if hasattr(self, 'model'):
+            for i in range(self.model.rowCount()):
+                if self.model.data(self.model.index(i, 0), Qt.ItemDataRole.CheckStateRole) == Qt.CheckState.Checked.value:
+                    selected_ids.append(self.df.iloc[i]['id'])
         return selected_ids
 
     def edit_data(self):
         selected_ids = self.get_selected_ids()
         if not selected_ids:
-            QMessageBox.warning(self, "Nessuna Selezione", "Seleziona una riga da modificare.")
-            return
-        if len(selected_ids) > 1:
-            QMessageBox.warning(self, "Selezione Multipla", "La modifica è consentita solo per una riga alla volta.")
             return
 
         row = [i for i, cert_id in enumerate(self.df['id']) if cert_id == selected_ids[0]][0]
         current_data = self.df.iloc[row].to_dict()
 
-        categories = [self.category_filter.itemText(i) for i in range(self.category_filter.count()) if self.category_filter.itemText(i) != "Tutti"]
-        dialog = EditCertificatoDialog(current_data, categories, self)
+        try:
+            response = requests.get(f"{API_URL}/corsi/")
+            if response.status_code == 200:
+                master_categories = [corso['categoria_corso'] for corso in response.json()]
+            else:
+                master_categories = sorted(list(set(self.df['categoria'].unique())))
+        except requests.exceptions.RequestException:
+            master_categories = sorted(list(set(self.df['categoria'].unique())))
+
+        dialog = EditCertificatoDialog(current_data, master_categories, self)
         if dialog.exec():
             new_data = dialog.get_data()
             try:
                 response = requests.put(f"{API_URL}/certificati/{selected_ids[0]}", json=new_data)
                 if response.status_code == 200:
-                    QMessageBox.information(self, "Successo", "Dati aggiornati con successo.")
                     self.load_data()
                 else:
-                    QMessageBox.critical(self, "Errore", f"Errore durante l'aggiornamento: {response.json().get('detail', response.text)}")
+                    QMessageBox.critical(self, "Errore", f"Errore durante l'aggiornamento: {response.text}")
             except requests.exceptions.RequestException as e:
                 QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
 
     def delete_data(self):
         selected_ids = self.get_selected_ids()
         if not selected_ids:
-            QMessageBox.warning(self, "Nessuna Selezione", "Seleziona una o più righe da cancellare.")
             return
 
         reply = QMessageBox.question(self, 'Conferma Cancellazione', f'Sei sicuro di voler cancellare {len(selected_ids)} righe selezionate?',
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
 
         if reply == QMessageBox.StandardButton.Yes:
-            success_count = 0
-            error_count = 0
             for cert_id in selected_ids:
                 try:
-                    response = requests.delete(f"{API_URL}/certificati/{cert_id}")
-                    if response.status_code == 200:
-                        success_count += 1
-                    else:
-                        error_count += 1
+                    requests.delete(f"{API_URL}/certificati/{cert_id}")
                 except requests.exceptions.RequestException:
-                    error_count += 1
-
-            QMessageBox.information(self, "Risultato Cancellazione", f"{success_count} righe cancellate con successo, {error_count} errori.")
+                    pass
             self.load_data()
 
     def export_to_csv(self):
