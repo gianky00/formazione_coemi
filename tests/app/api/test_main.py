@@ -32,7 +32,7 @@ def test_create_certificato(test_client: TestClient, db_session: Session):
     # Verifica la risposta
     assert response.status_code == 200
     data = response.json()
-    assert data["nome"] == "Mario Rossi"
+    assert data["dipendente"] == "Mario Rossi"
     assert data["corso"] == "ANTINCENDIO"
     assert data["stato_certificato"] == "attivo"
 

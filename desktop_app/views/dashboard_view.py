@@ -35,7 +35,7 @@ class DashboardView(QWidget):
         self.layout.addLayout(controls_layout)
 
         self.employee_filter = QComboBox()
-        self.category_filter = QComboBox()
+        self.course_filter = QComboBox()
         self.status_filter = QComboBox()
         self.status_filter.addItems(["Tutti", "attivo", "scaduto"])
         self.search_bar = QLineEdit()
@@ -43,7 +43,7 @@ class DashboardView(QWidget):
         self.filter_button = QPushButton("Filtra")
         self.filter_button.clicked.connect(self.apply_filters)
         self.employee_filter.currentTextChanged.connect(self.apply_filters)
-        self.category_filter.currentTextChanged.connect(self.apply_filters)
+        self.course_filter.currentTextChanged.connect(self.apply_filters)
         self.status_filter.currentTextChanged.connect(self.apply_filters)
         self.search_bar.textChanged.connect(self.apply_filters)
         self.export_button = QPushButton("Esporta in CSV")
@@ -51,8 +51,8 @@ class DashboardView(QWidget):
 
         controls_layout.addWidget(QLabel("Dipendente:"))
         controls_layout.addWidget(self.employee_filter)
-        controls_layout.addWidget(QLabel("Categoria:"))
-        controls_layout.addWidget(self.category_filter)
+        controls_layout.addWidget(QLabel("Corso:"))
+        controls_layout.addWidget(self.course_filter)
         controls_layout.addWidget(QLabel("Stato:"))
         controls_layout.addWidget(self.status_filter)
         controls_layout.addWidget(self.search_bar)
@@ -81,11 +81,11 @@ class DashboardView(QWidget):
 
                 # Populate filters if they are empty
                 if self.employee_filter.count() == 0:
-                    employees = ["Tutti"] + sorted(list(set([item['nome'] for item in data])))
+                    employees = ["Tutti"] + sorted(list(set([item['dipendente'] for item in data])))
                     self.employee_filter.addItems(employees)
-                if self.category_filter.count() == 0:
-                    categories = ["Tutti"] + sorted(list(set([item['categoria'] for item in data])))
-                    self.category_filter.addItems(categories)
+                if self.course_filter.count() == 0:
+                    courses = ["Tutti"] + sorted(list(set([item['corso'] for item in data])))
+                    self.course_filter.addItems(courses)
 
                 self.apply_filters() # Apply filters to the full dataset
         except requests.exceptions.RequestException as e:
@@ -97,11 +97,11 @@ class DashboardView(QWidget):
         # Apply dropdown filters
         employee = self.employee_filter.currentText()
         if employee != "Tutti":
-            filtered_df = filtered_df[filtered_df['nome'] == employee]
+            filtered_df = filtered_df[filtered_df['dipendente'] == employee]
 
-        category = self.category_filter.currentText()
-        if category != "Tutti":
-            filtered_df = filtered_df[filtered_df['categoria'] == category]
+        course = self.course_filter.currentText()
+        if course != "Tutti":
+            filtered_df = filtered_df[filtered_df['corso'] == course]
 
         status = self.status_filter.currentText()
         if status != "Tutti":

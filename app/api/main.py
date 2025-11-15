@@ -12,7 +12,7 @@ from typing import Optional, List
 
 class CertificatoSchema(BaseModel):
     id: int
-    nome: str
+    dipendente: str
     corso: str
     categoria: str
     data_rilascio: str
@@ -217,7 +217,7 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
         stato = certificate_logic.get_certificate_status(certificato.data_scadenza_calcolata)
         result.append(CertificatoSchema(
             id=certificato.id,
-            nome=f"{certificato.dipendente.nome} {certificato.dipendente.cognome}",
+            dipendente=f"{certificato.dipendente.nome} {certificato.dipendente.cognome}",
             corso=certificato.corso.nome_corso,
             categoria=certificato.corso.categoria_corso or "General",
             data_rilascio=certificato.data_rilascio.strftime('%d/%m/%Y'),
@@ -290,7 +290,7 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
     stato = certificate_logic.get_certificate_status(db_certificato.data_scadenza_calcolata)
     return CertificatoSchema(
         id=db_certificato.id,
-        nome=f"{db_certificato.dipendente.nome} {db_certificato.dipendente.cognome}",
+        dipendente=f"{db_certificato.dipendente.nome} {db_certificato.dipendente.cognome}",
         corso=db_certificato.corso.nome_corso,
         categoria=db_certificato.corso.categoria_corso or "General",
         data_rilascio=db_certificato.data_rilascio.strftime('%d/%m/%Y'),
@@ -369,7 +369,7 @@ def update_certificato(certificato_id: int, certificato: CertificatoAggiornament
     stato = certificate_logic.get_certificate_status(db_certificato.data_scadenza_calcolata)
     return CertificatoSchema(
         id=db_certificato.id,
-        nome=f"{db_certificato.dipendente.nome} {db_certificato.dipendente.cognome}",
+        dipendente=f"{db_certificato.dipendente.nome} {db_certificato.dipendente.cognome}",
         corso=db_certificato.corso.nome_corso,
         categoria=db_certificato.corso.categoria_corso or "General",
         data_rilascio=db_certificato.data_rilascio.strftime('%d/%m/%Y'),
@@ -399,7 +399,7 @@ def valida_certificato(certificato_id: int, db: Session = Depends(get_db)):
     stato = certificate_logic.get_certificate_status(db_certificato.data_scadenza_calcolata)
     return CertificatoSchema(
         id=db_certificato.id,
-        nome=f"{db_certificato.dipendente.nome} {db_certificato.dipendente.cognome}",
+        dipendente=f"{db_certificato.dipendente.nome} {db_certificato.dipendente.cognome}",
         corso=db_certificato.corso.nome_corso,
         categoria=db_certificato.corso.categoria_corso or "General",
         data_rilascio=db_certificato.data_rilascio.strftime('%d/%m/%Y'),
