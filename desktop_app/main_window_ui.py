@@ -150,8 +150,9 @@ class MainWindow(QMainWindow):
         self.menuBar().setStyleSheet(f"""
             {base_style}
             QMenuBar::item[active="true"] {{
-                background-color: #555555;
+                background-color: #0078d7;
                 color: white;
+                font-weight: bold;
             }}
             {hover_style}
         """)
