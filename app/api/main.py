@@ -113,6 +113,7 @@ def seed_database():
             {"nome_corso": "SPAZI CONFINATI DPI III E AUTORESPIRATORI", "validita_mesi": 60, "categoria_corso": "SPAZI CONFINATI DPI III E AUTORESPIRATORI"},
             {"nome_corso": "HLO", "validita_mesi": 0, "categoria_corso": "HLO"},
             {"nome_corso": "NOMINE", "validita_mesi": 0, "categoria_corso": "NOMINE"},
+            {"nome_corso": "VISITA MEDICA", "validita_mesi": 0, "categoria_corso": "VISITA MEDICA"},
             {"nome_corso": "ALTRO", "validita_mesi": 0, "categoria_corso": "ALTRO"},
         ]
 
@@ -166,7 +167,13 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
     # 3. Applica la logica di business e formatta i dati
     final_entities = {}
     data_rilascio_str = extracted_data.get("data_rilascio")
-    if data_rilascio_str:
+    data_scadenza_str = extracted_data.get("data_scadenza")
+
+    if data_scadenza_str:
+        # Se l'AI estrae direttamente la data di scadenza, usa quella
+        final_entities["data_scadenza"] = data_scadenza_str.replace("-", "/")
+    elif data_rilascio_str:
+        # Altrimenti, calcolala se possibile
         try:
             data_rilascio = datetime.strptime(data_rilascio_str, '%d-%m-%Y').date()
             categoria_estratta = extracted_data.get("categoria")
@@ -174,9 +181,11 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
             if corso_obj:
                 data_scadenza = certificate_logic.calculate_expiration_date(data_rilascio, corso_obj.validita_mesi)
                 final_entities["data_scadenza"] = data_scadenza.strftime('%d/%m/%Y') if data_scadenza else None
-            final_entities["data_rilascio"] = data_rilascio.strftime('%d/%m/%Y')
         except (ValueError, TypeError):
             pass
+
+    if data_rilascio_str:
+        final_entities["data_rilascio"] = data_rilascio_str.replace("-", "/")
 
     final_entities.update({
         "nome": extracted_data.get("nome"),

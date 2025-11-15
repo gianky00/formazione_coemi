@@ -172,6 +172,43 @@ def test_create_duplicate_certificato_fails(test_client: TestClient, db_session:
     ).count()
     assert count == 1
 
+
+def test_upload_pdf_visita_medica(test_client: TestClient, db_session: Session, mocker):
+    """
+    Testa l'upload di una visita medica, verificando che la data di scadenza
+    estratta direttamente dall'AI venga utilizzata.
+    """
+    # Arrange: Popola il DB con il corso necessario
+    visita_medica_corso = Corso(nome_corso="VISITA MEDICA", validita_mesi=0, categoria_corso="VISITA MEDICA")
+    db_session.add(visita_medica_corso)
+    db_session.commit()
+
+    # Arrange: Mock della funzione di estrazione AI
+    mocked_extracted_data = {
+        "nome": "Mario Rossi",
+        "corso": "Giudizio di idoneità alla Mansione Specifica",
+        "categoria": "VISITA MEDICA",
+        "data_rilascio": "10-10-2025",
+        "data_scadenza": "10-10-2026"  # Data estratta direttamente
+    }
+    mocker.patch(
+        "app.api.main.ai_extraction.extract_entities_with_ai",
+        return_value=mocked_extracted_data
+    )
+
+    # Crea un file PDF fittizio in memoria
+    fake_pdf_bytes = b"%PDF-1.5 fake content"
+    files = {"file": ("visita.pdf", fake_pdf_bytes, "application/pdf")}
+
+    # Act: Esegui la richiesta di upload
+    response = test_client.post("/upload-pdf/", files=files)
+
+    # Assert: Verifica la risposta
+    assert response.status_code == 200
+    response_data = response.json()
+    assert response_data["entities"]["categoria"] == "VISITA MEDICA"
+    assert response_data["entities"]["data_scadenza"] == "10/10/2026"
+
 @pytest.mark.parametrize("payload_override, expected_status_code, error_detail_part", [
     ({"data_rilascio": ""}, 422, "La data non può essere vuota"),
     ({"data_rilascio": "14-11-2025"}, 422, "Formato data non valido"),
