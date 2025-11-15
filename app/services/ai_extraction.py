@@ -4,9 +4,10 @@ import json
 from app.core.config import settings
 
 # --- Configurazione Logger (Buona pratica) ---
+# (Usa la tua configurazione esistente)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# --- Configurazione API Key ---
+# --- Configurazione API Key (Usa la tua) ---
 model = None
 try:
     if not settings.GEMINI_API_KEY:
@@ -41,18 +42,22 @@ def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
 
     categorie_str = ", ".join(f'"{c}"' for c in CATEGORIE_STATICHE)
 
+    # --- PROMPT RINFORZATO ---
+    # Ho aggiunto istruzioni negative direttamente negli esempi
+    # per forzare la distinzione.
     esempi_categorie = """
 - ANTINCENDIO: "Addetto Antincendio Rischio Basso", "Corso Antincendio Rischio Medio"
 - PRIMO SOCCORSO: "Addetto al Primo Soccorso Gruppo A", "Corso BLS"
 - ASPP: "ASPP Modulo A"
 - RSPP: "RSPP Modulo A", "RSPP - Datore di Lavoro"
-- PREPOSTO: "Corso per Preposti alla Sicurezza", "Aggiornamento Preposto"
-- NOMINE: "NOMINA CAPO CANTIERE", "NOMINA PREPOSTO", "NOMINA RAPPRESENTANTE LEGALE", "Attribuzione e competenze del ruolo di Preposto"
+- PREPOSTO: [USA QUESTA SOLO PER CORSI/ATTESTATI] "Corso per Preposti alla Sicurezza", "Aggiornamento Preposto".
+- NOMINE: [USA QUESTA PER LETTERE DI INCARICO/ATTRIBUZIONE] "NOMINA CAPO CANTIERE", "NOMINA PREPOSTO", "Attribuzione e competenze del ruolo di Preposto"
 - ALTRO: (qualsiasi altro documento non classificabile)
 """
 
-    # --- Chiamata Unica: Estrazione e Classificazione ---
-
+    # --- PROMPT RINFORZATO ---
+    # Ho reso la regola ancora più esplicita e ho aggiunto
+    # una sezione "ERRORE COMUNE DA EVITARE".
     prompt_completo = f"""
 Sei un assistente AI specializzato nell'analisi di documenti sulla sicurezza sul lavoro per l'azienda COEMI.
 Analizza il certificato o documento PDF che ti fornisco.
@@ -62,20 +67,27 @@ Estrai le seguenti informazioni e classificalo. Restituisci ESCLUSIVAMENTE un og
 1.  "nome": Il nome completo del partecipante (es. "MARIO ROSSI" o "Giliberto Salvatore"). Se non è un attestato (es. una nomina), cerca il nome del destinatario. Se non c'è, restituisci null.
 2.  "corso": Il titolo esatto e completo del corso. Se non è un corso (come una "NOMINA"), estrai il titolo del documento (es. "NOMINA CAPO CANTIERE" o "Attribuzione e competenze del ruolo di Preposto"). Se non c'è, restituisci null.
 3.  "data_rilascio": La data di emissione o di rilascio del documento (formato DD-MM-AAAA). Se non c'è, restituisci null.
-4.  "categoria": Classifica il documento in UNA SOLA delle seguenti categorie, usando il contesto totale del PDF:
+4.  "categoria": Classifica il documento in UNA SOLA delle seguenti categorie:
     {categorie_str}
 
-    Usa questi esempi per guidarti:
+    Usa questi esempi per guidarti. Presta MOLTA attenzione alla differenza tra PREPOSTO e NOMINE:
     {esempi_categorie}
 
-    REGOLA FONDAMENTALE PER LA CLASSIFICAZIONE:
-    - Se il documento è un **corso** o un **attestato di formazione** (es. "Corso di Aggiornamento per Preposto"), la categoria è quella del corso (es. "PREPOSTO").
-    - Se il documento è una **nomina**, una **lettera di incarico** o un'**attribuzione di ruolo** (es. "NOMINA CAPO CANTIERE", "Attribuzione... ruolo di Preposto", "COMUNICA la Sua designazione... quale PREPOSTO"), la categoria deve essere **SEMPRE** "NOMINE", anche se il ruolo menzionato è "Preposto".
+    REGOLA DI CLASSIFICAZIONE ASSOLUTA:
+    1. La categoria 'PREPOSTO' deve essere usata **SOLO ED ESCLUSIVAMENTE** per **attestati di FORMAZIONE** (es. "Corso di Aggiornamento per Preposto", "Corso di Formazione per Preposti").
+    2. Qualsiasi documento che sia una **lettera di incarico**, un'**attribuzione di ruolo**, o una **nomina** (come "NOMINA CAPO CANTIERE", "Attribuzione... ruolo di Preposto", "COMUNICA la Sua designazione") deve essere classificato **SEMPRE e SOLO** come "NOMINE".
+
+    ERRORE COMUNE DA EVITARE:
+    NON classificare "NOMINA... Preposto" o "Attribuzione... Preposto" come "PREPOSTO". Quella è una "NOMINE".
+    Un "Corso... Preposto" è "PREPOSTO".
+    Una "Nomina... Preposto" è "NOMINE".
 
     Se non riesci a classificare, usa "ALTRO".
 
 JSON:
 """
+    # --- Fine modifiche prompt ---
+
     pdf_file_part = {"mime_type": "application/pdf", "data": pdf_bytes}
 
     try:
