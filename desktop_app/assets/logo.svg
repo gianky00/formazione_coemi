@@ -4,7 +4,7 @@
             font-family: 'Segoe UI', Arial, sans-serif;
             font-size: 30px;
             font-weight: bold;
-            fill: #FFFFFF;
+            fill: #000000;
         }
     </style>
     <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" class="title">Intelleo</text>
