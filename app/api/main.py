@@ -79,12 +79,13 @@ from app.db.session import SessionLocal
 
 router = APIRouter()
 
-def seed_database():
+def seed_database(db: Session = None):
     """
     Popola il database con i corsi master predefiniti all'avvio dell'applicazione.
     Se un corso esiste già, viene saltato.
     """
-    db = SessionLocal()
+    if db is None:
+        db = SessionLocal()
     try:
         corsi = [
             {"nome_corso": "ANTINCENDIO", "validita_mesi": 60, "categoria_corso": "ANTINCENDIO"},
