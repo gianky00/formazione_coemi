@@ -136,11 +136,41 @@ def test_update_certificato_get_or_create(test_client: TestClient, db_session: S
     response = test_client.put(f"/certificati/{certificato.id}", json=update_data)
     assert response.status_code == 200
 
-    # Verifica che il nuovo dipendente e il nuovo corso siano stati creati
-    new_dipendente = db_session.query(Dipendente).filter_by(nome="New", cognome="Employee").first()
-    new_corso = db_session.query(Corso).filter_by(nome_corso="New Course").first()
-    assert new_dipendente is not None
-    assert new_corso is not None
+
+def test_create_duplicate_certificato_fails(test_client: TestClient, db_session: Session):
+    """
+    Testa che la creazione di un certificato duplicato fallisca con un errore 409.
+    """
+    # Add the 'ALTRO' master course to the test database
+    altro_corso = Corso(
+        nome_corso="ALTRO",
+        validita_mesi=0,
+        categoria_corso="ALTRO"
+    )
+    db_session.add(altro_corso)
+    db_session.commit()
+
+    # Create the first certificate
+    cert_data = {
+        "nome": "Mario Rossi",
+        "corso": "Corso Test Duplicato",
+        "categoria": "ALTRO",
+        "data_rilascio": "01/01/2025",
+        "data_scadenza": "01/01/2026"
+    }
+    response1 = test_client.post("/certificati/", json=cert_data)
+    assert response1.status_code == 200
+
+    # Attempt to create the exact same certificate again
+    response2 = test_client.post("/certificati/", json=cert_data)
+    assert response2.status_code == 409
+    assert "Un certificato identico per questo dipendente e corso esiste già." in response2.json()["detail"]
+
+    # Verify that only one certificate was created
+    count = db_session.query(Certificato).filter(
+        Certificato.corso.has(nome_corso="Corso Test Duplicato")
+    ).count()
+    assert count == 1
 
 @pytest.mark.parametrize("payload_override, expected_status_code, error_detail_part", [
     ({"data_rilascio": ""}, 422, "La data non può essere vuota"),

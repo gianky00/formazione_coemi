@@ -279,6 +279,15 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
         db.add(db_corso)
         db.flush()
 
+    # Check for existing certificate to prevent duplicates
+    existing_cert = db.query(Certificato).filter(
+        Certificato.dipendente_id == db_dipendente.id,
+        Certificato.corso_id == db_corso.id,
+        Certificato.data_rilascio == datetime.strptime(certificato.data_rilascio, '%d/%m/%Y').date()
+    ).first()
+    if existing_cert:
+        raise HTTPException(status_code=409, detail="Un certificato identico per questo dipendente e corso esiste già.")
+
     db_certificato = Certificato(
         dipendente_id=db_dipendente.id,
         corso_id=db_corso.id,
