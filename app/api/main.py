@@ -264,7 +264,13 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
         raise HTTPException(status_code=404, detail=f"Categoria '{certificato.categoria}' non trovata.")
 
     db_corso = db.query(Corso).filter(Corso.nome_corso.ilike(f"%{certificato.corso}%")).first()
-    if not db_corso:
+    if db_corso:
+        # If the course exists, check if the category is correct and update it if necessary
+        if db_corso.categoria_corso != db_master_course.categoria_corso:
+            db_corso.categoria_corso = db_master_course.categoria_corso
+            db.flush()
+    else:
+        # If the course doesn't exist, create it
         db_corso = Corso(
             nome_corso=certificato.corso,
             validita_mesi=db_master_course.validita_mesi,
@@ -342,7 +348,13 @@ def update_certificato(certificato_id: int, certificato: CertificatoAggiornament
         raise HTTPException(status_code=404, detail=f"Categoria '{certificato.categoria}' non trovata.")
 
     db_corso = db.query(Corso).filter(Corso.nome_corso.ilike(f"%{certificato.corso}%")).first()
-    if not db_corso:
+    if db_corso:
+        # If the course exists, check if the category is correct and update it if necessary
+        if db_corso.categoria_corso != db_master_course.categoria_corso:
+            db_corso.categoria_corso = db_master_course.categoria_corso
+            db.flush()
+    else:
+        # If the course doesn't exist, create it
         db_corso = Corso(
             nome_corso=certificato.corso,
             validita_mesi=db_master_course.validita_mesi,
