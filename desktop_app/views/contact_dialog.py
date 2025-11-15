@@ -15,13 +15,16 @@ class ContactDialog(QDialog):
         self.message_edit = QTextEdit()
         self.layout.addWidget(self.message_edit)
 
-        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Send | QDialogButtonBox.StandardButton.Cancel)
+        self.button_box = QDialogButtonBox()
+        send_button = self.button_box.addButton("Invia", QDialogButtonBox.ButtonRole.AcceptRole)
+        cancel_button = self.button_box.addButton(QDialogButtonBox.StandardButton.Cancel)
+
         self.button_box.accepted.connect(self.send_email)
         self.button_box.rejected.connect(self.reject)
         self.layout.addWidget(self.button_box)
 
     def send_email(self):
         body = self.message_edit.toPlainText()
-        url = QUrl(f"mailto:giancarlo.allegretti@coemi.it?subject=Supporto CertiSync AI&body={body}")
+        url = QUrl(f"mailto:giancarlo.allegretti@coemi.it?subject=Supporto Intelleo&body={body}")
         QDesktopServices.openUrl(url)
         self.accept()
