@@ -10,7 +10,7 @@ from desktop_app.views.validation_view import ValidationView
 class MainWindow(QMainWindow):
     def __init__(self, screenshot_path=None):
         super().__init__()
-        self.setWindowTitle("Scadenziario IA")
+        self.setWindowTitle("CertiSync AI")
         self.setGeometry(100, 100, 1200, 800)
         self.screenshot_path = screenshot_path
 
@@ -48,7 +48,7 @@ class MainWindow(QMainWindow):
         import_action.triggered.connect(lambda: self.stacked_widget.setCurrentWidget(self.import_view))
         view_menu.addAction(import_action)
 
-        dashboard_action = QAction("Dashboard", self)
+        dashboard_action = QAction("Database", self)
         dashboard_action.triggered.connect(lambda: self.stacked_widget.setCurrentWidget(self.dashboard_view))
         view_menu.addAction(dashboard_action)
 
