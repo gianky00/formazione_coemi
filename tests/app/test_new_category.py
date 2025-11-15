@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
-from app.main import app
+from app.main import app, seed_database
 from app.db.models import Corso
 from app.db.session import SessionLocal
 
@@ -10,15 +10,15 @@ def client():
     with TestClient(app) as c:
         yield c
 
-def test_seed_database_with_nomine(client):
-    db = SessionLocal()
+def test_seed_database_with_nomine(db_session):
+    seed_database(db=db_session)
     try:
-        corso = db.query(Corso).filter(Corso.nome_corso == "NOMINE").first()
+        corso = db_session.query(Corso).filter(Corso.nome_corso == "NOMINE").first()
         assert corso is not None
         assert corso.categoria_corso == "NOMINE"
         assert corso.validita_mesi == 0
     finally:
-        db.close()
+        db_session.close()
 
 @patch('app.services.ai_extraction.model')
 def test_extract_entities_with_ai_for_nomine(mock_model):
