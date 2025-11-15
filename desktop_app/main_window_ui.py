@@ -1,8 +1,8 @@
 
 import sys
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget, QPushButton, QLabel, QFrame, QMessageBox, QMenu, QProgressBar
+from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget, QPushButton, QLabel, QFrame, QMessageBox, QMenu, QProgressBar, QGraphicsOpacityEffect
 from PyQt6.QtGui import QIcon, QPixmap
-from PyQt6.QtCore import Qt, QSize, QDate
+from PyQt6.QtCore import Qt, QSize, QDate, QPropertyAnimation, QEasingCurve
 
 from desktop_app.views.import_view import ImportView
 from desktop_app.views.dashboard_view import DashboardView
@@ -19,8 +19,9 @@ class Sidebar(QWidget):
         self.layout.setSpacing(0)
 
         self.logo_label = QLabel()
+        self.logo_label.setObjectName("logo")
         self.logo_pixmap = QPixmap("desktop_app/assets/logo.png")
-        self.logo_label.setPixmap(self.logo_pixmap.scaled(160, 40, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        self.logo_label.setPixmap(self.logo_pixmap.scaled(180, 50, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(self.logo_label)
 
@@ -39,9 +40,9 @@ class Sidebar(QWidget):
         self.help_button = self.add_nav_button("Supporto", "desktop_app/icons/help.svg", bottom=True)
 
     def add_nav_button(self, text, icon_path, bottom=False):
-        button = QPushButton(f"  {text}")
+        button = QPushButton(f"")
         button.setIcon(QIcon(icon_path))
-        button.setIconSize(QSize(24, 24))
+        button.setIconSize(QSize(28, 28))
         button.setCheckable(True)
         button.setAutoExclusive(True)
         if bottom:
@@ -69,6 +70,8 @@ class MainWindow(QMainWindow):
 
         self.content_area = QFrame()
         self.content_layout = QVBoxLayout(self.content_area)
+        self.content_layout.setContentsMargins(32, 32, 32, 32)
+        self.content_layout.setSpacing(24)
         self.stacked_widget = QStackedWidget()
         self.content_layout.addWidget(self.stacked_widget)
         self.main_layout.addWidget(self.content_area, 1)
@@ -111,10 +114,12 @@ class MainWindow(QMainWindow):
         self.stacked_widget.addWidget(self.dashboard_view)
         self.stacked_widget.addWidget(self.config_view)
 
-        self.sidebar.buttons["Analizza"].clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.import_view))
-        self.sidebar.buttons["Convalida Dati"].clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.validation_view))
-        self.sidebar.buttons["Database"].clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.dashboard_view))
-        self.sidebar.buttons["Addestra"].clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.config_view))
+        self.current_fade_animation = None
+
+        self.sidebar.buttons["Analizza"].clicked.connect(lambda: self.fade_in_widget(self.import_view))
+        self.sidebar.buttons["Convalida Dati"].clicked.connect(lambda: self.fade_in_widget(self.validation_view))
+        self.sidebar.buttons["Database"].clicked.connect(lambda: self.fade_in_widget(self.dashboard_view))
+        self.sidebar.buttons["Addestra"].clicked.connect(lambda: self.fade_in_widget(self.config_view))
 
         help_menu = QMenu(self)
         legal_action = help_menu.addAction("Avviso Legale")
@@ -127,6 +132,29 @@ class MainWindow(QMainWindow):
 
 
         self.sidebar.buttons["Analizza"].setChecked(True)
+        self.fade_in_widget(self.import_view, immediate=True)
+
+    def fade_in_widget(self, widget, immediate=False):
+        if self.current_fade_animation:
+            self.current_fade_animation.stop()
+
+        if immediate:
+            self.stacked_widget.setCurrentWidget(widget)
+            return
+
+        opacity_effect = QGraphicsOpacityEffect(widget)
+        widget.setGraphicsEffect(opacity_effect)
+
+        self.current_fade_animation = QPropertyAnimation(opacity_effect, b"opacity")
+        self.current_fade_animation.setDuration(300)
+        self.current_fade_animation.setStartValue(0.0)
+        self.current_fade_animation.setEndValue(1.0)
+        self.current_fade_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
+
+        self.current_fade_animation.finished.connect(lambda: widget.setGraphicsEffect(None))
+
+        self.stacked_widget.setCurrentWidget(widget)
+        self.current_fade_animation.start()
 
     def show_contact_form(self):
         dialog = ContactDialog(self)
@@ -161,20 +189,14 @@ class MainWindow(QMainWindow):
         """)
         msg_box.setStyleSheet("""
             QMessageBox {
-                background-color: #FFFFFF;
+                background-color: #F9FAFB;
             }
             QLabel {
                 font-size: 14px;
-            }
-            QPushButton {
-                padding: 8px 16px;
-                border-radius: 5px;
-                font-size: 14px;
-                background-color: #0052CC;
-                color: white;
+                color: #4B5563;
             }
         """)
-        msg_box.setMinimumSize(600, 400)
+        msg_box.setMinimumSize(700, 450)
         msg_box.exec()
 
     def take_screenshot_and_exit(self):
