@@ -74,7 +74,7 @@ class DashboardView(QWidget):
                 # Populate filters
                 employees = ["Tutti"] + sorted(list(set([item['nome'] for item in data])))
                 categories = ["Tutti"] + sorted(list(set([item['categoria'] for item in data])))
-                stati = ["Tutti", "attivo", "scaduto"]
+                stati = ["Tutti", "attivo", "scaduto", "rinnovato"]
 
                 # Save current filter selection
                 current_employee = self.employee_filter.currentText()
