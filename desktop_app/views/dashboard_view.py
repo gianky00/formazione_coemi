@@ -192,7 +192,7 @@ class DashboardView(QWidget):
         try:
             response = requests.get(f"{API_URL}/corsi/")
             if response.status_code == 200:
-                master_categories = [corso['categoria'] for corso in response.json()]
+                master_categories = [corso['categoria_corso'] for corso in response.json()]
             else:
                 QMessageBox.warning(self, "Errore API", "Impossibile caricare l'elenco completo delle categorie.")
                 master_categories = sorted(list(set(self.df['categoria'].unique()))) # Fallback to current categories
