@@ -1,42 +1,27 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QTextEdit, QFileDialog, QFormLayout, QLineEdit, QMessageBox
+from PyQt6.QtCore import QThread, pyqtSignal, QObject
 import requests
 import os
 import shutil
 from datetime import datetime
 from ..api_client import API_URL
 
-class ImportView(QWidget):
-    def __init__(self, progress_bar):
+class PdfWorker(QObject):
+    finished = pyqtSignal()
+    progress = pyqtSignal(int)
+    log_message = pyqtSignal(str)
+
+    def __init__(self, pdf_files, folder_path):
         super().__init__()
-        self.progress_bar = progress_bar
-        self.layout = QVBoxLayout(self)
+        self.pdf_files = pdf_files
+        self.folder_path = folder_path
 
-        self.upload_folder_button = QPushButton("Carica Cartella PDF")
-        self.upload_folder_button.clicked.connect(self.upload_folder)
-        self.layout.addWidget(self.upload_folder_button)
-
-        self.results_display = QTextEdit()
-        self.results_display.setReadOnly(True)
-        self.layout.addWidget(self.results_display)
-
-
-    def upload_folder(self):
-        folder_path = QFileDialog.getExistingDirectory(self, "Seleziona Cartella")
-        if folder_path:
-            self.results_display.clear()
-            pdf_files = [f for f in os.listdir(folder_path) if f.endswith('.pdf')]
-            self.results_display.setText(f"Trovati {len(pdf_files)} file PDF. Inizio elaborazione...")
-
-            self.progress_bar.setRange(0, len(pdf_files))
-            self.progress_bar.setValue(0)
-            self.progress_bar.setVisible(True)
-
-            for i, pdf_file in enumerate(pdf_files):
-                file_path = os.path.join(folder_path, pdf_file)
-                self.process_pdf(file_path)
-                self.progress_bar.setValue(i + 1)
-
-            self.progress_bar.setVisible(False)
+    def run(self):
+        for i, pdf_file in enumerate(self.pdf_files):
+            file_path = os.path.join(self.folder_path, pdf_file)
+            self.process_pdf(file_path)
+            self.progress.emit(i + 1)
+        self.finished.emit()
 
     def process_pdf(self, file_path):
         base_folder = os.path.dirname(file_path)
@@ -65,13 +50,10 @@ class ImportView(QWidget):
                     "data_scadenza": entities.get('data_scadenza', '')
                 }
 
-                # Save the certificate data
                 save_response = requests.post(f"{API_URL}/certificati/", json=certificato)
 
                 if save_response.status_code == 200:
-                    self.results_display.append(f"File {original_filename} elaborato e salvato con successo.")
-
-                    # Rename and move the file
+                    self.log_message.emit(f"File {original_filename} elaborato e salvato con successo.")
                     try:
                         nome = entities.get('nome', 'NOME_NON_TROVATO')
                         categoria = entities.get('categoria', 'CATEGORIA_NON_TROVATA')
@@ -83,17 +65,65 @@ class ImportView(QWidget):
                         new_filename = f"{nome} {categoria} {formatted_date}.pdf"
                         shutil.move(file_path, os.path.join(analyzed_folder, new_filename))
                     except Exception as e:
-                        self.results_display.append(f"Errore durante lo spostamento del file {original_filename}: {e}")
+                        self.log_message.emit(f"Errore durante lo spostamento del file {original_filename}: {e}")
                         shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
                 else:
-                    self.results_display.append(f"Errore durante il salvaggio di {original_filename}: {save_response.text}")
+                    self.log_message.emit(f"Errore durante il salvaggio di {original_filename}: {save_response.text}")
                     shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
             else:
-                self.results_display.append(f"Errore durante l'elaborazione di {original_filename}: {response.text}")
+                self.log_message.emit(f"Errore durante l'elaborazione di {original_filename}: {response.text}")
                 shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
         except (requests.exceptions.RequestException, IOError) as e:
-            self.results_display.append(f"Errore critico durante l'elaborazione di {original_filename}: {e}")
+            self.log_message.emit(f"Errore critico durante l'elaborazione di {original_filename}: {e}")
             try:
                 shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
             except Exception as move_error:
-                self.results_display.append(f"Impossibile spostare il file {original_filename}: {move_error}")
+                self.log_message.emit(f"Impossibile spostare il file {original_filename}: {move_error}")
+
+class ImportView(QWidget):
+    def __init__(self, progress_bar):
+        super().__init__()
+        self.progress_bar = progress_bar
+        self.layout = QVBoxLayout(self)
+
+        self.upload_folder_button = QPushButton("Carica Cartella PDF")
+        self.upload_folder_button.clicked.connect(self.upload_folder)
+        self.layout.addWidget(self.upload_folder_button)
+
+        self.results_display = QTextEdit()
+        self.results_display.setReadOnly(True)
+        self.layout.addWidget(self.results_display)
+
+
+    def upload_folder(self):
+        folder_path = QFileDialog.getExistingDirectory(self, "Seleziona Cartella")
+        if folder_path:
+            self.results_display.clear()
+            pdf_files = [f for f in os.listdir(folder_path) if f.endswith('.pdf')]
+            self.results_display.setText(f"Trovati {len(pdf_files)} file PDF. Inizio elaborazione...")
+
+            self.progress_bar.setRange(0, len(pdf_files))
+            self.progress_bar.setValue(0)
+            self.progress_bar.setVisible(True)
+            self.upload_folder_button.setEnabled(False)
+
+            self.thread = QThread()
+            self.worker = PdfWorker(pdf_files, folder_path)
+            self.worker.moveToThread(self.thread)
+
+            self.thread.started.connect(self.worker.run)
+            self.worker.finished.connect(self.thread.quit)
+            self.worker.finished.connect(self.worker.deleteLater)
+            self.thread.finished.connect(self.thread.deleteLater)
+            self.worker.progress.connect(self.progress_bar.setValue)
+            self.worker.log_message.connect(self.results_display.append)
+
+            self.thread.finished.connect(
+                lambda: (
+                    self.progress_bar.setVisible(False),
+                    self.upload_folder_button.setEnabled(True),
+                    self.results_display.append("\nElaborazione completata.")
+                )
+            )
+
+            self.thread.start()
