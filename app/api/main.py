@@ -28,12 +28,20 @@ class CertificatoCreateSchema(BaseModel):
     data_rilascio: str = Field(..., description="Data di rilascio in formato DD/MM/YYYY")
     data_scadenza: Optional[str] = Field(None, description="Data di scadenza in formato DD/MM/YYYY")
 
-    @field_validator('data_rilascio', 'data_scadenza')
-    def validate_date_format(cls, v):
-        if v is None:
-            return v
+    @field_validator('data_rilascio')
+    def validate_data_rilascio_format(cls, v):
         if not v:
             raise ValueError("La data non può essere vuota.")
+        try:
+            datetime.strptime(v, '%d/%m/%Y')
+        except ValueError:
+            raise ValueError("Formato data non valido. Usare DD/MM/YYYY.")
+        return v
+
+    @field_validator('data_scadenza')
+    def validate_data_scadenza_format(cls, v):
+        if v is None or not v.strip() or v.strip().lower() == 'none':
+            return None
         try:
             datetime.strptime(v, '%d/%m/%Y')
         except ValueError:
@@ -47,12 +55,20 @@ class CertificatoUpdateSchema(BaseModel):
     data_rilascio: str = Field(..., description="Data di rilascio in formato DD/MM/YYYY")
     data_scadenza: Optional[str] = Field(None, description="Data di scadenza in formato DD/MM/YYYY")
 
-    @field_validator('data_rilascio', 'data_scadenza')
-    def validate_date_format(cls, v):
-        if v is None:
-            return v
+    @field_validator('data_rilascio')
+    def validate_data_rilascio_format(cls, v):
         if not v:
             raise ValueError("La data non può essere vuota.")
+        try:
+            datetime.strptime(v, '%d/%m/%Y')
+        except ValueError:
+            raise ValueError("Formato data non valido. Usare DD/MM/YYYY.")
+        return v
+
+    @field_validator('data_scadenza')
+    def validate_data_scadenza_format(cls, v):
+        if v is None or not v.strip() or v.strip().lower() == 'none':
+            return None
         try:
             datetime.strptime(v, '%d/%m/%Y')
         except ValueError:
@@ -336,10 +352,11 @@ def update_certificato(certificato_id: int, certificato: CertificatoUpdateSchema
     db_certificato.corso_id = db_corso.id
 
     db_certificato.data_rilascio = datetime.strptime(certificato.data_rilascio, '%d/%m/%Y').date()
-    if certificato.data_scadenza and certificato.data_scadenza.lower() != 'none':
-        db_certificato.data_scadenza_calcolata = datetime.strptime(certificato.data_scadenza, '%d/%m/%Y').date()
-    else:
-        db_certificato.data_scadenza_calcolata = None
+    db_certificato.data_scadenza_calcolata = (
+        datetime.strptime(certificato.data_scadenza, '%d/%m/%Y').date()
+        if certificato.data_scadenza
+        else None
+    )
 
     db_certificato.stato_validazione = ValidationStatus.MANUAL
     try:

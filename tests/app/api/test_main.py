@@ -183,6 +183,44 @@ def test_create_certificato_invalid_payload_fails(test_client: TestClient, db_se
     else:
         assert error_detail_part in response_data.get('detail', '')
 
+@pytest.mark.parametrize("input_scadenza, expected_db_value, expected_response_value", [
+    ("15/12/2030", date(2030, 12, 15), "15/12/2030"),
+    (None, None, None),
+    ("", None, None),
+    ("None", None, None),
+    ("none", None, None),
+])
+def test_update_certificato_data_scadenza_variations(test_client: TestClient, db_session: Session, input_scadenza, expected_db_value, expected_response_value):
+    """
+    Testa l'aggiornamento della data di scadenza con vari input (validi, null, stringhe vuote).
+    """
+    # Arrange
+    certificato = Certificato(
+        dipendente=Dipendente(nome="Jane", cognome="Doe"),
+        corso=Corso(nome_corso="Test Course", validita_mesi=60, categoria_corso="General"),
+        data_rilascio=date(2025, 1, 1),
+        data_scadenza_calcolata=date(2025, 1, 1) # Valore iniziale
+    )
+    db_session.add(certificato)
+    db_session.commit()
+
+    update_payload = {
+        "nome": "Jane Doe",
+        "corso": "Test Course",
+        "categoria": "General",
+        "data_rilascio": "01/01/2025",
+        "data_scadenza": input_scadenza
+    }
+
+    # Act
+    response = test_client.put(f"/certificati/{certificato.id}", json=update_payload)
+
+    # Assert
+    assert response.status_code == 200
+    db_session.refresh(certificato)
+    assert certificato.data_scadenza_calcolata == expected_db_value
+    assert response.json()["data_scadenza"] == expected_response_value
+
 def test_upload_pdf(test_client: TestClient, db_session: Session, mocker):
     """
     Testa l'endpoint di upload PDF, mockando la chiamata al servizio AI
