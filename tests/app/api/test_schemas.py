@@ -26,20 +26,13 @@ def test_certificato_create_schema_missing_fields():
 
 def test_certificato_create_schema_invalid_date_format():
     """
-    Testa che CertificatoCreateSchema (indirettamente tramite l'endpoint)
-    gestisca un formato di data non valido.
-
-    Nota: Pydantic non valida il formato della data in questo caso,
-    ma il test è utile per documentare il comportamento atteso a livello di endpoint.
+    Testa che CertificatoCreateSchema sollevi un ValidationError per un formato di data non valido.
     """
-    data = {
-        "nome": "Mario Rossi",
-        "corso": "ANTINCENDIO",
-        "categoria": "ANTINCENDIO",
-        "data_rilascio": "2025-11-14", # Formato non valido
-        "data_scadenza": "2030-11-14"
-    }
-    # Questo non solleverà un errore Pydantic, ma fallirà a livello di endpoint.
-    # Il test serve a chiarire questo comportamento.
-    schema = CertificatoCreateSchema(**data)
-    assert schema.data_rilascio == "2025-11-14"
+    with pytest.raises(ValidationError):
+        CertificatoCreateSchema(
+            nome="Mario Rossi",
+            corso="ANTINCENDIO",
+            categoria="ANTINCENDIO",
+            data_rilascio="2025-11-14",  # Formato non valido
+            data_scadenza="14/11/2030"
+        )
