@@ -7,7 +7,7 @@ import logging
 from app.services import ai_extraction, certificate_logic
 from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 
 class CertificatoSchema(BaseModel):
@@ -22,18 +22,58 @@ class CertificatoSchema(BaseModel):
     model_config = {"from_attributes": True}
 
 class CertificatoCreateSchema(BaseModel):
-    nome: str
-    corso: str
-    categoria: str
-    data_rilascio: str
-    data_scadenza: Optional[str] = None
+    nome: str = Field(..., min_length=1, description="Nome e cognome del dipendente")
+    corso: str = Field(..., min_length=1, description="Nome del corso")
+    categoria: str = Field(..., min_length=1, description="Categoria del corso")
+    data_rilascio: str = Field(..., description="Data di rilascio in formato DD/MM/YYYY")
+    data_scadenza: Optional[str] = Field(None, description="Data di scadenza in formato DD/MM/YYYY")
+
+    @field_validator('data_rilascio')
+    def validate_data_rilascio_format(cls, v):
+        if not v:
+            raise ValueError("La data non può essere vuota.")
+        try:
+            datetime.strptime(v, '%d/%m/%Y')
+        except ValueError:
+            raise ValueError("Formato data non valido. Usare DD/MM/YYYY.")
+        return v
+
+    @field_validator('data_scadenza')
+    def validate_data_scadenza_format(cls, v):
+        if v is None or not v.strip() or v.strip().lower() == 'none':
+            return None
+        try:
+            datetime.strptime(v, '%d/%m/%Y')
+        except ValueError:
+            raise ValueError("Formato data non valido. Usare DD/MM/YYYY.")
+        return v
 
 class CertificatoUpdateSchema(BaseModel):
-    nome: str
-    corso: str
-    categoria: str
-    data_rilascio: str
-    data_scadenza: Optional[str] = None
+    nome: str = Field(..., min_length=1, description="Nome e cognome del dipendente")
+    corso: str = Field(..., min_length=1, description="Nome del corso")
+    categoria: str = Field(..., min_length=1, description="Categoria del corso")
+    data_rilascio: str = Field(..., description="Data di rilascio in formato DD/MM/YYYY")
+    data_scadenza: Optional[str] = Field(None, description="Data di scadenza in formato DD/MM/YYYY")
+
+    @field_validator('data_rilascio')
+    def validate_data_rilascio_format(cls, v):
+        if not v:
+            raise ValueError("La data non può essere vuota.")
+        try:
+            datetime.strptime(v, '%d/%m/%Y')
+        except ValueError:
+            raise ValueError("Formato data non valido. Usare DD/MM/YYYY.")
+        return v
+
+    @field_validator('data_scadenza')
+    def validate_data_scadenza_format(cls, v):
+        if v is None or not v.strip() or v.strip().lower() == 'none':
+            return None
+        try:
+            datetime.strptime(v, '%d/%m/%Y')
+        except ValueError:
+            raise ValueError("Formato data non valido. Usare DD/MM/YYYY.")
+        return v
 
 from app.db.session import SessionLocal
 
@@ -278,9 +318,20 @@ def update_certificato(certificato_id: int, certificato: CertificatoUpdateSchema
     # Handle name and course changes
     try:
         nome_parts = certificato.nome.split()
-        db_dipendente = db.query(Dipendente).filter(Dipendente.nome == nome_parts[0], Dipendente.cognome == nome_parts[1]).first()
+        # Try Lastname Firstname
+        db_dipendente = db.query(Dipendente).filter(Dipendente.nome == nome_parts[1], Dipendente.cognome == nome_parts[0]).first()
+        # Try Firstname Lastname
         if not db_dipendente:
-            raise HTTPException(status_code=404, detail="Dipendente non trovato")
+            db_dipendente = db.query(Dipendente).filter(Dipendente.nome == nome_parts[0], Dipendente.cognome == nome_parts[1]).first()
+
+        if not db_dipendente:
+            print(f"Dipendente '{certificato.nome}' non trovato, lo creo...")
+            db_dipendente = Dipendente(
+                nome=nome_parts[0],
+                cognome=nome_parts[1]
+            )
+            db.add(db_dipendente)
+            db.flush()
         db_certificato.dipendente_id = db_dipendente.id
     except IndexError:
         raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
@@ -301,10 +352,11 @@ def update_certificato(certificato_id: int, certificato: CertificatoUpdateSchema
     db_certificato.corso_id = db_corso.id
 
     db_certificato.data_rilascio = datetime.strptime(certificato.data_rilascio, '%d/%m/%Y').date()
-    if certificato.data_scadenza and certificato.data_scadenza.lower() != 'none':
-        db_certificato.data_scadenza_calcolata = datetime.strptime(certificato.data_scadenza, '%d/%m/%Y').date()
-    else:
-        db_certificato.data_scadenza_calcolata = None
+    db_certificato.data_scadenza_calcolata = (
+        datetime.strptime(certificato.data_scadenza, '%d/%m/%Y').date()
+        if certificato.data_scadenza
+        else None
+    )
 
     db_certificato.stato_validazione = ValidationStatus.MANUAL
     try:
