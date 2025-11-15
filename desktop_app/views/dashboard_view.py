@@ -111,10 +111,9 @@ class DashboardView(QWidget):
         self.table_view.setMouseTracking(True)
         self.table_view.entered.connect(self.table_view.viewport().update)
 
-        self.table_view.setColumnWidth(0, 40)
         header = self.table_view.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.table_view.clicked.connect(self.on_row_clicked)
 
         self.layout.addWidget(self.table_view)

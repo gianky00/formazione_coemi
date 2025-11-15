@@ -1,11 +1,18 @@
 
 import sys
-from PyQt6.QtWidgets import QApplication
-from PyQt6.QtGui import QFont
+import time
+from PyQt6.QtWidgets import QApplication, QSplashScreen
+from PyQt6.QtGui import QFont, QPixmap, QIcon
+from PyQt6.QtCore import Qt
 from desktop_app.main_window_ui import MainWindow
 
 def main():
     app = QApplication(sys.argv)
+
+    # Splash Screen
+    splash_pix = QPixmap("desktop_app/assets/logo.png")
+    splash = QSplashScreen(splash_pix, Qt.WindowType.WindowStaysOnTopHint)
+    splash.show()
 
     # Set a modern font
     font = QFont("Segoe UI")
@@ -31,15 +38,16 @@ def main():
             padding: 12px;
             border: none;
             font-size: 14px;
-            color: black;
+            color: #000000;
             border-radius: 5px;
             margin: 5px 10px;
         }
         Sidebar QPushButton:hover {
             background-color: #E8F0FE;
+            color: #0052CC;
         }
         Sidebar QPushButton:checked {
-            background-color: #4A90E2;
+            background-color: #0052CC;
             color: white;
             font-weight: bold;
         }
@@ -48,8 +56,11 @@ def main():
         QTableView {
             border: none;
             gridline-color: #E0E0E0;
-            selection-background-color: #A8D1FF;
+            selection-background-color: #0052CC;
             alternate-background-color: #F7F8FC;
+        }
+        QTableView::item:selected {
+            color: white;
         }
         QHeaderView::section {
             background-color: #FFFFFF;
@@ -132,7 +143,13 @@ def main():
 
 
     main_win = MainWindow(screenshot_path=screenshot_path)
+    main_win.setWindowIcon(QIcon("desktop_app/assets/logo.png"))
     main_win.showMaximized()
+
+    # Simulate loading time
+    time.sleep(2)
+    splash.finish(main_win)
+
     sys.exit(app.exec())
 
 if __name__ == "__main__":
