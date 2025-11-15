@@ -15,13 +15,11 @@ def test_extract_entities_with_ai_success(monkeypatch, mocker):
     monkeypatch.setattr(mock_genai, 'configure', mock_configure)
     monkeypatch.setattr(mock_genai, 'GenerativeModel', lambda *args, **kwargs: mock_model_instance)
 
-    # Risposte simulate
-    mock_response_extraction = mocker.Mock()
-    mock_response_extraction.text = '{"nome": "Mario Rossi", "corso": "ANTINCENDIO", "data_rilascio": "14/11/2025"}'
-    mock_response_classification = mocker.Mock()
-    mock_response_classification.text = '{"categoria": "ANTINCENDIO"}'
+    # Risposta simulata
+    mock_response = mocker.Mock()
+    mock_response.text = '{"nome": "Mario Rossi", "corso": "ANTINCENDIO", "data_rilascio": "14-11-2025", "categoria": "ANTINCENDIO"}'
 
-    mock_model_instance.generate_content = mocker.Mock(side_effect=[mock_response_extraction, mock_response_classification])
+    mock_model_instance.generate_content.return_value = mock_response
 
     # Ricarica il modulo con i mock attivi
     from app.services import ai_extraction
@@ -35,7 +33,7 @@ def test_extract_entities_with_ai_success(monkeypatch, mocker):
     assert result == {
         "nome": "Mario Rossi",
         "corso": "ANTINCENDIO",
-        "data_rilascio": "14/11/2025",
+        "data_rilascio": "14-11-2025",
         "categoria": "ANTINCENDIO"
     }
 
@@ -52,12 +50,10 @@ def test_extract_entities_with_ai_fallback_category(monkeypatch, mocker):
     monkeypatch.setattr(mock_genai, 'configure', mock_configure)
     monkeypatch.setattr(mock_genai, 'GenerativeModel', lambda *args, **kwargs: mock_model_instance)
 
-    mock_response_extraction = mocker.Mock()
-    mock_response_extraction.text = '{"nome": "Mario Rossi", "corso": "Corso Sconosciuto", "data_rilascio": "14/11/2025"}'
-    mock_response_classification = mocker.Mock()
-    mock_response_classification.text = '{"categoria": "CATEGORIA_INESISTENTE"}'
+    mock_response = mocker.Mock()
+    mock_response.text = '{"nome": "Mario Rossi", "corso": "Corso Sconosciuto", "data_rilascio": "14-11-2025", "categoria": "CATEGORIA_INESISTENTE"}'
 
-    mock_model_instance.generate_content = mocker.Mock(side_effect=[mock_response_extraction, mock_response_classification])
+    mock_model_instance.generate_content.return_value = mock_response
 
     from app.services import ai_extraction
     importlib.reload(ai_extraction)
@@ -80,12 +76,10 @@ def test_extract_entities_with_ai_incomplete_json(monkeypatch, mocker):
     monkeypatch.setattr(mock_genai, 'configure', mock_configure)
     monkeypatch.setattr(mock_genai, 'GenerativeModel', lambda *args, **kwargs: mock_model_instance)
 
-    mock_response_extraction = mocker.Mock()
-    mock_response_extraction.text = '{"nome": "Mario Rossi"}'
-    mock_response_classification = mocker.Mock()
-    mock_response_classification.text = '{"categoria": "ALTRO"}'
+    mock_response = mocker.Mock()
+    mock_response.text = '{"nome": "Mario Rossi", "categoria": "ALTRO"}'
 
-    mock_model_instance.generate_content = mocker.Mock(side_effect=[mock_response_extraction, mock_response_classification])
+    mock_model_instance.generate_content.return_value = mock_response
 
     from app.services import ai_extraction
     importlib.reload(ai_extraction)
