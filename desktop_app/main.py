@@ -33,7 +33,13 @@ def main():
 
     # Global stylesheet for a modern look
     app.setStyleSheet("""
+        /*
+        NOTE: Fluid animations (e.g., CSS 'transition') are not supported by QSS.
+        Implementing them requires using the Qt Animation Framework (e.g., QPropertyAnimation)
+        and is beyond the scope of a stylesheet-only change.
+        */
         QMainWindow, QWidget {
+            font-family: "Segoe UI";
             background-color: #F7F8FC;
             color: #212121;
         }
@@ -52,7 +58,7 @@ def main():
             border: none;
             font-size: 14px;
             color: #000000;
-            border-radius: 5px;
+            border-radius: 6px;
             margin: 5px 10px;
         }
         Sidebar QPushButton:hover {
@@ -69,10 +75,10 @@ def main():
         QTableView {
             border: none;
             gridline-color: #E0E0E0;
-            selection-background-color: #2c3e50;
             alternate-background-color: #F7F8FC;
         }
         QTableView::item:selected {
+            background-color: #2c3e50;
             color: #FFFFFF;
         }
         QHeaderView::section {
@@ -95,20 +101,20 @@ def main():
         }
         QCheckBox::indicator:unchecked {
             border: 2px solid #B0B0B0;
-            border-radius: 4px;
+            border-radius: 5px;
         }
         QCheckBox::indicator:checked {
             background-color: #4A90E2;
             border: 2px solid #4A90E2;
-            border-radius: 4px;
+            border-radius: 5px;
             image: url(desktop_app/icons/check.svg);
         }
 
         /* Button Styles */
         QPushButton {
-            padding: 8px 16px;
+            padding: 10px 20px;
             border: 1px solid #4A90E2;
-            border-radius: 5px;
+            border-radius: 6px;
             background-color: #4A90E2;
             color: white;
             font-size: 14px;
@@ -125,11 +131,14 @@ def main():
 
         /* ComboBox and LineEdit Styles */
         QComboBox, QLineEdit, QDateEdit {
-            padding: 8px;
+            padding: 10px;
             border: 1px solid #E0E0E0;
-            border-radius: 5px;
+            border-radius: 6px;
             font-size: 14px;
             background-color: #FDFDFD;
+        }
+        QComboBox:focus, QLineEdit:focus, QDateEdit:focus {
+            border-color: #4A90E2;
         }
         QComboBox::drop-down {
             subcontrol-origin: padding;
@@ -138,8 +147,8 @@ def main():
             border-left-width: 1px;
             border-left-color: #E0E0E0;
             border-left-style: solid;
-            border-top-right-radius: 5px;
-            border-bottom-right-radius: 5px;
+            border-top-right-radius: 6px;
+            border-bottom-right-radius: 6px;
         }
         QComboBox::down-arrow {
             image: url(desktop_app/icons/down-arrow.svg);
