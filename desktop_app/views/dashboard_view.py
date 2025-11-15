@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QComboBox, QLabel, QFileDialog, QMessageBox
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QComboBox, QLabel, QFileDialog, QMessageBox, QListView
 from PyQt6.QtCore import QAbstractTableModel, Qt
 import pandas as pd
 import requests
@@ -36,7 +36,9 @@ class DashboardView(QWidget):
         self.layout.addLayout(controls_layout)
 
         self.employee_filter = QComboBox()
+        self.employee_filter.setView(QListView())
         self.category_filter = QComboBox()
+        self.category_filter.setView(QListView())
         self.status_filter = QComboBox()
         self.filter_button = QPushButton("Filtra")
         self.filter_button.clicked.connect(self.load_data)
