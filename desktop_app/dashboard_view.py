@@ -132,12 +132,9 @@ class DashboardView(QWidget):
                     "data_rilascio": new_data_rilascio,
                     "data_scadenza": new_data_scadenza
                 }
-                import json
-                headers = {'Content-Type': 'application/json'}
                 response = requests.put(
                     f"http://127.0.0.1:8000/certificati/{certificato_id}",
-                    data=json.dumps(payload),
-                    headers=headers
+                    json=payload
                 )
                 if response.status_code == 200:
                     QMessageBox.information(self, "Successo", "Dati aggiornati con successo.")
