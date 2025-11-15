@@ -1,8 +1,8 @@
 
 import sys
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget, QPushButton, QLabel, QFrame
+from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget, QPushButton, QLabel, QFrame, QMessageBox
 from PyQt6.QtGui import QIcon, QPixmap
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt, QSize, QDate
 
 from desktop_app.views.import_view import ImportView
 from desktop_app.views.dashboard_view import DashboardView
@@ -34,7 +34,7 @@ class Sidebar(QWidget):
         self.layout.addLayout(self.nav_buttons)
         self.layout.addStretch()
 
-        self.help_button = self.add_nav_button("?", "desktop_app/icons/help.svg", bottom=True)
+        self.help_button = self.add_nav_button("Supporto", "desktop_app/icons/help.svg", bottom=True)
 
     def add_nav_button(self, text, icon_path, bottom=False):
         button = QPushButton(f"  {text}")
