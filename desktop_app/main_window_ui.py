@@ -19,7 +19,7 @@ class Sidebar(QWidget):
         self.layout.setSpacing(0)
 
         self.logo_label = QLabel()
-        self.logo_pixmap = QPixmap("desktop_app/assets/logo.svg")
+        self.logo_pixmap = QPixmap("desktop_app/assets/logo.png")
         self.logo_label.setPixmap(self.logo_pixmap.scaled(160, 40, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(self.logo_label)
@@ -143,15 +143,15 @@ class MainWindow(QMainWindow):
         current_year = QDate.currentDate().year()
         msg_box.setText(f"""
             <b>AVVISO LEGALE SU PROPRIETÀ INTELLETTUALE E SEGRETO INDUSTRIALE</b><br><br>
-            Questo software, inclusi la sua architettura, logica di funzionamento e interfaccia utente, costituisce Segreto Industriale (Know-How) e informazione confidenziale di Co.E.Mi. Costruzioni Edili Milano S.r.l.
+            Questo software, inclusi la sua architettura, logica di funzionamento e interfaccia utente, costituisce Segreto Industriale (Know-How) e informazione confidenziale.
             <br><br>
-            Esso è protetto ai sensi della normativa vigente in materia di segreti commerciali (D.Lgs. 63/2018), del diritto d’autore (L. 633/1941) e del Codice della Proprietà Industriale (D.Lgs. 30/2005).
+            Esso è protetto ai sensi della normativa vigente in materia di segreti commerciali, del diritto d’autore e del Codice della Proprietà Industriale.
             <br><br>
-            <b>È fatto assoluto divieto</b> di copiare, decompilare, modificare, distribuire o utilizzare il software, in tutto o in parte, al di fuori degli scopi autorizzati senza il preventivo consenso scritto di Co.E.Mi. S.r.l.
+            <b>È fatto assoluto divieto</b> di copiare, decompilare, modificare, distribuire o utilizzare il software, in tutto o in parte, al di fuori degli scopi autorizzati senza preventivo consenso scritto.
             <br><br>
             La violazione delle presenti disposizioni costituisce un illecito civile e penale e sarà perseguita a norma di legge.
             <br><br>
-            Copyright © {current_year} Co.E.Mi. Costruzioni Edili Milano S.r.l. Tutti i diritti riservati.
+            Copyright © {current_year}. Tutti i diritti riservati.
         """)
         msg_box.setStyleSheet("""
             QMessageBox {

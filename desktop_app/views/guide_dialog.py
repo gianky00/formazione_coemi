@@ -20,8 +20,8 @@ class GuideDialog(QDialog):
 
     def set_guide_content(self):
         guide_html = """
-            <h1>Guida Utente di CertiSync AI</h1>
-            <p>Benvenuto nella guida utente di CertiSync AI. Questa guida ti aiuterà a comprendere le funzionalità principali dell'applicazione.</p>
+            <h1>Guida Utente di Intelleo</h1>
+            <p>Benvenuto nella guida utente di Intelleo. Questa guida ti aiuterà a comprendere le funzionalità principali dell'applicazione.</p>
 
             <h2>Navigazione</h2>
             <p>Usa la barra di navigazione a sinistra per spostarti tra le diverse sezioni dell'applicazione:</p>
