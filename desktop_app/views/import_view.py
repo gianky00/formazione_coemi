@@ -1,5 +1,7 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QTextEdit, QFileDialog, QFormLayout, QLineEdit, QMessageBox
-from PyQt6.QtCore import QThread, pyqtSignal, QObject
+
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QTextEdit, QFileDialog, QLabel, QFrame
+from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt
+from PyQt6.QtGui import QIcon
 import requests
 import os
 import shutil
@@ -76,52 +78,80 @@ class PdfWorker(QObject):
             except Exception as move_error:
                 self.log_message.emit(f"Impossibile spostare il file {original_filename}: {move_error}")
 
+class DropZone(QFrame):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.setFrameShadow(QFrame.Shadow.Sunken)
+        self.setStyleSheet("QFrame { border: 2px dashed #aaa; border-radius: 15px; }")
+        self.setAcceptDrops(True)
+
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        icon_label = QLabel()
+        icon_label.setPixmap(QIcon("desktop_app/icons/analizza.svg").pixmap(64, 64))
+        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(icon_label)
+
+        text_label = QLabel("Trascina qui la tua cartella PDF per l'analisi")
+        text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        text_label.setStyleSheet("font-size: 16px;")
+        layout.addWidget(text_label)
+
+        self.select_folder_button = QPushButton("Oppure seleziona una cartella")
+        layout.addWidget(self.select_folder_button)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        for url in event.mimeData().urls():
+            if url.isLocalFile() and os.path.isdir(url.toLocalFile()):
+                self.parent().upload_folder(url.toLocalFile())
+                break
+
 class ImportView(QWidget):
-    def __init__(self, progress_widget, progress_bar, progress_label):
+    def __init__(self, progress_widget=None, progress_bar=None, progress_label=None):
         super().__init__()
         self.progress_widget = progress_widget
         self.progress_bar = progress_bar
         self.progress_label = progress_label
         self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(20, 20, 20, 20)
 
-        self.upload_folder_button = QPushButton("Carica Cartella PDF")
-        self.upload_folder_button.clicked.connect(self.upload_folder)
-        self.layout.addWidget(self.upload_folder_button)
+        title = QLabel("Analisi Documenti")
+        title.setStyleSheet("font-size: 24px; font-weight: bold;")
+        self.layout.addWidget(title)
+
+        self.drop_zone = DropZone(self)
+        self.drop_zone.select_folder_button.clicked.connect(self.select_folder)
+        self.layout.addWidget(self.drop_zone)
 
         self.results_display = QTextEdit()
         self.results_display.setReadOnly(True)
+        self.results_display.setStyleSheet("font-family: Consolas, monospace; background-color: #F0F0F0; border-radius: 5px;")
         self.layout.addWidget(self.results_display)
 
-    def upload_folder(self):
+    def select_folder(self):
         folder_path = QFileDialog.getExistingDirectory(self, "Seleziona Cartella")
         if folder_path:
-            self.results_display.clear()
-            pdf_files = [f for f in os.listdir(folder_path) if f.endswith('.pdf')]
-            self.results_display.setText(f"Trovati {len(pdf_files)} file PDF. Inizio elaborazione...")
+            self.upload_folder(folder_path)
 
-            self.progress_bar.setRange(0, len(pdf_files))
-            self.progress_bar.setValue(0)
-            self.progress_widget.setVisible(True)
-            self.upload_folder_button.setEnabled(False)
+    def upload_folder(self, folder_path):
+        self.results_display.clear()
+        pdf_files = [f for f in os.listdir(folder_path) if f.endswith('.pdf')]
+        self.results_display.setText(f"Trovati {len(pdf_files)} file PDF. Inizio elaborazione...")
 
-            self.thread = QThread()
-            self.worker = PdfWorker(pdf_files, folder_path)
-            self.worker.moveToThread(self.thread)
+        self.thread = QThread()
+        self.worker = PdfWorker(pdf_files, folder_path)
+        self.worker.moveToThread(self.thread)
 
-            self.thread.started.connect(self.worker.run)
-            self.worker.finished.connect(self.thread.quit)
-            self.worker.finished.connect(self.worker.deleteLater)
-            self.thread.finished.connect(self.thread.deleteLater)
-            self.worker.progress.connect(self.progress_bar.setValue)
-            self.worker.log_message.connect(self.results_display.append)
-            self.worker.status_update.connect(self.progress_label.setText)
+        self.thread.started.connect(self.worker.run)
+        self.worker.finished.connect(self.thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.thread.finished.connect(self.thread.deleteLater)
+        self.worker.log_message.connect(self.results_display.append)
 
-            self.thread.finished.connect(
-                lambda: (
-                    self.progress_widget.setVisible(False),
-                    self.upload_folder_button.setEnabled(True),
-                    self.results_display.append("\nElaborazione completata.")
-                )
-            )
-
-            self.thread.start()
+        self.thread.start()
