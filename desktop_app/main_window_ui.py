@@ -1,4 +1,5 @@
 import sys
+import time
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QStackedWidget, QMenuBar
 from PyQt6.QtGui import QAction
 from PyQt6.QtCore import QTimer
@@ -32,6 +33,9 @@ class MainWindow(QMainWindow):
         self.stacked_widget.addWidget(self.dashboard_view)
         self.stacked_widget.addWidget(self.config_view)
         self.stacked_widget.addWidget(self.validation_view)
+
+        # Introduce a delay before loading data to prevent race condition
+        time.sleep(6)
 
         self.stacked_widget.currentChanged.connect(self.on_view_change)
 
@@ -73,5 +77,3 @@ class MainWindow(QMainWindow):
         screenshot = screen.grabWindow(self.winId())
         screenshot.save(self.screenshot_path, 'png')
         QApplication.quit()
-
-
