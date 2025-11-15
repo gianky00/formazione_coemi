@@ -31,7 +31,7 @@ def main():
             padding: 12px;
             border: none;
             font-size: 14px;
-            color: #555;
+            color: black;
             border-radius: 5px;
             margin: 5px 10px;
         }
@@ -48,7 +48,7 @@ def main():
         QTableView {
             border: none;
             gridline-color: #E0E0E0;
-            selection-background-color: #D6E4FF;
+            selection-background-color: #A8D1FF;
             alternate-background-color: #F7F8FC;
         }
         QHeaderView::section {

@@ -8,6 +8,8 @@ from desktop_app.views.import_view import ImportView
 from desktop_app.views.dashboard_view import DashboardView
 from desktop_app.views.config_view import ConfigView
 from desktop_app.views.validation_view import ValidationView
+from desktop_app.views.contact_dialog import ContactDialog
+from desktop_app.views.guide_dialog import GuideDialog
 
 class Sidebar(QWidget):
     def __init__(self, parent=None):
@@ -85,9 +87,26 @@ class MainWindow(QMainWindow):
         self.sidebar.buttons["Convalida Dati"].clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.validation_view))
         self.sidebar.buttons["Database"].clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.dashboard_view))
         self.sidebar.buttons["Addestra"].clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.config_view))
-        self.sidebar.help_button.clicked.connect(self.show_legal_notice)
+
+        help_menu = QMenu(self)
+        legal_action = help_menu.addAction("Avviso Legale")
+        legal_action.triggered.connect(self.show_legal_notice)
+        contact_action = help_menu.addAction("Contatti")
+        contact_action.triggered.connect(self.show_contact_form)
+        guide_action = help_menu.addAction("Guida")
+        guide_action.triggered.connect(self.show_guide)
+        self.sidebar.help_button.setMenu(help_menu)
+
 
         self.sidebar.buttons["Analizza"].setChecked(True)
+
+    def show_contact_form(self):
+        dialog = ContactDialog(self)
+        dialog.exec()
+
+    def show_guide(self):
+        dialog = GuideDialog(self)
+        dialog.exec()
 
     def show_legal_notice(self):
         msg_box = QMessageBox()
@@ -114,6 +133,7 @@ class MainWindow(QMainWindow):
                 color: white;
             }
         """)
+        msg_box.setMinimumSize(600, 400)
         msg_box.exec()
 
     def take_screenshot_and_exit(self):

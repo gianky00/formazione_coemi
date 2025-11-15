@@ -113,8 +113,7 @@ class DashboardView(QWidget):
 
         header = self.table_view.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
-        self.table_view.setColumnWidth(0, 40)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.table_view.clicked.connect(self.on_row_clicked)
 
         self.layout.addWidget(self.table_view)
@@ -123,10 +122,10 @@ class DashboardView(QWidget):
         self.update_button_states()
 
     def on_row_clicked(self, index):
-        if hasattr(self, 'model'):
-            check_state = self.model.data(self.model.index(index.row(), 0), Qt.ItemDataRole.CheckStateRole)
+        if hasattr(self, 'model') and index.column() == 0:
+            check_state = self.model.data(index, Qt.ItemDataRole.CheckStateRole)
             new_state = Qt.CheckState.Checked if check_state == Qt.CheckState.Unchecked.value else Qt.CheckState.Unchecked
-            self.model.setData(self.model.index(index.row(), 0), new_state.value, Qt.ItemDataRole.CheckStateRole)
+            self.model.setData(index, new_state.value, Qt.ItemDataRole.CheckStateRole)
 
     def update_button_states(self):
         selected_ids = self.get_selected_ids()
