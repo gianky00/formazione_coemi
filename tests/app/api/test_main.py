@@ -136,6 +136,12 @@ def test_update_certificato_get_or_create(test_client: TestClient, db_session: S
     response = test_client.put(f"/certificati/{certificato.id}", json=update_data)
     assert response.status_code == 200
 
+    # Verifica che il nuovo dipendente e il nuovo corso siano stati creati
+    new_dipendente = db_session.query(Dipendente).filter_by(nome="New", cognome="Employee").first()
+    new_corso = db_session.query(Corso).filter_by(nome_corso="New Course").first()
+    assert new_dipendente is not None
+    assert new_corso is not None
+
 
 def test_create_duplicate_certificato_fails(test_client: TestClient, db_session: Session):
     """
