@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPush
 from PyQt6.QtCore import QAbstractTableModel, Qt
 import pandas as pd
 import requests
+from ..api_client import API_URL
 
 class CustomDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):
@@ -65,12 +66,13 @@ class ValidationView(QWidget):
         self.validate_all_button.clicked.connect(self.validate_all)
         controls_layout.addWidget(self.validate_all_button)
 
-        self.delete_button = QPushButton("Cancella Riga")
-        self.delete_button.clicked.connect(self.delete_row)
+        self.delete_button = QPushButton("Cancella Selezionato")
+        self.delete_button.clicked.connect(self.delete_selected)
         controls_layout.addWidget(self.delete_button)
 
         # Table
         self.table_view = QTableView()
+        self.table_view.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
         self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.table_view.setItemDelegate(CustomDelegate())
         self.layout.addWidget(self.table_view)
@@ -79,7 +81,7 @@ class ValidationView(QWidget):
 
     def load_data(self):
         try:
-            response = requests.get("http://127.0.0.1:8000/certificati/?validated=false")
+            response = requests.get(f"{API_URL}/certificati/?validated=false")
             if response.status_code == 200:
                 data = response.json()
                 self.df = pd.DataFrame(data)
@@ -109,7 +111,7 @@ class ValidationView(QWidget):
 
         for cert_id in certificato_ids:
             try:
-                response = requests.put(f"http://127.0.0.1:8000/certificati/{cert_id}/valida")
+                response = requests.put(f"{API_URL}/certificati/{cert_id}/valida")
                 if response.status_code == 200:
                     success_count += 1
                 else:
@@ -124,44 +126,54 @@ class ValidationView(QWidget):
         QMessageBox.information(self, "Risultato Validazione", summary_message)
         self.load_data()
 
-    def delete_row(self):
-        selected_indexes = self.table_view.selectedIndexes()
-        if not selected_indexes:
-            QMessageBox.warning(self, "Nessuna Selezione", "Seleziona una riga da cancellare.")
+    def delete_selected(self):
+        selected_rows = self.table_view.selectionModel().selectedRows()
+        if not selected_rows:
+            QMessageBox.warning(self, "Nessuna Selezione", "Seleziona una o più righe da cancellare.")
             return
 
-        row = selected_indexes[0].row()
-        certificato_id = self.df.iloc[row]['id']
-
-        reply = QMessageBox.question(self, 'Conferma Cancellazione', 'Sei sicuro di voler cancellare questa riga?',
+        reply = QMessageBox.question(self, 'Conferma Cancellazione', f'Sei sicuro di voler cancellare {len(selected_rows)} righe selezionate?',
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
 
         if reply == QMessageBox.StandardButton.Yes:
-            try:
-                response = requests.delete(f"http://127.0.0.1:8000/certificati/{certificato_id}")
-                if response.status_code == 200:
-                    QMessageBox.information(self, "Successo", "Riga cancellata con successo.")
-                    self.load_data()
-                else:
-                    QMessageBox.critical(self, "Errore", f"Errore durante la cancellazione: {response.text}")
-            except requests.exceptions.RequestException as e:
-                QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
+            ids_to_delete = [self.df.iloc[index.row()]['id'] for index in selected_rows]
+            success_count = 0
+            error_count = 0
+            for cert_id in ids_to_delete:
+                try:
+                    response = requests.delete(f"{API_URL}/certificati/{cert_id}")
+                    if response.status_code == 200:
+                        success_count += 1
+                    else:
+                        error_count += 1
+                except requests.exceptions.RequestException:
+                    error_count += 1
+
+            QMessageBox.information(self, "Risultato Cancellazione", f"{success_count} righe cancellate con successo, {error_count} errori.")
+            self.load_data()
 
     def validate_selected(self):
-        selected_indexes = self.table_view.selectedIndexes()
-        if not selected_indexes:
-            QMessageBox.warning(self, "Nessuna Selezione", "Seleziona una riga da validare.")
+        selected_rows = self.table_view.selectionModel().selectedRows()
+        if not selected_rows:
+            QMessageBox.warning(self, "Nessuna Selezione", "Seleziona una o più righe da validare.")
             return
 
-        row = selected_indexes[0].row()
-        certificato_id = self.df.iloc[row]['id']
+        reply = QMessageBox.question(self, 'Conferma Validazione', f'Sei sicuro di voler validare {len(selected_rows)} righe selezionate?',
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
 
-        try:
-            response = requests.put(f"http://127.0.0.1:8000/certificati/{certificato_id}/valida")
-            if response.status_code == 200:
-                QMessageBox.information(self, "Successo", "Certificato validato con successo.")
-                self.load_data()
-            else:
-                QMessageBox.critical(self, "Errore", f"Errore durante la validazione: {response.text}")
-        except requests.exceptions.RequestException as e:
-            QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
+        if reply == QMessageBox.StandardButton.Yes:
+            ids_to_validate = [self.df.iloc[index.row()]['id'] for index in selected_rows]
+            success_count = 0
+            error_count = 0
+            for cert_id in ids_to_validate:
+                try:
+                    response = requests.put(f"{API_URL}/certificati/{cert_id}/valida")
+                    if response.status_code == 200:
+                        success_count += 1
+                    else:
+                        error_count += 1
+                except requests.exceptions.RequestException:
+                    error_count += 1
+
+            QMessageBox.information(self, "Risultato Validazione", f"{success_count} righe validate con successo, {error_count} errori.")
+            self.load_data()
