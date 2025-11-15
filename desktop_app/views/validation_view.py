@@ -61,6 +61,10 @@ class ValidationView(QWidget):
         self.validate_button.clicked.connect(self.validate_selected)
         controls_layout.addWidget(self.validate_button)
 
+        self.validate_all_button = QPushButton("Convalida Tutto")
+        self.validate_all_button.clicked.connect(self.validate_all)
+        controls_layout.addWidget(self.validate_all_button)
+
         self.delete_button = QPushButton("Cancella Riga")
         self.delete_button.clicked.connect(self.delete_row)
         controls_layout.addWidget(self.delete_button)
@@ -84,6 +88,41 @@ class ValidationView(QWidget):
                 self.table_view.resizeColumnsToContents()
         except requests.exceptions.RequestException as e:
             QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
+
+    def validate_all(self):
+        if not hasattr(self, 'df') or self.df.empty:
+            QMessageBox.information(self, "Nessuna Azione", "Non ci sono certificati da validare.")
+            return
+
+        reply = QMessageBox.question(self, 'Conferma Validazione Multipla',
+                                     f"Sei sicuro di voler validare tutti i {len(self.df)} certificati visualizzati?",
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                     QMessageBox.StandardButton.No)
+
+        if reply == QMessageBox.StandardButton.No:
+            return
+
+        error_count = 0
+        success_count = 0
+
+        certificato_ids = self.df['id'].tolist()
+
+        for cert_id in certificato_ids:
+            try:
+                response = requests.put(f"http://127.0.0.1:8000/certificati/{cert_id}/valida")
+                if response.status_code == 200:
+                    success_count += 1
+                else:
+                    error_count += 1
+            except requests.exceptions.RequestException:
+                error_count += 1
+
+        summary_message = f"Validazione completata.\n\n" \
+                          f"Certificati validati con successo: {success_count}\n" \
+                          f"Errori riscontrati: {error_count}"
+
+        QMessageBox.information(self, "Risultato Validazione", summary_message)
+        self.load_data()
 
     def delete_row(self):
         selected_indexes = self.table_view.selectedIndexes()
