@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.db.models import Dipendente, Corso, Certificato, ValidationStatus
 from datetime import date
 
-def test_create_certificato(test_client: TestClient, db_session: Session):
+def test_create_certificato(test_client: TestClient, db_session: Session, mock_ai_service):
     """
     Testa la creazione di un certificato tramite l'endpoint POST /certificati/.
     """
@@ -63,7 +63,6 @@ def test_validate_certificato(test_client: TestClient, db_session: Session):
 
     # Verifica la risposta
     assert response.status_code == 200
-    assert response.json()["message"] == "Certificato validato con successo"
 
     # Verifica che lo stato del certificato sia stato aggiornato nel database
     db_session.refresh(certificato)
@@ -257,3 +256,26 @@ def test_upload_pdf(test_client: TestClient, db_session: Session, mocker):
     assert response_data["entities"]["nome"] == "Mario Rossi"
     assert response_data["entities"]["data_rilascio"] == "10/10/2025"
     assert "data_scadenza" in response_data["entities"] # Verifica che la logica di calcolo sia stata chiamata
+
+def test_delete_certificato(test_client: TestClient, db_session: Session):
+    # Create some test data
+    dipendente = Dipendente(nome="Peter", cognome="Jones")
+    corso = Corso(nome_corso="Corso di Sicurezza", validita_mesi=36, categoria_corso="TEST")
+    db_session.add(dipendente)
+    db_session.add(corso)
+    db_session.commit()
+
+    certificato = Certificato(
+        dipendente_id=dipendente.id,
+        corso_id=corso.id,
+        data_rilascio=date(2023, 1, 1),
+        data_scadenza_calcolata=date(2026, 1, 1),
+        stato_validazione=ValidationStatus.MANUAL,
+    )
+    db_session.add(certificato)
+    db_session.commit()
+
+    response = test_client.delete(f"/certificati/{certificato.id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["message"] == "Certificato cancellato con successo"

@@ -57,9 +57,9 @@ class ValidationView(QWidget):
         controls_layout = QHBoxLayout()
         self.layout.addLayout(controls_layout)
 
-        self.save_button = QPushButton("Salva Modifiche")
-        self.save_button.clicked.connect(self.save_changes)
-        controls_layout.addWidget(self.save_button)
+        self.validate_button = QPushButton("Convalida Selezionato")
+        self.validate_button.clicked.connect(self.validate_selected)
+        controls_layout.addWidget(self.validate_button)
 
         self.delete_button = QPushButton("Cancella Riga")
         self.delete_button.clicked.connect(self.delete_row)
@@ -108,31 +108,21 @@ class ValidationView(QWidget):
             except requests.exceptions.RequestException as e:
                 QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
 
-    def save_changes(self):
+    def validate_selected(self):
+        selected_indexes = self.table_view.selectedIndexes()
+        if not selected_indexes:
+            QMessageBox.warning(self, "Nessuna Selezione", "Seleziona una riga da validare.")
+            return
+
+        row = selected_indexes[0].row()
+        certificato_id = self.df.iloc[row]['id']
+
         try:
-            for row in range(self.model.rowCount()):
-                certificato_id = self.df.iloc[row]['id']
-                nome = self.model.data(self.model.index(row, 1))
-                corso = self.model.data(self.model.index(row, 2))
-                data_rilascio = self.model.data(self.model.index(row, 3))
-                data_scadenza = self.model.data(self.model.index(row, 4))
-
-                # Create the payload with all fields, ensuring none are missing
-                payload = {
-                    "nome": nome,
-                    "corso": corso,
-                    "data_rilascio": data_rilascio,
-                    "data_scadenza": data_scadenza
-                }
-
-                response = requests.put(f"http://127.0.0.1:8000/certificati/{certificato_id}", params=payload)
-
-                if response.status_code != 200:
-                    QMessageBox.critical(self, "Errore", f"Errore durante l'aggiornamento della riga {row}: {response.text}")
-                    return
-
-            QMessageBox.information(self, "Successo", "Modifiche salvate con successo.")
-            self.load_data()
-
+            response = requests.put(f"http://127.0.0.1:8000/certificati/{certificato_id}/valida")
+            if response.status_code == 200:
+                QMessageBox.information(self, "Successo", "Certificato validato con successo.")
+                self.load_data()
+            else:
+                QMessageBox.critical(self, "Errore", f"Errore durante la validazione: {response.text}")
         except requests.exceptions.RequestException as e:
             QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")

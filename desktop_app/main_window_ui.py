@@ -2,10 +2,10 @@ import sys
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QStackedWidget, QMenuBar
 from PyQt6.QtGui import QAction
 from PyQt6.QtCore import QTimer
-from desktop_app.import_view import ImportView
-from desktop_app.dashboard_view import DashboardView
-from desktop_app.config_view import ConfigView
-from desktop_app.validation_view import ValidationView
+from desktop_app.views.import_view import ImportView
+from desktop_app.views.dashboard_view import DashboardView
+from desktop_app.views.config_view import ConfigView
+from desktop_app.views.validation_view import ValidationView
 
 class MainWindow(QMainWindow):
     def __init__(self, screenshot_path=None):
@@ -72,21 +72,3 @@ class MainWindow(QMainWindow):
         QApplication.quit()
 
 
-def main():
-    app = QApplication(sys.argv)
-
-    screenshot_path = None
-    if "--screenshot" in sys.argv:
-        try:
-            screenshot_path = sys.argv[sys.argv.index("--screenshot") + 1]
-        except IndexError:
-            print("Usage: --screenshot <path>")
-            sys.exit(1)
-
-
-    main_win = MainWindow(screenshot_path=screenshot_path)
-    main_win.show()
-    sys.exit(app.exec())
-
-if __name__ == "__main__":
-    main()

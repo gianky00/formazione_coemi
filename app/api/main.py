@@ -21,7 +21,7 @@ class CertificatoSchema(BaseModel):
 
     model_config = {"from_attributes": True}
 
-class CertificatoCreateSchema(BaseModel):
+class CertificatoCreazioneSchema(BaseModel):
     nome: str = Field(..., min_length=1, description="Nome e cognome del dipendente")
     corso: str = Field(..., min_length=1, description="Nome del corso")
     categoria: str = Field(..., min_length=1, description="Categoria del corso")
@@ -29,7 +29,7 @@ class CertificatoCreateSchema(BaseModel):
     data_scadenza: Optional[str] = Field(None, description="Data di scadenza in formato DD/MM/YYYY")
 
     @field_validator('data_rilascio')
-    def validate_data_rilascio_format(cls, v):
+    def valida_formato_data_rilascio(cls, v):
         if not v:
             raise ValueError("La data non può essere vuota.")
         try:
@@ -39,7 +39,7 @@ class CertificatoCreateSchema(BaseModel):
         return v
 
     @field_validator('data_scadenza')
-    def validate_data_scadenza_format(cls, v):
+    def valida_formato_data_scadenza(cls, v):
         if v is None or not v.strip() or v.strip().lower() == 'none':
             return None
         try:
@@ -48,7 +48,7 @@ class CertificatoCreateSchema(BaseModel):
             raise ValueError("Formato data non valido. Usare DD/MM/YYYY.")
         return v
 
-class CertificatoUpdateSchema(BaseModel):
+class CertificatoAggiornamentoSchema(BaseModel):
     nome: str = Field(..., min_length=1, description="Nome e cognome del dipendente")
     corso: str = Field(..., min_length=1, description="Nome del corso")
     categoria: str = Field(..., min_length=1, description="Categoria del corso")
@@ -56,7 +56,7 @@ class CertificatoUpdateSchema(BaseModel):
     data_scadenza: Optional[str] = Field(None, description="Data di scadenza in formato DD/MM/YYYY")
 
     @field_validator('data_rilascio')
-    def validate_data_rilascio_format(cls, v):
+    def valida_formato_data_rilascio(cls, v):
         if not v:
             raise ValueError("La data non può essere vuota.")
         try:
@@ -66,7 +66,7 @@ class CertificatoUpdateSchema(BaseModel):
         return v
 
     @field_validator('data_scadenza')
-    def validate_data_scadenza_format(cls, v):
+    def valida_formato_data_scadenza(cls, v):
         if v is None or not v.strip() or v.strip().lower() == 'none':
             return None
         try:
@@ -227,7 +227,7 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
     return result
 
 @router.post("/certificati/", response_model=CertificatoSchema)
-def create_certificato(certificato: CertificatoCreateSchema, db: Session = Depends(get_db)):
+def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = Depends(get_db)):
     """
     Crea un nuovo certificato nel database. Se il dipendente o il corso non esistono,
     vengono creati automaticamente (logica "Get or Create").
@@ -299,7 +299,7 @@ def create_certificato(certificato: CertificatoCreateSchema, db: Session = Depen
     )
 
 @router.put("/certificati/{certificato_id}", response_model=CertificatoSchema)
-def update_certificato(certificato_id: int, certificato: CertificatoUpdateSchema, db: Session = Depends(get_db)):
+def update_certificato(certificato_id: int, certificato: CertificatoAggiornamentoSchema, db: Session = Depends(get_db)):
     """
     Aggiorna un certificato esistente.
 
@@ -377,17 +377,16 @@ def update_certificato(certificato_id: int, certificato: CertificatoUpdateSchema
         stato_certificato=stato
     )
 
-@router.put("/certificati/{certificato_id}/valida")
+
+@router.put("/certificati/{certificato_id}/valida", response_model=CertificatoSchema)
 def valida_certificato(certificato_id: int, db: Session = Depends(get_db)):
     """
     Imposta lo stato di validazione di un certificato su 'MANUAL'.
-
     Args:
         certificato_id: L'ID del certificato da validare.
         db: La sessione del database.
-
     Returns:
-        Un messaggio di conferma.
+        Il certificato aggiornato.
     """
     db_certificato = db.query(Certificato).filter(Certificato.id == certificato_id).first()
     if not db_certificato:
@@ -396,7 +395,17 @@ def valida_certificato(certificato_id: int, db: Session = Depends(get_db)):
     db_certificato.stato_validazione = ValidationStatus.MANUAL
     db.commit()
     db.refresh(db_certificato)
-    return {"message": "Certificato validato con successo"}
+
+    stato = certificate_logic.get_certificate_status(db_certificato.data_scadenza_calcolata)
+    return CertificatoSchema(
+        id=db_certificato.id,
+        nome=f"{db_certificato.dipendente.nome} {db_certificato.dipendente.cognome}",
+        corso=db_certificato.corso.nome_corso,
+        categoria=db_certificato.corso.categoria_corso or "General",
+        data_rilascio=db_certificato.data_rilascio.strftime('%d/%m/%Y'),
+        data_scadenza=db_certificato.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_certificato.data_scadenza_calcolata else None,
+        stato_certificato=stato
+    )
 
 @router.delete("/certificati/{certificato_id}")
 def delete_certificato(certificato_id: int, db: Session = Depends(get_db)):
