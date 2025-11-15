@@ -7,9 +7,9 @@ class ImportView(QWidget):
         super().__init__()
         self.layout = QVBoxLayout(self)
 
-        self.upload_button = QPushButton("Carica Cartella")
-        self.upload_button.clicked.connect(self.upload_folder)
-        self.layout.addWidget(self.upload_button)
+        self.upload_folder_button = QPushButton("Carica Cartella PDF")
+        self.upload_folder_button.clicked.connect(self.upload_folder)
+        self.layout.addWidget(self.upload_folder_button)
 
         self.results_display = QTextEdit()
         self.results_display.setReadOnly(True)

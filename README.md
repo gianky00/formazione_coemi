@@ -122,3 +122,11 @@ Fare doppio clic sul file `run.bat`. Lo script si occuperà di:
 2.  Installare le dipendenze da `requirements.txt`.
 3.  Avviare il server backend FastAPI in una finestra di terminale separata.
 4.  Lanciare l'applicazione desktop PyQt6.
+
+### Testing
+
+Per eseguire la suite di test automatizzati, eseguire il seguente comando dalla directory principale del progetto:
+
+```bash
+python -m pytest
+```
