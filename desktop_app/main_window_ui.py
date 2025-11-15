@@ -1,6 +1,6 @@
 
 import sys
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget, QPushButton, QLabel, QFrame, QMessageBox
+from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget, QPushButton, QLabel, QFrame, QMessageBox, QMenu, QProgressBar
 from PyQt6.QtGui import QIcon, QPixmap
 from PyQt6.QtCore import Qt, QSize, QDate
 
@@ -19,7 +19,7 @@ class Sidebar(QWidget):
         self.layout.setSpacing(0)
 
         self.logo_label = QLabel()
-        self.logo_pixmap = QPixmap("desktop_app/icons/logo.svg")
+        self.logo_pixmap = QPixmap("desktop_app/assets/logo.svg")
         self.logo_label.setPixmap(self.logo_pixmap.scaled(160, 40, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(self.logo_label)
@@ -54,7 +54,7 @@ class Sidebar(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self, screenshot_path=None):
         super().__init__()
-        self.setWindowTitle("CertiSync AI")
+        self.setWindowTitle("Intelleo")
         self.setGeometry(100, 100, 1200, 800)
         self.screenshot_path = screenshot_path
 
@@ -73,7 +73,35 @@ class MainWindow(QMainWindow):
         self.content_layout.addWidget(self.stacked_widget)
         self.main_layout.addWidget(self.content_area, 1)
 
-        self.import_view = ImportView()
+        # Status Bar
+        self.status_bar = QFrame()
+        self.status_bar.setFixedHeight(30)
+        self.status_bar_layout = QHBoxLayout(self.status_bar)
+        self.status_bar_layout.setContentsMargins(10, 0, 10, 0)
+
+        self.progress_label = QLabel("Pronto.")
+        self.status_bar_layout.addWidget(self.progress_label)
+        self.status_bar_layout.addStretch()
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setMaximumWidth(200)
+        self.progress_bar.setTextVisible(False)
+
+        self.progress_widget = QWidget()
+        progress_layout = QHBoxLayout(self.progress_widget)
+        progress_layout.setContentsMargins(0,0,0,0)
+        progress_layout.addWidget(self.progress_label)
+        progress_layout.addWidget(self.progress_bar)
+        self.status_bar_layout.addWidget(self.progress_widget)
+        self.progress_widget.setVisible(False)
+
+        self.content_layout.addWidget(self.status_bar)
+
+        self.import_view = ImportView(
+            progress_widget=self.progress_widget,
+            progress_bar=self.progress_bar,
+            progress_label=self.progress_label
+        )
         self.dashboard_view = DashboardView()
         self.config_view = ConfigView()
         self.validation_view = ValidationView()
@@ -115,8 +143,15 @@ class MainWindow(QMainWindow):
         current_year = QDate.currentDate().year()
         msg_box.setText(f"""
             <b>AVVISO LEGALE SU PROPRIETÀ INTELLETTUALE E SEGRETO INDUSTRIALE</b><br><br>
-            Questo software, inclusi la sua architettura, logica di funzionamento e interfaccia utente, costituisce Segreto Industriale (Know-How) e informazione confidenziale.<br><br>
-            Esso è protetto ai sensi della normativa vigente...
+            Questo software, inclusi la sua architettura, logica di funzionamento e interfaccia utente, costituisce Segreto Industriale (Know-How) e informazione confidenziale di Co.E.Mi. Costruzioni Edili Milano S.r.l.
+            <br><br>
+            Esso è protetto ai sensi della normativa vigente in materia di segreti commerciali (D.Lgs. 63/2018), del diritto d’autore (L. 633/1941) e del Codice della Proprietà Industriale (D.Lgs. 30/2005).
+            <br><br>
+            <b>È fatto assoluto divieto</b> di copiare, decompilare, modificare, distribuire o utilizzare il software, in tutto o in parte, al di fuori degli scopi autorizzati senza il preventivo consenso scritto di Co.E.Mi. S.r.l.
+            <br><br>
+            La violazione delle presenti disposizioni costituisce un illecito civile e penale e sarà perseguita a norma di legge.
+            <br><br>
+            Copyright © {current_year} Co.E.Mi. Costruzioni Edili Milano S.r.l. Tutti i diritti riservati.
         """)
         msg_box.setStyleSheet("""
             QMessageBox {
