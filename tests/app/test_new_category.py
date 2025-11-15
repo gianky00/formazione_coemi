@@ -22,9 +22,9 @@ def test_seed_database_with_nomine(client):
 
 @patch('app.services.ai_extraction.model')
 def test_extract_entities_with_ai_for_nomine(mock_model):
-    # Mock the single AI call
+    # Mock the single AI call to simulate the problematic case
     mock_response = MagicMock()
-    mock_response.text = '{"nome": "MARIO ROSSI", "corso": "NOMINA CAPO CANTIERE", "data_rilascio": "01-01-2023", "categoria": "NOMINE"}'
+    mock_response.text = '{"nome": "Giliberto Salvatore", "corso": "Attribuzione e competenze del ruolo di Preposto", "data_rilascio": "01-01-2023", "categoria": "NOMINE"}'
 
     mock_model.generate_content.return_value = mock_response
 
@@ -34,6 +34,7 @@ def test_extract_entities_with_ai_for_nomine(mock_model):
     from app.services.ai_extraction import extract_entities_with_ai
     result = extract_entities_with_ai(pdf_bytes)
 
+    # Assert that the category is correctly identified as "NOMINE" and not "PREPOSTO"
     assert result['categoria'] == 'NOMINE'
-    assert result['corso'] == 'NOMINA CAPO CANTIERE'
+    assert result['corso'] == 'Attribuzione e competenze del ruolo di Preposto'
     assert 'error' not in result
