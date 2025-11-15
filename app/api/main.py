@@ -215,7 +215,7 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
     certificati = query.all()
     result = []
     for certificato in certificati:
-        stato = certificate_logic.get_certificate_status(certificato.data_scadenza_calcolata)
+        stato = certificate_logic.get_certificate_status(db, certificato)
         result.append(CertificatoSchema(
             id=certificato.id,
             nome=f"{certificato.dipendente.nome} {certificato.dipendente.cognome}",
@@ -303,7 +303,7 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
         db.rollback()
         raise HTTPException(status_code=409, detail="Errore di integrità: il certificato potrebbe già esistere.")
 
-    stato = certificate_logic.get_certificate_status(db_certificato.data_scadenza_calcolata)
+    stato = certificate_logic.get_certificate_status(db, db_certificato)
     return CertificatoSchema(
         id=db_certificato.id,
         nome=f"{db_certificato.dipendente.nome} {db_certificato.dipendente.cognome}",
@@ -388,7 +388,7 @@ def update_certificato(certificato_id: int, certificato: CertificatoAggiornament
         db.rollback()
         raise HTTPException(status_code=409, detail="Errore di integrità durante l'aggiornamento.")
 
-    stato = certificate_logic.get_certificate_status(db_certificato.data_scadenza_calcolata)
+    stato = certificate_logic.get_certificate_status(db, db_certificato)
     return CertificatoSchema(
         id=db_certificato.id,
         nome=f"{db_certificato.dipendente.nome} {db_certificato.dipendente.cognome}",
@@ -418,7 +418,7 @@ def valida_certificato(certificato_id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_certificato)
 
-    stato = certificate_logic.get_certificate_status(db_certificato.data_scadenza_calcolata)
+    stato = certificate_logic.get_certificate_status(db, db_certificato)
     return CertificatoSchema(
         id=db_certificato.id,
         nome=f"{db_certificato.dipendente.nome} {db_certificato.dipendente.cognome}",
