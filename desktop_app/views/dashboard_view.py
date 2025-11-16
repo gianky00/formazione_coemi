@@ -170,7 +170,10 @@ class DashboardView(QWidget):
         main_card_layout.addWidget(self.table_view)
         self.layout.addWidget(main_card)
 
+        self._initial_load = True
         self.load_data()
+        self._initial_load = False
+
         self.update_button_states()
 
     def on_row_clicked(self, index):
@@ -212,9 +215,14 @@ class DashboardView(QWidget):
                 self.status_filter.clear()
                 self.status_filter.addItems(stati)
 
-                if current_employee in employees: self.employee_filter.setCurrentText(current_employee)
-                if current_category in categories: self.category_filter.setCurrentText(current_category)
-                if current_status in stati: self.status_filter.setCurrentText(current_status)
+                if self._initial_load:
+                    self.employee_filter.setCurrentText("Tutti")
+                    self.category_filter.setCurrentText("Tutti")
+                    self.status_filter.setCurrentText("Tutti")
+                else:
+                    if current_employee in employees: self.employee_filter.setCurrentText(current_employee)
+                    if current_category in categories: self.category_filter.setCurrentText(current_category)
+                    if current_status in stati: self.status_filter.setCurrentText(current_status)
 
                 if not self.df.empty:
                     employee = self.employee_filter.currentText()
@@ -228,6 +236,7 @@ class DashboardView(QWidget):
                 self.model = CheckboxTableModel(self.df)
                 self.model.setParent(self)
                 self.table_view.setModel(self.model)
+                self.table_view.resizeColumnsToContents()
 
                 if not self.df.empty:
                     # Set delegate for status column
