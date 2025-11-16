@@ -43,7 +43,7 @@ class Sidebar(QWidget):
         self.add_nav_button("Convalida Dati", "desktop_app/icons/convalida.svg")
         self.add_nav_button("Database", "desktop_app/icons/database.svg")
         self.add_nav_button("Scadenzario", "desktop_app/icons/scadenzario.svg")
-        self.add_nav_button("Addestra", "desktop_app/icons/addestra.svg")
+        self.add_nav_button("Configurazione", "desktop_app/icons/settings.svg")
         self.layout.addLayout(self.nav_buttons)
         self.layout.addStretch()
         self.help_button = self.add_nav_button("Supporto", "desktop_app/icons/help.svg", bottom=True)
@@ -124,7 +124,7 @@ class MainWindow(QMainWindow):
             "Convalida Dati": ValidationView(),
             "Database": DashboardView(),
             "Scadenzario": ScadenzarioView(),
-            "Addestra": ConfigView(),
+            "Configurazione": ConfigView(),
         }
         for view in self.views.values():
             self.stacked_widget.addWidget(view)
