@@ -75,9 +75,15 @@ class ValidationView(QWidget):
         self.layout.setSpacing(15)
 
         # Title
+        title_layout = QVBoxLayout()
+        title_layout.setSpacing(5)
         title = QLabel("Convalida Dati")
-        title.setStyleSheet("font-size: 24px; font-weight: bold;")
-        self.layout.addWidget(title)
+        title.setStyleSheet("font-size: 28px; font-weight: 700;")
+        title_layout.addWidget(title)
+        description = QLabel("Verifica, modifica e approva i dati estratti prima dell'archiviazione.")
+        description.setStyleSheet("font-size: 16px; color: #6B7280;")
+        title_layout.addWidget(description)
+        self.layout.addLayout(title_layout)
 
         # Controls
         controls_layout = QHBoxLayout()

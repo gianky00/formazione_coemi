@@ -187,7 +187,7 @@ class DashboardView(QWidget):
 
     def load_data(self):
         try:
-            response = requests.get(f"{API_URL}/certificati/?validated=true")
+            response = requests.get(f"{API_URL}/certificati/")
             if response.status_code == 200:
                 data = response.json()
                 self.df = pd.DataFrame(data)
