@@ -192,7 +192,7 @@ class DashboardView(QWidget):
                 data = response.json()
                 self.df = pd.DataFrame(data)
 
-                employees = ["Tutti"] + sorted(list(set([item['dipendente'] for item in data])))
+                employees = ["Tutti"] + sorted(list(set([item['nome'] for item in data])))
                 categories = ["Tutti"] + sorted(list(set([item['categoria'] for item in data])))
                 stati = ["Tutti", "attivo", "scaduto", "rinnovato", "in_scadenza"]
 
@@ -215,7 +215,7 @@ class DashboardView(QWidget):
                 category = self.category_filter.currentText()
                 status = self.status_filter.currentText()
 
-                if employee != "Tutti": self.df = self.df[self.df['dipendente'] == employee]
+                if employee != "Tutti": self.df = self.df[self.df['nome'] == employee]
                 if category != "Tutti": self.df = self.df[self.df['categoria'] == category]
                 if status != "Tutti": self.df = self.df[self.df['stato_certificato'] == status]
 
