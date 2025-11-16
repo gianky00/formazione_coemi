@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton,
     QMessageBox, QFrame, QFormLayout
 )
+from PyQt6.QtCore import Qt
 from dotenv import load_dotenv, set_key
 
 class ConfigView(QWidget):

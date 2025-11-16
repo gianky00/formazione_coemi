@@ -43,7 +43,7 @@ class Sidebar(QWidget):
         self.add_nav_button("Convalida Dati", "desktop_app/icons/convalida.svg")
         self.add_nav_button("Database", "desktop_app/icons/database.svg")
         self.add_nav_button("Scadenzario", "desktop_app/icons/scadenzario.svg")
-        self.add_nav_button("Configurazione", "desktop_app/icons/settings.svg")
+        self.add_nav_button("Configurazione", "desktop_app/icons/addestra.svg")
         self.layout.addLayout(self.nav_buttons)
         self.layout.addStretch()
         self.help_button = self.add_nav_button("Supporto", "desktop_app/icons/help.svg", bottom=True)
