@@ -120,6 +120,8 @@ class DropZone(QFrame):
                 break
 
 class ImportView(QWidget):
+    import_completed = pyqtSignal()
+
     def __init__(self, progress_widget=None, progress_bar=None, progress_label=None):
         super().__init__()
         self.progress_widget = progress_widget
@@ -191,3 +193,4 @@ class ImportView(QWidget):
     def on_processing_finished(self):
         if self.progress_label:
             self.progress_label.setText("Elaborazione completata.")
+        self.import_completed.emit()

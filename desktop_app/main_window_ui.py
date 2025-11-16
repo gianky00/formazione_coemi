@@ -134,6 +134,9 @@ class MainWindow(QMainWindow):
         self.validation_view = ValidationView()
         self.scadenzario_view = ScadenzarioView()
 
+        # Connect signals for data refresh
+        self.import_view.import_completed.connect(self.validation_view.refresh_data)
+
         self.stacked_widget.addWidget(self.import_view)
         self.stacked_widget.addWidget(self.validation_view)
         self.stacked_widget.addWidget(self.dashboard_view)
