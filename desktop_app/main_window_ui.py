@@ -33,8 +33,9 @@ class Sidebar(QWidget):
         self.logo_label = QLabel()
         self.logo_label.setObjectName("logo")
         self.logo_pixmap = QPixmap("desktop_app/assets/logo.png")
-        self.logo_label.setPixmap(self.logo_pixmap.scaled(300, 82, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        self.logo_label.setPixmap(self.logo_pixmap.scaled(350, 96, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.logo_label.setMinimumHeight(120) # Force layout to allocate space
         self.layout.addWidget(self.logo_label)
         self.nav_buttons = QVBoxLayout()
         self.nav_buttons.setSpacing(5)
