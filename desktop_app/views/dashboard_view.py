@@ -144,7 +144,6 @@ class DashboardView(QWidget):
         self.categoria_filter.currentIndexChanged.connect(self.filter_data)
         self.status_filter.currentIndexChanged.connect(self.filter_data)
 
-        self._initial_load = True
         self.df_original = pd.DataFrame()
         self.load_data()
 
@@ -184,20 +183,37 @@ class DashboardView(QWidget):
         self.categoria_filter.blockSignals(False)
         self.status_filter.blockSignals(False)
 
-    def load_data(self):
+    def load_data(self, row_to_reselect=-1):
         try:
+            current_filters = {
+                'dipendente': self.dipendente_filter.currentText(),
+                'categoria': self.categoria_filter.currentText(),
+                'stato': self.status_filter.currentText()
+            }
+
             response = requests.get(f"{API_URL}/certificati/?validated=true")
             response.raise_for_status()
             data = response.json()
 
             self.df_original = pd.DataFrame(data) if data else pd.DataFrame()
+            self.setup_filters()
 
-            if self._initial_load:
-                self.setup_filters()
-                self._initial_load = False
+            # Restore filters
+            for combo, text in current_filters.items():
+                combo_box = getattr(self, f"{combo}_filter")
+                index = combo_box.findText(text)
+                if index != -1:
+                    combo_box.setCurrentIndex(index)
 
-            self.filter_data()
-            self.update_button_states()
+            self.filter_data() # This will apply the restored filters
+
+            if row_to_reselect != -1:
+                new_row_count = self.model.rowCount()
+                if new_row_count > 0:
+                    final_row = min(row_to_reselect, new_row_count - 1)
+                    self.table_view.selectRow(final_row)
+            else:
+                self.update_button_states()
 
         except requests.exceptions.RequestException as e:
             QMessageBox.critical(self, "Errore di Connessione", f"Impossibile caricare i dati: {e}")
@@ -260,12 +276,19 @@ class DashboardView(QWidget):
         return selected_ids
 
     def edit_data(self):
-        selected_ids = self.get_selected_ids()
-        if not selected_ids or len(selected_ids) > 1:
+        selection_model = self.table_view.selectionModel()
+        if not selection_model or not selection_model.hasSelection():
+            QMessageBox.warning(self, "Selezione Invalida", "Seleziona una riga da modificare.")
+            return
+
+        selected_rows = selection_model.selectedRows()
+        if len(selected_rows) > 1:
             QMessageBox.warning(self, "Selezione Invalida", "Seleziona una singola riga da modificare.")
             return
 
-        cert_id = selected_ids[0]
+        row_to_reselect = selected_rows[0].row()
+        cert_id = self.get_selected_ids()[0]
+
         try:
             response = requests.get(f"{API_URL}/certificati/{cert_id}")
             response.raise_for_status()
@@ -277,15 +300,19 @@ class DashboardView(QWidget):
                 update_response = requests.put(f"{API_URL}/certificati/{cert_id}", json=updated_data)
                 update_response.raise_for_status()
                 QMessageBox.information(self, "Successo", "Certificato aggiornato con successo.")
-                self.load_data()
+                self.load_data(row_to_reselect=row_to_reselect)
                 self.database_changed.emit()
         except requests.exceptions.RequestException as e:
             QMessageBox.critical(self, "Errore", f"Impossibile modificare il certificato: {e}")
 
     def delete_data(self):
-        selected_ids = self.get_selected_ids()
-        if not selected_ids:
+        selection_model = self.table_view.selectionModel()
+        if not selection_model or not selection_model.hasSelection():
             return
+
+        selected_ids = self.get_selected_ids()
+        selected_rows = selection_model.selectedRows()
+        first_row = min((r.row() for r in selected_rows), default=-1)
 
         reply = QMessageBox.question(self, 'Conferma Cancellazione', f'Sei sicuro di voler cancellare {len(selected_ids)} certificati?',
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
@@ -299,8 +326,10 @@ class DashboardView(QWidget):
                     success_count += 1
                 except requests.exceptions.RequestException:
                     pass
+
             QMessageBox.information(self, "Operazione Completata", f"{success_count} certificati cancellati con successo.")
-            self.load_data()
+            self.load_data(row_to_reselect=first_row)
+
             if success_count > 0:
                 self.database_changed.emit()
 
