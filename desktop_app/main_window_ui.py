@@ -8,6 +8,7 @@ from desktop_app.views.import_view import ImportView
 from desktop_app.views.dashboard_view import DashboardView
 from desktop_app.views.config_view import ConfigView
 from desktop_app.views.validation_view import ValidationView
+from desktop_app.views.scadenzario_view import ScadenzarioView
 from desktop_app.views.contact_dialog import ContactDialog
 from desktop_app.views.guide_dialog import GuideDialog
 
@@ -21,7 +22,7 @@ class Sidebar(QWidget):
         self.logo_label = QLabel()
         self.logo_label.setObjectName("logo")
         self.logo_pixmap = QPixmap("desktop_app/assets/logo.png")
-        self.logo_label.setPixmap(self.logo_pixmap.scaled(200, 55, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        self.logo_label.setPixmap(self.logo_pixmap.scaled(240, 66, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(self.logo_label)
 
@@ -32,6 +33,7 @@ class Sidebar(QWidget):
         self.add_nav_button("Analizza", "desktop_app/icons/analizza.svg")
         self.add_nav_button("Convalida Dati", "desktop_app/icons/convalida.svg")
         self.add_nav_button("Database", "desktop_app/icons/database.svg")
+        self.add_nav_button("Scadenzario", "desktop_app/icons/scadenzario.svg")
         self.add_nav_button("Addestra", "desktop_app/icons/addestra.svg")
 
         self.layout.addLayout(self.nav_buttons)
@@ -108,10 +110,12 @@ class MainWindow(QMainWindow):
         self.dashboard_view = DashboardView()
         self.config_view = ConfigView()
         self.validation_view = ValidationView()
+        self.scadenzario_view = ScadenzarioView()
 
         self.stacked_widget.addWidget(self.import_view)
         self.stacked_widget.addWidget(self.validation_view)
         self.stacked_widget.addWidget(self.dashboard_view)
+        self.stacked_widget.addWidget(self.scadenzario_view)
         self.stacked_widget.addWidget(self.config_view)
 
         self.current_fade_animation = None
@@ -119,6 +123,7 @@ class MainWindow(QMainWindow):
         self.sidebar.buttons["Analizza"].clicked.connect(lambda: self.fade_in_widget(self.import_view))
         self.sidebar.buttons["Convalida Dati"].clicked.connect(lambda: self.fade_in_widget(self.validation_view))
         self.sidebar.buttons["Database"].clicked.connect(lambda: self.fade_in_widget(self.dashboard_view))
+        self.sidebar.buttons["Scadenzario"].clicked.connect(lambda: self.fade_in_widget(self.scadenzario_view))
         self.sidebar.buttons["Addestra"].clicked.connect(lambda: self.fade_in_widget(self.config_view))
 
         help_menu = QMenu(self)
