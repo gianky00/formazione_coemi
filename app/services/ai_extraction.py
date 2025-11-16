@@ -2,46 +2,42 @@ import google.generativeai as genai
 import logging
 import json
 from app.core.config import settings
+from app.core.constants import CATEGORIE_STATICHE
 
-# --- Configurazione Logger (Buona pratica) ---
-# (Usa la tua configurazione esistente)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# --- Configurazione API Key (Usa la tua) ---
-model = None
-try:
-    if not settings.GEMINI_API_KEY:
-        logging.error("Errore di configurazione Gemini: GEMINI_API_KEY non trovata.")
-        logging.info("Assicurati di averla impostata nelle variabili d'ambiente o in app.core.config.settings")
-    else:
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        model = genai.GenerativeModel('models/gemini-2.5-pro')
-        logging.info("Modello Gemini 'models/gemini-2.5-pro' configurato con successo.")
-except Exception as e:
-    logging.error(f"Errore di configurazione Gemini: {e}")
+class GeminiClient:
+    _instance = None
+    _model = None
 
-# --- Elenco categorie ---
-CATEGORIE_STATICHE = [
-    "ANTINCENDIO", "PRIMO SOCCORSO", "ASPP", "RSPP", "ATEX", "BLSD", "CARROPONTE",
-    "DIRETTIVA SEVESO", "DIRIGENTI E FORMATORI", "GRU A TORRE E PONTE", "H2S",
-    "IMBRACATORE", "FORMAZIONE GENERICA ART.37", "PREPOSTO", "GRU SU AUTOCARRO",
-    "PLE", "PES PAV PEI C CANTIERE", "LAVORI IN QUOTA", "MACCHINE OPERATrici",
-    "MANITOU P.ROTATIVE", "MEDICO COMPETENTE", "MULETTO CARRELISTI", "NOMINE", "VISITA MEDICA",
-    "SOPRAVVIVENZA E SALVATAGGIO IN MARE", "SPAZI CONFINATI DPI III E AUTORESPIRATORI",
-    "HLO", "ALTRO"
-]
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(GeminiClient, cls).__new__(cls)
+            try:
+                if not settings.GEMINI_API_KEY:
+                    logging.error("GEMINI_API_KEY not found.")
+                    raise ValueError("GEMINI_API_KEY not configured.")
+                genai.configure(api_key=settings.GEMINI_API_KEY)
+                cls._model = genai.GenerativeModel('models/gemini-2.5-pro')
+                logging.info("Gemini model 'models/gemini-2.5-pro' initialized successfully.")
+            except Exception as e:
+                logging.error(f"Failed to initialize Gemini model: {e}")
+                cls._instance = None
+                raise
+        return cls._instance
 
-def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
-    """
-    Estrae entità da un file PDF in bytes utilizzando un modello multimodale
-    in UNA SOLA CHIAMATA, con logica avanzata per distinguere corsi, nomine e visite mediche.
-    """
-    if model is None:
-        logging.error("Il modello Gemini non è inizializzato. Impossibile procedere.")
-        return {"error": "Modello Gemini non inizializzato."}
+    def get_model(self):
+        return self._model
 
+def get_gemini_model():
+    try:
+        return GeminiClient().get_model()
+    except ValueError as e:
+        logging.error(f"Error getting Gemini model: {e}")
+        return None
+
+def _generate_prompt() -> str:
     categorie_str = ", ".join(f'"{c}"' for c in CATEGORIE_STATICHE)
-
     esempi_categorie = """
 - ANTINCENDIO: "Addetto Antincendio Rischio Basso", "Corso Antincendio Rischio Medio"
 - PREPOSTO: [USA QUESTA SOLO PER CORSI/ATTESTATI] "Corso per Preposti alla Sicurezza", "Aggiornamento Preposto".
@@ -49,8 +45,7 @@ def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
 - VISITA MEDICA: [USA QUESTA PER GIUDIZI DI IDONEITÀ] "Giudizio di idoneità alla Mansione Specifica", "Visita medica periodica"
 - ALTRO: (qualsiasi altro documento non classificabile)
 """
-
-    prompt_completo = f"""
+    return f"""
 Sei un assistente AI specializzato nell'analisi di documenti sulla sicurezza sul lavoro per l'azienda COEMI.
 Analizza il certificato o documento PDF che ti fornisco.
 
@@ -79,31 +74,33 @@ Estrai le seguenti informazioni e classificalo. Restituisci ESCLUSIVAMENTE un og
 
 JSON:
 """
+
+def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
+    model = get_gemini_model()
+    if model is None:
+        return {"error": "Modello Gemini non inizializzato."}
+
+    prompt = _generate_prompt()
     pdf_file_part = {"mime_type": "application/pdf", "data": pdf_bytes}
 
     try:
-        logging.info("Chiamata AI Unica: Estrazione e Classificazione...")
-        response = model.generate_content([pdf_file_part, prompt_completo])
+        logging.info("Calling AI for entity extraction and classification...")
+        response = model.generate_content([pdf_file_part, prompt])
 
         json_text = response.text.strip().replace("```json", "").replace("```", "")
+        data = json.loads(json_text)
 
-        dati_finali = json.loads(json_text)
+        data.setdefault("categoria", "ALTRO")
+        if data["categoria"] not in CATEGORIE_STATICHE:
+            logging.warning(f"Invalid category '{data['categoria']}'. Defaulting to 'ALTRO'.")
+            data["categoria"] = "ALTRO"
 
-        dati_finali.setdefault("nome", None)
-        dati_finali.setdefault("corso", None)
-        dati_finali.setdefault("data_rilascio", None)
-        dati_finali.setdefault("data_scadenza", None)
-
-        if "categoria" not in dati_finali or dati_finali["categoria"] not in CATEGORIE_STATICHE:
-            logging.warning(f"Categoria non valida o assente: {dati_finali.get('categoria')}. Imposto 'ALTRO'.")
-            dati_finali["categoria"] = "ALTRO"
-
-        logging.info(f"Dati finali estratti: {dati_finali}")
-        return dati_finali
+        logging.info(f"Successfully extracted data: {data}")
+        return data
 
     except json.JSONDecodeError as e:
-        logging.error(f"Errore durante il parsing del JSON: {e}. Risposta AI: {response.text}")
-        return {"error": f"JSON non valido dalla AI: {e}", "categoria": "ALTRO", "nome": None, "corso": None, "data_rilascio": None, "data_scadenza": None}
+        logging.error(f"Error parsing JSON from AI response: {e}. AI response: {response.text}")
+        return {"error": f"Invalid JSON from AI: {e}"}
     except Exception as e:
-        logging.error(f"Errore durante la chiamata AI unica: {e}")
-        return {"error": f"Chiamata AI fallita: {e}", "categoria": "ALTRO", "nome": None, "corso": None, "data_rilascio": None, "data_scadenza": None}
+        logging.error(f"Error during AI call: {e}")
+        return {"error": f"AI call failed: {e}"}

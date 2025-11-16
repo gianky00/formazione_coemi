@@ -5,11 +5,21 @@ import enum
 Base = declarative_base()
 
 class ValidationStatus(str, enum.Enum):
+    """
+    An enumeration for the validation status of a certificate.
+    - AUTOMATIC: The certificate was created automatically from a PDF.
+    - MANUAL: The certificate has been manually validated by a user.
+    """
     AUTOMATIC = "AUTOMATIC"
     MANUAL = "MANUAL"
 
 class Dipendente(Base):
-    """Rappresenta un dipendente nel database."""
+    """
+    Represents an employee in the database.
+    Each employee has a unique ID, a name, a surname, and an optional email
+    and department category. It holds a relationship to all certificates
+    issued to them.
+    """
     __tablename__ = 'dipendenti'
     id = Column(Integer, primary_key=True, index=True)
     nome = Column(String, index=True)
@@ -19,7 +29,11 @@ class Dipendente(Base):
     certificati = relationship("Certificato", back_populates="dipendente")
 
 class Corso(Base):
-    """Rappresenta un corso di formazione nel database."""
+    """
+    Represents a training course in the database.
+    Each course has a unique name, a validity period in months, and a category.
+    It holds a relationship to all certificates issued for this course.
+    """
     __tablename__ = 'corsi'
     id = Column(Integer, primary_key=True, index=True)
     nome_corso = Column(String, unique=True, index=True)
@@ -28,7 +42,11 @@ class Corso(Base):
     certificati = relationship("Certificato", back_populates="corso")
 
 class Certificato(Base):
-    """Rappresenta un certificato di formazione che collega un dipendente a un corso."""
+    """
+    Represents a training certificate, linking an employee to a course.
+    It stores the issue date, the calculated expiration date, an optional
+    file path to the certificate PDF, and its validation status.
+    """
     __tablename__ = 'certificati'
     id = Column(Integer, primary_key=True, index=True)
     dipendente_id = Column(Integer, ForeignKey('dipendenti.id'))
