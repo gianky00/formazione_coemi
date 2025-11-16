@@ -1,6 +1,7 @@
 # Cartelle e file della cache Python
 __pycache__/
 *.pyc
+.pytest_cache/
 
 # Ambiente virtuale (creato alla radice del progetto)
 /Lib/
@@ -32,5 +33,4 @@ uploads/
 
 # Script di test temporanei
 check_list_AI.py
-tests/test_ai_extraction_old.py
 crea_env.bat

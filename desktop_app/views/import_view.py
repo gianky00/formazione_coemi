@@ -46,7 +46,21 @@ class PdfWorker(QObject):
             if response.status_code == 200:
                 data = response.json()
                 entities = data.get('entities', {})
-                certificato = { "nome": entities.get('nome', ''), "corso": entities.get('corso', ''), "categoria": entities.get('categoria', 'ALTRO'), "data_rilascio": entities.get('data_rilascio', ''), "data_scadenza": entities.get('data_scadenza', '') }
+
+                # Normalizza il formato della data prima di inviarlo
+                data_rilascio_raw = entities.get('data_rilascio', '')
+                data_scadenza_raw = entities.get('data_scadenza', '')
+
+                data_rilascio_norm = data_rilascio_raw.replace('-', '/') if data_rilascio_raw else ''
+                data_scadenza_norm = data_scadenza_raw.replace('-', '/') if data_scadenza_raw else ''
+
+                certificato = {
+                    "nome": entities.get('nome', ''),
+                    "corso": entities.get('corso', ''),
+                    "categoria": entities.get('categoria', 'ALTRO'),
+                    "data_rilascio": data_rilascio_norm,
+                    "data_scadenza": data_scadenza_norm
+                }
                 save_response = requests.post(f"{API_URL}/certificati/", json=certificato)
 
                 if save_response.status_code == 200:
@@ -55,7 +69,11 @@ class PdfWorker(QObject):
                         nome = entities.get('nome', 'NOME_NON_TROVATO')
                         categoria = entities.get('categoria', 'CATEGORIA_NON_TROVATA')
                         data_rilascio_str = entities.get('data_rilascio', '')
-                        dt_object = datetime.strptime(data_rilascio_str, '%d/%m/%Y')
+                        # Assicura che la data sia analizzata con il formato corretto (DD-MM-YYYY o DD/MM/YYYY)
+                        try:
+                            dt_object = datetime.strptime(data_rilascio_str, '%d-%m-%Y')
+                        except ValueError:
+                            dt_object = datetime.strptime(data_rilascio_str, '%d/%m/%Y')
                         formatted_date = dt_object.strftime('%d-%m-%Y')
                         new_filename = f"{nome} {categoria} {formatted_date}.pdf"
                         shutil.move(file_path, os.path.join(analyzed_folder, new_filename))
