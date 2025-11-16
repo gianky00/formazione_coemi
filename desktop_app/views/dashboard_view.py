@@ -186,7 +186,7 @@ class DashboardView(QWidget):
 
     def load_data(self):
         try:
-            response = requests.get(f"{API_URL}/certificati/")
+            response = requests.get(f"{API_URL}/certificati/?validated=true")
             response.raise_for_status()
             data = response.json()
 
