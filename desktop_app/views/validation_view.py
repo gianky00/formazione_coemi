@@ -1,6 +1,6 @@
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QMessageBox, QStyledItemDelegate, QLineEdit, QLabel
-from PyQt6.QtCore import QAbstractTableModel, Qt
+from PyQt6.QtCore import QAbstractTableModel, Qt, pyqtSignal
 import pandas as pd
 import requests
 from ..api_client import API_URL
@@ -75,10 +75,13 @@ class SimpleTableModel(QAbstractTableModel):
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
-            return str(self._data.columns[section])
+            if section < len(self._data.columns):
+                return str(self._data.columns[section])
         return None
 
 class ValidationView(QWidget):
+    validation_completed = pyqtSignal()
+
     def __init__(self):
         super().__init__()
         self.layout = QVBoxLayout(self)
@@ -233,6 +236,9 @@ class ValidationView(QWidget):
                                 f"Errori su {len(error_messages)} elementi:\n" + "\n".join(error_messages))
         else:
             QMessageBox.information(self, "Successo", f"Operazione completata con successo su {success_count} elementi.")
+
+        if success_count > 0 and action_type == "validate":
+            self.validation_completed.emit()
 
         self.load_data()
         self.update_button_states()
