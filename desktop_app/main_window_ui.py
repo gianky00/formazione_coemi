@@ -1,11 +1,19 @@
-
-import sys
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget, QPushButton, QLabel, QFrame, QMessageBox, QMenu, QProgressBar, QGraphicsOpacityEffect
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
+                             QHBoxLayout, QStackedWidget, QPushButton, QLabel,
+                             QFrame, QMessageBox, QMenu, QProgressBar,
+                             QGraphicsOpacityEffect)
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
 from PyQt6.QtCore import Qt, QSize, QDate, QPropertyAnimation, QEasingCurve
 from PyQt6.QtSvg import QSvgRenderer
+from desktop_app.views.import_view import ImportView
+from desktop_app.views.dashboard_view import DashboardView
+from desktop_app.views.config_view import ConfigView
+from desktop_app.views.validation_view import ValidationView
+from desktop_app.views.scadenzario_view import ScadenzarioView
+from desktop_app.views.contact_dialog import ContactDialog
+from desktop_app.views.guide_dialog import GuideDialog
 
-def create_colored_icon(icon_path, color):
+def create_colored_icon(icon_path: str, color: QColor) -> QIcon:
     renderer = QSvgRenderer(icon_path)
     pixmap = QPixmap(renderer.defaultSize())
     pixmap.fill(Qt.GlobalColor.transparent)
@@ -16,56 +24,40 @@ def create_colored_icon(icon_path, color):
     painter.end()
     return QIcon(pixmap)
 
-from desktop_app.views.import_view import ImportView
-from desktop_app.views.dashboard_view import DashboardView
-from desktop_app.views.config_view import ConfigView
-from desktop_app.views.validation_view import ValidationView
-from desktop_app.views.scadenzario_view import ScadenzarioView
-from desktop_app.views.contact_dialog import ContactDialog
-from desktop_app.views.guide_dialog import GuideDialog
-
 class Sidebar(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
-
         self.logo_label = QLabel()
         self.logo_label.setObjectName("logo")
         self.logo_pixmap = QPixmap("desktop_app/assets/logo.png")
         self.logo_label.setPixmap(self.logo_pixmap.scaled(240, 66, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(self.logo_label)
-
         self.nav_buttons = QVBoxLayout()
         self.nav_buttons.setSpacing(5)
-
         self.buttons = {}
         self.add_nav_button("Analizza", "desktop_app/icons/analizza.svg")
         self.add_nav_button("Convalida Dati", "desktop_app/icons/convalida.svg")
         self.add_nav_button("Database", "desktop_app/icons/database.svg")
         self.add_nav_button("Scadenzario", "desktop_app/icons/scadenzario.svg")
         self.add_nav_button("Addestra", "desktop_app/icons/addestra.svg")
-
         self.layout.addLayout(self.nav_buttons)
         self.layout.addStretch()
-
         self.help_button = self.add_nav_button("Supporto", "desktop_app/icons/help.svg", bottom=True)
-
         self.update_button_icons()
 
     def update_button_icons(self):
-        for text, button in self.buttons.items():
+        for button in self.buttons.values():
             icon_path = button.property("icon_path")
-            if button.isChecked():
-                button.setIcon(create_colored_icon(icon_path, QColor("black")))
-            else:
-                button.setIcon(create_colored_icon(icon_path, QColor("white")))
+            color = QColor("black") if button.isChecked() else QColor("white")
+            button.setIcon(create_colored_icon(icon_path, color))
 
     def add_nav_button(self, text, icon_path, bottom=False):
-        button = QPushButton(f"")
-        button.setProperty("icon_path", icon_path) # Store path for stylesheet
+        button = QPushButton()
+        button.setProperty("icon_path", icon_path)
         button.setIconSize(QSize(28, 28))
         button.setCheckable(True)
         button.setAutoExclusive(True)
@@ -82,16 +74,13 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Intelleo")
         self.setGeometry(100, 100, 1200, 800)
         self.screenshot_path = screenshot_path
-
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
         self.main_layout = QHBoxLayout(self.central_widget)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
-
         self.sidebar = Sidebar()
         self.main_layout.addWidget(self.sidebar)
-
         self.content_area = QFrame()
         self.content_layout = QVBoxLayout(self.content_area)
         self.content_layout.setContentsMargins(32, 32, 32, 32)
@@ -99,82 +88,70 @@ class MainWindow(QMainWindow):
         self.stacked_widget = QStackedWidget()
         self.content_layout.addWidget(self.stacked_widget)
         self.main_layout.addWidget(self.content_area, 1)
+        self._init_status_bar()
+        self._init_views()
+        self._init_connections()
+        self.sidebar.buttons["Analizza"].setChecked(True)
+        self.fade_in_widget(self.views["Analizza"], immediate=True)
 
-        # Status Bar
+    def _init_status_bar(self):
         self.status_bar = QFrame()
         self.status_bar.setFixedHeight(30)
-        self.status_bar_layout = QHBoxLayout(self.status_bar)
-        self.status_bar_layout.setContentsMargins(10, 0, 10, 0)
-
+        status_bar_layout = QHBoxLayout(self.status_bar)
+        status_bar_layout.setContentsMargins(10, 0, 10, 0)
         self.progress_label = QLabel("Pronto.")
-        self.status_bar_layout.addWidget(self.progress_label)
-        self.status_bar_layout.addStretch()
-
+        status_bar_layout.addWidget(self.progress_label)
+        status_bar_layout.addStretch()
         self.progress_bar = QProgressBar()
         self.progress_bar.setMaximumWidth(200)
         self.progress_bar.setTextVisible(False)
-
         self.progress_widget = QWidget()
         progress_layout = QHBoxLayout(self.progress_widget)
-        progress_layout.setContentsMargins(0,0,0,0)
+        progress_layout.setContentsMargins(0, 0, 0, 0)
         progress_layout.addWidget(self.progress_label)
         progress_layout.addWidget(self.progress_bar)
-        self.status_bar_layout.addWidget(self.progress_widget)
+        status_bar_layout.addWidget(self.progress_widget)
         self.progress_widget.setVisible(False)
-
         self.content_layout.addWidget(self.status_bar)
 
-        self.import_view = ImportView(
-            progress_widget=self.progress_widget,
-            progress_bar=self.progress_bar,
-            progress_label=self.progress_label
-        )
-        self.dashboard_view = DashboardView()
-        self.config_view = ConfigView()
-        self.validation_view = ValidationView()
-        self.scadenzario_view = ScadenzarioView()
+    def _init_views(self):
+        self.views = {
+            "Analizza": ImportView(
+                progress_widget=self.progress_widget,
+                progress_bar=self.progress_bar,
+                progress_label=self.progress_label
+            ),
+            "Convalida Dati": ValidationView(),
+            "Database": DashboardView(),
+            "Scadenzario": ScadenzarioView(),
+            "Addestra": ConfigView(),
+        }
+        for view in self.views.values():
+            self.stacked_widget.addWidget(view)
 
-        # Connect signals for data refresh
-        self.import_view.import_completed.connect(self.validation_view.refresh_data)
-
-        self.stacked_widget.addWidget(self.import_view)
-        self.stacked_widget.addWidget(self.validation_view)
-        self.stacked_widget.addWidget(self.dashboard_view)
-        self.stacked_widget.addWidget(self.scadenzario_view)
-        self.stacked_widget.addWidget(self.config_view)
-
-        self.current_fade_animation = None
-
-        self.sidebar.buttons["Analizza"].clicked.connect(lambda: self.handle_nav_click(self.import_view))
-        self.sidebar.buttons["Convalida Dati"].clicked.connect(lambda: self.handle_nav_click(self.validation_view))
-        self.sidebar.buttons["Database"].clicked.connect(lambda: self.handle_nav_click(self.dashboard_view))
+    def _init_connections(self):
+        self.views["Analizza"].import_completed.connect(self.views["Convalida Dati"].refresh_data)
+        for name, button in self.sidebar.buttons.items():
+            if name in self.views:
+                button.clicked.connect(lambda checked, view=self.views[name]: self.handle_nav_click(view))
         self.sidebar.buttons["Scadenzario"].clicked.connect(self.show_scadenzario)
-        self.sidebar.buttons["Addestra"].clicked.connect(lambda: self.handle_nav_click(self.config_view))
-
         help_menu = QMenu(self)
-        legal_action = help_menu.addAction("Avviso Legale")
-        legal_action.triggered.connect(self.show_legal_notice)
-        contact_action = help_menu.addAction("Contatti")
-        contact_action.triggered.connect(self.show_contact_form)
-        guide_action = help_menu.addAction("Guida")
-        guide_action.triggered.connect(self.show_guide)
+        help_menu.addAction("Avviso Legale", self.show_legal_notice)
+        help_menu.addAction("Contatti", self.show_contact_form)
+        help_menu.addAction("Guida", self.show_guide)
         self.sidebar.help_button.setMenu(help_menu)
-
-
-        self.sidebar.buttons["Analizza"].setChecked(True)
-        self.fade_in_widget(self.import_view, immediate=True)
 
     def show_scadenzario(self):
         self.sidebar.update_button_icons()
-        self.scadenzario_view.refresh_data()
-        self.fade_in_widget(self.scadenzario_view)
+        self.views["Scadenzario"].refresh_data()
+        self.fade_in_widget(self.views["Scadenzario"])
 
     def handle_nav_click(self, widget):
         self.sidebar.update_button_icons()
         self.fade_in_widget(widget)
 
     def fade_in_widget(self, widget, immediate=False):
-        if self.current_fade_animation:
+        if hasattr(self, 'current_fade_animation') and self.current_fade_animation:
             self.current_fade_animation.stop()
 
         if immediate:
@@ -183,25 +160,20 @@ class MainWindow(QMainWindow):
 
         opacity_effect = QGraphicsOpacityEffect(widget)
         widget.setGraphicsEffect(opacity_effect)
-
         self.current_fade_animation = QPropertyAnimation(opacity_effect, b"opacity")
         self.current_fade_animation.setDuration(300)
         self.current_fade_animation.setStartValue(0.0)
         self.current_fade_animation.setEndValue(1.0)
         self.current_fade_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
-
         self.current_fade_animation.finished.connect(lambda: widget.setGraphicsEffect(None))
-
         self.stacked_widget.setCurrentWidget(widget)
         self.current_fade_animation.start()
 
     def show_contact_form(self):
-        dialog = ContactDialog(self)
-        dialog.exec()
+        ContactDialog(self).exec()
 
     def show_guide(self):
-        dialog = GuideDialog(self)
-        dialog.exec()
+        GuideDialog(self).exec()
 
     def show_legal_notice(self):
         msg_box = QMessageBox()
