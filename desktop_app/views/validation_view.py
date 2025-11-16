@@ -153,7 +153,6 @@ class ValidationView(QWidget):
 
             if not data:
                 self.df = pd.DataFrame()
-                QMessageBox.information(self, "Nessun Dato", "Non ci sono nuovi documenti da validare.")
             else:
                 self.df = pd.DataFrame(data)
 
