@@ -33,8 +33,8 @@ IF EXIST "pyvenv.cfg" (
 ECHO Pulizia completata.
 ECHO.
 
-ECHO --- 3. Riavvio dell'applicazione tramite run.bat ---
-CALL run.bat
+ECHO --- 3. Riavvio dell'applicazione tramite avvio.bat ---
+CALL avvio.bat
 
 :End
 ECHO Operazione annullata.
