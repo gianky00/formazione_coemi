@@ -188,7 +188,7 @@ class DashboardView(QWidget):
             current_filters = {
                 'dipendente': self.dipendente_filter.currentText(),
                 'categoria': self.categoria_filter.currentText(),
-                'stato': self.status_filter.currentText()
+                'status': self.status_filter.currentText()
             }
 
             response = requests.get(f"{API_URL}/certificati/?validated=true")
