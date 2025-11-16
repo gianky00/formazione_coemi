@@ -163,14 +163,23 @@ class DashboardView(QWidget):
         self.table_view.entered.connect(self.table_view.viewport().update)
 
         header = self.table_view.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents) # Checkbox
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents) # ID
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch) # Nome
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch) # Corso
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents) # Categoria
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents) # Data Rilascio
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents) # Data Scadenza
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents) # Stato
         self.table_view.clicked.connect(self.on_row_clicked)
 
         main_card_layout.addWidget(self.table_view)
         self.layout.addWidget(main_card)
 
+        self._initial_load = True
         self.load_data()
+        self._initial_load = False
+
         self.update_button_states()
 
     def on_row_clicked(self, index):
@@ -212,9 +221,14 @@ class DashboardView(QWidget):
                 self.status_filter.clear()
                 self.status_filter.addItems(stati)
 
-                if current_employee in employees: self.employee_filter.setCurrentText(current_employee)
-                if current_category in categories: self.category_filter.setCurrentText(current_category)
-                if current_status in stati: self.status_filter.setCurrentText(current_status)
+                if self._initial_load:
+                    self.employee_filter.setCurrentText("Tutti")
+                    self.category_filter.setCurrentText("Tutti")
+                    self.status_filter.setCurrentText("Tutti")
+                else:
+                    if current_employee in employees: self.employee_filter.setCurrentText(current_employee)
+                    if current_category in categories: self.category_filter.setCurrentText(current_category)
+                    if current_status in stati: self.status_filter.setCurrentText(current_status)
 
                 if not self.df.empty:
                     employee = self.employee_filter.currentText()
