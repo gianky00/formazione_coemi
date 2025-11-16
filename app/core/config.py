@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from pydantic import ConfigDict  # CORREZIONE: ConfigDict si importa da 'pydantic', non 'pydantic_settings'
 from dotenv import load_dotenv
 import os
 
@@ -10,8 +11,10 @@ class Settings(BaseSettings):
     GOOGLE_CLOUD_PROJECT: str = os.getenv("GOOGLE_CLOUD_PROJECT", "")
     GCS_BUCKET_NAME: str = os.getenv("GCS_BUCKET_NAME", "")
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = 'utf-8'
+    # CORREZIONE: Sostituita la 'class Config' deprecata con 'model_config'
+    model_config = ConfigDict(
+        env_file=".env",
+        env_file_encoding='utf-8'
+    )
 
 settings = Settings()
