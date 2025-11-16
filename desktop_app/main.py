@@ -1,32 +1,61 @@
-
 import sys
 import time
-from PyQt6.QtWidgets import QApplication, QSplashScreen
+from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout
 from PyQt6.QtGui import QFont, QPixmap, QIcon
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from desktop_app.main_window_ui import MainWindow
+
+class SplashScreen(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setStyleSheet("background-color: white; border-radius: 10px;")
+
+        layout = QVBoxLayout(self)
+        self.logo_label = QLabel()
+        pixmap = QPixmap("desktop_app/assets/logo.png").scaled(
+            950, 228, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+        )
+        self.logo_label.setPixmap(pixmap)
+        self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.logo_label)
+
+        self.message_label = QLabel("Inizializzazione...")
+        self.message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.message_label.setStyleSheet("color: black; font-size: 16px;")
+        layout.addWidget(self.message_label)
+
+        self.setFixedSize(1000, 300)
+
+        self.opacity = 0.0
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.fade_in)
+        self.timer.start(10)
+
+    def fade_in(self):
+        if self.opacity >= 1.0:
+            self.timer.stop()
+        else:
+            self.opacity += 0.01
+            self.setWindowOpacity(self.opacity)
+
+    def show_message(self, message):
+        self.message_label.setText(message)
+        QApplication.processEvents()
+
 
 def main():
     app = QApplication(sys.argv)
 
-    # Splash Screen
-    splash_pix = QPixmap("desktop_app/assets/logo.png").scaled(
-        900, 216, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
-    )
-    splash = QSplashScreen(splash_pix, Qt.WindowType.WindowStaysOnTopHint)
-    splash.setWindowOpacity(0)
+    splash = SplashScreen()
     splash.show()
 
-    # Fade-in animation
-    for i in range(100):
-        splash.setWindowOpacity(i / 100.0)
-        time.sleep(0.01)
-
-    splash.showMessage("Inizializzazione del motore AI...", Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignCenter, Qt.GlobalColor.white)
+    splash.show_message("Inizializzazione del motore AI...")
     time.sleep(1)
-    splash.showMessage("Connessione al database...", Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignCenter, Qt.GlobalColor.white)
+    splash.show_message("Connessione al database...")
     time.sleep(1)
-    splash.showMessage("Avvio dell'interfaccia...", Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignCenter, Qt.GlobalColor.white)
+    splash.show_message("Avvio dell'interfaccia...")
     time.sleep(1)
 
     # Set a modern font
@@ -66,6 +95,11 @@ def main():
             font-size: 16px;
             border-radius: 10px;
             margin: 8px 12px;
+            color: white; /* Ensure text is white */
+        }
+        /* Style for the hamburger button */
+        Sidebar QPushButton#toggle_btn {
+            margin: 8px 12px 20px 12px; /* Add some margin below */
         }
         Sidebar QPushButton:hover {
             background-color: rgba(29, 78, 216, 0.1);
@@ -228,11 +262,11 @@ def main():
 
     main_win = MainWindow(screenshot_path=screenshot_path)
     main_win.setWindowIcon(QIcon("desktop_app/assets/logo.png"))
-    main_win.showMaximized()
 
-    # Simulate loading time
+    # Simulate loading time then show main window and close splash
     time.sleep(2)
-    splash.finish(main_win)
+    main_win.showMaximized()
+    splash.close()
 
     sys.exit(app.exec())
 
