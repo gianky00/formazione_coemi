@@ -59,7 +59,8 @@ class CertificatoTableModel(QAbstractTableModel):
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
-            return str(self._data.columns[section])
+            if not self._data.empty and section < len(self._data.columns):
+                return str(self._data.columns[section])
         return None
 
 class DashboardView(QWidget):
