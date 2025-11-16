@@ -107,8 +107,14 @@ class ValidationView(QWidget):
         self.table_view.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
         self.table_view.setAlternatingRowColors(True)
         header = self.table_view.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents) # Checkbox
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents) # ID
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch) # Nome
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch) # Corso
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents) # Categoria
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents) # Data Rilascio
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents) # Data Scadenza
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents) # Stato
         self.table_view.setItemDelegate(CustomDelegate())
         self.table_view.clicked.connect(self.on_row_clicked)
         self.layout.addWidget(self.table_view)
@@ -136,7 +142,6 @@ class ValidationView(QWidget):
                 self.df = pd.DataFrame(data)
                 self.model = CheckboxTableModel(self.df, self)
                 self.table_view.setModel(self.model)
-                self.table_view.resizeColumnsToContents()
         except requests.exceptions.RequestException as e:
             QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
 

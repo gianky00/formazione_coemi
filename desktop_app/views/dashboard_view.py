@@ -163,8 +163,14 @@ class DashboardView(QWidget):
         self.table_view.entered.connect(self.table_view.viewport().update)
 
         header = self.table_view.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents) # Checkbox
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents) # ID
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch) # Nome
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch) # Corso
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents) # Categoria
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents) # Data Rilascio
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents) # Data Scadenza
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents) # Stato
         self.table_view.clicked.connect(self.on_row_clicked)
 
         main_card_layout.addWidget(self.table_view)
@@ -236,7 +242,6 @@ class DashboardView(QWidget):
                 self.model = CheckboxTableModel(self.df)
                 self.model.setParent(self)
                 self.table_view.setModel(self.model)
-                self.table_view.resizeColumnsToContents()
 
                 if not self.df.empty:
                     # Set delegate for status column
