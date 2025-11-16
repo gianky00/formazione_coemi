@@ -145,8 +145,6 @@ class DashboardView(QWidget):
         self.edit_button.clicked.connect(self.edit_data)
         self.delete_button.clicked.connect(self.delete_data)
 
-        self.table_view.selectionModel().selectionChanged.connect(self._update_button_states)
-
     def load_data(self):
         self._current_selection = self._get_selection_info()
         self.view_model.load_data()
@@ -159,8 +157,20 @@ class DashboardView(QWidget):
 
     def _update_table_view(self):
         df = self.view_model.filtered_data
+
+        # Disconnect previous model's signal if it exists
+        if self.table_view.model() and self.table_view.selectionModel():
+            try:
+                self.table_view.selectionModel().selectionChanged.disconnect(self._update_button_states)
+            except TypeError: # This can happen if the connection was already broken
+                pass
+
         self.model = CertificatoTableModel(df)
         self.table_view.setModel(self.model)
+
+        # Reconnect the signal to the new model's selection model
+        if self.table_view.selectionModel():
+            self.table_view.selectionModel().selectionChanged.connect(self._update_button_states)
 
         if not df.empty:
             self.table_view.setColumnHidden(df.columns.get_loc('id'), True)
