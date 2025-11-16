@@ -21,7 +21,7 @@ class Sidebar(QWidget):
         self.logo_label = QLabel()
         self.logo_label.setObjectName("logo")
         self.logo_pixmap = QPixmap("desktop_app/assets/logo.png")
-        self.logo_label.setPixmap(self.logo_pixmap.scaled(180, 50, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        self.logo_label.setPixmap(self.logo_pixmap.scaled(200, 55, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(self.logo_label)
 
