@@ -128,5 +128,5 @@ Fare doppio clic sul file `run.bat`. Lo script si occuperà di:
 Per eseguire la suite di test automatizzati, eseguire il seguente comando dalla directory principale del progetto:
 
 ```bash
-python -m pytest tests
+python -m pytest
 ```
