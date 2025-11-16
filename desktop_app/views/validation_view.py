@@ -157,11 +157,9 @@ class ValidationView(QWidget):
             self.table_view.setModel(self.model)
 
             if not self.df.empty:
-                # Hide 'id' and 'stato_validazione' columns
+                # Hide 'id' column
                 id_col_index = self.df.columns.get_loc('id')
-                val_status_col_index = self.df.columns.get_loc('stato_validazione')
                 self.table_view.setColumnHidden(id_col_index, True)
-                self.table_view.setColumnHidden(val_status_col_index, True)
 
                 # Adjust column widths
                 header = self.table_view.horizontalHeader()
