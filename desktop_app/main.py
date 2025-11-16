@@ -11,7 +11,7 @@ def main():
 
     # Splash Screen
     splash_pix = QPixmap("desktop_app/assets/logo.png").scaled(
-        500, 120, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+        900, 216, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
     )
     splash = QSplashScreen(splash_pix, Qt.WindowType.WindowStaysOnTopHint)
     splash.setWindowOpacity(0)
@@ -38,7 +38,7 @@ def main():
         /* Global Styles */
         QMainWindow, QWidget {
             font-family: "Inter", "Segoe UI";
-            background-color: #F9FAFB;
+            background-color: #F0F8FF;
             color: #1F2937;
         }
 
@@ -64,17 +64,14 @@ def main():
             padding: 15px 20px;
             border: none;
             font-size: 16px;
-            color: #D1D5DB; /* Light Gray Text */
             border-radius: 10px;
             margin: 8px 12px;
         }
         Sidebar QPushButton:hover {
             background-color: rgba(29, 78, 216, 0.1);
-            color: #FFFFFF;
         }
         Sidebar QPushButton:checked {
-            background-color: #1D4ED8; /* Strong Blue */
-            color: white;
+            background-color: #2563EB; /* Brighter Blue for Selection */
             font-weight: 600; /* Semibold */
         }
 

@@ -13,15 +13,15 @@ class ScadenzarioView(QWidget):
     def __init__(self):
         super().__init__()
         self.layout = QVBoxLayout(self)
-        self.layout.setSpacing(20)
+        self.layout.setSpacing(10) # Reduced spacing
 
         title_layout = QVBoxLayout()
-        title_layout.setSpacing(5)
+        title_layout.setSpacing(2) # Reduced spacing
         title = QLabel("Scadenzario Grafico")
-        title.setStyleSheet("font-size: 28px; font-weight: 700;")
+        title.setStyleSheet("font-size: 24px; font-weight: 700;") # Reduced font size
         title_layout.addWidget(title)
         description = QLabel("Timeline interattiva dei certificati in scadenza.")
-        description.setStyleSheet("font-size: 16px; color: #6B7280;")
+        description.setStyleSheet("font-size: 14px; color: #6B7280;") # Reduced font size
         title_layout.addWidget(description)
         self.layout.addLayout(title_layout)
 
@@ -40,6 +40,9 @@ class ScadenzarioView(QWidget):
         self.employee_tree.setHeaderLabels(["Dipendenti / Corsi"])
         self.employee_tree.itemExpanded.connect(self.redraw_gantt_scene)
         self.employee_tree.itemCollapsed.connect(self.redraw_gantt_scene)
+        font = QFont()
+        font.setPointSize(10) # Smaller font for the tree
+        self.employee_tree.setFont(font)
         self.splitter.addWidget(self.employee_tree)
 
         self.gantt_view = QGraphicsView()
@@ -47,7 +50,7 @@ class ScadenzarioView(QWidget):
         self.gantt_view.setScene(self.gantt_scene)
         self.splitter.addWidget(self.gantt_view)
 
-        self.splitter.setSizes([300, 700])
+        self.splitter.setSizes([250, 750])
         self.layout.addWidget(self.splitter)
 
         self.gantt_view.verticalScrollBar().valueChanged.connect(self.employee_tree.verticalScrollBar().setValue)
@@ -93,8 +96,8 @@ class ScadenzarioView(QWidget):
     def redraw_gantt_scene(self):
         self.gantt_scene.clear()
 
-        row_height = 25
-        header_height = 50
+        row_height = 20 # Reduced row height
+        header_height = 30 # Reduced header height
 
         start_date = self.current_date.addDays(-self.current_date.day() + 1)
         end_date = start_date.addMonths(6)
@@ -169,3 +172,6 @@ class ScadenzarioView(QWidget):
                             self.gantt_scene.addItem(rect)
                 y_pos += row_height
             iterator += 1
+
+    def refresh_data(self):
+        self.load_data()
