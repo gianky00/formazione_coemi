@@ -131,6 +131,7 @@ class MainWindow(QMainWindow):
 
     def _init_connections(self):
         self.views["Analizza"].import_completed.connect(self.views["Convalida Dati"].refresh_data)
+        self.views["Convalida Dati"].validation_completed.connect(self.views["Database"].load_data)
         for name, button in self.sidebar.buttons.items():
             if name in self.views:
                 button.clicked.connect(lambda checked, view=self.views[name]: self.handle_nav_click(view))
