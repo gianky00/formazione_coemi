@@ -1,6 +1,7 @@
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QComboBox, QLabel, QFileDialog, QMessageBox, QListView, QStyledItemDelegate
 from PyQt6.QtCore import QAbstractTableModel, Qt
+from PyQt6.QtGui import QColor, QPainter
 import pandas as pd
 import requests
 from .edit_dialog import EditCertificatoDialog
@@ -135,11 +136,16 @@ class DashboardView(QWidget):
         main_card_layout.addWidget(self.table_view)
         self.layout.addWidget(main_card)
 
+        # Connect signals once
+        self.dipendente_filter.currentIndexChanged.connect(self.filter_data)
+        self.categoria_filter.currentIndexChanged.connect(self.filter_data)
+        self.status_filter.currentIndexChanged.connect(self.filter_data)
+
         self._initial_load = True
         self.df_original = pd.DataFrame()
         self.load_data()
 
-        if hasattr(self, 'model') and self.table_view.selectionModel():
+        if self.table_view.selectionModel():
             self.table_view.selectionModel().selectionChanged.connect(self.update_button_states)
         self.update_button_states()
 
@@ -153,30 +159,27 @@ class DashboardView(QWidget):
         self.export_button.setEnabled(hasattr(self, 'model') and self.model.rowCount() > 0)
 
     def setup_filters(self):
-        # Disconnect signals to prevent premature filtering
-        self.dipendente_filter.currentIndexChanged.disconnect(self.filter_data)
-        self.categoria_filter.currentIndexChanged.disconnect(self.filter_data)
-        self.status_filter.currentIndexChanged.disconnect(self.filter_data)
+        # Block signals to prevent premature filtering while populating
+        self.dipendente_filter.blockSignals(True)
+        self.categoria_filter.blockSignals(True)
+        self.status_filter.blockSignals(True)
 
-        # Clear and populate Dipendente
         self.dipendente_filter.clear()
-        dipendenti = sorted(self.df_original['nome'].unique())
+        dipendenti = sorted(self.df_original['nome'].unique()) if not self.df_original.empty else []
         self.dipendente_filter.addItems(["Tutti"] + dipendenti)
 
-        # Clear and populate Categoria
         self.categoria_filter.clear()
-        categorie = sorted(self.df_original['categoria'].unique())
+        categorie = sorted(self.df_original['categoria'].unique()) if not self.df_original.empty else []
         self.categoria_filter.addItems(["Tutti"] + categorie)
 
-        # Clear and populate Stato
         self.status_filter.clear()
-        stati = sorted(self.df_original['stato_certificato'].unique())
+        stati = sorted(self.df_original['stato_certificato'].unique()) if not self.df_original.empty else []
         self.status_filter.addItems(["Tutti"] + stati)
 
-        # Reconnect signals
-        self.dipendente_filter.currentIndexChanged.connect(self.filter_data)
-        self.categoria_filter.currentIndexChanged.connect(self.filter_data)
-        self.status_filter.currentIndexChanged.connect(self.filter_data)
+        # Unblock signals
+        self.dipendente_filter.blockSignals(False)
+        self.categoria_filter.blockSignals(False)
+        self.status_filter.blockSignals(False)
 
     def load_data(self):
         try:
@@ -184,10 +187,7 @@ class DashboardView(QWidget):
             response.raise_for_status()
             data = response.json()
 
-            if not data:
-                self.df_original = pd.DataFrame()
-            else:
-                self.df_original = pd.DataFrame(data)
+            self.df_original = pd.DataFrame(data) if data else pd.DataFrame()
 
             if self._initial_load:
                 self.setup_filters()
@@ -199,22 +199,25 @@ class DashboardView(QWidget):
         except requests.exceptions.RequestException as e:
             QMessageBox.critical(self, "Errore di Connessione", f"Impossibile caricare i dati: {e}")
             self.df_original = pd.DataFrame()
-            self.filter_data() # Display an empty table
+            self.filter_data()
 
     def filter_data(self):
+        if self.df_original.empty:
+            self.model = CertificatoTableModel(pd.DataFrame())
+            self.table_view.setModel(self.model)
+            self.update_button_states()
+            return
+
         df_filtered = self.df_original.copy()
 
-        # Filter by Dipendente
         dipendente = self.dipendente_filter.currentText()
         if dipendente != "Tutti":
             df_filtered = df_filtered[df_filtered['nome'] == dipendente]
 
-        # Filter by Categoria
         categoria = self.categoria_filter.currentText()
         if categoria != "Tutti":
             df_filtered = df_filtered[df_filtered['categoria'] == categoria]
 
-        # Filter by Stato
         stato = self.status_filter.currentText()
         if stato != "Tutti":
             df_filtered = df_filtered[df_filtered['stato_certificato'] == stato]
@@ -226,7 +229,6 @@ class DashboardView(QWidget):
             id_col_index = df_filtered.columns.get_loc('id')
             self.table_view.setColumnHidden(id_col_index, True)
 
-            # Set delegate and resize columns
             status_col_index = df_filtered.columns.get_loc('stato_certificato')
             self.table_view.setItemDelegateForColumn(status_col_index, StatusDelegate())
 
@@ -246,13 +248,11 @@ class DashboardView(QWidget):
         selection_model = self.table_view.selectionModel()
         selected_rows_indices = selection_model.selectedRows()
 
-        # Get the original unfiltered dataframe to find the column index for 'id'
         df_for_columns = self.model._data
         if df_for_columns.empty:
             return []
 
         id_column_index = df_for_columns.columns.get_loc('id')
-
         selected_ids = [str(self.model.index(row.row(), id_column_index).data()) for row in selected_rows_indices]
         return selected_ids
 
