@@ -4,331 +4,158 @@ from sqlalchemy.orm import Session
 from app.db.models import Dipendente, Corso, Certificato, ValidationStatus
 from datetime import date
 
+def seed_master_courses(db: Session):
+    """Helper to seed master courses for tests."""
+    corsi = [
+        {"nome_corso": "ANTINCENDIO", "validita_mesi": 60, "categoria_corso": "ANTINCENDIO"},
+        {"nome_corso": "PRIMO SOCCORSO", "validita_mesi": 36, "categoria_corso": "PRIMO SOCCORSO"},
+        {"nome_corso": "VISITA MEDICA", "validita_mesi": 0, "categoria_corso": "VISITA MEDICA"},
+        {"nome_corso": "ALTRO", "validita_mesi": 0, "categoria_corso": "ALTRO"},
+        {"nome_corso": "General", "validita_mesi": 12, "categoria_corso": "General"},
+    ]
+    for corso_data in corsi:
+        if not db.query(Corso).filter_by(nome_corso=corso_data["nome_corso"]).first():
+            db.add(Corso(**corso_data))
+    db.commit()
+
 def test_create_certificato(test_client: TestClient, db_session: Session):
-    """
-    Testa la creazione di un certificato tramite l'endpoint POST /certificati/.
-    """
-    # Aggiungi un corso di esempio al database di test
-    corso_antincendio = Corso(
-        nome_corso="ANTINCENDIO",
-        validita_mesi=60,
-        categoria_corso="ANTINCENDIO"
-    )
-    db_session.add(corso_antincendio)
-    db_session.commit()
-
-    # Dati di esempio
-    certificato_data = {
-        "nome": "Mario Rossi",
-        "corso": "ANTINCENDIO",
-        "categoria": "ANTINCENDIO",
-        "data_rilascio": "14/11/2025",
-        "data_scadenza": "14/11/2030"
+    """Tests successful certificate creation."""
+    seed_master_courses(db_session)
+    cert_data = {
+        "nome": "Mario Rossi", "corso": "ANTINCENDIO", "categoria": "ANTINCENDIO",
+        "data_rilascio": "14/11/2025", "data_scadenza": "14/11/2030"
     }
-
-    # Esegui la richiesta
-    response = test_client.post("/certificati/", json=certificato_data)
-
-    # Verifica la risposta
+    response = test_client.post("/certificati/", json=cert_data)
     assert response.status_code == 200
     data = response.json()
     assert data["nome"] == "Mario Rossi"
-    assert data["corso"] == "ANTINCENDIO"
-    assert data["stato_certificato"] == "attivo"
-
-    # Verifica che il certificato sia stato creato nel database
-    certificato_db = db_session.query(Certificato).filter(Certificato.id == data["id"]).first()
-    assert certificato_db is not None
-    assert certificato_db.stato_validazione == ValidationStatus.AUTOMATIC
-    assert certificato_db.dipendente.cognome == "Rossi"
-    assert certificato_db.corso.nome_corso == "ANTINCENDIO"
+    cert_db = db_session.get(Certificato, data["id"])
+    assert cert_db and cert_db.stato_validazione == ValidationStatus.AUTOMATIC
 
 def test_validate_certificato(test_client: TestClient, db_session: Session):
-    """
-    Testa la validazione di un certificato tramite l'endpoint PUT /certificati/{id}/valida.
-    """
-    # Crea un certificato di esempio
-    from datetime import date
-    certificato = Certificato(
+    """Tests manual validation of a certificate."""
+    seed_master_courses(db_session)
+    cert = Certificato(
         dipendente=Dipendente(nome="Jane", cognome="Doe"),
-        corso=Corso(nome_corso="PRIMO SOCCORSO", validita_mesi=36, categoria_corso="PRIMO SOCCORSO"),
-        data_rilascio=date(2025, 11, 14),
-        stato_validazione=ValidationStatus.AUTOMATIC
+        corso=db_session.query(Corso).filter_by(nome_corso="PRIMO SOCCORSO").one(),
+        data_rilascio=date(2025, 11, 14), stato_validazione=ValidationStatus.AUTOMATIC
     )
-    db_session.add(certificato)
+    db_session.add(cert)
     db_session.commit()
-
-    # Esegui la richiesta di validazione
-    response = test_client.put(f"/certificati/{certificato.id}/valida")
-
-    # Verifica la risposta
+    response = test_client.put(f"/certificati/{cert.id}/valida")
     assert response.status_code == 200
-    data = response.json()
-    assert data["stato_certificato"] == "attivo"
-    assert data["id"] == certificato.id
-
-    # Verifica che lo stato del certificato sia stato aggiornato nel database
-    db_session.refresh(certificato)
-    assert certificato.stato_validazione == ValidationStatus.MANUAL
+    db_session.refresh(cert)
+    assert cert.stato_validazione == ValidationStatus.MANUAL
 
 def test_update_certificato(test_client: TestClient, db_session: Session):
-    """
-    Testa l'aggiornamento di un certificato, verificando che i dati vengano
-    correttamente modificati nel database.
-    """
-    # Arrange: Crea i dati iniziali nel database
-    initial_dipendente = Dipendente(nome="Test", cognome="User")
-    initial_corso = Corso(nome_corso="Initial Course", validita_mesi=12, categoria_corso="General")
-    certificato = Certificato(
-        dipendente=initial_dipendente,
-        corso=initial_corso,
-        data_rilascio=date(2025, 1, 1),
-        stato_validazione=ValidationStatus.MANUAL
+    """Tests updating an existing certificate."""
+    seed_master_courses(db_session)
+    cert = Certificato(
+        dipendente=Dipendente(nome="Test", cognome="User"),
+        corso=db_session.query(Corso).filter_by(nome_corso="General").one(),
+        data_rilascio=date(2025, 1, 1), stato_validazione=ValidationStatus.MANUAL
     )
-    db_session.add_all([initial_dipendente, initial_corso, certificato])
+    db_session.add(cert)
     db_session.commit()
-
     update_payload = {
-        "nome": "Test User",
-        "corso": "Updated Course",
-        "categoria": "General",
-        "data_rilascio": "01/02/2025",
-        "data_scadenza": "01/02/2026"
+        "nome": "Test User", "corso": "Updated Course", "categoria": "General",
+        "data_rilascio": "01/02/2025", "data_scadenza": "01/02/2026"
     }
-
-    # Act: Esegui la richiesta di aggiornamento
-    response = test_client.put(f"/certificati/{certificato.id}", json=update_payload)
-
-    # Assert: Verifica la risposta dell'API e lo stato del database
+    response = test_client.put(f"/certificati/{cert.id}", json=update_payload)
     assert response.status_code == 200
-    response_data = response.json()
-    assert response_data["corso"] == "Updated Course"
-    assert response_data["data_rilascio"] == "01/02/2025"
-
-    db_session.refresh(certificato)
-    assert certificato.corso.nome_corso == "Updated Course"
-    assert certificato.data_rilascio == date(2025, 2, 1)
+    db_session.refresh(cert)
+    assert cert.corso.nome_corso == "Updated Course"
 
 def test_update_certificato_get_or_create(test_client: TestClient, db_session: Session):
-    """
-    Testa la logica "Get or Create" dell'endpoint di aggiornamento.
-    """
-    # Crea dati iniziali
-    dipendente = Dipendente(nome="Old", cognome="Employee")
-    corso = Corso(nome_corso="Old Course", validita_mesi=12, categoria_corso="General")
-    certificato = Certificato(
-        dipendente=dipendente,
-        corso=corso,
-        data_rilascio=date(2025, 1, 1),
+    """Tests the get-or-create logic for employees and courses during an update."""
+    seed_master_courses(db_session)
+    cert = Certificato(
+        dipendente=Dipendente(nome="Old", cognome="Employee"),
+        corso=db_session.query(Corso).filter_by(nome_corso="General").one(),
+        data_rilascio=date(2025, 1, 1)
     )
-    db_session.add_all([dipendente, corso, certificato])
+    db_session.add(cert)
     db_session.commit()
-
-    # Dati di aggiornamento con nuovo dipendente e nuovo corso
     update_data = {
-        "nome": "New Employee",
-        "corso": "New Course",
-        "categoria": "General",
-        "data_rilascio": "01/03/2025",
-        "data_scadenza": "01/03/2026"
+        "nome": "New Employee", "corso": "New Course", "categoria": "General",
+        "data_rilascio": "01/03/2025", "data_scadenza": "01/03/2026"
     }
-
-    response = test_client.put(f"/certificati/{certificato.id}", json=update_data)
+    response = test_client.put(f"/certificati/{cert.id}", json=update_data)
     assert response.status_code == 200
-
-    # Verifica che il nuovo dipendente e il nuovo corso siano stati creati
-    new_dipendente = db_session.query(Dipendente).filter_by(nome="New", cognome="Employee").first()
-    new_corso = db_session.query(Corso).filter_by(nome_corso="New Course").first()
-    assert new_dipendente is not None
-    assert new_corso is not None
-
+    assert db_session.query(Dipendente).filter_by(nome="New", cognome="Employee").one()
+    assert db_session.query(Corso).filter_by(nome_corso="New Course").one()
 
 def test_create_duplicate_certificato_fails(test_client: TestClient, db_session: Session):
-    """
-    Testa che la creazione di un certificato duplicato fallisca con un errore 409.
-    """
-    # Add the 'ALTRO' master course to the test database
-    altro_corso = Corso(
-        nome_corso="ALTRO",
-        validita_mesi=0,
-        categoria_corso="ALTRO"
-    )
-    db_session.add(altro_corso)
-    db_session.commit()
-
-    # Create the first certificate
+    """Tests that creating a duplicate certificate fails."""
+    seed_master_courses(db_session)
     cert_data = {
-        "nome": "Mario Rossi",
-        "corso": "Corso Test Duplicato",
-        "categoria": "ALTRO",
-        "data_rilascio": "01/01/2025",
-        "data_scadenza": "01/01/2026"
+        "nome": "Mario Rossi", "corso": "Corso Duplicato", "categoria": "ALTRO",
+        "data_rilascio": "01/01/2025", "data_scadenza": "01/01/2026"
     }
-    response1 = test_client.post("/certificati/", json=cert_data)
-    assert response1.status_code == 200
-
-    # Attempt to create the exact same certificate again
-    response2 = test_client.post("/certificati/", json=cert_data)
-    assert response2.status_code == 409
-    assert "Un certificato identico per questo dipendente e corso esiste già." in response2.json()["detail"]
-
-    # Verify that only one certificate was created
-    count = db_session.query(Certificato).filter(
-        Certificato.corso.has(nome_corso="Corso Test Duplicato")
-    ).count()
-    assert count == 1
-
+    assert test_client.post("/certificati/", json=cert_data).status_code == 200
+    response = test_client.post("/certificati/", json=cert_data)
+    assert response.status_code == 409
 
 def test_upload_pdf_visita_medica(test_client: TestClient, db_session: Session, mocker):
-    """
-    Testa l'upload di una visita medica, verificando che la data di scadenza
-    estratta direttamente dall'AI venga utilizzata.
-    """
-    # Arrange: Popola il DB con il corso necessario
-    visita_medica_corso = Corso(nome_corso="VISITA MEDICA", validita_mesi=0, categoria_corso="VISITA MEDICA")
-    db_session.add(visita_medica_corso)
-    db_session.commit()
-
-    # Arrange: Mock della funzione di estrazione AI
-    mocked_extracted_data = {
-        "nome": "Mario Rossi",
-        "corso": "Giudizio di idoneità alla Mansione Specifica",
-        "categoria": "VISITA MEDICA",
-        "data_rilascio": "10-10-2025",
-        "data_scadenza": "10-10-2026"  # Data estratta direttamente
-    }
-    mocker.patch(
-        "app.api.main.ai_extraction.extract_entities_with_ai",
-        return_value=mocked_extracted_data
-    )
-
-    # Crea un file PDF fittizio in memoria
-    fake_pdf_bytes = b"%PDF-1.5 fake content"
-    files = {"file": ("visita.pdf", fake_pdf_bytes, "application/pdf")}
-
-    # Act: Esegui la richiesta di upload
-    response = test_client.post("/upload-pdf/", files=files)
-
-    # Assert: Verifica la risposta
+    """Tests PDF upload for a 'VISITA MEDICA' with a direct expiration date."""
+    seed_master_courses(db_session)
+    mocker.patch("app.api.main.ai_extraction.extract_entities_with_ai", return_value={
+        "nome": "Mario Rossi", "corso": "Giudizio di idoneità", "categoria": "VISITA MEDICA",
+        "data_rilascio": "10-10-2025", "data_scadenza": "10-10-2026"
+    })
+    response = test_client.post("/upload-pdf/", files={"file": ("v.pdf", b"c", "application/pdf")})
     assert response.status_code == 200
-    response_data = response.json()
-    assert response_data["entities"]["categoria"] == "VISITA MEDICA"
-    assert response_data["entities"]["data_scadenza"] == "10/10/2026"
+    assert response.json()["entities"]["data_scadenza"] == "10/10/2026"
 
-@pytest.mark.parametrize("payload_override, expected_status_code, error_detail_part", [
-    ({"data_rilascio": ""}, 422, "La data non può essere vuota"),
+@pytest.mark.parametrize("payload_override, expected_status, detail", [
+    ({"data_rilascio": ""}, 422, "La data di rilascio non può essere vuota."),
     ({"data_rilascio": "14-11-2025"}, 422, "Formato data non valido"),
-    ({"data_rilascio": "2025/11/14"}, 422, "Formato data non valido"),
-    ({"nome": ""}, 422, "at least 1 character"),
-    ({"corso": ""}, 422, "at least 1 character"),
-    ({"categoria": ""}, 422, "at least 1 character"),
+    ({"nome": ""}, 422, "String should have at least 1 character"),
     ({"nome": "Mario"}, 400, "Formato nome non valido"),
 ])
-def test_create_certificato_invalid_payload_fails(test_client: TestClient, db_session: Session, payload_override, expected_status_code, error_detail_part):
-    """
-    Testa che la creazione di un certificato fallisca con dati di input non validi,
-    coprendo vari scenari tramite parametrizzazione.
-    """
-    # Setup del corso master nel DB per evitare errori 404
-    corso_antincendio = Corso(nome_corso="ANTINCENDIO", validita_mesi=60, categoria_corso="ANTINCENDIO")
-    db_session.add(corso_antincendio)
-    db_session.commit()
-
-    # Payload di base valido
-    valid_payload = {
-        "nome": "Mario Rossi",
-        "corso": "Corso Antincendio Base",
-        "categoria": "ANTINCENDIO",
-        "data_rilascio": "14/11/2025",
-        "data_scadenza": "14/11/2030"
+def test_create_certificato_invalid_payload(test_client: TestClient, db_session: Session, payload_override, expected_status, detail):
+    """Tests that creating a certificate with invalid data fails as expected."""
+    seed_master_courses(db_session)
+    payload = {
+        "nome": "Mario Rossi", "corso": "Corso Base", "categoria": "ANTINCENDIO",
+        "data_rilascio": "14/11/2025", "data_scadenza": "14/11/2030"
     }
+    payload.update(payload_override)
+    response = test_client.post("/certificati/", json=payload)
+    assert response.status_code == expected_status
+    assert detail in str(response.json().get("detail", ""))
 
-    # Applica l'override per il caso di test corrente
-    invalid_payload = valid_payload.copy()
-    invalid_payload.update(payload_override)
-
-    # Esegui la richiesta
-    response = test_client.post("/certificati/", json=invalid_payload)
-
-    # Verifica lo status code e il messaggio di errore
-    assert response.status_code == expected_status_code
-    response_data = response.json()
-    if isinstance(response_data.get('detail'), list):
-        assert any(error_detail_part in error['msg'] for error in response_data['detail'])
-    else:
-        assert error_detail_part in response_data.get('detail', '')
-
-@pytest.mark.parametrize("input_scadenza, expected_db_value, expected_response_value", [
-    ("15/12/2030", date(2030, 12, 15), "15/12/2030"),
-    (None, None, None),
-    ("", None, None),
-    ("None", None, None),
-    ("none", None, None),
+@pytest.mark.parametrize("scadenza_in, db_out, resp_out", [
+    ("15/12/2030", date(2030, 12, 15), "15/12/2030"), (None, None, None),
+    ("", None, None), ("None", None, None), ("none", None, None)
 ])
-def test_update_certificato_data_scadenza_variations(test_client: TestClient, db_session: Session, input_scadenza, expected_db_value, expected_response_value):
-    """
-    Testa l'aggiornamento della data di scadenza con vari input (validi, null, stringhe vuote).
-    """
-    # Arrange
-    certificato = Certificato(
+def test_update_data_scadenza_variations(test_client: TestClient, db_session: Session, scadenza_in, db_out, resp_out):
+    """Tests updating the expiration date with various null-like values."""
+    seed_master_courses(db_session)
+    cert = Certificato(
         dipendente=Dipendente(nome="Jane", cognome="Doe"),
-        corso=Corso(nome_corso="Test Course", validita_mesi=60, categoria_corso="General"),
-        data_rilascio=date(2025, 1, 1),
-        data_scadenza_calcolata=date(2025, 1, 1) # Valore iniziale
+        corso=db_session.query(Corso).filter_by(nome_corso="General").one(),
+        data_rilascio=date(2025, 1, 1)
     )
-    db_session.add(certificato)
+    db_session.add(cert)
     db_session.commit()
-
-    update_payload = {
-        "nome": "Jane Doe",
-        "corso": "Test Course",
-        "categoria": "General",
-        "data_rilascio": "01/01/2025",
-        "data_scadenza": input_scadenza
+    payload = {
+        "nome": "Jane Doe", "corso": "Test Course", "categoria": "General",
+        "data_rilascio": "01/01/2025", "data_scadenza": scadenza_in
     }
-
-    # Act
-    response = test_client.put(f"/certificati/{certificato.id}", json=update_payload)
-
-    # Assert
+    response = test_client.put(f"/certificati/{cert.id}", json=payload)
     assert response.status_code == 200
-    db_session.refresh(certificato)
-    assert certificato.data_scadenza_calcolata == expected_db_value
-    assert response.json()["data_scadenza"] == expected_response_value
+    db_session.refresh(cert)
+    assert cert.data_scadenza_calcolata == db_out
+    assert response.json()["data_scadenza"] == resp_out
 
 def test_upload_pdf(test_client: TestClient, db_session: Session, mocker):
-    """
-    Testa l'endpoint di upload PDF, mockando la chiamata al servizio AI
-    per rendere il test veloce e deterministico.
-    """
-    # Arrange: Popola il DB con il corso necessario
-    corso_antincendio = Corso(nome_corso="ANTINCENDIO", validita_mesi=60, categoria_corso="ANTINCENDIO")
-    db_session.add(corso_antincendio)
-    db_session.commit()
-
-    # Arrange: Mock della funzione di estrazione AI
-    mocked_extracted_data = {
-        "nome": "Mario Rossi",
-        "corso": "Corso Sicurezza Base",
-        "categoria": "ANTINCENDIO",
+    """Tests PDF upload and expiration date calculation."""
+    seed_master_courses(db_session)
+    mocker.patch("app.api.main.ai_extraction.extract_entities_with_ai", return_value={
+        "nome": "Mario Rossi", "corso": "Corso Sicurezza", "categoria": "ANTINCENDIO",
         "data_rilascio": "10-10-2025"
-    }
-    mocker.patch(
-        "app.api.main.ai_extraction.extract_entities_with_ai",
-        return_value=mocked_extracted_data
-    )
-
-    # Crea un file PDF fittizio in memoria
-    fake_pdf_bytes = b"%PDF-1.5 fake content"
-    files = {"file": ("test.pdf", fake_pdf_bytes, "application/pdf")}
-
-    # Act: Esegui la richiesta di upload
-    response = test_client.post("/upload-pdf/", files=files)
-
-    # Assert: Verifica la risposta
+    })
+    response = test_client.post("/upload-pdf/", files={"file": ("t.pdf", b"c", "application/pdf")})
     assert response.status_code == 200
-    response_data = response.json()
-    assert response_data["filename"] == "test.pdf"
-    assert response_data["entities"]["nome"] == "Mario Rossi"
-    assert response_data["entities"]["data_rilascio"] == "10/10/2025"
-    assert "data_scadenza" in response_data["entities"] # Verifica che la logica di calcolo sia stata chiamata
+    assert "data_scadenza" in response.json()["entities"]

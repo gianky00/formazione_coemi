@@ -2,10 +2,18 @@ from datetime import date
 from dateutil.relativedelta import relativedelta
 from sqlalchemy.orm import Session
 from app.db.models import Certificato, Corso
+from typing import Optional
 
-def calculate_expiration_date(issue_date: date, validity_months: int) -> date:
+def calculate_expiration_date(issue_date: date, validity_months: int) -> Optional[date]:
     """
     Calcola la data di scadenza di un certificato.
+
+    Args:
+        issue_date: La data di rilascio del certificato.
+        validity_months: Il numero di mesi di validità del corso.
+
+    Returns:
+        La data di scadenza calcolata, o None se la validità è zero.
     """
     if validity_months > 0:
         return issue_date + relativedelta(months=validity_months)
@@ -14,25 +22,25 @@ def calculate_expiration_date(issue_date: date, validity_months: int) -> date:
 def get_certificate_status(db: Session, certificato: Certificato) -> str:
     """
     Determina lo stato di un certificato (attivo, scaduto, o rinnovato).
+
+    Args:
+        db: La sessione del database.
+        certificato: L'oggetto Certificato da valutare.
+
+    Returns:
+        Lo stato del certificato come stringa ('attivo', 'scaduto', 'rinnovato').
     """
-    # Se il certificato non ha data di scadenza, è sempre attivo
-    if not certificato.data_scadenza_calcolata:
+    if certificato.data_scadenza_calcolata is None:
         return "attivo"
 
-    # Se la data di scadenza è futura, è attivo
     if certificato.data_scadenza_calcolata >= date.today():
         return "attivo"
 
-    # Se è scaduto, controlla se ne esiste uno più recente per lo stesso dipendente e categoria
     newer_cert_exists = db.query(Certificato).join(Corso).filter(
         Certificato.dipendente_id == certificato.dipendente_id,
         Corso.categoria_corso == certificato.corso.categoria_corso,
         Certificato.data_rilascio > certificato.data_rilascio,
-        # Considera "attivo" un certificato con data di scadenza futura o nulla
-        (Certificato.data_scadenza_calcolata >= date.today()) | (Certificato.data_scadenza_calcolata == None)
+        (Certificato.data_scadenza_calcolata >= date.today()) | (Certificato.data_scadenza_calcolata.is_(None))
     ).first()
 
-    if newer_cert_exists:
-        return "rinnovato"
-    else:
-        return "scaduto"
+    return "rinnovato" if newer_cert_exists else "scaduto"

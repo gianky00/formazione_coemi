@@ -1,3 +1,9 @@
+"""
+This module handles the database session and engine creation.
+It reads the database URL from the environment variables and sets up the
+SQLAlchemy engine and session factory. It also provides a dependency
+for FastAPI to get a database session.
+"""
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import os
@@ -11,6 +17,11 @@ engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def get_db():
+    """
+    FastAPI dependency that provides a database session for each request.
+    It ensures that the database session is always closed after the request
+    is finished.
+    """
     db = SessionLocal()
     try:
         yield db
