@@ -129,6 +129,25 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
         stato_certificato=status
     )
 
+@router.put("/certificati/{certificato_id}/valida", response_model=CertificatoSchema)
+def valida_certificato(certificato_id: int, db: Session = Depends(get_db)):
+    db_cert = db.get(Certificato, certificato_id)
+    if not db_cert:
+        raise HTTPException(status_code=404, detail="Certificato non trovato")
+    db_cert.stato_validazione = ValidationStatus.MANUAL
+    db.commit()
+    db.refresh(db_cert)
+    status = certificate_logic.get_certificate_status(db, db_cert)
+    return CertificatoSchema(
+        id=db_cert.id,
+        nome=f"{db_cert.dipendente.nome} {db_cert.dipendente.cognome}",
+        corso=db_cert.corso.nome_corso,
+        categoria=db_cert.corso.categoria_corso or "General",
+        data_rilascio=db_cert.data_rilascio.strftime('%d/%m/%Y'),
+        data_scadenza=db_cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_cert.data_scadenza_calcolata else None,
+        stato_certificato=status
+    )
+
 @router.put("/certificati/{certificato_id}", response_model=CertificatoSchema)
 def update_certificato(certificato_id: int, certificato: CertificatoAggiornamentoSchema, db: Session = Depends(get_db)):
     db_cert = db.get(Certificato, certificato_id)
@@ -165,25 +184,6 @@ def update_certificato(certificato_id: int, certificato: CertificatoAggiornament
     db_cert.data_scadenza_calcolata = datetime.strptime(certificato.data_scadenza, '%d/%m/%Y').date() if certificato.data_scadenza and certificato.data_scadenza.strip() and certificato.data_scadenza.lower() != 'none' else None
     db_cert.stato_validazione = ValidationStatus.MANUAL
 
-    db.commit()
-    db.refresh(db_cert)
-    status = certificate_logic.get_certificate_status(db, db_cert)
-    return CertificatoSchema(
-        id=db_cert.id,
-        nome=f"{db_cert.dipendente.nome} {db_cert.dipendente.cognome}",
-        corso=db_cert.corso.nome_corso,
-        categoria=db_cert.corso.categoria_corso or "General",
-        data_rilascio=db_cert.data_rilascio.strftime('%d/%m/%Y'),
-        data_scadenza=db_cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_cert.data_scadenza_calcolata else None,
-        stato_certificato=status
-    )
-
-@router.put("/certificati/{certificato_id}/valida", response_model=CertificatoSchema)
-def valida_certificato(certificato_id: int, db: Session = Depends(get_db)):
-    db_cert = db.get(Certificato, certificato_id)
-    if not db_cert:
-        raise HTTPException(status_code=404, detail="Certificato non trovato")
-    db_cert.stato_validazione = ValidationStatus.MANUAL
     db.commit()
     db.refresh(db_cert)
     status = certificate_logic.get_certificate_status(db, db_cert)
