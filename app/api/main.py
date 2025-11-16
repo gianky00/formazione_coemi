@@ -75,17 +75,19 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
     if not certificato.data_rilascio:
         raise HTTPException(status_code=422, detail="La data di rilascio non può essere vuota.")
 
-    nome_parts = certificato.nome.split()
+    nome_parts = certificato.nome.strip().split()
     if len(nome_parts) < 2:
         raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
 
-    dipendente = db.query(Dipendente).filter_by(nome=nome_parts[0], cognome=" ".join(nome_parts[1:])).first()
+    nome, cognome = nome_parts[0], " ".join(nome_parts[1:])
+    dipendente = db.query(Dipendente).filter(Dipendente.nome.ilike(f"%{nome}%"), Dipendente.cognome.ilike(f"%{cognome}%")).first()
+
     if not dipendente:
-        dipendente = Dipendente(nome=nome_parts[0], cognome=" ".join(nome_parts[1:]))
+        dipendente = Dipendente(nome=nome, cognome=cognome)
         db.add(dipendente)
         db.flush()
 
-    master_course = db.query(Corso).filter(Corso.categoria_corso.ilike(f"%{certificato.categoria}%")).first()
+    master_course = db.query(Corso).filter(Corso.categoria_corso.ilike(f"%{certificato.categoria.strip()}%")).first()
     if not master_course:
         raise HTTPException(status_code=404, detail=f"Categoria '{certificato.categoria}' non trovata.")
 

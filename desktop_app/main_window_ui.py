@@ -130,8 +130,16 @@ class MainWindow(QMainWindow):
             self.stacked_widget.addWidget(view)
 
     def _init_connections(self):
+        # Quando l'importazione è completata, aggiorna la vista di convalida
         self.views["Analizza"].import_completed.connect(self.views["Convalida Dati"].refresh_data)
+
+        # Quando la validazione è completata, aggiorna sia il database che lo scadenzario
         self.views["Convalida Dati"].validation_completed.connect(self.views["Database"].load_data)
+        self.views["Convalida Dati"].validation_completed.connect(self.views["Scadenzario"].refresh_data)
+
+        # Quando il database cambia (modifica/cancella), aggiorna lo scadenzario
+        self.views["Database"].database_changed.connect(self.views["Scadenzario"].refresh_data)
+
         for name, button in self.sidebar.buttons.items():
             if name in self.views:
                 button.clicked.connect(lambda checked, view=self.views[name]: self.handle_nav_click(view))

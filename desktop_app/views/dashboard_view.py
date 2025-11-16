@@ -1,6 +1,6 @@
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QComboBox, QLabel, QFileDialog, QMessageBox, QListView, QStyledItemDelegate
-from PyQt6.QtCore import QAbstractTableModel, Qt
+from PyQt6.QtCore import QAbstractTableModel, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter
 import pandas as pd
 import requests
@@ -64,6 +64,8 @@ class CertificatoTableModel(QAbstractTableModel):
         return None
 
 class DashboardView(QWidget):
+    database_changed = pyqtSignal()
+
     def __init__(self):
         super().__init__()
         self.layout = QVBoxLayout(self)
@@ -276,6 +278,7 @@ class DashboardView(QWidget):
                 update_response.raise_for_status()
                 QMessageBox.information(self, "Successo", "Certificato aggiornato con successo.")
                 self.load_data()
+                self.database_changed.emit()
         except requests.exceptions.RequestException as e:
             QMessageBox.critical(self, "Errore", f"Impossibile modificare il certificato: {e}")
 
@@ -298,6 +301,8 @@ class DashboardView(QWidget):
                     pass
             QMessageBox.information(self, "Operazione Completata", f"{success_count} certificati cancellati con successo.")
             self.load_data()
+            if success_count > 0:
+                self.database_changed.emit()
 
     def export_to_csv(self):
         if not hasattr(self, 'model') or self.model.rowCount() == 0:
