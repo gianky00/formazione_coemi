@@ -82,29 +82,31 @@ class DropZone(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFrameShape(QFrame.Shape.StyledPanel)
-        self.setStyleSheet("""
-            QFrame {
-                border: 1px solid #E0E0E0;
-                border-radius: 15px;
-                background-color: #F7F8FC;
-            }
-        """)
+        self.setObjectName("card")
         self.setAcceptDrops(True)
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(20)
 
         icon_label = QLabel()
-        icon_label.setPixmap(QIcon("desktop_app/icons/analizza.svg").pixmap(64, 64))
+        icon_label.setPixmap(QIcon("desktop_app/icons/analizza.svg").pixmap(80, 80))
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(icon_label)
 
-        text_label = QLabel("Trascina qui la tua cartella PDF per l'analisi")
-        text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        text_label.setStyleSheet("font-size: 16px;")
-        layout.addWidget(text_label)
+        main_text = QLabel("Trascina i tuoi file PDF qui")
+        main_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        main_text.setStyleSheet("font-size: 20px; font-weight: 600; color: #1F2937;")
+        layout.addWidget(main_text)
 
-        self.select_folder_button = QPushButton("Oppure seleziona una cartella")
+        sub_text = QLabel("oppure")
+        sub_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sub_text.setStyleSheet("font-size: 16px; color: #6B7280;")
+        layout.addWidget(sub_text)
+
+        self.select_folder_button = QPushButton("Seleziona Cartella")
+        self.select_folder_button.setObjectName("secondary")
+        self.select_folder_button.setFixedWidth(200)
         layout.addWidget(self.select_folder_button)
 
     def dragEnterEvent(self, event):
@@ -124,20 +126,29 @@ class ImportView(QWidget):
         self.progress_bar = progress_bar
         self.progress_label = progress_label
         self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(20, 20, 20, 20)
+
+        title_layout = QVBoxLayout()
+        title_layout.setSpacing(5)
 
         title = QLabel("Analisi Documenti")
-        title.setStyleSheet("font-size: 24px; font-weight: bold;")
-        self.layout.addWidget(title)
+        title.setStyleSheet("font-size: 28px; font-weight: 700;")
+        title_layout.addWidget(title)
+
+        description = QLabel("Carica, analizza ed estrai automaticamente le informazioni dai tuoi documenti.")
+        description.setStyleSheet("font-size: 16px; color: #6B7280;")
+        title_layout.addWidget(description)
+
+        self.layout.addLayout(title_layout)
 
         self.drop_zone = DropZone(self)
         self.drop_zone.select_folder_button.clicked.connect(self.select_folder)
-        self.layout.addWidget(self.drop_zone)
+        self.layout.addWidget(self.drop_zone, 1) # Make drop zone stretch
 
         self.results_display = QTextEdit()
         self.results_display.setReadOnly(True)
-        self.results_display.setStyleSheet("font-family: Consolas, monospace; background-color: #F0F0F0; border-radius: 5px;")
-        self.layout.addWidget(self.results_display)
+        self.results_display.setObjectName("card")
+        self.results_display.setStyleSheet("font-family: 'Consolas', 'Menlo', monospace; background-color: #FFFFFF; color: #4B5563; border-radius: 12px; font-size: 13px;")
+        self.layout.addWidget(self.results_display, 1) # Make results stretch
 
     def select_folder(self):
         folder_path = QFileDialog.getExistingDirectory(self, "Seleziona Cartella")
