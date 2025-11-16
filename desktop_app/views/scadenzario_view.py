@@ -73,7 +73,7 @@ class ScadenzarioView(QWidget):
 
     def load_data(self):
         try:
-            response = requests.get(f"{API_URL}/certificati/")
+            response = requests.get(f"{API_URL}/certificati/?validated=true")
             self.data = response.json() if response.status_code == 200 else []
         except requests.exceptions.RequestException:
             self.data = []
