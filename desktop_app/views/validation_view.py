@@ -136,6 +136,7 @@ class ValidationView(QWidget):
                 self.df = pd.DataFrame(data)
                 self.model = CheckboxTableModel(self.df, self)
                 self.table_view.setModel(self.model)
+                self.table_view.resizeColumnsToContents()
         except requests.exceptions.RequestException as e:
             QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
 

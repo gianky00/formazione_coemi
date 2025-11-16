@@ -123,7 +123,7 @@ class MainWindow(QMainWindow):
         self.sidebar.buttons["Analizza"].clicked.connect(lambda: self.fade_in_widget(self.import_view))
         self.sidebar.buttons["Convalida Dati"].clicked.connect(lambda: self.fade_in_widget(self.validation_view))
         self.sidebar.buttons["Database"].clicked.connect(lambda: self.fade_in_widget(self.dashboard_view))
-        self.sidebar.buttons["Scadenzario"].clicked.connect(lambda: self.fade_in_widget(self.scadenzario_view))
+        self.sidebar.buttons["Scadenzario"].clicked.connect(self.show_scadenzario)
         self.sidebar.buttons["Addestra"].clicked.connect(lambda: self.fade_in_widget(self.config_view))
 
         help_menu = QMenu(self)
@@ -138,6 +138,10 @@ class MainWindow(QMainWindow):
 
         self.sidebar.buttons["Analizza"].setChecked(True)
         self.fade_in_widget(self.import_view, immediate=True)
+
+    def show_scadenzario(self):
+        self.scadenzario_view.refresh_data()
+        self.fade_in_widget(self.scadenzario_view)
 
     def fade_in_widget(self, widget, immediate=False):
         if self.current_fade_animation:

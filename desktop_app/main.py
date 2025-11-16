@@ -11,7 +11,7 @@ def main():
 
     # Splash Screen
     splash_pix = QPixmap("desktop_app/assets/logo.png").scaled(
-        500, 120, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+        800, 192, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
     )
     splash = QSplashScreen(splash_pix, Qt.WindowType.WindowStaysOnTopHint)
     splash.setWindowOpacity(0)
