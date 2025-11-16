@@ -1,8 +1,20 @@
 
 import sys
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget, QPushButton, QLabel, QFrame, QMessageBox, QMenu, QProgressBar, QGraphicsOpacityEffect
-from PyQt6.QtGui import QIcon, QPixmap
+from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
 from PyQt6.QtCore import Qt, QSize, QDate, QPropertyAnimation, QEasingCurve
+from PyQt6.QtSvg import QSvgRenderer
+
+def create_colored_icon(icon_path, color):
+    renderer = QSvgRenderer(icon_path)
+    pixmap = QPixmap(renderer.defaultSize())
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    renderer.render(painter)
+    painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+    painter.fillRect(pixmap.rect(), color)
+    painter.end()
+    return QIcon(pixmap)
 
 from desktop_app.views.import_view import ImportView
 from desktop_app.views.dashboard_view import DashboardView
@@ -41,9 +53,19 @@ class Sidebar(QWidget):
 
         self.help_button = self.add_nav_button("Supporto", "desktop_app/icons/help.svg", bottom=True)
 
+        self.update_button_icons()
+
+    def update_button_icons(self):
+        for text, button in self.buttons.items():
+            icon_path = button.property("icon_path")
+            if button.isChecked():
+                button.setIcon(create_colored_icon(icon_path, QColor("black")))
+            else:
+                button.setIcon(create_colored_icon(icon_path, QColor("white")))
+
     def add_nav_button(self, text, icon_path, bottom=False):
         button = QPushButton(f"")
-        button.setIcon(QIcon(icon_path))
+        button.setProperty("icon_path", icon_path) # Store path for stylesheet
         button.setIconSize(QSize(28, 28))
         button.setCheckable(True)
         button.setAutoExclusive(True)
@@ -120,11 +142,11 @@ class MainWindow(QMainWindow):
 
         self.current_fade_animation = None
 
-        self.sidebar.buttons["Analizza"].clicked.connect(lambda: self.fade_in_widget(self.import_view))
-        self.sidebar.buttons["Convalida Dati"].clicked.connect(lambda: self.fade_in_widget(self.validation_view))
-        self.sidebar.buttons["Database"].clicked.connect(lambda: self.fade_in_widget(self.dashboard_view))
+        self.sidebar.buttons["Analizza"].clicked.connect(lambda: self.handle_nav_click(self.import_view))
+        self.sidebar.buttons["Convalida Dati"].clicked.connect(lambda: self.handle_nav_click(self.validation_view))
+        self.sidebar.buttons["Database"].clicked.connect(lambda: self.handle_nav_click(self.dashboard_view))
         self.sidebar.buttons["Scadenzario"].clicked.connect(self.show_scadenzario)
-        self.sidebar.buttons["Addestra"].clicked.connect(lambda: self.fade_in_widget(self.config_view))
+        self.sidebar.buttons["Addestra"].clicked.connect(lambda: self.handle_nav_click(self.config_view))
 
         help_menu = QMenu(self)
         legal_action = help_menu.addAction("Avviso Legale")
@@ -140,8 +162,13 @@ class MainWindow(QMainWindow):
         self.fade_in_widget(self.import_view, immediate=True)
 
     def show_scadenzario(self):
+        self.sidebar.update_button_icons()
         self.scadenzario_view.refresh_data()
         self.fade_in_widget(self.scadenzario_view)
+
+    def handle_nav_click(self, widget):
+        self.sidebar.update_button_icons()
+        self.fade_in_widget(widget)
 
     def fade_in_widget(self, widget, immediate=False):
         if self.current_fade_animation:
