@@ -192,8 +192,13 @@ class DashboardView(QWidget):
                 data = response.json()
                 self.df = pd.DataFrame(data)
 
-                employees = ["Tutti"] + sorted(list(set([item['nome'] for item in data])))
-                categories = ["Tutti"] + sorted(list(set([item['categoria'] for item in data])))
+                if self.df.empty:
+                    employees = ["Tutti"]
+                    categories = ["Tutti"]
+                else:
+                    employees = ["Tutti"] + sorted(list(set(self.df['nome'])))
+                    categories = ["Tutti"] + sorted(list(set(self.df['categoria'])))
+
                 stati = ["Tutti", "attivo", "scaduto", "rinnovato", "in_scadenza"]
 
                 current_employee = self.employee_filter.currentText()
@@ -211,21 +216,23 @@ class DashboardView(QWidget):
                 if current_category in categories: self.category_filter.setCurrentText(current_category)
                 if current_status in stati: self.status_filter.setCurrentText(current_status)
 
-                employee = self.employee_filter.currentText()
-                category = self.category_filter.currentText()
-                status = self.status_filter.currentText()
+                if not self.df.empty:
+                    employee = self.employee_filter.currentText()
+                    category = self.category_filter.currentText()
+                    status = self.status_filter.currentText()
 
-                if employee != "Tutti": self.df = self.df[self.df['nome'] == employee]
-                if category != "Tutti": self.df = self.df[self.df['categoria'] == category]
-                if status != "Tutti": self.df = self.df[self.df['stato_certificato'] == status]
+                    if employee != "Tutti": self.df = self.df[self.df['nome'] == employee]
+                    if category != "Tutti": self.df = self.df[self.df['categoria'] == category]
+                    if status != "Tutti": self.df = self.df[self.df['stato_certificato'] == status]
 
                 self.model = CheckboxTableModel(self.df)
                 self.model.setParent(self)
                 self.table_view.setModel(self.model)
 
-                # Set delegate for status column
-                status_column_index = self.df.columns.get_loc('stato_certificato') + 1
-                self.table_view.setItemDelegateForColumn(status_column_index, StatusDelegate(self.table_view))
+                if not self.df.empty:
+                    # Set delegate for status column
+                    status_column_index = self.df.columns.get_loc('stato_certificato') + 1
+                    self.table_view.setItemDelegateForColumn(status_column_index, StatusDelegate(self.table_view))
         except requests.exceptions.RequestException as e:
             QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
 
