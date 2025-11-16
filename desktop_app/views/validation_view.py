@@ -143,7 +143,8 @@ class ValidationView(QWidget):
 
     def load_data(self):
         try:
-            response = requests.get(f"{API_URL}/certificati/?validation_status=AUTOMATIC")
+            # Fetch unvalidated certificates
+            response = requests.get(f"{API_URL}/certificati/?validated=false")
             response.raise_for_status()
             data = response.json()
 
