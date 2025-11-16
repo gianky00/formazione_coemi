@@ -196,24 +196,32 @@ class ValidationView(QWidget):
         if not selected_ids:
             return
 
+        selection_model = self.table_view.selectionModel()
+        selected_rows = selection_model.selectedRows()
+        first_row = min((r.row() for r in selected_rows), default=-1)
+
         reply = QMessageBox.question(self, 'Conferma Cancellazione', f'Sei sicuro di voler cancellare {len(selected_ids)} certificati?',
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
 
         if reply == QMessageBox.StandardButton.Yes:
-            self.perform_action("delete", selected_ids)
+            self.perform_action("delete", selected_ids, first_row)
 
     def validate_selected(self):
         selected_ids = self.get_selected_ids()
         if not selected_ids:
             return
 
+        selection_model = self.table_view.selectionModel()
+        selected_rows = selection_model.selectedRows()
+        first_row = min((r.row() for r in selected_rows), default=-1)
+
         reply = QMessageBox.question(self, 'Conferma Validazione', f'Sei sicuro di voler validare {len(selected_ids)} certificati?',
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
 
         if reply == QMessageBox.StandardButton.Yes:
-            self.perform_action("validate", selected_ids)
+            self.perform_action("validate", selected_ids, first_row)
 
-    def perform_action(self, action_type, ids):
+    def perform_action(self, action_type, ids, row_to_reselect=-1):
         success_count = 0
         error_messages = []
 
@@ -240,4 +248,11 @@ class ValidationView(QWidget):
             self.validation_completed.emit()
 
         self.load_data()
-        self.update_button_states()
+
+        # After reloading, try to re-select a row to keep the flow
+        if row_to_reselect != -1:
+            new_row_count = self.model.rowCount()
+            if new_row_count > 0:
+                # Select the same index, or the last item if the index is now out of bounds
+                final_row = min(row_to_reselect, new_row_count - 1)
+                self.table_view.selectRow(final_row)
