@@ -1,36 +1,21 @@
 @echo off
 
-ECHO --- 1. Controlla e Crea l'Ambiente Virtuale ---
+REM --- 1. Controlla e Crea l'Ambiente Virtuale ---
 IF NOT EXIST ".\Scripts\activate.bat" (
-    ECHO Creazione ambiente virtuale in corso...
-    py -3.12 -m venv .
-) ELSE (
-    ECHO Ambiente virtuale trovato.
+    py -3.12 -m venv . > nul 2>&1
 )
 
 REM --- 2. ATTIVA L'AMBIENTE VIRTUALE ---
-ECHO Attivazione ambiente virtuale...
 CALL .\Scripts\activate
 
 REM --- 3. Installa Dipendenze Python ---
-ECHO Aggiornamento pip...
-python -m pip install --upgrade pip
-ECHO Installazione requirements.txt...
-python -m pip install -r requirements.txt
+python -m pip install --upgrade pip > nul 2>&1
+python -m pip install -r requirements.txt > nul 2>&1
 
 REM --- 4. Installa Dipendenze Playwright ---
-ECHO Installazione dipendenze Playwright...
-playwright install --with-deps
+playwright install --with-deps > nul 2>&1
 
 REM --- 5. Avvia le Applicazioni ---
-ECHO Avvio applicazioni...
 set PYTHONPATH=.
-
-ECHO Avvio backend (output in questa finestra)...
-start /b python app/main.py
-
-ECHO Avvio desktop app (output in questa finestra)...
-python desktop_app/main.py
-
-ECHO Script terminato.
-pause
+start /b python app/main.py > backend.log 2>&1
+pythonw desktop_app/main.py
