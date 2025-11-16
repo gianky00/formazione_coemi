@@ -1,149 +1,122 @@
 
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QComboBox, QLabel, QFileDialog, QMessageBox, QListView, QCheckBox, QStyledItemDelegate, QStyleOptionViewItem
-from PyQt6.QtCore import QAbstractTableModel, Qt, QItemSelection, QItemSelectionModel, QModelIndex
-from PyQt6.QtGui import QPainter, QColor, QFontMetrics, QFont
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QComboBox, QLabel, QFileDialog, QMessageBox, QListView, QStyledItemDelegate
+from PyQt6.QtCore import QAbstractTableModel, Qt
+from PyQt6.QtGui import QColor, QPainter
 import pandas as pd
 import requests
 from .edit_dialog import EditCertificatoDialog
 from ..api_client import API_URL
 
 class StatusDelegate(QStyledItemDelegate):
-    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex) -> None:
+    def paint(self, painter, option, index):
         status = index.data(Qt.ItemDataRole.DisplayRole)
         if status:
             painter.save()
 
             color_map = {
-                "attivo": QColor("#ECFDF5"), "rinnovato": QColor("#ECFDF5"),
-                "scaduto": QColor("#FEF2F2"), "in_scadenza": QColor("#FFFBEB")
+                "attivo": QColor("#ECFDF5"),
+                "rinnovato": QColor("#ECFDF5"),
+                "scaduto": QColor("#FEF2F2"),
+                "in_scadenza": QColor("#FFFBEB")
             }
             text_color_map = {
-                "attivo": QColor("#059669"), "rinnovato": QColor("#059669"),
-                "scaduto": QColor("#DC2626"), "in_scadenza": QColor("#F59E0B")
+                "attivo": QColor("#059669"),
+                "rinnovato": QColor("#059669"),
+                "scaduto": QColor("#DC2626"),
+                "in_scadenza": QColor("#F59E0B")
             }
 
-            background_color = color_map.get(status, QColor("transparent"))
-            text_color = text_color_map.get(status, QColor("#1F2937"))
+            color = color_map.get(status, QColor("white"))
+            text_color = text_color_map.get(status, QColor("black"))
 
-            font = QFont("Inter", 12, QFont.Weight.Medium)
-            metrics = QFontMetrics(font)
-            text_width = metrics.horizontalAdvance(status)
+            rect = option.rect
+            rect.adjust(5, 3, -5, -3)
 
-            pill_rect = option.rect.adjusted(10, 5, -10, -5)
-            pill_rect.setWidth(text_width + 24)
-
-            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            painter.setBrush(background_color)
+            painter.setBrush(color)
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRoundedRect(pill_rect, 12, 12)
+            painter.drawRoundedRect(rect, rect.height() / 2, rect.height() / 2)
 
-            painter.setFont(font)
             painter.setPen(text_color)
-            painter.drawText(pill_rect, Qt.AlignmentFlag.AlignCenter, status)
+            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, status.capitalize())
 
             painter.restore()
-        else:
-            super().paint(painter, option, index)
 
-class CheckboxTableModel(QAbstractTableModel):
+class CertificatoTableModel(QAbstractTableModel):
     def __init__(self, data):
         super().__init__()
         self._data = data
-        self.check_states = [Qt.CheckState.Unchecked] * self._data.shape[0]
 
     def rowCount(self, parent=None):
         return self._data.shape[0]
 
     def columnCount(self, parent=None):
-        return self._data.shape[1] + 1
+        return self._data.shape[1]
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
-        if not index.isValid():
+        if not index.isValid() or role != Qt.ItemDataRole.DisplayRole:
             return None
-
-        if role == Qt.ItemDataRole.CheckStateRole and index.column() == 0:
-            return self.check_states[index.row()].value
-
-        if role == Qt.ItemDataRole.DisplayRole and index.column() > 0:
-            return str(self._data.iloc[index.row(), index.column() - 1])
-
-        return None
-
-    def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
-        if role == Qt.ItemDataRole.CheckStateRole and index.column() == 0:
-            self.check_states[index.row()] = Qt.CheckState(value)
-            self.dataChanged.emit(index, index)
-            self.parent().update_button_states()
-            return True
-        return False
-
-    def flags(self, index):
-        flags = super().flags(index)
-        if index.column() == 0:
-            flags |= Qt.ItemFlag.ItemIsUserCheckable
-        return flags
+        return str(self._data.iloc[index.row(), index.column()])
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
-            if section == 0:
-                return ""
-            return str(self._data.columns[section - 1])
+            return str(self._data.columns[section])
         return None
 
 class DashboardView(QWidget):
     def __init__(self):
         super().__init__()
         self.layout = QVBoxLayout(self)
-        self.layout.setSpacing(20)
+        self.layout.setContentsMargins(20, 20, 20, 20)
+        self.layout.setSpacing(15)
 
-        # Title and Description
         title_layout = QVBoxLayout()
         title_layout.setSpacing(5)
         title = QLabel("Database Certificati")
-        title.setStyleSheet("font-size: 28px; font-weight: 700;")
+        title.setObjectName("viewTitle")
         title_layout.addWidget(title)
-        description = QLabel("Esplora, filtra e gestisci tutti i certificati dei dipendenti.")
-        description.setStyleSheet("font-size: 16px; color: #6B7280;")
+        description = QLabel("Visualizza, gestisci ed esporta tutti i certificati dei dipendenti.")
+        description.setObjectName("viewDescription")
         title_layout.addWidget(description)
         self.layout.addLayout(title_layout)
 
-        # Main Content Card
         main_card = QWidget()
         main_card.setObjectName("card")
         main_card_layout = QVBoxLayout(main_card)
-        main_card_layout.setSpacing(20)
+        main_card_layout.setSpacing(15)
 
-        # Control Bar
+        # Filters and Controls
         control_bar_layout = QHBoxLayout()
         control_bar_layout.setSpacing(10)
 
-        # Filters
-        self.employee_filter = QComboBox()
-        self.employee_filter.setPlaceholderText("Filtra per Dipendente")
-        control_bar_layout.addWidget(self.employee_filter)
+        self.dipendente_filter = QComboBox()
+        self.dipendente_filter.setMinimumWidth(200)
+        self.dipendente_filter.setView(QListView())
+        self.dipendente_filter.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        control_bar_layout.addWidget(QLabel("Dipendente:"))
+        control_bar_layout.addWidget(self.dipendente_filter)
 
-        self.category_filter = QComboBox()
-        self.category_filter.setPlaceholderText("Filtra per Categoria")
-        control_bar_layout.addWidget(self.category_filter)
+        self.categoria_filter = QComboBox()
+        self.categoria_filter.setMinimumWidth(200)
+        self.categoria_filter.setView(QListView())
+        self.categoria_filter.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        control_bar_layout.addWidget(QLabel("Categoria:"))
+        control_bar_layout.addWidget(self.categoria_filter)
 
         self.status_filter = QComboBox()
-        self.status_filter.setPlaceholderText("Filtra per Stato")
+        self.status_filter.setMinimumWidth(150)
+        self.status_filter.setView(QListView())
+        self.status_filter.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        control_bar_layout.addWidget(QLabel("Stato:"))
         control_bar_layout.addWidget(self.status_filter)
-
-        self.filter_button = QPushButton("Filtra")
-        self.filter_button.clicked.connect(self.load_data)
-        control_bar_layout.addWidget(self.filter_button)
 
         control_bar_layout.addStretch()
 
-        # Action Buttons
         self.export_button = QPushButton("Esporta")
         self.export_button.setObjectName("secondary")
         self.export_button.clicked.connect(self.export_to_csv)
         control_bar_layout.addWidget(self.export_button)
 
         self.edit_button = QPushButton("Modifica")
-        self.edit_button.setObjectName("secondary")
         self.edit_button.clicked.connect(self.edit_data)
         control_bar_layout.addWidget(self.edit_button)
 
@@ -154,157 +127,186 @@ class DashboardView(QWidget):
 
         main_card_layout.addLayout(control_bar_layout)
 
-        # Table
         self.table_view = QTableView()
         self.table_view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self.table_view.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
         self.table_view.setShowGrid(False)
-        self.table_view.setMouseTracking(True)
-        self.table_view.entered.connect(self.table_view.viewport().update)
-
-        header = self.table_view.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents) # Checkbox
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents) # ID
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch) # Nome
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch) # Corso
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents) # Categoria
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents) # Data Rilascio
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents) # Data Scadenza
-        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents) # Stato
-        self.table_view.clicked.connect(self.on_row_clicked)
+        self.table_view.setAlternatingRowColors(True)
 
         main_card_layout.addWidget(self.table_view)
         self.layout.addWidget(main_card)
 
-        self._initial_load = True
-        self.load_data()
-        self._initial_load = False
+        # Connect signals once
+        self.dipendente_filter.currentIndexChanged.connect(self.filter_data)
+        self.categoria_filter.currentIndexChanged.connect(self.filter_data)
+        self.status_filter.currentIndexChanged.connect(self.filter_data)
 
+        self._initial_load = True
+        self.df_original = pd.DataFrame()
+        self.load_data()
+
+        if self.table_view.selectionModel():
+            self.table_view.selectionModel().selectionChanged.connect(self.update_button_states)
         self.update_button_states()
 
-    def on_row_clicked(self, index):
-        if hasattr(self, 'model'):
-            check_index = self.model.index(index.row(), 0)
-            check_state = self.model.data(check_index, Qt.ItemDataRole.CheckStateRole)
-            new_state = Qt.CheckState.Unchecked if check_state == Qt.CheckState.Checked.value else Qt.CheckState.Checked
-            self.model.setData(check_index, new_state.value, Qt.ItemDataRole.CheckStateRole)
-
     def update_button_states(self):
-        selected_ids = self.get_selected_ids()
-        self.edit_button.setEnabled(len(selected_ids) == 1)
-        self.delete_button.setEnabled(len(selected_ids) > 0)
+        selection_model = self.table_view.selectionModel()
+        has_selection = selection_model is not None and selection_model.hasSelection()
+        is_single_selection = len(selection_model.selectedRows()) == 1 if has_selection else False
+
+        self.edit_button.setEnabled(is_single_selection)
+        self.delete_button.setEnabled(has_selection)
+        self.export_button.setEnabled(hasattr(self, 'model') and self.model.rowCount() > 0)
+
+    def setup_filters(self):
+        # Block signals to prevent premature filtering while populating
+        self.dipendente_filter.blockSignals(True)
+        self.categoria_filter.blockSignals(True)
+        self.status_filter.blockSignals(True)
+
+        self.dipendente_filter.clear()
+        dipendenti = sorted(self.df_original['nome'].unique()) if not self.df_original.empty else []
+        self.dipendente_filter.addItems(["Tutti"] + dipendenti)
+
+        self.categoria_filter.clear()
+        categorie = sorted(self.df_original['categoria'].unique()) if not self.df_original.empty else []
+        self.categoria_filter.addItems(["Tutti"] + categorie)
+
+        self.status_filter.clear()
+        stati = sorted(self.df_original['stato_certificato'].unique()) if not self.df_original.empty else []
+        self.status_filter.addItems(["Tutti"] + stati)
+
+        # Unblock signals
+        self.dipendente_filter.blockSignals(False)
+        self.categoria_filter.blockSignals(False)
+        self.status_filter.blockSignals(False)
 
     def load_data(self):
         try:
             response = requests.get(f"{API_URL}/certificati/")
-            if response.status_code == 200:
-                data = response.json()
-                self.df = pd.DataFrame(data)
+            response.raise_for_status()
+            data = response.json()
 
-                if self.df.empty:
-                    employees = ["Tutti"]
-                    categories = ["Tutti"]
-                else:
-                    employees = ["Tutti"] + sorted(list(set(self.df['nome'])))
-                    categories = ["Tutti"] + sorted(list(set(self.df['categoria'])))
+            self.df_original = pd.DataFrame(data) if data else pd.DataFrame()
 
-                stati = ["Tutti", "attivo", "scaduto", "rinnovato", "in_scadenza"]
+            if self._initial_load:
+                self.setup_filters()
+                self._initial_load = False
 
-                current_employee = self.employee_filter.currentText()
-                current_category = self.category_filter.currentText()
-                current_status = self.status_filter.currentText()
+            self.filter_data()
+            self.update_button_states()
 
-                self.employee_filter.clear()
-                self.employee_filter.addItems(employees)
-                self.category_filter.clear()
-                self.category_filter.addItems(categories)
-                self.status_filter.clear()
-                self.status_filter.addItems(stati)
-
-                if self._initial_load:
-                    self.employee_filter.setCurrentText("Tutti")
-                    self.category_filter.setCurrentText("Tutti")
-                    self.status_filter.setCurrentText("Tutti")
-                else:
-                    if current_employee in employees: self.employee_filter.setCurrentText(current_employee)
-                    if current_category in categories: self.category_filter.setCurrentText(current_category)
-                    if current_status in stati: self.status_filter.setCurrentText(current_status)
-
-                if not self.df.empty:
-                    employee = self.employee_filter.currentText()
-                    category = self.category_filter.currentText()
-                    status = self.status_filter.currentText()
-
-                    if employee != "Tutti": self.df = self.df[self.df['nome'] == employee]
-                    if category != "Tutti": self.df = self.df[self.df['categoria'] == category]
-                    if status != "Tutti": self.df = self.df[self.df['stato_certificato'] == status]
-
-                self.model = CheckboxTableModel(self.df)
-                self.model.setParent(self)
-                self.table_view.setModel(self.model)
-
-                if not self.df.empty:
-                    # Set delegate for status column
-                    status_column_index = self.df.columns.get_loc('stato_certificato') + 1
-                    self.table_view.setItemDelegateForColumn(status_column_index, StatusDelegate(self.table_view))
         except requests.exceptions.RequestException as e:
-            QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
+            QMessageBox.critical(self, "Errore di Connessione", f"Impossibile caricare i dati: {e}")
+            self.df_original = pd.DataFrame()
+            self.filter_data()
+
+    def filter_data(self):
+        if self.df_original.empty:
+            self.model = CertificatoTableModel(pd.DataFrame())
+            self.table_view.setModel(self.model)
+            self.update_button_states()
+            return
+
+        df_filtered = self.df_original.copy()
+
+        dipendente = self.dipendente_filter.currentText()
+        if dipendente != "Tutti":
+            df_filtered = df_filtered[df_filtered['nome'] == dipendente]
+
+        categoria = self.categoria_filter.currentText()
+        if categoria != "Tutti":
+            df_filtered = df_filtered[df_filtered['categoria'] == categoria]
+
+        stato = self.status_filter.currentText()
+        if stato != "Tutti":
+            df_filtered = df_filtered[df_filtered['stato_certificato'] == stato]
+
+        self.model = CertificatoTableModel(df_filtered)
+        self.table_view.setModel(self.model)
+
+        if not df_filtered.empty:
+            id_col_index = df_filtered.columns.get_loc('id')
+            self.table_view.setColumnHidden(id_col_index, True)
+
+            status_col_index = df_filtered.columns.get_loc('stato_certificato')
+            self.table_view.setItemDelegateForColumn(status_col_index, StatusDelegate())
+
+            header = self.table_view.horizontalHeader()
+            header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+            if 'nome' in df_filtered.columns:
+                header.setSectionResizeMode(df_filtered.columns.get_loc('nome'), QHeaderView.ResizeMode.Stretch)
+            if 'corso' in df_filtered.columns:
+                header.setSectionResizeMode(df_filtered.columns.get_loc('corso'), QHeaderView.ResizeMode.Stretch)
+
+        self.update_button_states()
 
     def get_selected_ids(self):
-        selected_ids = []
-        if hasattr(self, 'model'):
-            for i in range(self.model.rowCount()):
-                if self.model.data(self.model.index(i, 0), Qt.ItemDataRole.CheckStateRole) == Qt.CheckState.Checked.value:
-                    selected_ids.append(self.df.iloc[i]['id'])
+        if not hasattr(self, 'model') or self.model.rowCount() == 0:
+            return []
+
+        selection_model = self.table_view.selectionModel()
+        selected_rows_indices = selection_model.selectedRows()
+
+        df_for_columns = self.model._data
+        if df_for_columns.empty:
+            return []
+
+        id_column_index = df_for_columns.columns.get_loc('id')
+        selected_ids = [str(self.model.index(row.row(), id_column_index).data()) for row in selected_rows_indices]
         return selected_ids
 
     def edit_data(self):
         selected_ids = self.get_selected_ids()
-        if not selected_ids:
+        if not selected_ids or len(selected_ids) > 1:
+            QMessageBox.warning(self, "Selezione Invalida", "Seleziona una singola riga da modificare.")
             return
 
-        row = [i for i, cert_id in enumerate(self.df['id']) if cert_id == selected_ids[0]][0]
-        current_data = self.df.iloc[row].to_dict()
-
+        cert_id = selected_ids[0]
         try:
-            response = requests.get(f"{API_URL}/corsi/")
-            if response.status_code == 200:
-                master_categories = [corso['categoria_corso'] for corso in response.json()]
-            else:
-                master_categories = sorted(list(set(self.df['categoria'].unique())))
-        except requests.exceptions.RequestException:
-            master_categories = sorted(list(set(self.df['categoria'].unique())))
+            response = requests.get(f"{API_URL}/certificati/{cert_id}")
+            response.raise_for_status()
+            cert_data = response.json()
 
-        dialog = EditCertificatoDialog(current_data, master_categories, self)
-        if dialog.exec():
-            new_data = dialog.get_data()
-            try:
-                response = requests.put(f"{API_URL}/certificati/{selected_ids[0]}", json=new_data)
-                if response.status_code == 200:
-                    self.load_data()
-                else:
-                    QMessageBox.critical(self, "Errore", f"Errore durante l'aggiornamento: {response.text}")
-            except requests.exceptions.RequestException as e:
-                QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
+            dialog = EditCertificatoDialog(cert_data)
+            if dialog.exec():
+                updated_data = dialog.get_data()
+                update_response = requests.put(f"{API_URL}/certificati/{cert_id}", json=updated_data)
+                update_response.raise_for_status()
+                QMessageBox.information(self, "Successo", "Certificato aggiornato con successo.")
+                self.load_data()
+        except requests.exceptions.RequestException as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile modificare il certificato: {e}")
 
     def delete_data(self):
         selected_ids = self.get_selected_ids()
         if not selected_ids:
             return
 
-        reply = QMessageBox.question(self, 'Conferma Cancellazione', f'Sei sicuro di voler cancellare {len(selected_ids)} righe selezionate?',
+        reply = QMessageBox.question(self, 'Conferma Cancellazione', f'Sei sicuro di voler cancellare {len(selected_ids)} certificati?',
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
 
         if reply == QMessageBox.StandardButton.Yes:
+            success_count = 0
             for cert_id in selected_ids:
                 try:
-                    requests.delete(f"{API_URL}/certificati/{cert_id}")
+                    response = requests.delete(f"{API_URL}/certificati/{cert_id}")
+                    response.raise_for_status()
+                    success_count += 1
                 except requests.exceptions.RequestException:
                     pass
+            QMessageBox.information(self, "Operazione Completata", f"{success_count} certificati cancellati con successo.")
             self.load_data()
 
     def export_to_csv(self):
-        if hasattr(self, 'df'):
-            path, _ = QFileDialog.getSaveFileName(self, "Salva CSV", "report.csv", "CSV Files (*.csv)")
-            if path:
-                self.df.to_csv(path, index=False)
+        if not hasattr(self, 'model') or self.model.rowCount() == 0:
+            QMessageBox.warning(self, "Nessun Dato", "Non ci sono dati da esportare.")
+            return
+
+        path, _ = QFileDialog.getSaveFileName(self, "Salva CSV", "certificati.csv", "CSV Files (*.csv)")
+        if path:
+            try:
+                self.model._data.to_csv(path, index=False)
+                QMessageBox.information(self, "Esportazione Riuscita", f"Dati esportati con successo in {path}")
+            except Exception as e:
+                QMessageBox.critical(self, "Errore di Esportazione", f"Impossibile salvare il file: {e}")

@@ -1,6 +1,6 @@
 
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QMessageBox, QStyledItemDelegate, QLineEdit, QCheckBox, QLabel
-from PyQt6.QtCore import QAbstractTableModel, Qt, QItemSelection, QItemSelectionModel
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QMessageBox, QStyledItemDelegate, QLineEdit, QLabel
+from PyQt6.QtCore import QAbstractTableModel, Qt
 import pandas as pd
 import requests
 from ..api_client import API_URL
@@ -8,63 +8,74 @@ from ..api_client import API_URL
 class CustomDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):
         editor = super().createEditor(parent, option, index)
+        if isinstance(editor, QLineEdit):
+            editor.selectAll()
         return editor
 
     def setEditorData(self, editor, index):
         super().setEditorData(editor, index)
-        if isinstance(editor, QLineEdit):
-            editor.selectAll()
 
-class CheckboxTableModel(QAbstractTableModel):
+class SimpleTableModel(QAbstractTableModel):
     def __init__(self, data, parent=None):
         super().__init__(parent)
         self._data = data
-        self.check_states = [Qt.CheckState.Unchecked] * self._data.shape[0]
 
     def rowCount(self, parent=None):
         return self._data.shape[0]
 
     def columnCount(self, parent=None):
-        return self._data.shape[1] + 1
+        return self._data.shape[1]
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid():
             return None
-
-        if role == Qt.ItemDataRole.CheckStateRole and index.column() == 0:
-            return self.check_states[index.row()].value
-
-        if role == Qt.ItemDataRole.DisplayRole and index.column() > 0:
-            return str(self._data.iloc[index.row(), index.column() - 1])
-
+        if role == Qt.ItemDataRole.DisplayRole or role == Qt.ItemDataRole.EditRole:
+            return str(self._data.iloc[index.row(), index.column()])
         return None
 
     def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
-        if role == Qt.ItemDataRole.CheckStateRole and index.column() == 0:
-            self.check_states[index.row()] = Qt.CheckState(value)
-            self.dataChanged.emit(index, index)
-            self.parent().update_button_states()
-            return True
+        if role == Qt.ItemDataRole.EditRole and index.isValid():
+            try:
+                # Update DataFrame
+                self._data.iloc[index.row(), index.column()] = value
 
-        if role == Qt.ItemDataRole.EditRole and index.column() > 0:
-            self._data.iloc[index.row(), index.column() - 1] = value
-            self.dataChanged.emit(index, index)
-            return True
+                # Get certificate ID and column name
+                cert_id = self._data.iloc[index.row()]['id']
+                column_name = self._data.columns[index.column()]
+
+                # Prepare payload for API
+                payload = {column_name: value}
+
+                # API call to update data
+                response = requests.put(f"{API_URL}/certificati/{cert_id}", json=payload)
+                response.raise_for_status()
+
+                self.dataChanged.emit(index, index, [role])
+                return True
+            except requests.exceptions.RequestException as e:
+                QMessageBox.warning(self.parent(), "Errore di Aggiornamento", f"Impossibile salvare le modifiche: {e}")
+                # Revert data in model if API call fails (optional)
+                # self.load_data() # Or more sophisticated revert logic
+                return False
+            except Exception as e:
+                QMessageBox.warning(self.parent(), "Errore", f"Si è verificato un errore: {e}")
+                return False
         return False
 
     def flags(self, index):
-        flags = super().flags(index)
-        if index.column() == 0:
-            flags |= Qt.ItemFlag.ItemIsUserCheckable
-        else:
-            flags |= Qt.ItemFlag.ItemIsEditable
-        return flags
+        # Make all columns editable except 'id' and 'stato_certificato'
+        if not index.isValid():
+            return Qt.ItemFlag.NoItemFlags
+
+        column_name = self._data.columns[index.column()]
+        if column_name in ['id', 'stato_certificato']:
+            return super().flags(index)
+
+        return super().flags(index) | Qt.ItemFlag.ItemIsEditable
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
-            if section == 0:
-                return ""
-            return str(self._data.columns[section - 1])
+            return str(self._data.columns[section])
         return None
 
 class ValidationView(QWidget):
@@ -78,84 +89,111 @@ class ValidationView(QWidget):
         title_layout = QVBoxLayout()
         title_layout.setSpacing(5)
         title = QLabel("Convalida Dati")
-        title.setStyleSheet("font-size: 28px; font-weight: 700;")
+        title.setObjectName("viewTitle") # Using object name for styling
         title_layout.addWidget(title)
         description = QLabel("Verifica, modifica e approva i dati estratti prima dell'archiviazione.")
-        description.setStyleSheet("font-size: 16px; color: #6B7280;")
+        description.setObjectName("viewDescription")
         title_layout.addWidget(description)
         self.layout.addLayout(title_layout)
 
+        main_card = QWidget()
+        main_card.setObjectName("card")
+        main_card_layout = QVBoxLayout(main_card)
+        main_card_layout.setSpacing(15)
+
         # Controls
         controls_layout = QHBoxLayout()
-        self.select_all_checkbox = QCheckBox("Seleziona Tutto")
-        self.select_all_checkbox.stateChanged.connect(self.toggle_select_all)
-        controls_layout.addWidget(self.select_all_checkbox)
         controls_layout.addStretch()
 
-        self.validate_button = QPushButton("Convalida")
+        self.validate_button = QPushButton("Convalida Selezionati")
+        self.validate_button.setObjectName("primary")
         self.validate_button.clicked.connect(self.validate_selected)
         controls_layout.addWidget(self.validate_button)
 
-        self.delete_button = QPushButton("Cancella")
+        self.delete_button = QPushButton("Cancella Selezionati")
+        self.delete_button.setObjectName("destructive")
         self.delete_button.clicked.connect(self.delete_selected)
         controls_layout.addWidget(self.delete_button)
-        self.layout.addLayout(controls_layout)
+        main_card_layout.addLayout(controls_layout)
 
         # Table
         self.table_view = QTableView()
         self.table_view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self.table_view.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
         self.table_view.setAlternatingRowColors(True)
-        header = self.table_view.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents) # Checkbox
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents) # ID
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch) # Nome
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch) # Corso
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents) # Categoria
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents) # Data Rilascio
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents) # Data Scadenza
-        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents) # Stato
         self.table_view.setItemDelegate(CustomDelegate())
-        self.table_view.clicked.connect(self.on_row_clicked)
-        self.layout.addWidget(self.table_view)
+
+        main_card_layout.addWidget(self.table_view)
+        self.layout.addWidget(main_card)
 
         self.load_data()
+
+        if hasattr(self, 'model') and self.table_view.selectionModel():
+            self.table_view.selectionModel().selectionChanged.connect(self.update_button_states)
         self.update_button_states()
 
-    def on_row_clicked(self, index):
-        if hasattr(self, 'model'):
-            check_index = self.model.index(index.row(), 0)
-            check_state = self.model.data(check_index, Qt.ItemDataRole.CheckStateRole)
-            new_state = Qt.CheckState.Unchecked if check_state == Qt.CheckState.Checked.value else Qt.CheckState.Checked
-            self.model.setData(check_index, new_state.value, Qt.ItemDataRole.CheckStateRole)
+    def refresh_data(self):
+        """Public slot to reload data from the API."""
+        self.load_data()
 
     def update_button_states(self):
-        has_selection = len(self.get_selected_ids()) > 0
+        has_selection = self.table_view.selectionModel().hasSelection()
         self.validate_button.setEnabled(has_selection)
         self.delete_button.setEnabled(has_selection)
 
     def load_data(self):
         try:
-            response = requests.get(f"{API_URL}/certificati/?validated=false")
-            if response.status_code == 200:
-                data = response.json()
-                self.df = pd.DataFrame(data)
-                self.model = CheckboxTableModel(self.df, self)
-                self.table_view.setModel(self.model)
-        except requests.exceptions.RequestException as e:
-            QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
+            response = requests.get(f"{API_URL}/certificati/?validation_status=AUTOMATIC")
+            response.raise_for_status()
+            data = response.json()
 
-    def toggle_select_all(self, state):
-        check_state = Qt.CheckState(state)
-        for i in range(self.model.rowCount()):
-            self.model.setData(self.model.index(i, 0), check_state.value, Qt.ItemDataRole.CheckStateRole)
+            if not data:
+                self.df = pd.DataFrame()
+                QMessageBox.information(self, "Nessun Dato", "Non ci sono nuovi documenti da validare.")
+            else:
+                self.df = pd.DataFrame(data)
+
+            self.model = SimpleTableModel(self.df, self)
+            self.table_view.setModel(self.model)
+
+            if not self.df.empty:
+                # Hide 'id' column
+                id_col_index = self.df.columns.get_loc('id')
+                self.table_view.setColumnHidden(id_col_index, True)
+
+                # Adjust column widths
+                header = self.table_view.horizontalHeader()
+                header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+                if 'nome' in self.df.columns:
+                    header.setSectionResizeMode(self.df.columns.get_loc('nome'), QHeaderView.ResizeMode.Stretch)
+                if 'corso' in self.df.columns:
+                    header.setSectionResizeMode(self.df.columns.get_loc('corso'), QHeaderView.ResizeMode.Stretch)
+
+        except requests.exceptions.RequestException as e:
+            QMessageBox.critical(self, "Errore di Connessione", f"Impossibile caricare i dati da validare: {e}")
+            self.df = pd.DataFrame()
+            self.model = SimpleTableModel(self.df, self)
+            self.table_view.setModel(self.model)
+
+
+    def get_selected_ids(self):
+        if self.df.empty:
+            return []
+
+        selection_model = self.table_view.selectionModel()
+        selected_rows_indices = selection_model.selectedRows()
+
+        id_column_index = self.df.columns.get_loc('id')
+
+        selected_ids = [str(self.model.index(row.row(), id_column_index).data()) for row in selected_rows_indices]
+        return selected_ids
 
     def delete_selected(self):
         selected_ids = self.get_selected_ids()
         if not selected_ids:
             return
 
-        reply = QMessageBox.question(self, 'Conferma Cancellazione', f'Sei sicuro di voler cancellare {len(selected_ids)} righe selezionate?',
+        reply = QMessageBox.question(self, 'Conferma Cancellazione', f'Sei sicuro di voler cancellare {len(selected_ids)} certificati?',
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
 
         if reply == QMessageBox.StandardButton.Yes:
@@ -166,27 +204,34 @@ class ValidationView(QWidget):
         if not selected_ids:
             return
 
-        reply = QMessageBox.question(self, 'Conferma Validazione', f'Sei sicuro di voler validare {len(selected_ids)} righe selezionate?',
+        reply = QMessageBox.question(self, 'Conferma Validazione', f'Sei sicuro di voler validare {len(selected_ids)} certificati?',
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
 
         if reply == QMessageBox.StandardButton.Yes:
             self.perform_action("validate", selected_ids)
 
-    def get_selected_ids(self):
-        selected_ids = []
-        if hasattr(self, 'model'):
-            for i in range(self.model.rowCount()):
-                if self.model.data(self.model.index(i, 0), Qt.ItemDataRole.CheckStateRole) == Qt.CheckState.Checked.value:
-                    selected_ids.append(self.df.iloc[i]['id'])
-        return selected_ids
-
     def perform_action(self, action_type, ids):
+        success_count = 0
+        error_messages = []
+
         for cert_id in ids:
             try:
                 if action_type == "validate":
-                    requests.put(f"{API_URL}/certificati/{cert_id}/valida")
-                else:
-                    requests.delete(f"{API_URL}/certificati/{cert_id}")
-            except requests.exceptions.RequestException:
-                pass # Optionally show an error message for each failed request
+                    response = requests.put(f"{API_URL}/certificati/{cert_id}/valida")
+                else: # delete
+                    response = requests.delete(f"{API_URL}/certificati/{cert_id}")
+
+                response.raise_for_status()
+                success_count += 1
+            except requests.exceptions.RequestException as e:
+                error_messages.append(f"ID {cert_id}: {e}")
+
+        if error_messages:
+            QMessageBox.warning(self, "Operazione Parzialmente Riuscita",
+                                f"{success_count} operazioni riuscite.\n"
+                                f"Errori su {len(error_messages)} elementi:\n" + "\n".join(error_messages))
+        else:
+            QMessageBox.information(self, "Successo", f"Operazione completata con successo su {success_count} elementi.")
+
         self.load_data()
+        self.update_button_states()
