@@ -11,6 +11,13 @@ class Settings(BaseSettings):
     GOOGLE_CLOUD_PROJECT: str = os.getenv("GOOGLE_CLOUD_PROJECT", "")
     GCS_BUCKET_NAME: str = os.getenv("GCS_BUCKET_NAME", "")
 
+    # SMTP Settings for email notifications
+    SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.example.com")
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", 587))
+    SMTP_USER: str = os.getenv("SMTP_USER", "user@example.com")
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "password")
+    EMAIL_RECIPIENT: str = os.getenv("EMAIL_RECIPIENT", "gianky.allegretti@gmail.com")
+
     # CORREZIONE: Sostituita la 'class Config' deprecata con 'model_config'
     model_config = ConfigDict(
         env_file=".env",
