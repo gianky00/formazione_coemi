@@ -27,15 +27,30 @@ def create_colored_icon(icon_path: str, color: QColor) -> QIcon:
 class Sidebar(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.is_expanded = True
+        self.expanded_width = 280
+        self.collapsed_width = 80
+
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
+
+        # Hamburger Button
+        self.toggle_btn = QPushButton()
+        self.toggle_btn.setObjectName("toggle_btn")
+        self.toggle_btn.setIcon(QIcon(create_colored_icon("desktop_app/icons/hamburger.svg", QColor("white"))))
+        self.toggle_btn.setIconSize(QSize(28, 28))
+        self.toggle_btn.clicked.connect(self.toggle_sidebar)
+        self.layout.addWidget(self.toggle_btn)
+
         self.logo_label = QLabel()
         self.logo_label.setObjectName("logo")
         self.logo_pixmap = QPixmap("desktop_app/assets/logo.png")
-        self.logo_label.setPixmap(self.logo_pixmap.scaled(240, 66, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        self.logo_label.setPixmap(self.logo_pixmap.scaled(250, 60, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.logo_label.setMinimumHeight(80)
         self.layout.addWidget(self.logo_label)
+
         self.nav_buttons = QVBoxLayout()
         self.nav_buttons.setSpacing(5)
         self.buttons = {}
@@ -43,11 +58,32 @@ class Sidebar(QWidget):
         self.add_nav_button("Convalida Dati", "desktop_app/icons/convalida.svg")
         self.add_nav_button("Database", "desktop_app/icons/database.svg")
         self.add_nav_button("Scadenzario", "desktop_app/icons/scadenzario.svg")
-        self.add_nav_button("Addestra", "desktop_app/icons/addestra.svg")
+        self.add_nav_button("Configurazione", "desktop_app/icons/addestra.svg")
         self.layout.addLayout(self.nav_buttons)
+
         self.layout.addStretch()
+
         self.help_button = self.add_nav_button("Supporto", "desktop_app/icons/help.svg", bottom=True)
         self.update_button_icons()
+
+        self.animation = QPropertyAnimation(self, b"minimumWidth")
+        self.animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        self.animation.setDuration(300)
+
+        self.setMinimumWidth(self.expanded_width)
+
+    def toggle_sidebar(self):
+        self.is_expanded = not self.is_expanded
+        start_width = self.width()
+        end_width = self.expanded_width if self.is_expanded else self.collapsed_width
+
+        self.animation.setStartValue(start_width)
+        self.animation.setEndValue(end_width)
+        self.animation.start()
+
+        # Update button text visibility
+        for text, button in self.buttons.items():
+            button.setText(text if self.is_expanded else "")
 
     def update_button_icons(self):
         for button in self.buttons.values():
@@ -56,7 +92,7 @@ class Sidebar(QWidget):
             button.setIcon(create_colored_icon(icon_path, color))
 
     def add_nav_button(self, text, icon_path, bottom=False):
-        button = QPushButton()
+        button = QPushButton(text)
         button.setProperty("icon_path", icon_path)
         button.setIconSize(QSize(28, 28))
         button.setCheckable(True)
@@ -124,7 +160,7 @@ class MainWindow(QMainWindow):
             "Convalida Dati": ValidationView(),
             "Database": DashboardView(),
             "Scadenzario": ScadenzarioView(),
-            "Addestra": ConfigView(),
+            "Configurazione": ConfigView(),
         }
         for view in self.views.values():
             self.stacked_widget.addWidget(view)
