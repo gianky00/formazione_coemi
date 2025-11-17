@@ -70,6 +70,23 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
         ))
     return result
 
+@router.get("/certificati/{certificato_id}", response_model=CertificatoSchema)
+def get_certificato(certificato_id: int, db: Session = Depends(get_db)):
+    db_cert = db.get(Certificato, certificato_id)
+    if not db_cert:
+        raise HTTPException(status_code=404, detail="Certificato non trovato")
+
+    status = certificate_logic.get_certificate_status(db, db_cert)
+    return CertificatoSchema(
+        id=db_cert.id,
+        nome=f"{db_cert.dipendente.nome} {db_cert.dipendente.cognome}",
+        corso=db_cert.corso.nome_corso,
+        categoria=db_cert.corso.categoria_corso or "General",
+        data_rilascio=db_cert.data_rilascio.strftime('%d/%m/%Y'),
+        data_scadenza=db_cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_cert.data_scadenza_calcolata else None,
+        stato_certificato=status
+    )
+
 @router.post("/certificati/", response_model=CertificatoSchema)
 def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = Depends(get_db)):
     if not certificato.data_rilascio:
@@ -156,36 +173,46 @@ def update_certificato(certificato_id: int, certificato: CertificatoAggiornament
     if not db_cert:
         raise HTTPException(status_code=404, detail="Certificato non trovato")
 
-    nome_parts = certificato.nome.split()
-    if len(nome_parts) < 2:
-        raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
+    update_data = certificato.model_dump(exclude_unset=True)
 
-    dipendente = db.query(Dipendente).filter_by(nome=nome_parts[0], cognome=" ".join(nome_parts[1:])).first()
-    if not dipendente:
-        dipendente = Dipendente(nome=nome_parts[0], cognome=" ".join(nome_parts[1:]))
-        db.add(dipendente)
-        db.flush()
-    db_cert.dipendente_id = dipendente.id
+    if 'nome' in update_data:
+        nome_parts = update_data['nome'].split()
+        if len(nome_parts) < 2:
+            raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
 
-    master_course = db.query(Corso).filter(Corso.categoria_corso.ilike(f"%{certificato.categoria}%")).first()
-    if not master_course:
-        raise HTTPException(status_code=404, detail=f"Categoria '{certificato.categoria}' non trovata.")
+        dipendente = db.query(Dipendente).filter_by(nome=nome_parts[0], cognome=" ".join(nome_parts[1:])).first()
+        if not dipendente:
+            dipendente = Dipendente(nome=nome_parts[0], cognome=" ".join(nome_parts[1:]))
+            db.add(dipendente)
+            db.flush()
+        db_cert.dipendente_id = dipendente.id
 
-    course = db.query(Corso).filter(Corso.nome_corso.ilike(f"%{certificato.corso}%")).first()
-    if not course:
-        course = Corso(
-            nome_corso=certificato.corso,
-            validita_mesi=master_course.validita_mesi,
-            categoria_corso=master_course.categoria_corso
-        )
-        db.add(course)
-        db.flush()
-    db_cert.corso_id = course.id
+    if 'categoria' in update_data or 'corso' in update_data:
+        categoria = update_data.get('categoria', db_cert.corso.categoria_corso)
+        master_course = db.query(Corso).filter(Corso.categoria_corso.ilike(f"%{categoria}%")).first()
+        if not master_course:
+            raise HTTPException(status_code=404, detail=f"Categoria '{categoria}' non trovata.")
 
-    db_cert.data_rilascio = datetime.strptime(certificato.data_rilascio, '%d/%m/%Y').date()
-    db_cert.data_scadenza_calcolata = datetime.strptime(certificato.data_scadenza, '%d/%m/%Y').date() if certificato.data_scadenza and certificato.data_scadenza.strip() and certificato.data_scadenza.lower() != 'none' else None
+        corso_nome = update_data.get('corso', db_cert.corso.nome_corso)
+        course = db.query(Corso).filter(Corso.nome_corso.ilike(f"%{corso_nome}%")).first()
+        if not course:
+            course = Corso(
+                nome_corso=corso_nome,
+                validita_mesi=master_course.validita_mesi,
+                categoria_corso=master_course.categoria_corso
+            )
+            db.add(course)
+            db.flush()
+        db_cert.corso_id = course.id
+
+    if 'data_rilascio' in update_data:
+        db_cert.data_rilascio = datetime.strptime(update_data['data_rilascio'], '%d/%m/%Y').date()
+
+    if 'data_scadenza' in update_data:
+        scadenza = update_data['data_scadenza']
+        db_cert.data_scadenza_calcolata = datetime.strptime(scadenza, '%d/%m/%Y').date() if scadenza and scadenza.strip() and scadenza.lower() != 'none' else None
+
     db_cert.stato_validazione = ValidationStatus.MANUAL
-
     db.commit()
     db.refresh(db_cert)
     status = certificate_logic.get_certificate_status(db, db_cert)
