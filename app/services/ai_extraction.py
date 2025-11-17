@@ -47,6 +47,8 @@ def _generate_prompt() -> str:
 - PATENTE: [USA QUESTA PER PATENTI DI GUIDA] "Patente di Guida", "Patente B"
 - CARTA DI IDENTITA: [USA QUESTA PER CARTE DI IDENTITÀ] "Carta d'Identità Elettronica", "Documento di Riconoscimento"
 - MODULO RECESSO RAPPORTO DI LAVORO: [USA QUESTA PER DIMISSIONI/RECESSO] "Modulo Recesso Rapporto di Lavoro", "Comunicazione di dimissioni"
+- HLO: [USA QUESTA PER ATTESTATI HLO] "Attestato HLO", "Certificato HLO"
+- TESSERA HLO: [USA QUESTA PER TESSERE HLO] "Tessera HLO", "Badge HLO"
 - ALTRO: (qualsiasi altro documento non classificabile)
 """
     return f"""
@@ -73,6 +75,7 @@ Estrai le seguenti informazioni e classificalo. Restituisci ESCLUSIVAMENTE un og
     5.  Se il documento è una **"Patente di Guida"**, la categoria è **SEMPRE** "PATENTE". La data di scadenza è al punto 4b.
     6.  Se il documento è una **"Carta d'Identità"**, la categoria è **SEMPRE** "CARTA DI IDENTITA". La data di scadenza è nel campo "Scadenza".
     7.  Se il documento è un **"Modulo Recesso Rapporto di Lavoro"** o una comunicazione di dimissioni, la categoria è **SEMPRE** "MODULO RECESSO RAPPORTO DI LAVORO" e la `data_scadenza` deve essere `null`.
+    8.  Se il documento è relativo a un HLO (Helicopter Landing Officer), controlla se è un **attestato di corso** (in quel caso la categoria è "HLO") o una **tessera/badge personale** (in quel caso la categoria è "TESSERA HLO").
 
     ERRORE COMUNE DA EVITare:
     - NON classificare "NOMINA... Preposto" come "PREPOSTO". Quella è una "NOMINE".
