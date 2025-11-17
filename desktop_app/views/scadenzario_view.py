@@ -2,7 +2,7 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGraphicsView, QGraphicsScene,
                              QSplitter, QTreeWidget, QTreeWidgetItem, QGraphicsRectItem,
                              QGraphicsTextItem, QGraphicsLineItem, QPushButton, QHBoxLayout,
-                             QScrollBar, QTreeWidgetItemIterator)
+                             QScrollBar, QTreeWidgetItemIterator, QMessageBox)
 from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QColor, QBrush, QPen, QFont
 import requests
@@ -29,9 +29,18 @@ class ScadenzarioView(QWidget):
         self.prev_month_button = QPushButton("< Mese Prec.")
         self.prev_month_button.clicked.connect(self.prev_month)
         nav_layout.addWidget(self.prev_month_button)
+
         self.next_month_button = QPushButton("Mese Succ. >")
         self.next_month_button.clicked.connect(self.next_month)
         nav_layout.addWidget(self.next_month_button)
+
+        nav_layout.addStretch()
+
+        self.generate_email_button = QPushButton("Genera Email")
+        self.generate_email_button.setObjectName("primary")
+        self.generate_email_button.clicked.connect(self.generate_email)
+        nav_layout.addWidget(self.generate_email_button)
+
         self.layout.addLayout(nav_layout)
 
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -172,6 +181,14 @@ class ScadenzarioView(QWidget):
                             self.gantt_scene.addItem(rect)
                 y_pos += row_height
             iterator += 1
+
+    def generate_email(self):
+        try:
+            response = requests.post(f"{API_URL}/notifications/send-manual-alert")
+            response.raise_for_status()
+            QMessageBox.information(self, "Successo", "Richiesta di invio email inviata con successo.")
+        except requests.exceptions.RequestException as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile inviare la richiesta: {e}")
 
     def refresh_data(self):
         self.load_data()
