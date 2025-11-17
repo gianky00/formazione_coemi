@@ -120,7 +120,8 @@ class ValidationView(QWidget):
             response.raise_for_status()
             cert_data = response.json()
 
-            dialog = EditCertificatoDialog(cert_data, self)
+            all_categories = self.df['categoria'].unique().tolist() if not self.df.empty else []
+            dialog = EditCertificatoDialog(cert_data, all_categories, self)
             if dialog.exec():
                 updated_data = dialog.get_data()
                 update_response = requests.put(f"{API_URL}/certificati/{cert_id}", json=updated_data)
