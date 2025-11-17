@@ -110,33 +110,37 @@ def send_email_notification(pdf_path, expiring_count, overdue_count):
     msg['To'] = ", ".join(to_emails)
     if cc_emails:
         msg['Cc'] = ", ".join(cc_emails)
-    msg['Subject'] = f"Report Scadenze Certificati - {date.today().strftime('%d/%m/%Y')}"
+    msg['Subject'] = f"Avviso Scadenze Automatico - Report del {date.today().strftime('%d/%m/%Y')}"
 
     html_body = f"""
     <html>
     <head>
         <style>
-            body {{ font-family: Arial, sans-serif; font-size: 14px; color: #333; }}
-            .container {{ padding: 20px; border: 1px solid #ddd; border-radius: 8px; max-width: 600px; }}
-            .header {{ font-size: 18px; font-weight: bold; color: #1F2937; }}
-            .summary {{ margin-top: 20px; }}
-            .footer {{ margin-top: 30px; font-size: 12px; color: #888; }}
+            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 16px; color: #333; background-color: #f9fafb; margin: 0; padding: 0; }}
+            .wrapper {{ background-color: #ffffff; margin: 20px auto; padding: 30px; border-radius: 12px; max-width: 600px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+            .header {{ font-size: 24px; font-weight: 700; color: #1F2937; border-bottom: 2px solid #F0F8FF; padding-bottom: 15px; margin-bottom: 20px; }}
+            .summary-box {{ background-color: #F0F8FF; border-left: 4px solid #1D4ED8; padding: 15px; margin: 20px 0; border-radius: 4px; }}
+            .summary-box p {{ margin: 0; font-size: 16px; color: #1F2937; }}
+            .summary-box strong {{ font-size: 18px; }}
+            .content p {{ line-height: 1.6; }}
+            .footer {{ margin-top: 30px; font-size: 12px; color: #9CA3AF; text-align: center; }}
         </style>
     </head>
     <body>
-        <div class="container">
-            <p class="header">Report Scadenze Certificati</p>
-            <p>Buongiorno,</p>
-            <p>In allegato il report PDF dettagliato contenente l'elenco dei certificati in scadenza e di quelli scaduti da oltre un mese per i quali non risulta ancora caricato un rinnovo.</p>
-            <div class="summary">
-                <p><b>Riepilogo:</b></p>
-                <ul>
-                    <li>Certificati in scadenza: <strong>{expiring_count}</strong></li>
-                    <li>Certificati scaduti non rinnovati: <strong>{overdue_count}</strong></li>
-                </ul>
+        <div class="wrapper">
+            <p class="header">Sistema di Monitoraggio Intelleo</p>
+            <div class="content">
+                <p>Questo è un avviso generato automaticamente dal sistema di monitoraggio delle scadenze.</p>
+                <p>In allegato il report PDF dettagliato contenente l'analisi delle scadenze dei certificati alla data odierna.</p>
+                <div class="summary-box">
+                    <p><strong>Riepilogo Analisi:</strong></p>
+                    <ul style="list-style-type: none; padding-left: 0; margin-top: 10px;">
+                        <li style="margin-bottom: 5px;">Certificati in Avvicinamento alla Scadenza: <strong>{expiring_count}</strong></li>
+                        <li>Certificati Scaduti non Rinnovati: <strong>{overdue_count}</strong></li>
+                    </ul>
+                </div>
+                <p>Si prega di prendere visione del report per le azioni di competenza.</p>
             </div>
-            <p>Cordiali saluti,</p>
-            <br>
             <p class="footer">Email generata automaticamente dal Software Intelleo</p>
         </div>
     </body>
