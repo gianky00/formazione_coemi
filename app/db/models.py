@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, ForeignKey, Enum
+from sqlalchemy import Column, Integer, String, Date, ForeignKey, Enum, UniqueConstraint
 from sqlalchemy.orm import relationship, declarative_base
 import enum
 
@@ -32,13 +32,16 @@ class Corso(Base):
     """
     Represents a training course in the database.
     Each course has a unique name, a validity period in months, and a category.
+    A course's uniqueness is defined by the combination of its name and category.
     It holds a relationship to all certificates issued for this course.
     """
     __tablename__ = 'corsi'
+    __table_args__ = (UniqueConstraint('nome_corso', 'categoria_corso', name='_nome_categoria_uc'),)
+
     id = Column(Integer, primary_key=True, index=True)
-    nome_corso = Column(String, unique=True, index=True)
+    nome_corso = Column(String, index=True)
     validita_mesi = Column(Integer)
-    categoria_corso = Column(String)
+    categoria_corso = Column(String, index=True)
     certificati = relationship("Certificato", back_populates="corso")
 
 class Certificato(Base):
