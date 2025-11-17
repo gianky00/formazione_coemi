@@ -16,7 +16,8 @@ class Settings(BaseSettings):
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", 587))
     SMTP_USER: str = os.getenv("SMTP_USER", "user@example.com")
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "password")
-    EMAIL_RECIPIENT: str = os.getenv("EMAIL_RECIPIENT", "gianky.allegretti@gmail.com")
+    EMAIL_RECIPIENTS_TO: str = os.getenv("EMAIL_RECIPIENTS_TO", "gianky.allegretti@gmail.com")
+    EMAIL_RECIPIENTS_CC: str = os.getenv("EMAIL_RECIPIENTS_CC", "")
 
     # CORREZIONE: Sostituita la 'class Config' deprecata con 'model_config'
     model_config = ConfigDict(

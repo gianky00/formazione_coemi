@@ -4,6 +4,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
+import tempfile
 from fpdf import FPDF
 from datetime import date, timedelta
 from sqlalchemy.orm import Session
@@ -45,15 +46,25 @@ def generate_pdf_report(expiring_certificates, overdue_certificates):
                                 f"Corso: {cert.corso.nome_corso}\n"
                                 f"Scaduto il: {cert.data_scadenza_calcolata.strftime('%d/%m/%Y')}\n")
 
-    pdf_path = "/tmp/report_scadenze.pdf"
-    pdf.output(pdf_path)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+        pdf_path = tmp_file.name
+        pdf.output(pdf_path)
     return pdf_path
 
 def send_email_notification(pdf_path, expiring_count, overdue_count):
     """Sends an email with the PDF report attached."""
+    to_emails = [email.strip() for email in settings.EMAIL_RECIPIENTS_TO.split(',') if email.strip()]
+    cc_emails = [email.strip() for email in settings.EMAIL_RECIPIENTS_CC.split(',') if email.strip()]
+
+    if not to_emails:
+        logging.warning("Nessun destinatario (To) configurato. Invio email annullato.")
+        return
+
     msg = MIMEMultipart()
     msg['From'] = settings.SMTP_USER
-    msg['To'] = settings.EMAIL_RECIPIENT
+    msg['To'] = ", ".join(to_emails)
+    if cc_emails:
+        msg['Cc'] = ", ".join(cc_emails)
     msg['Subject'] = f"Report Scadenze Certificati - {date.today().strftime('%d/%m/%Y')}"
 
     body = (
@@ -84,8 +95,8 @@ def send_email_notification(pdf_path, expiring_count, overdue_count):
         with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
             server.starttls()  # Secure the connection
             server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            server.send_message(msg)
-            logging.info(f"Email di notifica inviata con successo a {settings.EMAIL_RECIPIENT}")
+            server.send_message(msg, from_addr=settings.SMTP_USER, to_addrs=to_emails + cc_emails)
+            logging.info(f"Email di notifica inviata con successo a: {', '.join(to_emails)}")
     except Exception as e:
         logging.error(f"Errore nell'invio dell'email di notifica: {e}")
 
