@@ -2,7 +2,7 @@
 import os
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton,
-    QMessageBox, QFrame, QFormLayout
+    QMessageBox, QFrame, QFormLayout, QComboBox
 )
 from PyQt6.QtCore import Qt
 from dotenv import load_dotenv, set_key
@@ -49,6 +49,11 @@ class ConfigView(QWidget):
         smtp_separator.setFrameShadow(QFrame.Shadow.Sunken)
         self.form_layout.addRow(smtp_separator)
 
+        self.email_preset_combo = QComboBox()
+        self.email_preset_combo.addItems(["Manuale", "Gmail", "Outlook"])
+        self.email_preset_combo.currentIndexChanged.connect(self.apply_email_preset)
+        self.form_layout.addRow(QLabel("Preset Email:"), self.email_preset_combo)
+
         self.smtp_host_input = QLineEdit()
         self.form_layout.addRow(QLabel("SMTP Host:"), self.smtp_host_input)
 
@@ -56,14 +61,19 @@ class ConfigView(QWidget):
         self.form_layout.addRow(QLabel("SMTP Port:"), self.smtp_port_input)
 
         self.smtp_user_input = QLineEdit()
-        self.form_layout.addRow(QLabel("SMTP User:"), self.smtp_user_input)
+        self.form_layout.addRow(QLabel("Utente SMTP (Email):"), self.smtp_user_input)
 
         self.smtp_password_input = QLineEdit()
         self.smtp_password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.form_layout.addRow(QLabel("SMTP Password:"), self.smtp_password_input)
+        self.form_layout.addRow(QLabel("Password SMTP:"), self.smtp_password_input)
 
-        self.email_recipient_input = QLineEdit()
-        self.form_layout.addRow(QLabel("Email Recipient:"), self.email_recipient_input)
+        self.recipients_to_input = QLineEdit()
+        self.recipients_to_input.setPlaceholderText("Separati da virgola")
+        self.form_layout.addRow(QLabel("Destinatari (To):"), self.recipients_to_input)
+
+        self.recipients_cc_input = QLineEdit()
+        self.recipients_cc_input.setPlaceholderText("Separati da virgola")
+        self.form_layout.addRow(QLabel("Copia Conoscenza (CC):"), self.recipients_cc_input)
 
 
         self.layout.addWidget(main_card)
@@ -100,7 +110,18 @@ class ConfigView(QWidget):
         self.smtp_port_input.setText(os.getenv("SMTP_PORT", ""))
         self.smtp_user_input.setText(os.getenv("SMTP_USER", ""))
         self.smtp_password_input.setText(os.getenv("SMTP_PASSWORD", ""))
-        self.email_recipient_input.setText(os.getenv("EMAIL_RECIPIENT", ""))
+        self.recipients_to_input.setText(os.getenv("EMAIL_RECIPIENTS_TO", ""))
+        self.recipients_cc_input.setText(os.getenv("EMAIL_RECIPIENTS_CC", ""))
+
+    def apply_email_preset(self):
+        preset = self.email_preset_combo.currentText()
+        if preset == "Gmail":
+            self.smtp_host_input.setText("smtp.gmail.com")
+            self.smtp_port_input.setText("587")
+        elif preset == "Outlook":
+            self.smtp_host_input.setText("smtp.office365.com")
+            self.smtp_port_input.setText("587")
+        # Manual preset does not change anything
 
     def save_config(self):
         env_path = self.get_env_path()
@@ -112,7 +133,8 @@ class ConfigView(QWidget):
             set_key(env_path, "SMTP_PORT", self.smtp_port_input.text())
             set_key(env_path, "SMTP_USER", self.smtp_user_input.text())
             set_key(env_path, "SMTP_PASSWORD", self.smtp_password_input.text())
-            set_key(env_path, "EMAIL_RECIPIENT", self.email_recipient_input.text())
+            set_key(env_path, "EMAIL_RECIPIENTS_TO", self.recipients_to_input.text())
+            set_key(env_path, "EMAIL_RECIPIENTS_CC", self.recipients_cc_input.text())
 
             QMessageBox.information(
                 self,
