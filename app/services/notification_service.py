@@ -16,35 +16,80 @@ import logging
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+class PDF(FPDF):
+    def header(self):
+        # Logo
+        self.image('desktop_app/assets/logo.png', 10, 8, 33)
+        # Arial bold 15
+        self.set_font('Arial', 'B', 15)
+        # Move to the right
+        self.cell(80)
+        # Title
+        self.cell(30, 10, 'Report Scadenze', 0, 0, 'C')
+        # Line break
+        self.ln(20)
+
+    def footer(self):
+        # Position at 1.5 cm from bottom
+        self.set_y(-15)
+        # Arial italic 8
+        self.set_font('Arial', 'I', 8)
+        # Page number
+        self.cell(0, 10, 'Pagina ' + str(self.page_no()) + '/{nb}', 0, 0, 'C')
+
 def generate_pdf_report(expiring_certificates, overdue_certificates):
-    """Generates a PDF report of expiring and overdue certificates."""
-    pdf = FPDF()
+    """Generates a professional PDF report of expiring and overdue certificates."""
+    pdf = PDF()
+    pdf.alias_nb_pages()
     pdf.add_page()
-    pdf.set_font("Arial", size=16)
-    pdf.cell(200, 10, txt="Report Scadenze Certificati", ln=True, align='C')
-    pdf.set_font("Arial", size=12)
+    pdf.set_font('Arial', '', 12)
 
+    # Table for expiring certificates
     if expiring_certificates:
-        pdf.ln(10)
-        pdf.set_font("Arial", 'B', size=14)
-        pdf.cell(200, 10, txt="Certificati in Scadenza", ln=True, align='L')
-        pdf.set_font("Arial", size=10)
-        for cert in expiring_certificates:
-            pdf.ln(5)
-            pdf.multi_cell(0, 10, f"Dipendente: {cert.dipendente.nome} {cert.dipendente.cognome}\n"
-                                f"Corso: {cert.corso.nome_corso}\n"
-                                f"Scadenza: {cert.data_scadenza_calcolata.strftime('%d/%m/%Y')}\n")
+        pdf.set_font('Arial', 'B', 14)
+        pdf.cell(0, 10, 'Certificati in Scadenza', 0, 1, 'L')
+        pdf.ln(5)
 
+        # Table Header
+        pdf.set_font('Arial', 'B', 10)
+        pdf.set_fill_color(240, 248, 255) # Light Alice Blue
+        pdf.cell(60, 10, 'Dipendente', 1, 0, 'C', 1)
+        pdf.cell(80, 10, 'Corso', 1, 0, 'C', 1)
+        pdf.cell(40, 10, 'Data Scadenza', 1, 1, 'C', 1)
+
+        # Table Rows
+        pdf.set_font('Arial', '', 9)
+        fill = False
+        for cert in expiring_certificates:
+            pdf.set_fill_color(255, 255, 255) if not fill else pdf.set_fill_color(245, 245, 245)
+            pdf.cell(60, 10, f"{cert.dipendente.nome} {cert.dipendente.cognome}", 1, 0, 'L', 1)
+            pdf.cell(80, 10, cert.corso.nome_corso, 1, 0, 'L', 1)
+            pdf.cell(40, 10, cert.data_scadenza_calcolata.strftime('%d/%m/%Y'), 1, 1, 'C', 1)
+            fill = not fill
+
+    # Table for overdue certificates
     if overdue_certificates:
         pdf.ln(10)
-        pdf.set_font("Arial", 'B', size=14)
-        pdf.cell(200, 10, txt="Certificati Scaduti e non Rinnovati", ln=True, align='L')
-        pdf.set_font("Arial", size=10)
+        pdf.set_font('Arial', 'B', 14)
+        pdf.cell(0, 10, 'Certificati Scaduti non Rinnovati', 0, 1, 'L')
+        pdf.ln(5)
+
+        # Table Header
+        pdf.set_font('Arial', 'B', 10)
+        pdf.set_fill_color(254, 242, 242) # Light Red
+        pdf.cell(60, 10, 'Dipendente', 1, 0, 'C', 1)
+        pdf.cell(80, 10, 'Corso', 1, 0, 'C', 1)
+        pdf.cell(40, 10, 'Data Scadenza', 1, 1, 'C', 1)
+
+        # Table Rows
+        pdf.set_font('Arial', '', 9)
+        fill = False
         for cert in overdue_certificates:
-            pdf.ln(5)
-            pdf.multi_cell(0, 10, f"Dipendente: {cert.dipendente.nome} {cert.dipendente.cognome}\n"
-                                f"Corso: {cert.corso.nome_corso}\n"
-                                f"Scaduto il: {cert.data_scadenza_calcolata.strftime('%d/%m/%Y')}\n")
+            pdf.set_fill_color(255, 255, 255) if not fill else pdf.set_fill_color(245, 245, 245)
+            pdf.cell(60, 10, f"{cert.dipendente.nome} {cert.dipendente.cognome}", 1, 0, 'L', 1)
+            pdf.cell(80, 10, cert.corso.nome_corso, 1, 0, 'L', 1)
+            pdf.cell(40, 10, cert.data_scadenza_calcolata.strftime('%d/%m/%Y'), 1, 1, 'C', 1)
+            fill = not fill
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
         pdf_path = tmp_file.name
@@ -67,16 +112,37 @@ def send_email_notification(pdf_path, expiring_count, overdue_count):
         msg['Cc'] = ", ".join(cc_emails)
     msg['Subject'] = f"Report Scadenze Certificati - {date.today().strftime('%d/%m/%Y')}"
 
-    body = (
-        f"Buongiorno,\n\n"
-        f"In allegato il report riepilogativo dei certificati.\n\n"
-        f"Riepilogo:\n"
-        f"- Certificati in scadenza: {expiring_count}\n"
-        f"- Certificati scaduti da oltre un mese e non rinnovati: {overdue_count}\n\n"
-        f"Cordiali saluti,\n"
-        f"Intelleo Automated System"
-    )
-    msg.attach(MIMEText(body, 'plain'))
+    html_body = f"""
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; font-size: 14px; color: #333; }}
+            .container {{ padding: 20px; border: 1px solid #ddd; border-radius: 8px; max-width: 600px; }}
+            .header {{ font-size: 18px; font-weight: bold; color: #1F2937; }}
+            .summary {{ margin-top: 20px; }}
+            .footer {{ margin-top: 30px; font-size: 12px; color: #888; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <p class="header">Report Scadenze Certificati</p>
+            <p>Buongiorno,</p>
+            <p>In allegato il report PDF dettagliato contenente l'elenco dei certificati in scadenza e di quelli scaduti da oltre un mese per i quali non risulta ancora caricato un rinnovo.</p>
+            <div class="summary">
+                <p><b>Riepilogo:</b></p>
+                <ul>
+                    <li>Certificati in scadenza: <strong>{expiring_count}</strong></li>
+                    <li>Certificati scaduti non rinnovati: <strong>{overdue_count}</strong></li>
+                </ul>
+            </div>
+            <p>Cordiali saluti,</p>
+            <br>
+            <p class="footer">Email generata automaticamente dal Software Intelleo</p>
+        </div>
+    </body>
+    </html>
+    """
+    msg.attach(MIMEText(html_body, 'html'))
 
     with open(pdf_path, "rb") as attachment:
         part = MIMEBase("application", "octet-stream")
