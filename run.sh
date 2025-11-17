@@ -19,8 +19,10 @@ echo "Installing dependencies from requirements.txt..."
 python -m pip install -r requirements.txt
 
 # --- 4. Installa Dipendenze Playwright ---
-echo "Installing Playwright dependencies..."
-playwright install --with-deps
+if ! playwright --version > /dev/null 2>&1; then
+    echo "Installing Playwright dependencies..."
+    playwright install --with-deps
+fi
 
 # --- 5. Avvia le Applicazioni ---
 echo "Starting the backend server..."

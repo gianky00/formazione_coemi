@@ -4,16 +4,8 @@ from PyQt6.QtCore import QAbstractTableModel, Qt, pyqtSignal
 import pandas as pd
 import requests
 from ..api_client import API_URL
+from .edit_dialog import EditCertificatoDialog
 
-class CustomDelegate(QStyledItemDelegate):
-    def createEditor(self, parent, option, index):
-        editor = super().createEditor(parent, option, index)
-        if isinstance(editor, QLineEdit):
-            editor.selectAll()
-        return editor
-
-    def setEditorData(self, editor, index):
-        super().setEditorData(editor, index)
 
 class SimpleTableModel(QAbstractTableModel):
     def __init__(self, data, parent=None):
@@ -33,45 +25,8 @@ class SimpleTableModel(QAbstractTableModel):
             return str(self._data.iloc[index.row(), index.column()])
         return None
 
-    def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
-        if role == Qt.ItemDataRole.EditRole and index.isValid():
-            try:
-                # Update DataFrame
-                self._data.iloc[index.row(), index.column()] = value
-
-                # Get certificate ID and column name
-                cert_id = self._data.iloc[index.row()]['id']
-                column_name = self._data.columns[index.column()]
-
-                # Prepare payload for API
-                payload = {column_name: value}
-
-                # API call to update data
-                response = requests.put(f"{API_URL}/certificati/{cert_id}", json=payload)
-                response.raise_for_status()
-
-                self.dataChanged.emit(index, index, [role])
-                return True
-            except requests.exceptions.RequestException as e:
-                QMessageBox.warning(self.parent(), "Errore di Aggiornamento", f"Impossibile salvare le modifiche: {e}")
-                # Revert data in model if API call fails (optional)
-                # self.load_data() # Or more sophisticated revert logic
-                return False
-            except Exception as e:
-                QMessageBox.warning(self.parent(), "Errore", f"Si è verificato un errore: {e}")
-                return False
-        return False
-
     def flags(self, index):
-        # Make all columns editable except 'id' and 'stato_certificato'
-        if not index.isValid():
-            return Qt.ItemFlag.NoItemFlags
-
-        column_name = self._data.columns[index.column()]
-        if column_name in ['id', 'stato_certificato']:
-            return super().flags(index)
-
-        return super().flags(index) | Qt.ItemFlag.ItemIsEditable
+        return super().flags(index)
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
@@ -108,6 +63,9 @@ class ValidationView(QWidget):
         controls_layout = QHBoxLayout()
         controls_layout.addStretch()
 
+        self.edit_button = QPushButton("Modifica")
+        controls_layout.addWidget(self.edit_button)
+
         self.validate_button = QPushButton("Convalida Selezionati")
         self.validate_button.setObjectName("primary")
         self.validate_button.clicked.connect(self.validate_selected)
@@ -119,12 +77,14 @@ class ValidationView(QWidget):
         controls_layout.addWidget(self.delete_button)
         main_card_layout.addLayout(controls_layout)
 
+        self.edit_button.clicked.connect(self.edit_data)
+
         # Table
         self.table_view = QTableView()
         self.table_view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self.table_view.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
         self.table_view.setAlternatingRowColors(True)
-        self.table_view.setItemDelegate(CustomDelegate())
+        # self.table_view.setItemDelegate(CustomDelegate())
 
         main_card_layout.addWidget(self.table_view)
         self.layout.addWidget(main_card)
@@ -140,9 +100,35 @@ class ValidationView(QWidget):
         self.load_data()
 
     def update_button_states(self):
-        has_selection = self.table_view.selectionModel().hasSelection()
+        selection_model = self.table_view.selectionModel()
+        has_selection = selection_model is not None and selection_model.hasSelection()
+        is_single_selection = len(selection_model.selectedRows()) == 1 if has_selection else False
+
+        self.edit_button.setEnabled(is_single_selection)
         self.validate_button.setEnabled(has_selection)
         self.delete_button.setEnabled(has_selection)
+
+    def edit_data(self):
+        selected_ids = self.get_selected_ids()
+        if not selected_ids or len(selected_ids) > 1:
+            QMessageBox.warning(self, "Selezione Invalida", "Seleziona una singola riga da modificare.")
+            return
+
+        cert_id = selected_ids[0]
+        try:
+            response = requests.get(f"{API_URL}/certificati/{cert_id}")
+            response.raise_for_status()
+            cert_data = response.json()
+
+            dialog = EditCertificatoDialog(cert_data, self)
+            if dialog.exec():
+                updated_data = dialog.get_data()
+                update_response = requests.put(f"{API_URL}/certificati/{cert_id}", json=updated_data)
+                update_response.raise_for_status()
+                QMessageBox.information(self, "Successo", "Certificato aggiornato con successo.")
+                self.load_data()
+        except requests.exceptions.RequestException as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile modificare il certificato: {e}")
 
     def load_data(self):
         try:
