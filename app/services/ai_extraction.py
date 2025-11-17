@@ -43,6 +43,7 @@ def _generate_prompt() -> str:
 - PREPOSTO: [USA QUESTA SOLO PER CORSI/ATTESTATI] "Corso per Preposti alla Sicurezza", "Aggiornamento Preposto".
 - NOMINE: [USA QUESTA PER LETTERE DI INCARICO/ATTRIBUZIONE] "NOMINA CAPO CANTIERE", "NOMINA PREPOSTO", "Attribuzione e competenze del ruolo di Preposto"
 - VISITA MEDICA: [USA QUESTA PER GIUDIZI DI IDONEITÀ] "Giudizio di idoneità alla Mansione Specifica", "Visita medica periodica"
+- UNILAV: [USA QUESTA PER COMUNICAZIONI OBBLIGATORIE] "UNILAV - Comunicazione di assunzione", "Comunicazione Obbligatoria Assunzione"
 - ALTRO: (qualsiasi altro documento non classificabile)
 """
     return f"""
@@ -65,8 +66,9 @@ Estrai le seguenti informazioni e classificalo. Restituisci ESCLUSIVAMENTE un og
     1.  'PREPOSTO' deve essere usata **SOLO** per **attestati di FORMAZIONE**.
     2.  Qualsiasi **lettera di incarico** o **nomina** (es. "NOMINA CAPO CANTIERE", "Attribuzione... ruolo di Preposto") deve essere **SEMPRE** "NOMINE".
     3.  Qualsiasi documento che sia un **"Giudizio di idoneità alla Mansione Specifica"**, emesso da un "Medico Competente" e che contenga frasi come "Visita medica del...", "accertamenti sanitari" e una scadenza (es. "Da rivedere entro il..."), deve essere **SEMPRE** "VISITA MEDICA".
+    4.  Qualsiasi documento intitolato **"Comunicazione Obbligatoria di Assunzione"** o simile, e che contenga il termine "UNILAV", deve essere **SEMPRE** "UNILAV". La sua data di scadenza si trova nel campo "Data Fine".
 
-    ERRORE COMUNE DA EVITARE:
+    ERRORE COMUNE DA EVITare:
     - NON classificare "NOMINA... Preposto" come "PREPOSTO". Quella è una "NOMINE".
     - NON classificare un "Giudizio di idoneità" in base alla mansione. La categoria è "VISITA MEDICA".
 
