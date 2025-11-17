@@ -43,6 +43,29 @@ class ConfigView(QWidget):
         self.gcs_bucket_name_input = QLineEdit()
         self.form_layout.addRow(QLabel("Google Cloud Storage Bucket:"), self.gcs_bucket_name_input)
 
+        # SMTP Settings
+        smtp_separator = QFrame()
+        smtp_separator.setFrameShape(QFrame.Shape.HLine)
+        smtp_separator.setFrameShadow(QFrame.Shadow.Sunken)
+        self.form_layout.addRow(smtp_separator)
+
+        self.smtp_host_input = QLineEdit()
+        self.form_layout.addRow(QLabel("SMTP Host:"), self.smtp_host_input)
+
+        self.smtp_port_input = QLineEdit()
+        self.form_layout.addRow(QLabel("SMTP Port:"), self.smtp_port_input)
+
+        self.smtp_user_input = QLineEdit()
+        self.form_layout.addRow(QLabel("SMTP User:"), self.smtp_user_input)
+
+        self.smtp_password_input = QLineEdit()
+        self.smtp_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.form_layout.addRow(QLabel("SMTP Password:"), self.smtp_password_input)
+
+        self.email_recipient_input = QLineEdit()
+        self.form_layout.addRow(QLabel("Email Recipient:"), self.email_recipient_input)
+
+
         self.layout.addWidget(main_card)
         self.layout.addStretch()
 
@@ -73,6 +96,11 @@ class ConfigView(QWidget):
         self.gemini_api_key_input.setText(os.getenv("GEMINI_API_KEY", ""))
         self.gcp_project_id_input.setText(os.getenv("GOOGLE_CLOUD_PROJECT", ""))
         self.gcs_bucket_name_input.setText(os.getenv("GCS_BUCKET_NAME", ""))
+        self.smtp_host_input.setText(os.getenv("SMTP_HOST", ""))
+        self.smtp_port_input.setText(os.getenv("SMTP_PORT", ""))
+        self.smtp_user_input.setText(os.getenv("SMTP_USER", ""))
+        self.smtp_password_input.setText(os.getenv("SMTP_PASSWORD", ""))
+        self.email_recipient_input.setText(os.getenv("EMAIL_RECIPIENT", ""))
 
     def save_config(self):
         env_path = self.get_env_path()
@@ -80,6 +108,11 @@ class ConfigView(QWidget):
             set_key(env_path, "GEMINI_API_KEY", self.gemini_api_key_input.text())
             set_key(env_path, "GOOGLE_CLOUD_PROJECT", self.gcp_project_id_input.text())
             set_key(env_path, "GCS_BUCKET_NAME", self.gcs_bucket_name_input.text())
+            set_key(env_path, "SMTP_HOST", self.smtp_host_input.text())
+            set_key(env_path, "SMTP_PORT", self.smtp_port_input.text())
+            set_key(env_path, "SMTP_USER", self.smtp_user_input.text())
+            set_key(env_path, "SMTP_PASSWORD", self.smtp_password_input.text())
+            set_key(env_path, "EMAIL_RECIPIENT", self.email_recipient_input.text())
 
             QMessageBox.information(
                 self,
