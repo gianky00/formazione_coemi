@@ -44,5 +44,29 @@ class CertificatoCreazioneSchema(BaseModel):
             raise ValueError("Formato data non valido. Usare DD/MM/YYYY.")
         return v
 
-class CertificatoAggiornamentoSchema(CertificatoCreazioneSchema):
-    pass
+class CertificatoAggiornamentoSchema(BaseModel):
+    nome: Optional[str] = None
+    corso: Optional[str] = None
+    categoria: Optional[str] = None
+    data_rilascio: Optional[str] = None
+    data_scadenza: Optional[str] = None
+
+    @field_validator('data_rilascio')
+    def validate_data_rilascio(cls, v):
+        if v is None:
+            return v
+        try:
+            datetime.strptime(v, '%d/%m/%Y')
+        except ValueError:
+            raise ValueError("Formato data non valido. Usare DD/MM/YYYY.")
+        return v
+
+    @field_validator('data_scadenza')
+    def validate_data_scadenza(cls, v):
+        if v is None or not v.strip() or v.strip().lower() == 'none':
+            return None
+        try:
+            datetime.strptime(v, '%d/%m/%Y')
+        except ValueError:
+            raise ValueError("Formato data non valido. Usare DD/MM/YYYY.")
+        return v

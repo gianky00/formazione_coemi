@@ -275,7 +275,8 @@ class DashboardView(QWidget):
             response.raise_for_status()
             cert_data = response.json()
 
-            dialog = EditCertificatoDialog(cert_data)
+            all_categories = self.view_model.get_filter_options()['categorie']
+            dialog = EditCertificatoDialog(cert_data, all_categories)
             if dialog.exec():
                 updated_data = dialog.get_data()
                 self._current_selection = self._get_selection_info()
