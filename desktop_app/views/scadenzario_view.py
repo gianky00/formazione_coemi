@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGraphicsView, QGraph
 from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QColor, QBrush, QPen, QFont
 import requests
-from ..api_client import API_URL
+from ..api_client import APIClient
 from collections import defaultdict
 
 class ScadenzarioView(QWidget):
@@ -65,6 +65,7 @@ class ScadenzarioView(QWidget):
         self.gantt_view.verticalScrollBar().valueChanged.connect(self.employee_tree.verticalScrollBar().setValue)
         self.employee_tree.verticalScrollBar().valueChanged.connect(self.gantt_view.verticalScrollBar().setValue)
 
+        self.api_client = APIClient()
         self.current_date = QDate.currentDate()
         self.load_data()
 
@@ -82,7 +83,7 @@ class ScadenzarioView(QWidget):
 
     def load_data(self):
         try:
-            response = requests.get(f"{API_URL}/certificati/?validated=true")
+            response = requests.get(f"{self.api_client.base_url}/certificati/?validated=true")
             self.data = response.json() if response.status_code == 200 else []
         except requests.exceptions.RequestException:
             self.data = []
@@ -184,7 +185,7 @@ class ScadenzarioView(QWidget):
 
     def generate_email(self):
         try:
-            response = requests.post(f"{API_URL}/notifications/send-manual-alert")
+            response = requests.post(f"{self.api_client.base_url}/notifications/send-manual-alert")
             response.raise_for_status()
             QMessageBox.information(self, "Successo", "Richiesta di invio email inviata con successo.")
         except requests.exceptions.RequestException as e:
