@@ -2,7 +2,7 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGraphicsView, QGraphicsScene,
                              QSplitter, QTreeWidget, QTreeWidgetItem, QGraphicsRectItem,
                              QGraphicsTextItem, QGraphicsLineItem, QPushButton, QHBoxLayout,
-                             QScrollBar, QTreeWidgetItemIterator, QMessageBox, QFileDialog)
+                             QScrollBar, QTreeWidgetItemIterator, QMessageBox, QFileDialog, QComboBox)
 from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QColor, QBrush, QPen, QFont, QLinearGradient, QPainterPath, QPainter
 from PyQt6.QtPrintSupport import QPrinter
