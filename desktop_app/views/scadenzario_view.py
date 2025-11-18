@@ -4,10 +4,11 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGraphicsView, QGraph
                              QGraphicsTextItem, QGraphicsLineItem, QPushButton, QHBoxLayout,
                              QScrollBar, QTreeWidgetItemIterator, QMessageBox)
 from PyQt6.QtCore import Qt, QDate
-from PyQt6.QtGui import QColor, QBrush, QPen, QFont
+from PyQt6.QtGui import QColor, QBrush, QPen, QFont, QLinearGradient, QPainterPath
 import requests
 from ..api_client import APIClient
 from collections import defaultdict
+from .gantt_item import GanttBarItem
 
 class ScadenzarioView(QWidget):
     def __init__(self):
@@ -41,6 +42,22 @@ class ScadenzarioView(QWidget):
         self.generate_email_button.clicked.connect(self.generate_email)
         nav_layout.addWidget(self.generate_email_button)
 
+        # Legend
+        legend_layout = QHBoxLayout()
+        legend_layout.addStretch()
+        legend_items = {
+            "Scaduto": "#EF4444",
+            "In scadenza": "#F97316",
+            "Avviso": "#FBBF24"
+        }
+        for text, color in legend_items.items():
+            color_box = QLabel()
+            color_box.setFixedSize(15, 15)
+            color_box.setStyleSheet(f"background-color: {color}; border-radius: 4px;")
+            legend_layout.addWidget(color_box)
+            legend_layout.addWidget(QLabel(text))
+        nav_layout.addLayout(legend_layout)
+
         self.layout.addLayout(nav_layout)
 
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -49,6 +66,7 @@ class ScadenzarioView(QWidget):
         self.employee_tree.setHeaderLabels(["Dipendenti / Corsi"])
         self.employee_tree.itemExpanded.connect(self.redraw_gantt_scene)
         self.employee_tree.itemCollapsed.connect(self.redraw_gantt_scene)
+        self.employee_tree.itemClicked.connect(self._on_tree_item_selected)
         font = QFont()
         font.setPointSize(10) # Smaller font for the tree
         self.employee_tree.setFont(font)
@@ -68,6 +86,26 @@ class ScadenzarioView(QWidget):
         self.api_client = APIClient()
         self.current_date = QDate.currentDate()
         self.load_data()
+
+    def _on_tree_item_selected(self, item, column):
+        course_data = item.data(0, Qt.ItemDataRole.UserRole)
+        if course_data == "employee":
+            return  # Don't do anything if an employee item is clicked
+
+        # Reset all items to their original state
+        for item in self.gantt_scene.items():
+            if isinstance(item, GanttBarItem):
+                item.setBrush(QBrush(item.color))
+                item.setPen(QPen(Qt.PenStyle.NoPen))
+
+        # Find the corresponding bar in the Gantt chart and highlight it
+        for rect_item in self.gantt_scene.items():
+            if isinstance(rect_item, GanttBarItem):
+                if rect_item.data(Qt.ItemDataRole.UserRole) == course_data:
+                    self.gantt_view.ensureVisible(rect_item)
+                    rect_item.setBrush(QBrush(QColor("lightblue")))
+                    rect_item.setPen(QPen(QColor("blue"), 2))
+                    break
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -98,8 +136,10 @@ class ScadenzarioView(QWidget):
 
         for employee, courses in sorted(employee_courses.items()):
             employee_item = QTreeWidgetItem(self.employee_tree, [employee])
+            employee_item.setData(0, Qt.ItemDataRole.UserRole, "employee")
             for course in sorted(courses, key=lambda x: x['categoria']):
-                QTreeWidgetItem(employee_item, [course['categoria']])
+                course_item = QTreeWidgetItem(employee_item, [course['categoria']])
+                course_item.setData(0, Qt.ItemDataRole.UserRole, course)
 
         self.redraw_gantt_scene()
 
@@ -155,7 +195,7 @@ class ScadenzarioView(QWidget):
                     employee_name = item.parent().text(0)
                     course_name = item.text(0)
 
-                    course_data = next((c for c in self.data if c['nome'] == employee_name and c['categoria'] == course_name), None)
+                    course_data = item.data(0, Qt.ItemDataRole.UserRole)
                     if course_data and course_data.get('data_scadenza'):
                         expiry_date = QDate.fromString(course_data['data_scadenza'], "dd/MM/yyyy")
                         days_to_expiry = today.daysTo(expiry_date)
@@ -176,9 +216,11 @@ class ScadenzarioView(QWidget):
                                 color = QColor("#EF4444")  # Rosso
                                 status = "Scaduto"
 
-                            rect = QGraphicsRectItem(start_x, y_pos, bar_width, row_height - 5)
-                            rect.setBrush(QBrush(color))
-                            rect.setToolTip(f"Dipendente: {employee_name}\nCorso: {course_name}\nScadenza: {expiry_date.toString('dd/MM/yyyy')}\nStato: {status}")
+                            gradient = QLinearGradient(start_x, y_pos, start_x + bar_width, y_pos)
+                            gradient.setColorAt(0, color.lighter(120))
+                            gradient.setColorAt(1, color)
+
+                            rect = GanttBarItem(start_x, y_pos, bar_width, row_height - 5, QBrush(gradient), color, course_data)
                             self.gantt_scene.addItem(rect)
                 y_pos += row_height
             iterator += 1
