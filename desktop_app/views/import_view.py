@@ -6,7 +6,7 @@ import requests
 import os
 import shutil
 from datetime import datetime
-from ..api_client import API_URL
+from ..api_client import APIClient
 
 class PdfWorker(QObject):
     finished = pyqtSignal()
@@ -14,10 +14,11 @@ class PdfWorker(QObject):
     log_message = pyqtSignal(str)
     status_update = pyqtSignal(str)
 
-    def __init__(self, pdf_files, folder_path):
+    def __init__(self, pdf_files, folder_path, api_client):
         super().__init__()
         self.pdf_files = pdf_files
         self.folder_path = folder_path
+        self.api_client = api_client
 
     def run(self):
         total_files = len(self.pdf_files)
@@ -41,7 +42,7 @@ class PdfWorker(QObject):
         try:
             with open(file_path, 'rb') as f:
                 files = {'file': (original_filename, f, 'application/pdf')}
-                response = requests.post(f"{API_URL}/upload-pdf/", files=files)
+                response = requests.post(f"{self.api_client.base_url}/upload-pdf/", files=files)
 
             if response.status_code == 200:
                 data = response.json()
@@ -61,7 +62,7 @@ class PdfWorker(QObject):
                     "data_rilascio": data_rilascio_norm,
                     "data_scadenza": data_scadenza_norm
                 }
-                save_response = requests.post(f"{API_URL}/certificati/", json=certificato)
+                save_response = requests.post(f"{self.api_client.base_url}/certificati/", json=certificato)
 
                 if save_response.status_code == 200:
                     self.log_message.emit(f"File {original_filename} elaborato e salvato con successo.")
@@ -145,6 +146,7 @@ class ImportView(QWidget):
         self.progress_widget = progress_widget
         self.progress_bar = progress_bar
         self.progress_label = progress_label
+        self.api_client = APIClient()
         self.layout = QVBoxLayout(self)
 
         title_layout = QVBoxLayout()
@@ -192,7 +194,7 @@ class ImportView(QWidget):
             self.progress_widget.setVisible(True)
 
         self.thread = QThread()
-        self.worker = PdfWorker(pdf_files, folder_path)
+        self.worker = PdfWorker(pdf_files, folder_path, self.api_client)
         self.worker.moveToThread(self.thread)
 
         self.thread.started.connect(self.worker.run)
