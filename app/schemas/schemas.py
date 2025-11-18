@@ -24,6 +24,7 @@ class CertificatoSchema(BaseModel):
 
 class CertificatoCreazioneSchema(BaseModel):
     nome: str = Field(..., min_length=1, description="Nome e cognome del dipendente")
+    data_nascita: Optional[str] = None
     corso: str = Field(..., min_length=1, description="Nome del corso")
     categoria: str = Field(..., min_length=1, description="Categoria del corso")
     data_rilascio: str
