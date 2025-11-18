@@ -10,7 +10,7 @@ class DipendenteSchema(BaseModel):
     data_nascita: Optional[date] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class CertificatoSchema(BaseModel):
     id: int
