@@ -65,6 +65,7 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
         result.append(CertificatoSchema(
             id=cert.id,
             nome=f"{cert.dipendente.nome} {cert.dipendente.cognome}",
+            data_nascita=cert.dipendente.data_nascita.strftime('%d/%m/%Y') if cert.dipendente.data_nascita else None,
             matricola=cert.dipendente.matricola,
             corso=cert.corso.nome_corso,
             categoria=cert.corso.categoria_corso or "General",
@@ -84,6 +85,7 @@ def get_certificato(certificato_id: int, db: Session = Depends(get_db)):
     return CertificatoSchema(
         id=db_cert.id,
         nome=f"{db_cert.dipendente.nome} {db_cert.dipendente.cognome}",
+        data_nascita=db_cert.dipendente.data_nascita.strftime('%d/%m/%Y') if db_cert.dipendente.data_nascita else None,
         matricola=db_cert.dipendente.matricola,
         corso=db_cert.corso.nome_corso,
         categoria=db_cert.corso.categoria_corso or "General",
@@ -180,6 +182,7 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
     return CertificatoSchema(
         id=new_cert.id,
         nome=f"{dipendente_info.nome} {dipendente_info.cognome}" if dipendente_info else "Da Assegnare",
+        data_nascita=dipendente_info.data_nascita.strftime('%d/%m/%Y') if dipendente_info and dipendente_info.data_nascita else None,
         matricola=dipendente_info.matricola if dipendente_info else None,
         corso=new_cert.corso.nome_corso,
         categoria=new_cert.corso.categoria_corso or "General",
@@ -200,6 +203,7 @@ def valida_certificato(certificato_id: int, db: Session = Depends(get_db)):
     return CertificatoSchema(
         id=db_cert.id,
         nome=f"{db_cert.dipendente.nome} {db_cert.dipendente.cognome}",
+        data_nascita=db_cert.dipendente.data_nascita.strftime('%d/%m/%Y') if db_cert.dipendente.data_nascita else None,
         matricola=db_cert.dipendente.matricola,
         corso=db_cert.corso.nome_corso,
         categoria=db_cert.corso.categoria_corso or "General",
@@ -263,6 +267,7 @@ def update_certificato(certificato_id: int, certificato: CertificatoAggiornament
     return CertificatoSchema(
         id=db_cert.id,
         nome=f"{db_cert.dipendente.nome} {db_cert.dipendente.cognome}",
+        data_nascita=db_cert.dipendente.data_nascita.strftime('%d/%m/%Y') if db_cert.dipendente.data_nascita else None,
         matricola=db_cert.dipendente.matricola,
         corso=db_cert.corso.nome_corso,
         categoria=db_cert.corso.categoria_corso or "General",
