@@ -103,18 +103,35 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
 
     nome, cognome = nome_parts[0], " ".join(nome_parts[1:])
 
-    # Cerca il dipendente in modo più robusto
-    dipendente = db.query(Dipendente).filter(
+    # Gestione omonimie
+    query = db.query(Dipendente).filter(
         or_(
             (Dipendente.nome.ilike(f"%{nome}%")) & (Dipendente.cognome.ilike(f"%{cognome}%")),
             (Dipendente.nome.ilike(f"%{cognome}%")) & (Dipendente.cognome.ilike(f"%{nome}%"))
         )
-    ).first()
+    )
+    dipendenti = query.all()
 
-    if not dipendente:
-        dipendente = Dipendente(nome=nome, cognome=cognome)
-        db.add(dipendente)
+    dipendente_id = None
+    if len(dipendenti) == 1:
+        dipendente_id = dipendenti[0].id
+    elif len(dipendenti) > 1:
+        if certificato.data_nascita:
+            try:
+                data_nascita_dt = datetime.strptime(certificato.data_nascita, '%d/%m/%Y').date()
+                for d in dipendenti:
+                    if d.data_nascita == data_nascita_dt:
+                        dipendente_id = d.id
+                        break
+            except ValueError:
+                pass  # La data di nascita potrebbe avere un formato non valido
+
+    if dipendente_id is None and not dipendenti:
+        # Se non esiste nessun dipendente, ne creo uno nuovo per la validazione manuale
+        nuovo_dipendente = Dipendente(nome=nome, cognome=cognome, matricola=None, data_nascita=None)
+        db.add(nuovo_dipendente)
         db.flush()
+        dipendente_id = nuovo_dipendente.id
 
     master_course = db.query(Corso).filter(Corso.categoria_corso.ilike(f"%{certificato.categoria.strip()}%")).first()
     if not master_course:
@@ -133,16 +150,20 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
         db.add(course)
         db.flush()
 
-    existing_cert = db.query(Certificato).filter_by(
-        dipendente_id=dipendente.id,
+    # Controllo duplicati
+    existing_cert_query = db.query(Certificato).filter_by(
         corso_id=course.id,
         data_rilascio=datetime.strptime(certificato.data_rilascio, '%d/%m/%Y').date()
-    ).first()
-    if existing_cert:
+    )
+
+    if dipendente_id:
+        existing_cert_query = existing_cert_query.filter_by(dipendente_id=dipendente_id)
+
+    if existing_cert_query.first():
         raise HTTPException(status_code=409, detail="Un certificato identico per questo dipendente e corso esiste già.")
 
     new_cert = Certificato(
-        dipendente_id=dipendente.id,
+        dipendente_id=dipendente_id,
         corso_id=course.id,
         data_rilascio=datetime.strptime(certificato.data_rilascio, '%d/%m/%Y').date(),
         data_scadenza_calcolata=datetime.strptime(certificato.data_scadenza, '%d/%m/%Y').date() if certificato.data_scadenza else None,
@@ -153,10 +174,13 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
     db.refresh(new_cert)
 
     status = certificate_logic.get_certificate_status(db, new_cert)
+
+    dipendente_info = db.get(Dipendente, new_cert.dipendente_id) if new_cert.dipendente_id else None
+
     return CertificatoSchema(
         id=new_cert.id,
-        nome=f"{new_cert.dipendente.nome} {new_cert.dipendente.cognome}",
-        matricola=new_cert.dipendente.matricola,
+        nome=f"{dipendente_info.nome} {dipendente_info.cognome}" if dipendente_info else "Da Assegnare",
+        matricola=dipendente_info.matricola if dipendente_info else None,
         corso=new_cert.corso.nome_corso,
         categoria=new_cert.corso.categoria_corso or "General",
         data_rilascio=new_cert.data_rilascio.strftime('%d/%m/%Y'),
@@ -274,26 +298,27 @@ async def import_dipendenti_csv(file: UploadFile = File(...), db: Session = Depe
         if not all([cognome, nome, badge]):
             continue
 
-        # Check if employee with the same badge (matricola) already exists
-        existing_dipendente = db.query(Dipendente).filter(Dipendente.matricola == badge).first()
-        if existing_dipendente:
-            continue
-
         parsed_data_nascita = None
         if data_nascita:
             try:
                 parsed_data_nascita = datetime.strptime(data_nascita, '%d/%m/%Y').date()
             except ValueError:
-                # Handle cases where the date format is different or invalid
-                pass
+                pass  # Gestisce date non valide o formati diversi
 
-        dipendente = Dipendente(
-            cognome=cognome,
-            nome=nome,
-            matricola=badge,
-            data_nascita=parsed_data_nascita
-        )
-        db.add(dipendente)
+        # Upsert: aggiorna se esiste, altrimenti crea
+        dipendente = db.query(Dipendente).filter(Dipendente.matricola == badge).first()
+        if dipendente:
+            dipendente.cognome = cognome
+            dipendente.nome = nome
+            dipendente.data_nascita = parsed_data_nascita
+        else:
+            dipendente = Dipendente(
+                cognome=cognome,
+                nome=nome,
+                matricola=badge,
+                data_nascita=parsed_data_nascita
+            )
+            db.add(dipendente)
 
     try:
         db.commit()
