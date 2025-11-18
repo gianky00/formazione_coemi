@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     EMAIL_RECIPIENTS_TO: str = os.getenv("EMAIL_RECIPIENTS_TO", "gianky.allegretti@gmail.com")
     EMAIL_RECIPIENTS_CC: str = os.getenv("EMAIL_RECIPIENTS_CC", "")
 
+    # Alert thresholds
+    ALERT_THRESHOLD_DAYS: int = int(os.getenv("ALERT_THRESHOLD_DAYS", 60))
+    ALERT_THRESHOLD_DAYS_VISITE: int = int(os.getenv("ALERT_THRESHOLD_DAYS_VISITE", 30))
+
     # CORREZIONE: Sostituita la 'class Config' deprecata con 'model_config'
     model_config = ConfigDict(
         env_file=".env",
