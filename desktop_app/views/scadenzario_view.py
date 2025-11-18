@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGraphicsView, QGraph
                              QGraphicsTextItem, QGraphicsLineItem, QPushButton, QHBoxLayout,
                              QScrollBar, QTreeWidgetItemIterator, QMessageBox, QFileDialog, QComboBox)
 from PyQt6.QtCore import Qt, QDate
-from PyQt.QtGui import QColor, QBrush, QPen, QFont, QLinearGradient, QPainterPath, QPainter, QPageLayout
+from PyQt6.QtGui import QColor, QBrush, QPen, QFont, QLinearGradient, QPainterPath, QPainter, QPageLayout
 from PyQt6.QtPrintSupport import QPrinter
 import requests
 from ..api_client import APIClient
