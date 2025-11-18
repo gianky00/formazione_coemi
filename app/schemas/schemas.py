@@ -15,6 +15,7 @@ class DipendenteSchema(BaseModel):
 class CertificatoSchema(BaseModel):
     id: int
     nome: str
+    data_nascita: Optional[str] = None
     matricola: Optional[str] = None
     corso: str
     categoria: str

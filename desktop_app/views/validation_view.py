@@ -148,6 +148,12 @@ class ValidationView(QWidget):
             self.table_view.setModel(self.model)
 
             if not self.df.empty:
+                if 'data_nascita' not in self.df.columns:
+                    self.df['data_nascita'] = None
+
+                column_order = ['id', 'nome', 'data_nascita', 'matricola', 'corso', 'categoria', 'data_rilascio', 'data_scadenza', 'stato_certificato']
+                self.df = self.df[[col for col in column_order if col in self.df.columns]]
+
                 # Hide 'id' column
                 id_col_index = self.df.columns.get_loc('id')
                 self.table_view.setColumnHidden(id_col_index, True)
@@ -159,6 +165,8 @@ class ValidationView(QWidget):
                     header.setSectionResizeMode(self.df.columns.get_loc('nome'), QHeaderView.ResizeMode.Stretch)
                 if 'corso' in self.df.columns:
                     header.setSectionResizeMode(self.df.columns.get_loc('corso'), QHeaderView.ResizeMode.Stretch)
+                if 'data_nascita' in self.df.columns:
+                    header.setSectionResizeMode(self.df.columns.get_loc('data_nascita'), QHeaderView.ResizeMode.ResizeToContents)
 
         except requests.exceptions.RequestException as e:
             QMessageBox.critical(self, "Errore di Connessione", f"Impossibile caricare i dati da validare: {e}")
