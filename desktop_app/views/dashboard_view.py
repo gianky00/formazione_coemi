@@ -7,7 +7,7 @@ from PyQt6.QtCore import QAbstractTableModel, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter
 from .edit_dialog import EditCertificatoDialog
 from ..view_models.dashboard_view_model import DashboardViewModel
-from ..api_client import API_URL
+from ..api_client import APIClient
 import requests
 
 
@@ -64,6 +64,7 @@ class DashboardView(QWidget):
         super().__init__()
         self.model = None
         self.view_model = DashboardViewModel()
+        self.api_client = APIClient()
         self._init_ui()
         self._connect_signals()
         self.view_model.load_data()
@@ -284,7 +285,7 @@ class DashboardView(QWidget):
         if not cert_id_to_edit: return
 
         try:
-            response = requests.get(f"{API_URL}/certificati/{cert_id_to_edit}")
+            response = requests.get(f"{self.api_client.base_url}/certificati/{cert_id_to_edit}")
             response.raise_for_status()
             cert_data = response.json()
 
