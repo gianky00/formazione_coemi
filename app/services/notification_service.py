@@ -19,7 +19,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 class PDF(FPDF):
     def header(self):
         # Logo
-        self.image('desktop_app/assets/logo.png', 10, 8, 33)
+        self.image('desktop_app/assets/logo.png', 10, 8, 45) # Increased logo size
         # Arial bold 15
         self.set_font('Arial', 'B', 15)
         # Move to the right
@@ -34,8 +34,10 @@ class PDF(FPDF):
         self.set_y(-15)
         # Arial italic 8
         self.set_font('Arial', 'I', 8)
+        # Confidentiality Notice
+        self.cell(0, 10, 'Restricted | Internal Use Only', 0, 0, 'L')
         # Page number
-        self.cell(0, 10, 'Pagina ' + str(self.page_no()) + '/{nb}', 0, 0, 'C')
+        self.cell(0, 10, 'Pagina ' + str(self.page_no()) + '/{nb}', 0, 0, 'R')
 
 def generate_pdf_report(expiring_certificates, overdue_certificates):
     """Generates a professional PDF report of expiring and overdue certificates."""
@@ -46,15 +48,12 @@ def generate_pdf_report(expiring_certificates, overdue_certificates):
 
     # Table for expiring certificates
     if expiring_certificates:
-        pdf.set_font('Arial', 'B', 14)
-        pdf.cell(0, 10, 'Certificati in Scadenza', 0, 1, 'L')
-        pdf.ln(5)
-
         # Table Header
         pdf.set_font('Arial', 'B', 10)
         pdf.set_fill_color(240, 248, 255) # Light Alice Blue
-        pdf.cell(60, 10, 'Dipendente', 1, 0, 'C', 1)
-        pdf.cell(80, 10, 'Corso', 1, 0, 'C', 1)
+        pdf.cell(30, 10, 'Matricola', 1, 0, 'C', 1)
+        pdf.cell(50, 10, 'Dipendente', 1, 0, 'C', 1)
+        pdf.cell(70, 10, 'Categoria', 1, 0, 'C', 1)
         pdf.cell(40, 10, 'Data Scadenza', 1, 1, 'C', 1)
 
         # Table Rows
@@ -62,23 +61,22 @@ def generate_pdf_report(expiring_certificates, overdue_certificates):
         fill = False
         for cert in expiring_certificates:
             pdf.set_fill_color(255, 255, 255) if not fill else pdf.set_fill_color(245, 245, 245)
-            pdf.cell(60, 10, f"{cert.dipendente.nome} {cert.dipendente.cognome}", 1, 0, 'L', 1)
-            pdf.cell(80, 10, cert.corso.nome_corso, 1, 0, 'L', 1)
+            pdf.cell(30, 10, cert.dipendente.matricola if cert.dipendente else 'N/A', 1, 0, 'C', 1)
+            pdf.cell(50, 10, f"{cert.dipendente.nome} {cert.dipendente.cognome}" if cert.dipendente else 'N/A', 1, 0, 'L', 1)
+            pdf.cell(70, 10, cert.corso.categoria_corso, 1, 0, 'L', 1)
             pdf.cell(40, 10, cert.data_scadenza_calcolata.strftime('%d/%m/%Y'), 1, 1, 'C', 1)
             fill = not fill
 
     # Table for overdue certificates
     if overdue_certificates:
         pdf.ln(10)
-        pdf.set_font('Arial', 'B', 14)
-        pdf.cell(0, 10, 'Certificati Scaduti non Rinnovati', 0, 1, 'L')
-        pdf.ln(5)
 
         # Table Header
         pdf.set_font('Arial', 'B', 10)
         pdf.set_fill_color(254, 242, 242) # Light Red
-        pdf.cell(60, 10, 'Dipendente', 1, 0, 'C', 1)
-        pdf.cell(80, 10, 'Corso', 1, 0, 'C', 1)
+        pdf.cell(30, 10, 'Matricola', 1, 0, 'C', 1)
+        pdf.cell(50, 10, 'Dipendente', 1, 0, 'C', 1)
+        pdf.cell(70, 10, 'Categoria', 1, 0, 'C', 1)
         pdf.cell(40, 10, 'Data Scadenza', 1, 1, 'C', 1)
 
         # Table Rows
@@ -86,8 +84,9 @@ def generate_pdf_report(expiring_certificates, overdue_certificates):
         fill = False
         for cert in overdue_certificates:
             pdf.set_fill_color(255, 255, 255) if not fill else pdf.set_fill_color(245, 245, 245)
-            pdf.cell(60, 10, f"{cert.dipendente.nome} {cert.dipendente.cognome}", 1, 0, 'L', 1)
-            pdf.cell(80, 10, cert.corso.nome_corso, 1, 0, 'L', 1)
+            pdf.cell(30, 10, cert.dipendente.matricola if cert.dipendente else 'N/A', 1, 0, 'C', 1)
+            pdf.cell(50, 10, f"{cert.dipendente.nome} {cert.dipendente.cognome}" if cert.dipendente else 'N/A', 1, 0, 'L', 1)
+            pdf.cell(70, 10, cert.corso.categoria_corso, 1, 0, 'L', 1)
             pdf.cell(40, 10, cert.data_scadenza_calcolata.strftime('%d/%m/%Y'), 1, 1, 'C', 1)
             fill = not fill
 
