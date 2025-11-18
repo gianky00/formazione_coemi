@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPush
 from PyQt6.QtCore import QAbstractTableModel, Qt, pyqtSignal
 import pandas as pd
 import requests
-from ..api_client import API_URL
+from ..api_client import APIClient
 from .edit_dialog import EditCertificatoDialog
 
 
@@ -39,6 +39,7 @@ class ValidationView(QWidget):
 
     def __init__(self):
         super().__init__()
+        self.api_client = APIClient()
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(20, 20, 20, 20)
         self.layout.setSpacing(15)
@@ -116,7 +117,7 @@ class ValidationView(QWidget):
 
         cert_id = selected_ids[0]
         try:
-            response = requests.get(f"{API_URL}/certificati/{cert_id}")
+            response = requests.get(f"{self.api_client.base_url}/certificati/{cert_id}")
             response.raise_for_status()
             cert_data = response.json()
 
@@ -124,7 +125,7 @@ class ValidationView(QWidget):
             dialog = EditCertificatoDialog(cert_data, all_categories, self)
             if dialog.exec():
                 updated_data = dialog.get_data()
-                update_response = requests.put(f"{API_URL}/certificati/{cert_id}", json=updated_data)
+                update_response = requests.put(f"{self.api_client.base_url}/certificati/{cert_id}", json=updated_data)
                 update_response.raise_for_status()
                 QMessageBox.information(self, "Successo", "Certificato aggiornato con successo.")
                 self.load_data()
@@ -134,7 +135,7 @@ class ValidationView(QWidget):
     def load_data(self):
         try:
             # Fetch unvalidated certificates
-            response = requests.get(f"{API_URL}/certificati/?validated=false")
+            response = requests.get(f"{self.api_client.base_url}/certificati/?validated=false")
             response.raise_for_status()
             data = response.json()
 
@@ -215,9 +216,9 @@ class ValidationView(QWidget):
         for cert_id in ids:
             try:
                 if action_type == "validate":
-                    response = requests.put(f"{API_URL}/certificati/{cert_id}/valida")
+                    response = requests.put(f"{self.api_client.base_url}/certificati/{cert_id}/valida")
                 else: # delete
-                    response = requests.delete(f"{API_URL}/certificati/{cert_id}")
+                    response = requests.delete(f"{self.api_client.base_url}/certificati/{cert_id}")
 
                 response.raise_for_status()
                 success_count += 1
