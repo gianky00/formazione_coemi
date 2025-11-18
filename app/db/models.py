@@ -22,8 +22,10 @@ class Dipendente(Base):
     """
     __tablename__ = 'dipendenti'
     id = Column(Integer, primary_key=True, index=True)
+    matricola = Column(String, unique=True, index=True)
     nome = Column(String, index=True)
     cognome = Column(String, index=True)
+    data_nascita = Column(Date)
     email = Column(String, unique=True, index=True)
     categoria_reparto = Column(String)
     certificati = relationship("Certificato", back_populates="dipendente")

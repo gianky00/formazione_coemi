@@ -2,9 +2,20 @@ from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from datetime import date, datetime
 
+class DipendenteSchema(BaseModel):
+    id: int
+    matricola: Optional[str] = None
+    nome: str
+    cognome: str
+    data_nascita: Optional[date] = None
+
+    class Config:
+        orm_mode = True
+
 class CertificatoSchema(BaseModel):
     id: int
     nome: str
+    matricola: Optional[str] = None
     corso: str
     categoria: str
     data_rilascio: str

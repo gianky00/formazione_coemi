@@ -1,3 +1,5 @@
+import csv
+import io
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import IntegrityError
@@ -6,7 +8,7 @@ from app.db.models import Corso, Certificato, ValidationStatus, Dipendente
 from app.services import ai_extraction, certificate_logic
 from datetime import datetime
 from typing import Optional, List
-from app.schemas.schemas import CertificatoSchema, CertificatoCreazioneSchema, CertificatoAggiornamentoSchema
+from app.schemas.schemas import CertificatoSchema, CertificatoCreazioneSchema, CertificatoAggiornamentoSchema, DipendenteSchema
 
 router = APIRouter()
 
@@ -62,6 +64,7 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
         result.append(CertificatoSchema(
             id=cert.id,
             nome=f"{cert.dipendente.nome} {cert.dipendente.cognome}",
+            matricola=cert.dipendente.matricola,
             corso=cert.corso.nome_corso,
             categoria=cert.corso.categoria_corso or "General",
             data_rilascio=cert.data_rilascio.strftime('%d/%m/%Y'),
@@ -80,6 +83,7 @@ def get_certificato(certificato_id: int, db: Session = Depends(get_db)):
     return CertificatoSchema(
         id=db_cert.id,
         nome=f"{db_cert.dipendente.nome} {db_cert.dipendente.cognome}",
+        matricola=db_cert.dipendente.matricola,
         corso=db_cert.corso.nome_corso,
         categoria=db_cert.corso.categoria_corso or "General",
         data_rilascio=db_cert.data_rilascio.strftime('%d/%m/%Y'),
@@ -144,6 +148,7 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
     return CertificatoSchema(
         id=new_cert.id,
         nome=f"{new_cert.dipendente.nome} {new_cert.dipendente.cognome}",
+        matricola=new_cert.dipendente.matricola,
         corso=new_cert.corso.nome_corso,
         categoria=new_cert.corso.categoria_corso or "General",
         data_rilascio=new_cert.data_rilascio.strftime('%d/%m/%Y'),
@@ -163,6 +168,7 @@ def valida_certificato(certificato_id: int, db: Session = Depends(get_db)):
     return CertificatoSchema(
         id=db_cert.id,
         nome=f"{db_cert.dipendente.nome} {db_cert.dipendente.cognome}",
+        matricola=db_cert.dipendente.matricola,
         corso=db_cert.corso.nome_corso,
         categoria=db_cert.corso.categoria_corso or "General",
         data_rilascio=db_cert.data_rilascio.strftime('%d/%m/%Y'),
@@ -225,6 +231,7 @@ def update_certificato(certificato_id: int, certificato: CertificatoAggiornament
     return CertificatoSchema(
         id=db_cert.id,
         nome=f"{db_cert.dipendente.nome} {db_cert.dipendente.cognome}",
+        matricola=db_cert.dipendente.matricola,
         corso=db_cert.corso.nome_corso,
         categoria=db_cert.corso.categoria_corso or "General",
         data_rilascio=db_cert.data_rilascio.strftime('%d/%m/%Y'),
@@ -240,3 +247,54 @@ def delete_certificato(certificato_id: int, db: Session = Depends(get_db)):
     db.delete(db_cert)
     db.commit()
     return {"message": "Certificato cancellato con successo"}
+
+@router.post("/dipendenti/import-csv")
+async def import_dipendenti_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    if not file.filename.endswith('.csv'):
+        raise HTTPException(status_code=400, detail="Il file deve essere in formato CSV.")
+
+    content = await file.read()
+    stream = io.StringIO(content.decode("utf-8"))
+    reader = csv.DictReader(stream, delimiter=';')
+
+    for row in reader:
+        cognome = row.get('Cognome')
+        nome = row.get('Nome')
+        data_nascita = row.get('Data_nascita')
+        badge = row.get('Badge')
+
+        if not all([cognome, nome, badge]):
+            continue
+
+        # Check if employee with the same badge (matricola) already exists
+        existing_dipendente = db.query(Dipendente).filter(Dipendente.matricola == badge).first()
+        if existing_dipendente:
+            continue
+
+        parsed_data_nascita = None
+        if data_nascita:
+            try:
+                parsed_data_nascita = datetime.strptime(data_nascita, '%d/%m/%Y').date()
+            except ValueError:
+                # Handle cases where the date format is different or invalid
+                pass
+
+        dipendente = Dipendente(
+            cognome=cognome,
+            nome=nome,
+            matricola=badge,
+            data_nascita=parsed_data_nascita
+        )
+        db.add(dipendente)
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Errore di integrità del database. Controlla i dati del CSV.")
+
+    return {"message": "Importazione completata con successo."}
+
+@router.get("/dipendenti", response_model=List[DipendenteSchema])
+def get_dipendenti(db: Session = Depends(get_db)):
+    return db.query(Dipendente).all()
