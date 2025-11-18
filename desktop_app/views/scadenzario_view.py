@@ -191,13 +191,18 @@ class ScadenzarioView(QWidget):
 
     def redraw_gantt_scene(self):
         self.gantt_scene.clear()
-        row_height = 12
+
+        bar_height = 18
+        bar_spacing = 4
+        row_height = bar_height + bar_spacing
         header_height = 30
+
         today = QDate.currentDate()
         start_date = self.current_date.addDays(-self.current_date.day() + 1)
         end_date = start_date.addMonths(self.zoom_months)
         total_days = start_date.daysTo(end_date)
         if total_days <= 0: return
+
         scene_width = self.gantt_view.viewport().width()
         col_width = scene_width / total_days
 
@@ -211,7 +216,7 @@ class ScadenzarioView(QWidget):
 
         if start_date <= today <= end_date:
             today_x = start_date.daysTo(today) * col_width
-            today_line = QGraphicsLineItem(today_x, 0, today_x, self.gantt_view.viewport().height())
+            today_line = QGraphicsLineItem(today_x, 0, today_x, 2000)
             today_line.setPen(QPen(QColor("#1D4ED8"), 2))
             self.gantt_scene.addItem(today_line)
 
@@ -219,26 +224,39 @@ class ScadenzarioView(QWidget):
         iterator = QTreeWidgetItemIterator(self.employee_tree)
         while iterator.value():
             item = iterator.value()
-            if not item.isHidden():
-                course_data = item.data(0, Qt.ItemDataRole.UserRole)
-                if isinstance(course_data, dict) and 'data_scadenza' in course_data:
-                    expiry_date = QDate.fromString(course_data['data_scadenza'], "dd/MM/yyyy")
-                    days_to_expiry = today.daysTo(expiry_date)
-                    bar_start_date = expiry_date.addDays(-30)
-                    start_x = start_date.daysTo(bar_start_date) * col_width
-                    end_x = start_date.daysTo(expiry_date) * col_width
-                    bar_width = max(2, end_x - start_x)
-                    color = QColor(self.legend_items["Avviso (30-90 gg)"])
-                    if days_to_expiry < 30: color = QColor(self.legend_items["In scadenza (< 30 gg)"])
-                    if days_to_expiry < 0: color = QColor(self.legend_items["Scaduto"])
-                    gradient = QLinearGradient(start_x, y_pos, start_x + bar_width, y_pos)
-                    gradient.setColorAt(0, color.lighter(120))
-                    gradient.setColorAt(1, color)
-                    rect = GanttBarItem(start_x, y_pos + (row_height / 4), bar_width, row_height / 1.5, QBrush(gradient), color, course_data)
-                    self.gantt_scene.addItem(rect)
+            if item.isHidden():
+                iterator += 1
+                continue
+
+            course_data = item.data(0, Qt.ItemDataRole.UserRole)
+            if isinstance(course_data, dict) and 'data_scadenza' in course_data:
+                expiry_date = QDate.fromString(course_data['data_scadenza'], "dd/MM/yyyy")
+                days_to_expiry = today.daysTo(expiry_date)
+                bar_start_date = expiry_date.addDays(-30)
+
+                start_x = start_date.daysTo(bar_start_date) * col_width
+                end_x = start_date.daysTo(expiry_date) * col_width
+                bar_width = max(2, end_x - start_x)
+
+                color = QColor(self.legend_items["Avviso (30-90 gg)"])
+                if days_to_expiry < 30: color = QColor(self.legend_items["In scadenza (< 30 gg)"])
+                if days_to_expiry < 0: color = QColor(self.legend_items["Scaduto"])
+
+                gradient = QLinearGradient(start_x, y_pos, start_x + bar_width, y_pos)
+                gradient.setColorAt(0, color.lighter(120))
+                gradient.setColorAt(1, color)
+
+                rect = GanttBarItem(start_x, y_pos, bar_width, bar_height, QBrush(gradient), color, course_data)
+                self.gantt_scene.addItem(rect)
+
                 y_pos += row_height
+
             iterator += 1
-        self.gantt_scene.setSceneRect(0, 0, scene_width, y_pos)
+
+        total_height = y_pos
+        self.gantt_scene.setSceneRect(0, 0, scene_width, total_height)
+        if 'today_line' in locals():
+            today_line.setLine(today_line.line().x1(), 0, today_line.line().x2(), total_height)
 
     def generate_email(self):
         try:
@@ -269,7 +287,6 @@ class ScadenzarioView(QWidget):
         content_rect = QRectF(page_rect.left() + margin, page_rect.top() + margin,
                               page_rect.width() - 2 * margin, page_rect.height() - 2 * margin)
 
-        # --- Common Drawing Metrics ---
         font_h1 = QFont("Arial", 18, QFont.Weight.Bold)
         font_h2 = QFont("Arial", 12, QFont.Weight.Bold)
         font_body = QFont("Arial", 9)
@@ -279,9 +296,8 @@ class ScadenzarioView(QWidget):
         tree_width = content_rect.width() * 0.3
         gantt_width = content_rect.width() * 0.7
         header_height = 80
-        row_height = 15
+        row_height = 18 # Compact row height for PDF
 
-        # --- Get Visible Items ---
         visible_items = []
         iterator = QTreeWidgetItemIterator(self.employee_tree)
         while iterator.value():
@@ -296,7 +312,6 @@ class ScadenzarioView(QWidget):
             if page_num > 0:
                 printer.newPage()
 
-            # --- 1. Draw Header ---
             painter.setFont(font_h1)
             painter.drawText(QRectF(content_rect.left(), content_rect.top(), content_rect.width(), 40), Qt.AlignmentFlag.AlignCenter, "Report Scadenzario Grafico")
 
@@ -305,7 +320,6 @@ class ScadenzarioView(QWidget):
             end_date_str = self.current_date.addMonths(self.zoom_months).toString("dd/MM/yyyy")
             painter.drawText(QRectF(content_rect.left(), content_rect.top() + 30, content_rect.width(), 20), Qt.AlignmentFlag.AlignCenter, f"Periodo: {start_date_str} - {end_date_str}")
 
-            # Draw Legend
             legend_y = content_rect.top() + 55
             legend_x = content_rect.left() + content_rect.width()
             for text, color in reversed(list(self.legend_items.items())):
@@ -318,20 +332,10 @@ class ScadenzarioView(QWidget):
                 painter.setPen(pen_default)
                 painter.drawText(QRectF(legend_x + 20, legend_y, text_width, 10), Qt.AlignmentFlag.AlignLeft, text)
 
-            # --- 2. Draw Content ---
             content_y_start = content_rect.top() + header_height
-
-            # Draw Tree and Gantt Backgrounds (optional, for visual separation)
-            painter.setBrush(QBrush(QColor("#F9F9F9")))
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRect(QRectF(content_rect.left(), content_y_start, tree_width, content_rect.height() - header_height))
-
-            start_item_index = page_num * items_per_page
-            end_item_index = min(start_item_index + items_per_page, len(visible_items))
 
             gantt_start_x = content_rect.left() + tree_width
 
-            # Draw Gantt Timeline Header
             start_date = self.current_date.addDays(-self.current_date.day() + 1)
             end_date = start_date.addMonths(self.zoom_months)
             total_days = start_date.daysTo(end_date)
@@ -347,21 +351,21 @@ class ScadenzarioView(QWidget):
                     painter.setPen(pen_default)
                     painter.drawText(int(gantt_start_x + i * col_width + 2), int(content_y_start - 12), month_name)
 
+            start_item_index = page_num * items_per_page
+            end_item_index = min(start_item_index + items_per_page, len(visible_items))
+
+            current_y = content_y_start
             for i in range(start_item_index, end_item_index):
                 item = visible_items[i]
-                y_pos = content_y_start + (i - start_item_index) * row_height
 
-                # Draw Tree Item Text
-                indent = item.parent().childCount() if item.parent() else 0
-                indent = 20 if item.parent() else 10
-                if item.parent() and item.parent().parent():
-                    indent = 30 # Third level
+                indent = 10
+                if item.parent(): indent = 20
+                if item.parent() and item.parent().parent(): indent = 30
 
                 painter.setFont(font_body)
                 painter.setPen(pen_default)
-                painter.drawText(QRectF(content_rect.left() + indent, y_pos, tree_width - indent, row_height), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, item.text(0))
+                painter.drawText(QRectF(content_rect.left() + indent, current_y, tree_width - indent, row_height), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, item.text(0))
 
-                # Draw Gantt Bar and Text
                 course_data = item.data(0, Qt.ItemDataRole.UserRole)
                 if isinstance(course_data, dict) and 'data_scadenza' in course_data:
                     today = QDate.currentDate()
@@ -379,14 +383,15 @@ class ScadenzarioView(QWidget):
 
                     painter.setBrush(QBrush(color))
                     painter.setPen(Qt.PenStyle.NoPen)
-                    bar_rect = QRectF(gantt_start_x + start_x, y_pos + 2, bar_width, row_height - 4)
+                    bar_rect = QRectF(gantt_start_x + start_x, current_y + 2, bar_width, row_height - 4)
                     painter.drawRoundedRect(bar_rect, 2, 2)
 
-                    # Draw Text Label for Gantt Bar
                     painter.setFont(font_small)
                     painter.setPen(pen_default)
-                    label = f"{course_data['nome']} - {course_data['categoria']} - Scad. {expiry_date.toString('dd/MM/yyyy')}"
-                    painter.drawText(QRectF(bar_rect.right() + 5, bar_rect.top(), gantt_width, row_height), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, label)
+                    label = f"{course_data.get('nome', '')} - {course_data.get('categoria', '')} - Scad. {expiry_date.toString('dd/MM/yyyy')}"
+                    painter.drawText(QRectF(bar_rect.right() + 5, bar_rect.top(), gantt_width, row_height - 4), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, label)
+
+                current_y += row_height
 
         painter.end()
         QMessageBox.information(self, "Esportazione Riuscita", f"Gantt esportato con successo in {path}")
