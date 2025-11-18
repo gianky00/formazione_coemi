@@ -173,13 +173,26 @@ class DashboardView(QWidget):
             self.table_view.selectionModel().selectionChanged.connect(self._update_button_states)
 
         if not df.empty:
+            # Assicurati che la colonna 'matricola' esista
+            if 'matricola' not in df.columns:
+                df['matricola'] = None # Aggiungi colonna vuota se non presente
+
+            column_order = ['id', 'nome', 'matricola', 'corso', 'categoria', 'data_rilascio', 'data_scadenza', 'stato_certificato']
+            df = df[[col for col in column_order if col in df.columns]]
+
+            self.model = CertificatoTableModel(df)
+            self.table_view.setModel(self.model)
+
             self.table_view.setColumnHidden(df.columns.get_loc('id'), True)
             status_col_index = df.columns.get_loc('stato_certificato')
             self.table_view.setItemDelegateForColumn(status_col_index, StatusDelegate())
+
             header = self.table_view.horizontalHeader()
             header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
             header.setSectionResizeMode(df.columns.get_loc('nome'), QHeaderView.ResizeMode.Stretch)
             header.setSectionResizeMode(df.columns.get_loc('corso'), QHeaderView.ResizeMode.Stretch)
+            if 'matricola' in df.columns:
+                header.setSectionResizeMode(df.columns.get_loc('matricola'), QHeaderView.ResizeMode.ResizeToContents)
 
     def _update_filters(self):
         self.dipendente_filter.blockSignals(True)

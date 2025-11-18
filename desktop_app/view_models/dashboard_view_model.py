@@ -2,7 +2,7 @@
 import pandas as pd
 import requests
 from PyQt6.QtCore import QObject, pyqtSignal
-from ..api_client import API_URL
+from ..api_client import APIClient
 
 class DashboardViewModel(QObject):
     data_changed = pyqtSignal()
@@ -13,6 +13,7 @@ class DashboardViewModel(QObject):
         super().__init__()
         self._df_original = pd.DataFrame()
         self._df_filtered = pd.DataFrame()
+        self.api_client = APIClient()
 
     @property
     def filtered_data(self):
@@ -20,7 +21,7 @@ class DashboardViewModel(QObject):
 
     def load_data(self):
         try:
-            response = requests.get(f"{API_URL}/certificati/?validated=true")
+            response = requests.get(f"{self.api_client.base_url}/certificati/?validated=true")
             response.raise_for_status()
             data = response.json()
             self._df_original = pd.DataFrame(data) if data else pd.DataFrame()
@@ -68,7 +69,7 @@ class DashboardViewModel(QObject):
         error_messages = []
         for cert_id in ids:
             try:
-                response = requests.delete(f"{API_URL}/certificati/{cert_id}")
+                response = requests.delete(f"{self.api_client.base_url}/certificati/{cert_id}")
                 response.raise_for_status()
                 success_count += 1
             except requests.exceptions.RequestException as e:
@@ -84,7 +85,7 @@ class DashboardViewModel(QObject):
 
     def update_certificate(self, cert_id, data):
         try:
-            response = requests.put(f"{API_URL}/certificati/{cert_id}", json=data)
+            response = requests.put(f"{self.api_client.base_url}/certificati/{cert_id}", json=data)
             response.raise_for_status()
             self.operation_completed.emit("Certificato aggiornato con successo.")
             self.load_data()

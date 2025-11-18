@@ -2,10 +2,11 @@
 import os
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton,
-    QMessageBox, QFrame, QFormLayout, QComboBox
+    QMessageBox, QFrame, QFormLayout, QComboBox, QFileDialog
 )
 from PyQt6.QtCore import Qt
 from dotenv import load_dotenv, set_key
+from desktop_app.api_client import APIClient
 
 class ConfigView(QWidget):
     def __init__(self):
@@ -50,7 +51,7 @@ class ConfigView(QWidget):
         self.form_layout.addRow(smtp_separator)
 
         self.email_preset_combo = QComboBox()
-        self.email_preset_combo.addItems(["Manuale", "Gmail", "Outlook"])
+        self.email_preset_combo.addItems(["Manuale", "Gmail", "Outlook", "COEMI"])
         self.email_preset_combo.currentIndexChanged.connect(self.apply_email_preset)
         self.form_layout.addRow(QLabel("Preset Email:"), self.email_preset_combo)
 
@@ -83,9 +84,19 @@ class ConfigView(QWidget):
         self.save_button = QPushButton("Salva Modifiche")
         self.save_button.setObjectName("primary")
         self.save_button.clicked.connect(self.save_config)
-        self.layout.addWidget(self.save_button, 0, Qt.AlignmentFlag.AlignRight)
+
+        self.import_button = QPushButton("Importa Dipendenti da CSV")
+        self.import_button.setObjectName("secondary")
+        self.import_button.clicked.connect(self.import_csv)
+
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(self.import_button)
+        button_layout.addStretch()
+        button_layout.addWidget(self.save_button)
+        self.layout.addLayout(button_layout)
 
         self.load_config()
+        self.api_client = APIClient()
 
     def get_env_path(self):
         # Assumes .env file is in the root directory of the project
@@ -121,7 +132,27 @@ class ConfigView(QWidget):
         elif preset == "Outlook":
             self.smtp_host_input.setText("smtp.office365.com")
             self.smtp_port_input.setText("587")
+        elif preset == "COEMI":
+            self.smtp_host_input.setText("smtps.aruba.it")
+            self.smtp_port_input.setText("587")
         # Manual preset does not change anything
+
+    def import_csv(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Seleziona CSV", "", "CSV Files (*.csv)")
+        if file_path:
+            try:
+                response = self.api_client.import_dipendenti_csv(file_path)
+                QMessageBox.information(
+                    self,
+                    "Importazione Completata",
+                    response.get("message", "Importazione dei dipendenti completata con successo.")
+                )
+            except Exception as e:
+                QMessageBox.critical(
+                    self,
+                    "Errore di Importazione",
+                    f"Impossibile importare il file CSV: {e}"
+                )
 
     def save_config(self):
         env_path = self.get_env_path()
