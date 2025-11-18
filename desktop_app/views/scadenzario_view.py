@@ -251,7 +251,7 @@ class ScadenzarioView(QWidget):
                     course_name = item.text(0)
 
                     course_data = item.data(0, Qt.ItemDataRole.UserRole)
-                    if course_data and course_data.get('data_scadenza'):
+                    if isinstance(course_data, dict) and course_data.get('data_scadenza'):
                         expiry_date = QDate.fromString(course_data['data_scadenza'], "dd/MM/yyyy")
                         days_to_expiry = today.daysTo(expiry_date)
 
