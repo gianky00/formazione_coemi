@@ -2,7 +2,7 @@
 import os
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton,
-    QMessageBox, QFrame, QFormLayout, QComboBox, QFileDialog
+    QMessageBox, QFrame, QFormLayout, QComboBox, QFileDialog, QHBoxLayout
 )
 from PyQt6.QtCore import Qt
 from dotenv import load_dotenv, set_key
