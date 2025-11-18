@@ -6,7 +6,7 @@ from email.mime.base import MIMEBase
 from email import encoders
 import tempfile
 from fpdf import FPDF
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.db.models import Certificato, Corso
@@ -25,7 +25,7 @@ class PDF(FPDF):
         # Move to the right
         self.cell(80)
         # Title
-        self.cell(30, 10, 'Report Scadenze', 0, 0, 'C')
+        self.cell(0, 10, f"Report scadenze al {date.today().strftime('%d/%m/%Y')}", 0, 0, 'C')
         # Line break
         self.ln(20)
 
@@ -110,20 +110,20 @@ def send_email_notification(pdf_path, expiring_count, overdue_count):
     msg['To'] = ", ".join(to_emails)
     if cc_emails:
         msg['Cc'] = ", ".join(cc_emails)
-    msg['Subject'] = f"Avviso Scadenze Automatico - Report del {date.today().strftime('%d/%m/%Y')}"
+    msg['Subject'] = f"Intelleo: Avviso documenti in scadenza - Report del {date.today().strftime('%d/%m/%Y')}"
 
     html_body = f"""
     <html>
     <head>
         <style>
-            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 16px; color: #333; background-color: #f9fafb; margin: 0; padding: 0; }}
-            .wrapper {{ background-color: #ffffff; margin: 20px auto; padding: 30px; border-radius: 12px; max-width: 600px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 16px; color: #333; background-color: #f9fafb; margin: 0; padding: 20px; text-align: left; }}
+            .wrapper {{ background-color: #ffffff; margin: 0; padding: 30px; border-radius: 12px; max-width: 600px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
             .header {{ font-size: 24px; font-weight: 700; color: #1F2937; border-bottom: 2px solid #F0F8FF; padding-bottom: 15px; margin-bottom: 20px; }}
             .summary-box {{ background-color: #F0F8FF; border-left: 4px solid #1D4ED8; padding: 15px; margin: 20px 0; border-radius: 4px; }}
             .summary-box p {{ margin: 0; font-size: 16px; color: #1F2937; }}
             .summary-box strong {{ font-size: 18px; }}
             .content p {{ line-height: 1.6; }}
-            .footer {{ margin-top: 30px; font-size: 12px; color: #9CA3AF; text-align: center; }}
+            .footer {{ margin-top: 30px; font-size: 12px; color: #9CA3AF; text-align: left; }}
         </style>
     </head>
     <body>
@@ -135,13 +135,13 @@ def send_email_notification(pdf_path, expiring_count, overdue_count):
                 <div class="summary-box">
                     <p><strong>Riepilogo Analisi:</strong></p>
                     <ul style="list-style-type: none; padding-left: 0; margin-top: 10px;">
-                        <li style="margin-bottom: 5px;">Certificati in Avvicinamento alla Scadenza: <strong>{expiring_count}</strong></li>
-                        <li>Certificati Scaduti non Rinnovati: <strong>{overdue_count}</strong></li>
+                        <li style="margin-bottom: 5px;">Certificati in avvicinamento scadenza ({settings.ALERT_THRESHOLD_DAYS} GG): <strong>{expiring_count}</strong></li>
+                        <li>Certificati scaduti non rinnovati: <strong>{overdue_count}</strong></li>
                     </ul>
                 </div>
                 <p>Si prega di prendere visione del report per le azioni di competenza.</p>
             </div>
-            <p class="footer">Email generata automaticamente dal Software Intelleo</p>
+            <p class="footer">Email generata il {datetime.now().strftime('%d/%m/%Y alle %H:%M:%S')} dal Software Intelleo</p>
         </div>
     </body>
     </html>
@@ -182,8 +182,8 @@ def check_and_send_alerts():
         overdue_certificates = []
 
         # 1. Check for certificates expiring soon
-        expiring_limit_attestati = today + timedelta(days=60)  # 2 months
-        expiring_limit_visite = today + timedelta(days=30)     # 1 month
+        expiring_limit_attestati = today + timedelta(days=settings.ALERT_THRESHOLD_DAYS)
+        expiring_limit_visite = today + timedelta(days=settings.ALERT_THRESHOLD_DAYS_VISITE)
 
         all_certs = db.query(Certificato).all()
 
