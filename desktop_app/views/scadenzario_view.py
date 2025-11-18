@@ -38,12 +38,6 @@ class ScadenzarioView(QWidget):
 
         nav_layout.addStretch()
 
-        grouping_label = QLabel("Raggruppa per:")
-        nav_layout.addWidget(grouping_label)
-        self.grouping_combo = QComboBox()
-        self.grouping_combo.addItems(["Dipendente", "Categoria"])
-        nav_layout.addWidget(self.grouping_combo)
-
         zoom_label = QLabel("Zoom:")
         nav_layout.addWidget(zoom_label)
         self.zoom_3m_button = QPushButton("3 Mesi")
@@ -98,7 +92,7 @@ class ScadenzarioView(QWidget):
         self.gantt_view.setScene(self.gantt_scene)
         self.splitter.addWidget(self.gantt_view)
 
-        self.splitter.setSizes([250, 750])
+        self.splitter.setSizes([150, 850])
         self.layout.addWidget(self.splitter)
 
         self.gantt_view.verticalScrollBar().valueChanged.connect(self.employee_tree.verticalScrollBar().setValue)
@@ -109,7 +103,6 @@ class ScadenzarioView(QWidget):
         self.zoom_months = 6
         self.load_data()
 
-        self.grouping_combo.currentIndexChanged.connect(self.populate_tree)
         self.zoom_3m_button.clicked.connect(lambda: self.set_zoom(3))
         self.zoom_6m_button.clicked.connect(lambda: self.set_zoom(6))
         self.zoom_1y_button.clicked.connect(lambda: self.set_zoom(12))
@@ -167,34 +160,43 @@ class ScadenzarioView(QWidget):
 
     def populate_tree(self):
         self.employee_tree.clear()
-        grouping_mode = self.grouping_combo.currentText()
+        self.employee_tree.setHeaderLabels(["Categoria / Dipendenti"])
 
-        if grouping_mode == "Dipendente":
-            self.employee_tree.setHeaderLabels(["Dipendenti / Corsi"])
-            grouped_data = defaultdict(list)
-            for item in self.data:
-                grouped_data[item['nome']].append(item)
+        data_by_category = defaultdict(lambda: defaultdict(list))
+        today = QDate.currentDate()
 
-            for group_name, items in sorted(grouped_data.items()):
-                group_item = QTreeWidgetItem(self.employee_tree, [group_name])
-                group_item.setData(0, Qt.ItemDataRole.UserRole, "employee")
-                for item in sorted(items, key=lambda x: x['categoria']):
-                    child_item = QTreeWidgetItem(group_item, [item['categoria']])
+        for item in self.data:
+            if 'data_scadenza' in item and item['data_scadenza']:
+                expiry_date = QDate.fromString(item['data_scadenza'], "dd/MM/yyyy")
+                days_to_expiry = today.daysTo(expiry_date)
+
+                status = "SCADUTI" if days_to_expiry < 0 else "IN SCADENZA"
+                data_by_category[item['categoria']][status].append(item)
+
+        for category, statuses in sorted(data_by_category.items()):
+            if not statuses.get("IN SCADENZA") and not statuses.get("SCADUTI"):
+                continue
+
+            category_item = QTreeWidgetItem(self.employee_tree, [category])
+            category_item.setData(0, Qt.ItemDataRole.UserRole, "category")
+
+            if "IN SCADENZA" in statuses:
+                in_scadenza_item = QTreeWidgetItem(category_item, ["IN SCADENZA"])
+                in_scadenza_item.setData(0, Qt.ItemDataRole.UserRole, "status_folder")
+                for item in sorted(statuses["IN SCADENZA"], key=lambda x: x['nome']):
+                    child_item = QTreeWidgetItem(in_scadenza_item, [f"{item['nome']} ({item.get('matricola', 'N/A')})"])
                     child_item.setData(0, Qt.ItemDataRole.UserRole, item)
-        else: # Categoria
-            self.employee_tree.setHeaderLabels(["Categoria / Dipendenti"])
-            grouped_data = defaultdict(list)
-            for item in self.data:
-                grouped_data[item['categoria']].append(item)
 
-            for group_name, items in sorted(grouped_data.items()):
-                group_item = QTreeWidgetItem(self.employee_tree, [group_name])
-                group_item.setData(0, Qt.ItemDataRole.UserRole, "category")
-                for item in sorted(items, key=lambda x: x['nome']):
-                    child_item = QTreeWidgetItem(group_item, [item['nome']])
+            if "SCADUTI" in statuses:
+                scaduti_item = QTreeWidgetItem(category_item, ["SCADUTI"])
+                scaduti_item.setData(0, Qt.ItemDataRole.UserRole, "status_folder")
+                for item in sorted(statuses["SCADUTI"], key=lambda x: x['nome']):
+                    child_item = QTreeWidgetItem(scaduti_item, [f"{item['nome']} ({item.get('matricola', 'N/A')})"])
                     child_item.setData(0, Qt.ItemDataRole.UserRole, item)
 
+        self.employee_tree.expandAll()
         self.redraw_gantt_scene()
+
 
     def redraw_gantt_scene(self):
         self.gantt_scene.clear()
