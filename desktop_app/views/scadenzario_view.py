@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGraphicsView, QGraph
                              QGraphicsTextItem, QGraphicsLineItem, QPushButton, QHBoxLayout,
                              QScrollBar, QTreeWidgetItemIterator, QMessageBox, QFileDialog, QComboBox)
 from PyQt6.QtCore import Qt, QDate
-from PyQt6.QtGui import QColor, QBrush, QPen, QFont, QLinearGradient, QPainterPath, QPainter
+from PyQt.QtGui import QColor, QBrush, QPen, QFont, QLinearGradient, QPainterPath, QPainter, QPageLayout
 from PyQt6.QtPrintSupport import QPrinter
 import requests
 from ..api_client import APIClient
@@ -15,47 +15,52 @@ class ScadenzarioView(QWidget):
     def __init__(self):
         super().__init__()
         self.layout = QVBoxLayout(self)
-        self.layout.setSpacing(10) # Reduced spacing
+        self.layout.setSpacing(10)
 
+        # Main Title and Description
         title_layout = QVBoxLayout()
-        title_layout.setSpacing(2) # Reduced spacing
+        title_layout.setSpacing(2)
         title = QLabel("Scadenzario Grafico")
-        title.setStyleSheet("font-size: 24px; font-weight: 700;") # Reduced font size
+        title.setStyleSheet("font-size: 24px; font-weight: 700;")
         title_layout.addWidget(title)
         description = QLabel("Timeline interattiva dei certificati in scadenza.")
-        description.setStyleSheet("font-size: 14px; color: #6B7280;") # Reduced font size
+        description.setStyleSheet("font-size: 14px; color: #6B7280;")
         title_layout.addWidget(description)
         self.layout.addLayout(title_layout)
 
-        nav_layout = QHBoxLayout()
-        self.prev_month_button = QPushButton("< Mese Prec.")
+        # Toolbar Layout
+        toolbar_layout = QHBoxLayout()
+        toolbar_layout.setSpacing(10)
+
+        self.prev_month_button = QPushButton("<")
         self.prev_month_button.clicked.connect(self.prev_month)
-        nav_layout.addWidget(self.prev_month_button)
+        toolbar_layout.addWidget(self.prev_month_button)
 
-        self.next_month_button = QPushButton("Mese Succ. >")
+        self.next_month_button = QPushButton(">")
         self.next_month_button.clicked.connect(self.next_month)
-        nav_layout.addWidget(self.next_month_button)
+        toolbar_layout.addWidget(self.next_month_button)
 
-        nav_layout.addStretch()
+        toolbar_layout.addSpacing(20)
 
         zoom_label = QLabel("Zoom:")
-        nav_layout.addWidget(zoom_label)
-        self.zoom_3m_button = QPushButton("3 Mesi")
-        self.zoom_6m_button = QPushButton("6 Mesi")
-        self.zoom_1y_button = QPushButton("1 Anno")
-        nav_layout.addWidget(self.zoom_3m_button)
-        nav_layout.addWidget(self.zoom_6m_button)
-        nav_layout.addWidget(self.zoom_1y_button)
+        toolbar_layout.addWidget(zoom_label)
+        self.zoom_combo = QComboBox()
+        self.zoom_combo.addItems(["3 Mesi", "6 Mesi", "1 Anno"])
+        self.zoom_combo.setCurrentIndex(1) # Default to 6 months
+        self.zoom_combo.currentIndexChanged.connect(self.update_zoom_from_combo)
+        toolbar_layout.addWidget(self.zoom_combo)
+
+        toolbar_layout.addStretch()
 
         self.generate_email_button = QPushButton("Genera Email")
         self.generate_email_button.setObjectName("primary")
         self.generate_email_button.clicked.connect(self.generate_email)
-        nav_layout.addWidget(self.generate_email_button)
+        toolbar_layout.addWidget(self.generate_email_button)
 
         self.export_pdf_button = QPushButton("Esporta PDF")
         self.export_pdf_button.setObjectName("secondary")
         self.export_pdf_button.clicked.connect(self.export_to_pdf)
-        nav_layout.addWidget(self.export_pdf_button)
+        toolbar_layout.addWidget(self.export_pdf_button)
 
         # Legend
         legend_layout = QHBoxLayout()
@@ -71,19 +76,20 @@ class ScadenzarioView(QWidget):
             color_box.setStyleSheet(f"background-color: {color}; border-radius: 4px;")
             legend_layout.addWidget(color_box)
             legend_layout.addWidget(QLabel(text))
-        nav_layout.addLayout(legend_layout)
+        toolbar_layout.addLayout(legend_layout)
 
-        self.layout.addLayout(nav_layout)
+        self.layout.addLayout(toolbar_layout)
 
+        # Main Content Area (Tree and Gantt)
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
 
         self.employee_tree = QTreeWidget()
-        self.employee_tree.setHeaderLabels(["Dipendenti / Corsi"])
+        self.employee_tree.setHeaderLabels(["Categoria / Dipendenti"])
         self.employee_tree.itemExpanded.connect(self.redraw_gantt_scene)
         self.employee_tree.itemCollapsed.connect(self.redraw_gantt_scene)
         self.employee_tree.itemClicked.connect(self._on_tree_item_selected)
         font = QFont()
-        font.setPointSize(10) # Smaller font for the tree
+        font.setPointSize(10)
         self.employee_tree.setFont(font)
         self.splitter.addWidget(self.employee_tree)
 
@@ -92,9 +98,10 @@ class ScadenzarioView(QWidget):
         self.gantt_view.setScene(self.gantt_scene)
         self.splitter.addWidget(self.gantt_view)
 
-        self.splitter.setSizes([150, 850])
+        self.splitter.setSizes([250, 750]) # Initial sizing
         self.layout.addWidget(self.splitter)
 
+        # Sync Scrollbars
         self.gantt_view.verticalScrollBar().valueChanged.connect(self.employee_tree.verticalScrollBar().setValue)
         self.employee_tree.verticalScrollBar().valueChanged.connect(self.gantt_view.verticalScrollBar().setValue)
 
@@ -103,9 +110,9 @@ class ScadenzarioView(QWidget):
         self.zoom_months = 6
         self.load_data()
 
-        self.zoom_3m_button.clicked.connect(lambda: self.set_zoom(3))
-        self.zoom_6m_button.clicked.connect(lambda: self.set_zoom(6))
-        self.zoom_1y_button.clicked.connect(lambda: self.set_zoom(12))
+    def update_zoom_from_combo(self, index):
+        zoom_map = {0: 3, 1: 6, 2: 12}
+        self.set_zoom(zoom_map.get(index, 6))
 
     def set_zoom(self, months):
         self.zoom_months = months
@@ -113,23 +120,22 @@ class ScadenzarioView(QWidget):
 
     def _on_tree_item_selected(self, item, column):
         course_data = item.data(0, Qt.ItemDataRole.UserRole)
-        if course_data == "employee":
-            return  # Don't do anything if an employee item is clicked
+        if not isinstance(course_data, dict):
+            return
 
         # Reset all items to their original state
-        for item in self.gantt_scene.items():
-            if isinstance(item, GanttBarItem):
-                item.setBrush(QBrush(item.color))
-                item.setPen(QPen(Qt.PenStyle.NoPen))
+        for scene_item in self.gantt_scene.items():
+            if isinstance(scene_item, GanttBarItem):
+                scene_item.setBrush(QBrush(scene_item.color))
+                scene_item.setPen(QPen(Qt.PenStyle.NoPen))
 
-        # Find the corresponding bar in the Gantt chart and highlight it
+        # Find the corresponding bar and highlight it
         for rect_item in self.gantt_scene.items():
-            if isinstance(rect_item, GanttBarItem):
-                if rect_item.data(Qt.ItemDataRole.UserRole) == course_data:
-                    self.gantt_view.ensureVisible(rect_item)
-                    rect_item.setBrush(QBrush(QColor("lightblue")))
-                    rect_item.setPen(QPen(QColor("blue"), 2))
-                    break
+            if isinstance(rect_item, GanttBarItem) and rect_item.data(Qt.ItemDataRole.UserRole) == course_data:
+                self.gantt_view.ensureVisible(rect_item)
+                rect_item.setBrush(QBrush(QColor("lightblue")))
+                rect_item.setPen(QPen(QColor("blue"), 2))
+                break
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -151,7 +157,7 @@ class ScadenzarioView(QWidget):
             today = QDate.currentDate()
             self.data = [
                 item for item in all_data
-                if 'data_scadenza' in item and today.daysTo(QDate.fromString(item['data_scadenza'], "dd/MM/yyyy")) <= 90
+                if 'data_scadenza' in item and item.get('data_scadenza') and today.daysTo(QDate.fromString(item['data_scadenza'], "dd/MM/yyyy")) <= 90
             ]
         except requests.exceptions.RequestException:
             self.data = []
@@ -160,18 +166,15 @@ class ScadenzarioView(QWidget):
 
     def populate_tree(self):
         self.employee_tree.clear()
-        self.employee_tree.setHeaderLabels(["Categoria / Dipendenti"])
-
         data_by_category = defaultdict(lambda: defaultdict(list))
         today = QDate.currentDate()
 
         for item in self.data:
-            if 'data_scadenza' in item and item['data_scadenza']:
-                expiry_date = QDate.fromString(item['data_scadenza'], "dd/MM/yyyy")
-                days_to_expiry = today.daysTo(expiry_date)
+            expiry_date = QDate.fromString(item['data_scadenza'], "dd/MM/yyyy")
+            days_to_expiry = today.daysTo(expiry_date)
 
-                status = "SCADUTI" if days_to_expiry < 0 else "IN SCADENZA"
-                data_by_category[item['categoria']][status].append(item)
+            status = "SCADUTI" if days_to_expiry < 0 else "IN SCADENZA"
+            data_by_category[item['categoria']][status].append(item)
 
         for category, statuses in sorted(data_by_category.items()):
             if not statuses.get("IN SCADENZA") and not statuses.get("SCADUTI"):
@@ -197,12 +200,12 @@ class ScadenzarioView(QWidget):
         self.employee_tree.expandAll()
         self.redraw_gantt_scene()
 
-
     def redraw_gantt_scene(self):
         self.gantt_scene.clear()
 
-        row_height = 20 # Reduced row height
-        header_height = 30 # Reduced header height
+        row_height = 20
+        header_height = 30
+        today = QDate.currentDate()
 
         start_date = self.current_date.addDays(-self.current_date.day() + 1)
         end_date = start_date.addMonths(self.zoom_months)
@@ -222,63 +225,42 @@ class ScadenzarioView(QWidget):
                 text.setPos(i * col_width, 0)
                 self.gantt_scene.addItem(text)
 
-        y_pos = header_height
-        total_rows = 0
-        root = self.employee_tree.invisibleRootItem()
-        for i in range(root.childCount()):
-            total_rows += 1
-            if root.child(i).isExpanded():
-                total_rows += root.child(i).childCount()
-
-        scene_height = header_height + total_rows * row_height
-        self.gantt_scene.setSceneRect(0, 0, scene_width, scene_height)
-
         # Draw Today Line
-        today = QDate.currentDate()
         if start_date <= today <= end_date:
             today_x = start_date.daysTo(today) * col_width
-            today_line = QGraphicsLineItem(today_x, 0, today_x, scene_height)
+            today_line = QGraphicsLineItem(today_x, 0, today_x, self.gantt_view.viewport().height())
             today_line.setPen(QPen(QColor("#1D4ED8"), 2))
             self.gantt_scene.addItem(today_line)
 
-        # Draw Bars
+        y_pos = header_height
         iterator = QTreeWidgetItemIterator(self.employee_tree)
         while iterator.value():
             item = iterator.value()
             if not item.isHidden():
-                if item.parent(): # Is a course
-                    employee_name = item.parent().text(0)
-                    course_name = item.text(0)
+                course_data = item.data(0, Qt.ItemDataRole.UserRole)
+                if isinstance(course_data, dict) and 'data_scadenza' in course_data:
+                    expiry_date = QDate.fromString(course_data['data_scadenza'], "dd/MM/yyyy")
+                    days_to_expiry = today.daysTo(expiry_date)
 
-                    course_data = item.data(0, Qt.ItemDataRole.UserRole)
-                    if isinstance(course_data, dict) and course_data.get('data_scadenza'):
-                        expiry_date = QDate.fromString(course_data['data_scadenza'], "dd/MM/yyyy")
-                        days_to_expiry = today.daysTo(expiry_date)
+                    bar_start_date = expiry_date.addDays(-30)
+                    start_x = start_date.daysTo(bar_start_date) * col_width
+                    end_x = start_date.daysTo(expiry_date) * col_width
+                    bar_width = max(2, end_x - start_x)
 
-                        if days_to_expiry <= 90:
-                            bar_start_date = expiry_date.addDays(-30)
+                    color = QColor("#FBBF24")  # Avviso
+                    if days_to_expiry < 30: color = QColor("#F97316") # In scadenza
+                    if days_to_expiry < 0: color = QColor("#EF4444") # Scaduto
 
-                            start_x = start_date.daysTo(bar_start_date) * col_width
-                            end_x = start_date.daysTo(expiry_date) * col_width
-                            bar_width = max(2, end_x - start_x)
+                    gradient = QLinearGradient(start_x, y_pos, start_x + bar_width, y_pos)
+                    gradient.setColorAt(0, color.lighter(120))
+                    gradient.setColorAt(1, color)
 
-                            status = "Avviso"
-                            color = QColor("#FBBF24")  # Giallo (30-90)
-                            if 0 <= days_to_expiry < 30:
-                                color = QColor("#F97316")  # Arancione
-                                status = "In scadenza"
-                            if days_to_expiry < 0:
-                                color = QColor("#EF4444")  # Rosso
-                                status = "Scaduto"
-
-                            gradient = QLinearGradient(start_x, y_pos, start_x + bar_width, y_pos)
-                            gradient.setColorAt(0, color.lighter(120))
-                            gradient.setColorAt(1, color)
-
-                            rect = GanttBarItem(start_x, y_pos, bar_width, row_height - 5, QBrush(gradient), color, course_data)
-                            self.gantt_scene.addItem(rect)
+                    rect = GanttBarItem(start_x, y_pos + (row_height / 4), bar_width, row_height / 1.5, QBrush(gradient), color, course_data)
+                    self.gantt_scene.addItem(rect)
                 y_pos += row_height
             iterator += 1
+
+        self.gantt_scene.setSceneRect(0, 0, scene_width, y_pos)
 
     def generate_email(self):
         try:
@@ -299,23 +281,21 @@ class ScadenzarioView(QWidget):
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)
         printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
         printer.setOutputFileName(path)
-        printer.setPageOrientation(QPrinter.PageOrientation.Landscape)
+
+        page_layout = QPageLayout()
+        page_layout.setOrientation(QPageLayout.Orientation.Landscape)
+        printer.setPageLayout(page_layout)
 
         painter = QPainter(printer)
 
-        # Redraw the scene with the fixed date range for the PDF
-        original_date = self.current_date
-        original_zoom = self.zoom_months
-        self.current_date = QDate.currentDate().addMonths(-1)
-        self.zoom_months = 4
-        self.redraw_gantt_scene()
-
+        # Ensure the scene has the correct dimensions for rendering
+        original_size = self.gantt_view.size()
+        printer_rect = printer.pageRect(QPrinter.Unit.DevicePixel)
+        self.gantt_scene.setSceneRect(0, 0, printer_rect.width(), printer_rect.height())
         self.gantt_scene.render(painter)
 
-        # Restore the original view
-        self.current_date = original_date
-        self.zoom_months = original_zoom
-        self.redraw_gantt_scene()
+        # Restore original scene rect
+        self.gantt_scene.setSceneRect(0, 0, original_size.width(), self.gantt_view.viewport().height())
 
         painter.end()
         QMessageBox.information(self, "Esportazione Riuscita", f"Gantt esportato con successo in {path}")
