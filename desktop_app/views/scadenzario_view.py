@@ -2,9 +2,10 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGraphicsView, QGraphicsScene,
                              QSplitter, QTreeWidget, QTreeWidgetItem, QGraphicsRectItem,
                              QGraphicsTextItem, QGraphicsLineItem, QPushButton, QHBoxLayout,
-                             QScrollBar, QTreeWidgetItemIterator, QMessageBox)
+                             QScrollBar, QTreeWidgetItemIterator, QMessageBox, QFileDialog, QComboBox)
 from PyQt6.QtCore import Qt, QDate
-from PyQt6.QtGui import QColor, QBrush, QPen, QFont, QLinearGradient, QPainterPath
+from PyQt6.QtGui import QColor, QBrush, QPen, QFont, QLinearGradient, QPainterPath, QPainter
+from PyQt6.QtPrintSupport import QPrinter
 import requests
 from ..api_client import APIClient
 from collections import defaultdict
@@ -37,18 +38,38 @@ class ScadenzarioView(QWidget):
 
         nav_layout.addStretch()
 
+        grouping_label = QLabel("Raggruppa per:")
+        nav_layout.addWidget(grouping_label)
+        self.grouping_combo = QComboBox()
+        self.grouping_combo.addItems(["Dipendente", "Categoria"])
+        nav_layout.addWidget(self.grouping_combo)
+
+        zoom_label = QLabel("Zoom:")
+        nav_layout.addWidget(zoom_label)
+        self.zoom_3m_button = QPushButton("3 Mesi")
+        self.zoom_6m_button = QPushButton("6 Mesi")
+        self.zoom_1y_button = QPushButton("1 Anno")
+        nav_layout.addWidget(self.zoom_3m_button)
+        nav_layout.addWidget(self.zoom_6m_button)
+        nav_layout.addWidget(self.zoom_1y_button)
+
         self.generate_email_button = QPushButton("Genera Email")
         self.generate_email_button.setObjectName("primary")
         self.generate_email_button.clicked.connect(self.generate_email)
         nav_layout.addWidget(self.generate_email_button)
+
+        self.export_pdf_button = QPushButton("Esporta PDF")
+        self.export_pdf_button.setObjectName("secondary")
+        self.export_pdf_button.clicked.connect(self.export_to_pdf)
+        nav_layout.addWidget(self.export_pdf_button)
 
         # Legend
         legend_layout = QHBoxLayout()
         legend_layout.addStretch()
         legend_items = {
             "Scaduto": "#EF4444",
-            "In scadenza": "#F97316",
-            "Avviso": "#FBBF24"
+            "In scadenza (< 30 gg)": "#F97316",
+            "Avviso (30-90 gg)": "#FBBF24"
         }
         for text, color in legend_items.items():
             color_box = QLabel()
@@ -85,7 +106,17 @@ class ScadenzarioView(QWidget):
 
         self.api_client = APIClient()
         self.current_date = QDate.currentDate()
+        self.zoom_months = 6
         self.load_data()
+
+        self.grouping_combo.currentIndexChanged.connect(self.populate_tree)
+        self.zoom_3m_button.clicked.connect(lambda: self.set_zoom(3))
+        self.zoom_6m_button.clicked.connect(lambda: self.set_zoom(6))
+        self.zoom_1y_button.clicked.connect(lambda: self.set_zoom(12))
+
+    def set_zoom(self, months):
+        self.zoom_months = months
+        self.redraw_gantt_scene()
 
     def _on_tree_item_selected(self, item, column):
         course_data = item.data(0, Qt.ItemDataRole.UserRole)
@@ -122,7 +153,13 @@ class ScadenzarioView(QWidget):
     def load_data(self):
         try:
             response = requests.get(f"{self.api_client.base_url}/certificati/?validated=true")
-            self.data = response.json() if response.status_code == 200 else []
+            all_data = response.json() if response.status_code == 200 else []
+
+            today = QDate.currentDate()
+            self.data = [
+                item for item in all_data
+                if 'data_scadenza' in item and today.daysTo(QDate.fromString(item['data_scadenza'], "dd/MM/yyyy")) <= 90
+            ]
         except requests.exceptions.RequestException:
             self.data = []
 
@@ -130,16 +167,32 @@ class ScadenzarioView(QWidget):
 
     def populate_tree(self):
         self.employee_tree.clear()
-        employee_courses = defaultdict(list)
-        for item in self.data:
-            employee_courses[item['nome']].append(item)
+        grouping_mode = self.grouping_combo.currentText()
 
-        for employee, courses in sorted(employee_courses.items()):
-            employee_item = QTreeWidgetItem(self.employee_tree, [employee])
-            employee_item.setData(0, Qt.ItemDataRole.UserRole, "employee")
-            for course in sorted(courses, key=lambda x: x['categoria']):
-                course_item = QTreeWidgetItem(employee_item, [course['categoria']])
-                course_item.setData(0, Qt.ItemDataRole.UserRole, course)
+        if grouping_mode == "Dipendente":
+            self.employee_tree.setHeaderLabels(["Dipendenti / Corsi"])
+            grouped_data = defaultdict(list)
+            for item in self.data:
+                grouped_data[item['nome']].append(item)
+
+            for group_name, items in sorted(grouped_data.items()):
+                group_item = QTreeWidgetItem(self.employee_tree, [group_name])
+                group_item.setData(0, Qt.ItemDataRole.UserRole, "employee")
+                for item in sorted(items, key=lambda x: x['categoria']):
+                    child_item = QTreeWidgetItem(group_item, [item['categoria']])
+                    child_item.setData(0, Qt.ItemDataRole.UserRole, item)
+        else: # Categoria
+            self.employee_tree.setHeaderLabels(["Categoria / Dipendenti"])
+            grouped_data = defaultdict(list)
+            for item in self.data:
+                grouped_data[item['categoria']].append(item)
+
+            for group_name, items in sorted(grouped_data.items()):
+                group_item = QTreeWidgetItem(self.employee_tree, [group_name])
+                group_item.setData(0, Qt.ItemDataRole.UserRole, "category")
+                for item in sorted(items, key=lambda x: x['nome']):
+                    child_item = QTreeWidgetItem(group_item, [item['nome']])
+                    child_item.setData(0, Qt.ItemDataRole.UserRole, item)
 
         self.redraw_gantt_scene()
 
@@ -150,7 +203,7 @@ class ScadenzarioView(QWidget):
         header_height = 30 # Reduced header height
 
         start_date = self.current_date.addDays(-self.current_date.day() + 1)
-        end_date = start_date.addMonths(6)
+        end_date = start_date.addMonths(self.zoom_months)
         total_days = start_date.daysTo(end_date)
 
         if total_days <= 0: return
@@ -235,3 +288,32 @@ class ScadenzarioView(QWidget):
 
     def refresh_data(self):
         self.load_data()
+
+    def export_to_pdf(self):
+        path, _ = QFileDialog.getSaveFileName(self, "Salva PDF", "scadenzario.pdf", "PDF Files (*.pdf)")
+        if not path:
+            return
+
+        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+        printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+        printer.setOutputFileName(path)
+        printer.setPageOrientation(QPrinter.PageOrientation.Landscape)
+
+        painter = QPainter(printer)
+
+        # Redraw the scene with the fixed date range for the PDF
+        original_date = self.current_date
+        original_zoom = self.zoom_months
+        self.current_date = QDate.currentDate().addMonths(-1)
+        self.zoom_months = 4
+        self.redraw_gantt_scene()
+
+        self.gantt_scene.render(painter)
+
+        # Restore the original view
+        self.current_date = original_date
+        self.zoom_months = original_zoom
+        self.redraw_gantt_scene()
+
+        painter.end()
+        QMessageBox.information(self, "Esportazione Riuscita", f"Gantt esportato con successo in {path}")
