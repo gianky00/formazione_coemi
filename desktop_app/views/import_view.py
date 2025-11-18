@@ -55,12 +55,16 @@ class PdfWorker(QObject):
                 data_rilascio_norm = data_rilascio_raw.replace('-', '/') if data_rilascio_raw else ''
                 data_scadenza_norm = data_scadenza_raw.replace('-', '/') if data_scadenza_raw else ''
 
+                data_nascita_raw = entities.get('data_nascita', '')
+                data_nascita_norm = data_nascita_raw.replace('-', '/') if data_nascita_raw else ''
+
                 certificato = {
                     "nome": entities.get('nome', ''),
                     "corso": entities.get('corso', ''),
                     "categoria": entities.get('categoria', 'ALTRO'),
                     "data_rilascio": data_rilascio_norm,
-                    "data_scadenza": data_scadenza_norm
+                    "data_scadenza": data_scadenza_norm,
+                    "data_nascita": data_nascita_norm
                 }
                 save_response = requests.post(f"{self.api_client.base_url}/certificati/", json=certificato)
 

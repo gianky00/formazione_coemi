@@ -137,7 +137,13 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
 
     master_course = db.query(Corso).filter(Corso.categoria_corso.ilike(f"%{certificato.categoria.strip()}%")).first()
     if not master_course:
-        raise HTTPException(status_code=404, detail=f"Categoria '{certificato.categoria}' non trovata.")
+        master_course = Corso(
+            nome_corso=certificato.categoria.strip().upper(),
+            validita_mesi=60,  # Default validity
+            categoria_corso=certificato.categoria.strip().upper()
+        )
+        db.add(master_course)
+        db.flush()
 
     course = db.query(Corso).filter(
         Corso.nome_corso.ilike(f"%{certificato.corso}%"),
