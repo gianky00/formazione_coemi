@@ -3,6 +3,7 @@ import io
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import or_
 from app.db.session import get_db
 from app.db.models import Corso, Certificato, ValidationStatus, Dipendente
 from app.services import ai_extraction, certificate_logic
@@ -101,7 +102,14 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
         raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
 
     nome, cognome = nome_parts[0], " ".join(nome_parts[1:])
-    dipendente = db.query(Dipendente).filter(Dipendente.nome.ilike(f"%{nome}%"), Dipendente.cognome.ilike(f"%{cognome}%")).first()
+
+    # Cerca il dipendente in modo più robusto
+    dipendente = db.query(Dipendente).filter(
+        or_(
+            (Dipendente.nome.ilike(f"%{nome}%")) & (Dipendente.cognome.ilike(f"%{cognome}%")),
+            (Dipendente.nome.ilike(f"%{cognome}%")) & (Dipendente.cognome.ilike(f"%{nome}%"))
+        )
+    ).first()
 
     if not dipendente:
         dipendente = Dipendente(nome=nome, cognome=cognome)
