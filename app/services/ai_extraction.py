@@ -102,6 +102,11 @@ def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
         json_text = response.text.strip().replace("```json", "").replace("```", "")
         data = json.loads(json_text)
 
+        if isinstance(data, list):
+            if not data:
+                raise ValueError("AI returned an empty list.")
+            data = data[0]
+
         data.setdefault("categoria", "ALTRO")
         if data["categoria"] not in CATEGORIE_STATICHE:
             logging.warning(f"Invalid category '{data['categoria']}'. Defaulting to 'ALTRO'.")
