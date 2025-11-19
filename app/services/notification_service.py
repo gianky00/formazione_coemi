@@ -45,7 +45,7 @@ def generate_pdf_report_in_memory(expiring_visite, expiring_corsi, overdue_certi
 
             # Table Header
             header = ['Nr.', 'Matricola', 'Dipendente', 'Categoria', 'Data Scadenza']
-            col_widths = [15, 30, 70, 60, 30]
+            col_widths = [15, 30, 60, 50, 30] # Reduced Dipendente from 70 and Categoria from 60
             pdf.set_font('Arial', 'B', 10)
             pdf.set_fill_color(color[0], color[1], color[2])
             for i, header_text in enumerate(header):
