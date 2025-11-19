@@ -28,7 +28,8 @@ def test_create_certificato(test_client: TestClient, db_session: Session):
     response = test_client.post("/certificati/", json=cert_data)
     assert response.status_code == 200
     data = response.json()
-    assert data["nome"] == "Mario Rossi"
+    assert data["nome_dipendente"] == "Mario"
+    assert data["cognome_dipendente"] == "Rossi"
     cert_db = db_session.get(Certificato, data["id"])
     assert cert_db and cert_db.stato_validazione == ValidationStatus.AUTOMATIC
 
