@@ -26,8 +26,8 @@ class DashboardViewModel(QObject):
             data = response.json()
             if data:
                 self._df_original = pd.DataFrame(data)
-                self._df_original['Dipendente'] = self._df_original['cognome_dipendente'] + ' ' + self._df_original['nome_dipendente']
-                self._df_original.drop(columns=['nome_dipendente', 'cognome_dipendente'], inplace=True)
+                # The API returns 'nome' pre-formatted as "COGNOME NOME"
+                self._df_original.rename(columns={'nome': 'Dipendente'}, inplace=True)
             else:
                 self._df_original = pd.DataFrame()
 

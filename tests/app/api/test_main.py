@@ -21,6 +21,8 @@ def seed_master_courses(db: Session):
 def test_create_certificato(test_client: TestClient, db_session: Session):
     """Tests successful certificate creation."""
     seed_master_courses(db_session)
+    db_session.add(Dipendente(nome="Mario", cognome="Rossi"))
+    db_session.commit()
     cert_data = {
         "nome": "Mario Rossi", "corso": "ANTINCENDIO", "categoria": "ANTINCENDIO",
         "data_rilascio": "14/11/2025", "data_scadenza": "14/11/2030"
@@ -28,8 +30,7 @@ def test_create_certificato(test_client: TestClient, db_session: Session):
     response = test_client.post("/certificati/", json=cert_data)
     assert response.status_code == 200
     data = response.json()
-    assert data["nome_dipendente"] == "Mario"
-    assert data["cognome_dipendente"] == "Rossi"
+    assert data["nome"] == "Rossi Mario"
     cert_db = db_session.get(Certificato, data["id"])
     assert cert_db and cert_db.stato_validazione == ValidationStatus.AUTOMATIC
 
@@ -67,8 +68,8 @@ def test_update_certificato(test_client: TestClient, db_session: Session):
     db_session.refresh(cert)
     assert cert.corso.nome_corso == "Updated Course"
 
-def test_update_certificato_get_or_create(test_client: TestClient, db_session: Session):
-    """Tests the get-or-create logic for employees and courses during an update."""
+def test_update_certificato_disassociates_employee(test_client: TestClient, db_session: Session):
+    """Tests that updating a certificate with a non-existent employee disassociates it."""
     seed_master_courses(db_session)
     cert = Certificato(
         dipendente=Dipendente(nome="Old", cognome="Employee"),
@@ -78,12 +79,13 @@ def test_update_certificato_get_or_create(test_client: TestClient, db_session: S
     db_session.add(cert)
     db_session.commit()
     update_data = {
-        "nome": "New Employee", "corso": "New Course", "categoria": "General",
+        "nome": "Non Existent Employee", "corso": "New Course", "categoria": "General",
         "data_rilascio": "01/03/2025", "data_scadenza": "01/03/2026"
     }
     response = test_client.put(f"/certificati/{cert.id}", json=update_data)
     assert response.status_code == 200
-    assert db_session.query(Dipendente).filter_by(nome="New", cognome="Employee").one()
+    db_session.refresh(cert)
+    assert cert.dipendente_id is None
     assert db_session.query(Corso).filter_by(nome_corso="New Course").one()
 
 def test_create_duplicate_certificato_fails(test_client: TestClient, db_session: Session):
