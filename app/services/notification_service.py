@@ -222,6 +222,13 @@ def check_and_send_alerts():
         if expiring_certificates or overdue_certificates:
             logging.info(f"Trovati {len(expiring_certificates)} certificati in scadenza e {len(overdue_certificates)} scaduti.")
             pdf_content_bytes = generate_pdf_report_in_memory(expiring_certificates, overdue_certificates)
+
+            # --- Safety Check ---
+            if not pdf_content_bytes:
+                logging.error("La generazione del PDF è fallita e ha restituito un contenuto vuoto.")
+                raise ValueError("La generazione del PDF è fallita.")
+            # --- End Safety Check ---
+
             send_email_notification(pdf_content_bytes, len(expiring_certificates), len(overdue_certificates))
         else:
             logging.info("Nessuna notifica di scadenza da inviare oggi.")
