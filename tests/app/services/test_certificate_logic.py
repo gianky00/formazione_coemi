@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from unittest.mock import patch
 from sqlalchemy.orm import Session
 from app.db.models import Certificato, Dipendente, Corso
@@ -11,6 +11,18 @@ def test_calculate_expiration_date():
     issue_date = date(2025, 1, 1)
     assert calculate_expiration_date(issue_date, 12) == date(2026, 1, 1)
     assert calculate_expiration_date(issue_date, 0) is None
+
+def test_calculate_expiration_date_returns_date_object():
+    """
+    Tests that calculate_expiration_date returns a date object, not a datetime object,
+    even when a datetime object is passed as input.
+    """
+    # Using a datetime object to expose the bug
+    issue_date = datetime(2022, 1, 1, 8, 30, 0)
+    validity_months = 12
+    expiration_date = calculate_expiration_date(issue_date, validity_months)
+    # This assertion should fail before the fix because it will return a datetime object
+    assert type(expiration_date) == date
 
 def test_get_certificate_status(db_session: Session):
     """
