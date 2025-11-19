@@ -24,7 +24,13 @@ class DashboardViewModel(QObject):
             response = requests.get(f"{self.api_client.base_url}/certificati/?validated=true")
             response.raise_for_status()
             data = response.json()
-            self._df_original = pd.DataFrame(data) if data else pd.DataFrame()
+            if data:
+                self._df_original = pd.DataFrame(data)
+                self._df_original['Dipendente'] = self._df_original['cognome_dipendente'] + ' ' + self._df_original['nome_dipendente']
+                self._df_original.drop(columns=['nome_dipendente', 'cognome_dipendente'], inplace=True)
+            else:
+                self._df_original = pd.DataFrame()
+
             self._df_filtered = self._df_original.copy()
             self.data_changed.emit()
         except requests.exceptions.RequestException as e:
@@ -40,7 +46,7 @@ class DashboardViewModel(QObject):
         df_filtered = self._df_original.copy()
 
         if dipendente != "Tutti":
-            df_filtered = df_filtered[df_filtered['nome'] == dipendente]
+            df_filtered = df_filtered[df_filtered['Dipendente'] == dipendente]
 
         if categoria != "Tutti":
             df_filtered = df_filtered[df_filtered['categoria'] == categoria]
@@ -55,7 +61,7 @@ class DashboardViewModel(QObject):
         if self._df_original.empty:
             return {"dipendenti": [], "categorie": [], "stati": []}
 
-        dipendenti = sorted(self._df_original['nome'].unique())
+        dipendenti = sorted(self._df_original['Dipendente'].unique())
         categorie = sorted(self._df_original['categoria'].unique())
         stati = sorted(self._df_original['stato_certificato'].unique())
 
