@@ -32,7 +32,7 @@ class PdfWorker(QObject):
     def process_pdf(self, file_path):
         base_folder = os.path.dirname(file_path)
         unanalyzed_folder = os.path.join(base_folder, "NON ANALIZZATI")
-        documenti_folder = os.path.join(os.path.dirname(base_folder), "DOCUMENTI DIPENDENTI")
+        documenti_folder = os.path.join(base_folder, "DOCUMENTI DIPENDENTI")
 
         os.makedirs(unanalyzed_folder, exist_ok=True)
         os.makedirs(documenti_folder, exist_ok=True)
@@ -73,12 +73,7 @@ class PdfWorker(QObject):
                         nome_completo = cert_data.get('nome', 'NOME_NON_TROVATO')
                         matricola = cert_data.get('matricola') if cert_data.get('matricola') else 'N-A'
 
-                        # Split nome completo in nome e cognome for folder naming
-                        nome_parts = nome_completo.split()
-                        cognome = nome_parts[-1] if len(nome_parts) > 1 else ''
-                        nome = " ".join(nome_parts[:-1]) if len(nome_parts) > 1 else nome_completo
-
-                        employee_folder_name = f"{cognome} {nome} ({matricola})"
+                        employee_folder_name = f"{nome_completo} ({matricola})"
 
                         categoria = cert_data.get('categoria', 'CATEGORIA_NON_TROVATA')
 
@@ -91,9 +86,9 @@ class PdfWorker(QObject):
                             scadenza_date = datetime.strptime(data_scadenza_str, '%d/%m/%Y').date()
                             if scadenza_date >= datetime.now().date():
                                 stato = 'ATTIVO'
-                            file_scadenza = scadenza_date.strftime('%d-%m-%Y')
+                            file_scadenza = scadenza_date.strftime('%d_%m_%Y')
 
-                        new_filename = f"{cognome} {nome} ({matricola}) - {categoria} - {file_scadenza}.pdf"
+                        new_filename = f"{nome_completo} ({matricola}) - {categoria} - {file_scadenza}.pdf"
 
                         # Create directory structure
                         dest_path = os.path.join(documenti_folder, employee_folder_name, categoria, stato)
