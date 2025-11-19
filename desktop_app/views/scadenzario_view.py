@@ -352,7 +352,7 @@ class ScadenzarioView(QWidget):
 
                 # Use QFontMetrics to correctly elide text, which is more robust than flags
                 font_metrics = painter.fontMetrics()
-                elided_label = font_metrics.elidedText(label, Qt.TextElideMode.ElideRight, label_rect.width())
+                elided_label = font_metrics.elidedText(label, Qt.TextElideMode.ElideRight, int(label_rect.width()))
                 painter.drawText(label_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, elided_label)
 
                 # Draw Gantt Bar
