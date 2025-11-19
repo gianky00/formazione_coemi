@@ -101,11 +101,8 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
     if not certificato.data_rilascio:
         raise HTTPException(status_code=422, detail="La data di rilascio non può essere vuota.")
 
-    nome_parts = certificato.nome.strip().split()
-    if len(nome_parts) < 2:
-        raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
-
-    nome, cognome = nome_parts[0], " ".join(nome_parts[1:])
+    nome = certificato.nome_dipendente
+    cognome = certificato.cognome_dipendente
 
     # Gestione omonimie
     query = db.query(Dipendente).filter(
@@ -230,12 +227,9 @@ def update_certificato(certificato_id: int, certificato: CertificatoAggiornament
 
     update_data = certificato.model_dump(exclude_unset=True)
 
-    if 'nome' in update_data:
-        nome_parts = update_data['nome'].strip().split()
-        if len(nome_parts) < 2:
-            raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
-
-        cognome, nome = nome_parts[-1], " ".join(nome_parts[:-1])
+    if 'nome_dipendente' in update_data and 'cognome_dipendente' in update_data:
+        nome = update_data['nome_dipendente']
+        cognome = update_data['cognome_dipendente']
 
         dipendente = db.query(Dipendente).filter_by(nome=nome, cognome=cognome).first()
         if not dipendente:
