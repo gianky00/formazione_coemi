@@ -25,18 +25,13 @@ class CertificatoSchema(BaseModel):
     stato_certificato: str
 
 class CertificatoCreazioneSchema(BaseModel):
-    nome: str = Field(..., min_length=1, description="Nome e cognome del dipendente")
+    nome_dipendente: str = Field(..., min_length=1, description="Nome del dipendente")
+    cognome_dipendente: str = Field(..., min_length=1, description="Cognome del dipendente")
     data_nascita: Optional[str] = None
     corso: str = Field(..., min_length=1, description="Nome del corso")
     categoria: str = Field(..., min_length=1, description="Categoria del corso")
     data_rilascio: str
     data_scadenza: Optional[str] = None
-
-    @field_validator('nome')
-    def validate_nome(cls, v):
-        if not v:
-            raise ValueError("String should have at least 1 character")
-        return v
 
     @field_validator('data_rilascio')
     def validate_data_rilascio(cls, v):
@@ -59,7 +54,8 @@ class CertificatoCreazioneSchema(BaseModel):
         return v
 
 class CertificatoAggiornamentoSchema(BaseModel):
-    nome: Optional[str] = None
+    nome_dipendente: Optional[str] = None
+    cognome_dipendente: Optional[str] = None
     corso: Optional[str] = None
     categoria: Optional[str] = None
     data_rilascio: Optional[str] = None

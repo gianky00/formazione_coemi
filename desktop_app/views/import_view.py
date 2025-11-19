@@ -56,7 +56,8 @@ class PdfWorker(QObject):
                 data_nascita_norm = data_nascita_raw.replace('-', '/') if data_nascita_raw else ''
 
                 certificato = {
-                    "nome": entities.get('nome', ''),
+                    "nome_dipendente": entities.get('nome_dipendente', ''),
+                    "cognome_dipendente": entities.get('cognome_dipendente', ''),
                     "corso": entities.get('corso', ''),
                     "categoria": entities.get('categoria', 'ALTRO'),
                     "data_rilascio": data_rilascio_norm,
