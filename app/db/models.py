@@ -55,6 +55,7 @@ class Certificato(Base):
     __tablename__ = 'certificati'
     id = Column(Integer, primary_key=True, index=True)
     dipendente_id = Column(Integer, ForeignKey('dipendenti.id'), nullable=True)
+    nome_dipendente_raw = Column(String, nullable=True)  # Store the raw name from AI
     corso_id = Column(Integer, ForeignKey('corsi.id'))
     data_rilascio = Column(Date)
     data_scadenza_calcolata = Column(Date)
