@@ -95,7 +95,7 @@ class PdfWorker(QObject):
                             employee_folder_name = f"{nome_completo} ({matricola})"
                             new_filename = f"{nome_completo} ({matricola}) - {categoria} - {file_scadenza}.pdf"
 
-                            documenti_folder = os.path.join(os.path.dirname(base_folder), "DOCUMENTI DIPENDENTI")
+                            documenti_folder = os.path.join(base_folder, "DOCUMENTI DIPENDENTI")
                             dest_path = os.path.join(documenti_folder, employee_folder_name, categoria, stato)
                             os.makedirs(dest_path, exist_ok=True)
 
