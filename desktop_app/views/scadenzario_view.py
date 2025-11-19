@@ -349,7 +349,7 @@ class ScadenzarioView(QWidget):
                 painter.setPen(pen_default)
                 label = f"{cert_data['nome']} ({cert_data.get('matricola', 'N/A')}) - {cert_data['categoria']}"
                 label_rect = QRectF(content_rect.left(), current_y, label_area_width - 10, row_height)
-                painter.drawText(label_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft | Qt.TextFlag.TextElideRight, label)
+                painter.drawText(label_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft | Qt.TextFlag.ElideRight, label)
 
                 # Draw Gantt Bar
                 today = QDate.currentDate()
