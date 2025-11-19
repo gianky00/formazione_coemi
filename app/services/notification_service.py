@@ -39,64 +39,72 @@ class PDF(FPDF):
         # Page number
         self.cell(0, 10, 'Pagina ' + str(self.page_no()) + '/{nb}', 0, 0, 'R')
 
-def generate_pdf_report(expiring_certificates, overdue_certificates):
-    """Generates a professional PDF report of expiring and overdue certificates."""
-    pdf = PDF()
-    pdf.alias_nb_pages()
-    pdf.add_page()
-    pdf.set_font('Arial', '', 12)
+def generate_pdf_report_in_memory(expiring_certificates, overdue_certificates):
+    """Generates a professional PDF report and returns its content as bytes."""
+    try:
+        pdf = PDF()
+        pdf.alias_nb_pages()
+        pdf.add_page()
+        pdf.set_font('Arial', '', 12)
 
-    # Table for expiring certificates
-    if expiring_certificates:
-        # Table Header
-        pdf.set_font('Arial', 'B', 10)
-        pdf.set_fill_color(240, 248, 255) # Light Alice Blue
-        pdf.cell(30, 10, 'Matricola', 1, 0, 'C', 1)
-        pdf.cell(50, 10, 'Dipendente', 1, 0, 'C', 1)
-        pdf.cell(70, 10, 'Categoria', 1, 0, 'C', 1)
-        pdf.cell(40, 10, 'Data Scadenza', 1, 1, 'C', 1)
+        # Table for expiring certificates
+        if expiring_certificates:
+            pdf.set_font('Arial', 'B', 10)
+            pdf.set_fill_color(240, 248, 255)
+            pdf.cell(30, 10, 'Matricola', 1, 0, 'C', 1)
+            pdf.cell(50, 10, 'Dipendente', 1, 0, 'C', 1)
+            pdf.cell(70, 10, 'Categoria', 1, 0, 'C', 1)
+            pdf.cell(40, 10, 'Data Scadenza', 1, 1, 'C', 1)
+            pdf.set_font('Arial', '', 9)
+            fill = False
+            for cert in expiring_certificates:
+                matricola = cert.dipendente.matricola if cert.dipendente and cert.dipendente.matricola is not None else "N/A"
+                dipendente_nome = f"{cert.dipendente.nome or ''} {cert.dipendente.cognome or ''}".strip() if cert.dipendente else "N/A"
+                categoria = cert.corso.categoria_corso if cert.corso else "N/A"
+                data_scadenza = cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else "N/A"
 
-        # Table Rows
-        pdf.set_font('Arial', '', 9)
-        fill = False
-        for cert in expiring_certificates:
-            pdf.set_fill_color(255, 255, 255) if not fill else pdf.set_fill_color(245, 245, 245)
-            pdf.cell(30, 10, cert.dipendente.matricola if cert.dipendente else 'N/A', 1, 0, 'C', 1)
-            pdf.cell(50, 10, f"{cert.dipendente.nome} {cert.dipendente.cognome}" if cert.dipendente else 'N/A', 1, 0, 'L', 1)
-            pdf.cell(70, 10, cert.corso.categoria_corso, 1, 0, 'L', 1)
-            pdf.cell(40, 10, cert.data_scadenza_calcolata.strftime('%d/%m/%Y'), 1, 1, 'C', 1)
-            fill = not fill
+                pdf.set_fill_color(255, 255, 255) if not fill else pdf.set_fill_color(245, 245, 245)
+                pdf.cell(30, 10, matricola, 1, 0, 'C', 1)
+                pdf.cell(50, 10, dipendente_nome, 1, 0, 'L', 1)
+                pdf.cell(70, 10, categoria, 1, 0, 'L', 1)
+                pdf.cell(40, 10, data_scadenza, 1, 1, 'C', 1)
+                fill = not fill
 
-    # Table for overdue certificates
-    if overdue_certificates:
-        pdf.ln(10)
+        # Table for overdue certificates
+        if overdue_certificates:
+            pdf.ln(10)
+            pdf.set_font('Arial', 'B', 10)
+            pdf.set_fill_color(254, 242, 242)
+            pdf.cell(30, 10, 'Matricola', 1, 0, 'C', 1)
+            pdf.cell(50, 10, 'Dipendente', 1, 0, 'C', 1)
+            pdf.cell(70, 10, 'Categoria', 1, 0, 'C', 1)
+            pdf.cell(40, 10, 'Data Scadenza', 1, 1, 'C', 1)
+            pdf.set_font('Arial', '', 9)
+            fill = False
+            for cert in overdue_certificates:
+                matricola = cert.dipendente.matricola if cert.dipendente and cert.dipendente.matricola is not None else "N/A"
+                dipendente_nome = f"{cert.dipendente.nome or ''} {cert.dipendente.cognome or ''}".strip() if cert.dipendente else "N/A"
+                categoria = cert.corso.categoria_corso if cert.corso else "N/A"
+                data_scadenza = cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else "N/A"
 
-        # Table Header
-        pdf.set_font('Arial', 'B', 10)
-        pdf.set_fill_color(254, 242, 242) # Light Red
-        pdf.cell(30, 10, 'Matricola', 1, 0, 'C', 1)
-        pdf.cell(50, 10, 'Dipendente', 1, 0, 'C', 1)
-        pdf.cell(70, 10, 'Categoria', 1, 0, 'C', 1)
-        pdf.cell(40, 10, 'Data Scadenza', 1, 1, 'C', 1)
+                pdf.set_fill_color(255, 255, 255) if not fill else pdf.set_fill_color(245, 245, 245)
+                pdf.cell(30, 10, matricola, 1, 0, 'C', 1)
+                pdf.cell(50, 10, dipendente_nome, 1, 0, 'L', 1)
+                pdf.cell(70, 10, categoria, 1, 0, 'L', 1)
+                pdf.cell(40, 10, data_scadenza, 1, 1, 'C', 1)
+                fill = not fill
 
-        # Table Rows
-        pdf.set_font('Arial', '', 9)
-        fill = False
-        for cert in overdue_certificates:
-            pdf.set_fill_color(255, 255, 255) if not fill else pdf.set_fill_color(245, 245, 245)
-            pdf.cell(30, 10, cert.dipendente.matricola if cert.dipendente else 'N/A', 1, 0, 'C', 1)
-            pdf.cell(50, 10, f"{cert.dipendente.nome} {cert.dipendente.cognome}" if cert.dipendente else 'N/A', 1, 0, 'L', 1)
-            pdf.cell(70, 10, cert.corso.categoria_corso, 1, 0, 'L', 1)
-            pdf.cell(40, 10, cert.data_scadenza_calcolata.strftime('%d/%m/%Y'), 1, 1, 'C', 1)
-            fill = not fill
+        # Return PDF content as bytes
+        return pdf.output(dest='S')
+    except FileNotFoundError as e:
+        logging.error(f"Errore durante la generazione del PDF: File non trovato, probabilmente il logo. {e}")
+        raise ValueError(f"Impossibile generare il PDF: assicurarsi che il file 'desktop_app/assets/logo.png' esista.")
+    except Exception as e:
+        logging.error(f"Errore imprevisto durante la generazione del PDF: {e}", exc_info=True)
+        raise ValueError(f"Si è verificato un errore imprevisto durante la creazione del report PDF: {e}")
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-        pdf_path = tmp_file.name
-        pdf.output(pdf_path)
-    return pdf_path
-
-def send_email_notification(pdf_path, expiring_count, overdue_count):
-    """Sends an email with the PDF report attached."""
+def send_email_notification(pdf_content_bytes, expiring_count, overdue_count):
+    """Sends an email with the PDF report (from bytes) attached."""
     to_emails = [email.strip() for email in settings.EMAIL_RECIPIENTS_TO.split(',') if email.strip()]
     cc_emails = [email.strip() for email in settings.EMAIL_RECIPIENTS_CC.split(',') if email.strip()]
 
@@ -147,10 +155,9 @@ def send_email_notification(pdf_path, expiring_count, overdue_count):
     """
     msg.attach(MIMEText(html_body, 'html'))
 
-    with open(pdf_path, "rb") as attachment:
-        part = MIMEBase("application", "octet-stream")
-        part.set_payload(attachment.read())
-
+    # Attach the PDF from bytes
+    part = MIMEBase("application", "octet-stream")
+    part.set_payload(pdf_content_bytes)
     encoders.encode_base64(part)
     part.add_header(
         "Content-Disposition",
@@ -159,20 +166,38 @@ def send_email_notification(pdf_path, expiring_count, overdue_count):
     msg.attach(part)
 
     try:
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-            server.set_debuglevel(1) # Enable SMTP debug output
-            server.starttls()
-            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            server.send_message(msg, from_addr=settings.SMTP_USER, to_addrs=to_emails + cc_emails)
-            logging.info(f"Email di notifica inviata con successo a: {', '.join(to_emails)}")
+        if settings.SMTP_PORT == 465:
+            # Use SMTP_SSL for a secure connection from the start (for services like Gmail, Aruba SSL)
+            conn_method = "SMTP_SSL"
+            logging.info(f"Connecting to {settings.SMTP_HOST}:{settings.SMTP_PORT} using {conn_method}.")
+            with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+                server.set_debuglevel(1)
+                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                server.send_message(msg, from_addr=settings.SMTP_USER, to_addrs=to_emails + cc_emails)
+        else:
+            # Use standard SMTP and upgrade to TLS (for services like Outlook, Aruba STARTTLS)
+            conn_method = "SMTP with STARTTLS"
+            logging.info(f"Connecting to {settings.SMTP_HOST}:{settings.SMTP_PORT} using {conn_method}.")
+            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+                server.set_debuglevel(1)
+                server.starttls()
+                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                server.send_message(msg, from_addr=settings.SMTP_USER, to_addrs=to_emails + cc_emails)
+
+        logging.info(f"Email notification sent successfully to: {', '.join(to_emails)} using {conn_method}.")
+
     except smtplib.SMTPAuthenticationError as e:
-        logging.error(f"Errore di autenticazione SMTP: {e}. Controllare SMTP_USER e SMTP_PASSWORD.")
+        logging.error(f"SMTP Authentication Error with {conn_method}: {e}. Check SMTP_USER and SMTP_PASSWORD.")
+        raise ConnectionAbortedError(f"SMTP Authentication Error: {e}")
     except smtplib.SMTPConnectError as e:
-        logging.error(f"Errore di connessione SMTP: {e}. Controllare SMTP_HOST e SMTP_PORT.")
+        logging.error(f"SMTP Connection Error with {conn_method}: {e}. Check SMTP_HOST and SMTP_PORT.")
+        raise ConnectionAbortedError(f"SMTP Connection Error: {e}")
     except smtplib.SMTPException as e:
-        logging.error(f"Errore SMTP generico durante l'invio dell'email: {e}")
+        logging.error(f"Generic SMTP Error with {conn_method} while sending email: {e}")
+        raise ConnectionAbortedError(f"Generic SMTP Error: {e}")
     except Exception as e:
-        logging.error(f"Errore imprevisto durante l'invio dell'email: {e}", exc_info=True)
+        logging.error(f"An unexpected error occurred with {conn_method} while sending email: {e}", exc_info=True)
+        raise ConnectionAbortedError(f"An unexpected error occurred: {e}")
 
 def check_and_send_alerts():
     """
@@ -213,8 +238,15 @@ def check_and_send_alerts():
         # 3. Generate report and send email if there's anything to report
         if expiring_certificates or overdue_certificates:
             logging.info(f"Trovati {len(expiring_certificates)} certificati in scadenza e {len(overdue_certificates)} scaduti.")
-            pdf_path = generate_pdf_report(expiring_certificates, overdue_certificates)
-            send_email_notification(pdf_path, len(expiring_certificates), len(overdue_certificates))
+            pdf_content_bytes = generate_pdf_report_in_memory(expiring_certificates, overdue_certificates)
+
+            # --- Definitive Safety Check ---
+            if not pdf_content_bytes:
+                logging.error("PDF generation failed, resulting in empty content.")
+                raise ValueError("PDF generation failed.")
+            # --- End Safety Check ---
+
+            send_email_notification(pdf_content_bytes, len(expiring_certificates), len(overdue_certificates))
         else:
             logging.info("Nessuna notifica di scadenza da inviare oggi.")
 

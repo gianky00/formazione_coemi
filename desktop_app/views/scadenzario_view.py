@@ -241,10 +241,18 @@ class ScadenzarioView(QWidget):
     def generate_email(self):
         try:
             response = requests.post(f"{self.api_client.base_url}/notifications/send-manual-alert")
-            response.raise_for_status()
-            QMessageBox.information(self, "Successo", "Richiesta di invio email inviata con successo.")
+
+            if response.status_code == 200:
+                QMessageBox.information(self, "Successo", "Richiesta di invio email inviata con successo.")
+            else:
+                # Extract error detail from the new backend response
+                error_data = response.json()
+                error_detail = error_data.get("detail", "Errore sconosciuto dal server.")
+                QMessageBox.critical(self, "Errore Invio Email", f"Impossibile inviare l'email:\n{error_detail}")
+
         except requests.exceptions.RequestException as e:
-            QMessageBox.critical(self, "Errore", f"Impossibile inviare la richiesta: {e}")
+            # Handle connection errors
+            QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
 
     def refresh_data(self):
         self.load_data()
