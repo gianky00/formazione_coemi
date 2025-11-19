@@ -15,11 +15,13 @@ class ScadenzarioView(QWidget):
     def __init__(self):
         super().__init__()
         self.layout = QVBoxLayout(self)
-        self.layout.setSpacing(10)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(0)
 
         # Main Title and Description
         title_layout = QVBoxLayout()
-        title_layout.setSpacing(2)
+        title_layout.setSpacing(0)
+        title_layout.setContentsMargins(20, 15, 20, 0)
         title = QLabel("Scadenzario Grafico")
         title.setStyleSheet("font-size: 24px; font-weight: 700;")
         title_layout.addWidget(title)
@@ -30,6 +32,7 @@ class ScadenzarioView(QWidget):
 
         # Toolbar Layout
         toolbar_layout = QHBoxLayout()
+        toolbar_layout.setContentsMargins(20, 10, 20, 10)
         toolbar_layout.setSpacing(10)
 
         self.prev_month_button = QPushButton("<")
@@ -200,8 +203,15 @@ class ScadenzarioView(QWidget):
             today_line.setPen(QPen(QColor("#1D4ED8"), 2))
             self.gantt_scene.addItem(today_line)
 
-        # Sort certificates by expiration date to ensure they are displayed from top to bottom
-        sorted_certs = sorted(self.certificates, key=lambda x: QDate.fromString(x['data_scadenza'], "dd/MM/yyyy"))
+        # Filter certificates to only draw those visible in the current date range
+        visible_certs = [
+            cert for cert in self.certificates
+            if (QDate.fromString(cert['data_scadenza'], "dd/MM/yyyy").addDays(-30) <= end_date) and \
+               (QDate.fromString(cert['data_scadenza'], "dd/MM/yyyy") >= start_date)
+        ]
+
+        # Sort the visible certificates by expiration date to ensure they are displayed from top to bottom
+        sorted_certs = sorted(visible_certs, key=lambda x: QDate.fromString(x['data_scadenza'], "dd/MM/yyyy"))
 
         y_pos = header_height
         for cert_data in sorted_certs:
