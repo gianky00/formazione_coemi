@@ -22,6 +22,7 @@ class CertificatoSchema(BaseModel):
     data_rilascio: str
     data_scadenza: Optional[str] = None
     stato_certificato: str
+    assegnazione_fallita_ragione: Optional[str] = None
 
 class CertificatoCreazioneSchema(BaseModel):
     nome: str = Field(..., min_length=1, description="Nome e cognome del dipendente")
