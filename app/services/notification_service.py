@@ -171,12 +171,16 @@ def send_email_notification(pdf_content_bytes, expiring_count, overdue_count):
 
     except smtplib.SMTPAuthenticationError as e:
         logging.error(f"SMTP Authentication Error with {conn_method}: {e}. Check SMTP_USER and SMTP_PASSWORD.")
+        raise ConnectionAbortedError(f"SMTP Authentication Error: {e}")
     except smtplib.SMTPConnectError as e:
         logging.error(f"SMTP Connection Error with {conn_method}: {e}. Check SMTP_HOST and SMTP_PORT.")
+        raise ConnectionAbortedError(f"SMTP Connection Error: {e}")
     except smtplib.SMTPException as e:
         logging.error(f"Generic SMTP Error with {conn_method} while sending email: {e}")
+        raise ConnectionAbortedError(f"Generic SMTP Error: {e}")
     except Exception as e:
         logging.error(f"An unexpected error occurred with {conn_method} while sending email: {e}", exc_info=True)
+        raise ConnectionAbortedError(f"An unexpected error occurred: {e}")
 
 def check_and_send_alerts():
     """
