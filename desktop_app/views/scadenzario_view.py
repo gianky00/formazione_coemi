@@ -142,7 +142,8 @@ class ScadenzarioView(QWidget):
             response = requests.get(f"{self.api_client.base_url}/certificati/?validated=true")
             all_data = response.json() if response.status_code == 200 else []
             for item in all_data:
-                item['Dipendente'] = f"{item['cognome_dipendente']} {item['nome_dipendente']}"
+                # The API returns 'nome' pre-formatted as "COGNOME NOME"
+                item['Dipendente'] = item['nome']
             today = QDate.currentDate()
             self.certificates = sorted([
                 item for item in all_data

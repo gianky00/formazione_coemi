@@ -64,8 +64,7 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
         status = certificate_logic.get_certificate_status(db, cert)
         result.append(CertificatoSchema(
             id=cert.id,
-            nome_dipendente=cert.dipendente.nome,
-            cognome_dipendente=cert.dipendente.cognome,
+            nome=f"{cert.dipendente.cognome} {cert.dipendente.nome}",
             data_nascita=cert.dipendente.data_nascita.strftime('%d/%m/%Y') if cert.dipendente.data_nascita else None,
             matricola=cert.dipendente.matricola,
             corso=cert.corso.nome_corso,
@@ -85,8 +84,7 @@ def get_certificato(certificato_id: int, db: Session = Depends(get_db)):
     status = certificate_logic.get_certificate_status(db, db_cert)
     return CertificatoSchema(
         id=db_cert.id,
-        nome_dipendente=db_cert.dipendente.nome,
-        cognome_dipendente=db_cert.dipendente.cognome,
+        nome=f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}",
         data_nascita=db_cert.dipendente.data_nascita.strftime('%d/%m/%Y') if db_cert.dipendente.data_nascita else None,
         matricola=db_cert.dipendente.matricola,
         corso=db_cert.corso.nome_corso,
@@ -101,41 +99,29 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
     if not certificato.data_rilascio:
         raise HTTPException(status_code=422, detail="La data di rilascio non può essere vuota.")
 
+    if not certificato.nome or not certificato.nome.strip():
+        raise HTTPException(status_code=400, detail="Il nome non può essere vuoto.")
+
     nome_parts = certificato.nome.strip().split()
     if len(nome_parts) < 2:
         raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
 
-    cognome, nome = nome_parts[-1], " ".join(nome_parts[:-1])
+    nome, cognome = nome_parts[0], " ".join(nome_parts[1:])
 
-    # Gestione omonimie
+    # Cerca una corrispondenza esatta nei dati anagrafici
+    dipendente_trovato = None
     query = db.query(Dipendente).filter(
         or_(
-            (Dipendente.nome.ilike(f"%{nome}%")) & (Dipendente.cognome.ilike(f"%{cognome}%")),
-            (Dipendente.nome.ilike(f"%{cognome}%")) & (Dipendente.cognome.ilike(f"%{nome}%"))
+            (Dipendente.nome.ilike(nome)) & (Dipendente.cognome.ilike(cognome)),
+            (Dipendente.nome.ilike(cognome)) & (Dipendente.cognome.ilike(nome))
         )
     )
+
     dipendenti = query.all()
-
-    dipendente_id = None
     if len(dipendenti) == 1:
-        dipendente_id = dipendenti[0].id
-    elif len(dipendenti) > 1:
-        if certificato.data_nascita:
-            try:
-                data_nascita_dt = datetime.strptime(certificato.data_nascita, '%d/%m/%Y').date()
-                for d in dipendenti:
-                    if d.data_nascita == data_nascita_dt:
-                        dipendente_id = d.id
-                        break
-            except ValueError:
-                pass  # La data di nascita potrebbe avere un formato non valido
+        dipendente_trovato = dipendenti[0]
 
-    if dipendente_id is None and not dipendenti:
-        # Se non esiste nessun dipendente, ne creo uno nuovo per la validazione manuale
-        nuovo_dipendente = Dipendente(nome=nome, cognome=cognome, matricola=None, data_nascita=None)
-        db.add(nuovo_dipendente)
-        db.flush()
-        dipendente_id = nuovo_dipendente.id
+    dipendente_id = dipendente_trovato.id if dipendente_trovato else None
 
     master_course = db.query(Corso).filter(Corso.categoria_corso.ilike(f"%{certificato.categoria.strip()}%")).first()
     if not master_course:
@@ -189,8 +175,7 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
 
     return CertificatoSchema(
         id=new_cert.id,
-        nome_dipendente=dipendente_info.nome if dipendente_info else "Da",
-        cognome_dipendente=dipendente_info.cognome if dipendente_info else "Assegnare",
+        nome=f"{dipendente_info.cognome} {dipendente_info.nome}" if dipendente_info else "Da Assegnare",
         data_nascita=dipendente_info.data_nascita.strftime('%d/%m/%Y') if dipendente_info and dipendente_info.data_nascita else None,
         matricola=dipendente_info.matricola if dipendente_info else None,
         corso=new_cert.corso.nome_corso,
@@ -211,8 +196,7 @@ def valida_certificato(certificato_id: int, db: Session = Depends(get_db)):
     status = certificate_logic.get_certificate_status(db, db_cert)
     return CertificatoSchema(
         id=db_cert.id,
-        nome_dipendente=db_cert.dipendente.nome,
-        cognome_dipendente=db_cert.dipendente.cognome,
+        nome=f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}",
         data_nascita=db_cert.dipendente.data_nascita.strftime('%d/%m/%Y') if db_cert.dipendente.data_nascita else None,
         matricola=db_cert.dipendente.matricola,
         corso=db_cert.corso.nome_corso,
@@ -231,18 +215,28 @@ def update_certificato(certificato_id: int, certificato: CertificatoAggiornament
     update_data = certificato.model_dump(exclude_unset=True)
 
     if 'nome' in update_data:
+        if not update_data['nome'] or not update_data['nome'].strip():
+            raise HTTPException(status_code=400, detail="Il nome non può essere vuoto.")
         nome_parts = update_data['nome'].strip().split()
         if len(nome_parts) < 2:
             raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
 
-        cognome, nome = nome_parts[-1], " ".join(nome_parts[:-1])
+        nome, cognome = nome_parts[0], " ".join(nome_parts[1:])
 
-        dipendente = db.query(Dipendente).filter_by(nome=nome, cognome=cognome).first()
-        if not dipendente:
-            dipendente = Dipendente(nome=nome, cognome=cognome)
-            db.add(dipendente)
-            db.flush()
-        db_cert.dipendente_id = dipendente.id
+        # Logica di matching robusta
+        query = db.query(Dipendente).filter(
+            or_(
+                (Dipendente.nome.ilike(nome)) & (Dipendente.cognome.ilike(cognome)),
+                (Dipendente.nome.ilike(cognome)) & (Dipendente.cognome.ilike(nome))
+            )
+        )
+        dipendenti = query.all()
+
+        if len(dipendenti) == 1:
+            db_cert.dipendente_id = dipendenti[0].id
+        else:
+            # Se non trovato o ambiguo, disassocia o gestisci come errore
+            db_cert.dipendente_id = None
 
     if 'categoria' in update_data or 'corso' in update_data:
         categoria = update_data.get('categoria', db_cert.corso.categoria_corso)
@@ -276,12 +270,14 @@ def update_certificato(certificato_id: int, certificato: CertificatoAggiornament
     db.commit()
     db.refresh(db_cert)
     status = certificate_logic.get_certificate_status(db, db_cert)
+
+    dipendente_info = db_cert.dipendente  # Reload the relationship
+
     return CertificatoSchema(
         id=db_cert.id,
-        nome_dipendente=db_cert.dipendente.nome,
-        cognome_dipendente=db_cert.dipendente.cognome,
-        data_nascita=db_cert.dipendente.data_nascita.strftime('%d/%m/%Y') if db_cert.dipendente.data_nascita else None,
-        matricola=db_cert.dipendente.matricola,
+        nome=f"{dipendente_info.cognome} {dipendente_info.nome}" if dipendente_info else "Da Assegnare",
+        data_nascita=dipendente_info.data_nascita.strftime('%d/%m/%Y') if dipendente_info and dipendente_info.data_nascita else None,
+        matricola=dipendente_info.matricola if dipendente_info else None,
         corso=db_cert.corso.nome_corso,
         categoria=db_cert.corso.categoria_corso or "General",
         data_rilascio=db_cert.data_rilascio.strftime('%d/%m/%Y'),

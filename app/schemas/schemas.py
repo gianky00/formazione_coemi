@@ -14,8 +14,7 @@ class DipendenteSchema(BaseModel):
 
 class CertificatoSchema(BaseModel):
     id: int
-    nome_dipendente: str
-    cognome_dipendente: str
+    nome: str
     data_nascita: Optional[str] = None
     matricola: Optional[str] = None
     corso: str
@@ -31,12 +30,6 @@ class CertificatoCreazioneSchema(BaseModel):
     categoria: str = Field(..., min_length=1, description="Categoria del corso")
     data_rilascio: str
     data_scadenza: Optional[str] = None
-
-    @field_validator('nome')
-    def validate_nome(cls, v):
-        if not v:
-            raise ValueError("String should have at least 1 character")
-        return v
 
     @field_validator('data_rilascio')
     def validate_data_rilascio(cls, v):
