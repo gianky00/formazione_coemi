@@ -216,3 +216,46 @@ def test_duplicate_check_for_orphaned_certs(test_client: TestClient, db_session:
     # Attempt to create a TRUE duplicate of the first certificate
     response3 = test_client.post("/certificati/", json=cert_data1)
     assert response3.status_code == 409, "Should NOT be able to create a true duplicate"
+
+def test_orphaned_certificate_retains_raw_data(test_client: TestClient, db_session: Session):
+    """Tests that an orphaned certificate retains and displays the raw extracted data."""
+    seed_master_courses(db_session)
+
+    # Data for a person not in the DB
+    raw_name = "Francesco Fimmano"
+    raw_birth_date = "30/05/1964"
+
+    cert_data = {
+        "nome": raw_name,
+        "data_nascita": raw_birth_date,
+        "corso": "ATEX",
+        "categoria": "ATEX",
+        "data_rilascio": "18/02/2015",
+        "data_scadenza": "18/02/2020"
+    }
+
+    # Create the certificate
+    response_create = test_client.post("/certificati/", json=cert_data)
+    assert response_create.status_code == 200
+    created_cert_id = response_create.json()["id"]
+
+    # Verify it is stored correctly in the database
+    db_cert = db_session.get(Certificato, created_cert_id)
+    assert db_cert is not None
+    assert db_cert.dipendente_id is None  # Should be orphaned
+    assert db_cert.nome_dipendente_raw == raw_name
+    assert db_cert.data_nascita_raw == raw_birth_date
+
+    # Verify the API returns the raw data for the unvalidated list
+    response_get = test_client.get("/certificati/?validated=false")
+    assert response_get.status_code == 200
+
+    found_cert = None
+    for cert in response_get.json():
+        if cert["id"] == created_cert_id:
+            found_cert = cert
+            break
+
+    assert found_cert is not None, "Orphaned certificate not found in API response"
+    assert found_cert["nome"] == raw_name
+    assert found_cert["data_nascita"] == raw_birth_date
