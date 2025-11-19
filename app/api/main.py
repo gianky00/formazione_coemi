@@ -66,8 +66,8 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
             data_nascita = cert.dipendente.data_nascita.strftime('%d/%m/%Y') if cert.dipendente.data_nascita else None
             matricola = cert.dipendente.matricola
         else:
-            nome_completo = "DA ASSEGNARE"
-            data_nascita = None
+            nome_completo = cert.nome_dipendente_raw or "DA ASSEGNARE"
+            data_nascita = cert.data_nascita_raw
             matricola = None
 
         status = certificate_logic.get_certificate_status(db, cert)
@@ -176,6 +176,7 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
     new_cert = Certificato(
         dipendente_id=dipendente_id,
         nome_dipendente_raw=certificato.nome.strip(),
+        data_nascita_raw=certificato.data_nascita,
         corso_id=course.id,
         data_rilascio=datetime.strptime(certificato.data_rilascio, '%d/%m/%Y').date(),
         data_scadenza_calcolata=datetime.strptime(certificato.data_scadenza, '%d/%m/%Y').date() if certificato.data_scadenza else None,
