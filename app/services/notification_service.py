@@ -159,15 +159,20 @@ def send_email_notification(pdf_path, expiring_count, overdue_count):
     msg.attach(part)
 
     try:
-        # Note: For production, use a more secure way to handle credentials
-        # and consider using SSL/TLS appropriately.
         with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-            server.starttls()  # Secure the connection
+            server.set_debuglevel(1) # Enable SMTP debug output
+            server.starttls()
             server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
             server.send_message(msg, from_addr=settings.SMTP_USER, to_addrs=to_emails + cc_emails)
             logging.info(f"Email di notifica inviata con successo a: {', '.join(to_emails)}")
+    except smtplib.SMTPAuthenticationError as e:
+        logging.error(f"Errore di autenticazione SMTP: {e}. Controllare SMTP_USER e SMTP_PASSWORD.")
+    except smtplib.SMTPConnectError as e:
+        logging.error(f"Errore di connessione SMTP: {e}. Controllare SMTP_HOST e SMTP_PORT.")
+    except smtplib.SMTPException as e:
+        logging.error(f"Errore SMTP generico durante l'invio dell'email: {e}")
     except Exception as e:
-        logging.error(f"Errore nell'invio dell'email di notifica: {e}")
+        logging.error(f"Errore imprevisto durante l'invio dell'email: {e}", exc_info=True)
 
 def check_and_send_alerts():
     """
