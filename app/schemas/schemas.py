@@ -14,8 +14,7 @@ class DipendenteSchema(BaseModel):
 
 class CertificatoSchema(BaseModel):
     id: int
-    nome_dipendente: str
-    cognome_dipendente: str
+    nome: str
     data_nascita: Optional[str] = None
     matricola: Optional[str] = None
     corso: str
@@ -25,8 +24,7 @@ class CertificatoSchema(BaseModel):
     stato_certificato: str
 
 class CertificatoCreazioneSchema(BaseModel):
-    nome_dipendente: str = Field(..., min_length=1, description="Nome del dipendente")
-    cognome_dipendente: str = Field(..., min_length=1, description="Cognome del dipendente")
+    nome: str = Field(..., min_length=1, description="Nome e cognome del dipendente")
     data_nascita: Optional[str] = None
     corso: str = Field(..., min_length=1, description="Nome del corso")
     categoria: str = Field(..., min_length=1, description="Categoria del corso")
@@ -54,8 +52,7 @@ class CertificatoCreazioneSchema(BaseModel):
         return v
 
 class CertificatoAggiornamentoSchema(BaseModel):
-    nome_dipendente: Optional[str] = None
-    cognome_dipendente: Optional[str] = None
+    nome: Optional[str] = None
     corso: Optional[str] = None
     categoria: Optional[str] = None
     data_rilascio: Optional[str] = None

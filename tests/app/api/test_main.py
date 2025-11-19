@@ -21,15 +21,16 @@ def seed_master_courses(db: Session):
 def test_create_certificato(test_client: TestClient, db_session: Session):
     """Tests successful certificate creation."""
     seed_master_courses(db_session)
+    db_session.add(Dipendente(nome="Mario", cognome="Rossi"))
+    db_session.commit()
     cert_data = {
-        "nome_dipendente": "Mario", "cognome_dipendente": "Rossi", "corso": "ANTINCENDIO", "categoria": "ANTINCENDIO",
+        "nome": "Mario Rossi", "corso": "ANTINCENDIO", "categoria": "ANTINCENDIO",
         "data_rilascio": "14/11/2025", "data_scadenza": "14/11/2030"
     }
     response = test_client.post("/certificati/", json=cert_data)
     assert response.status_code == 200
     data = response.json()
-    assert data["nome_dipendente"] == "Mario"
-    assert data["cognome_dipendente"] == "Rossi"
+    assert data["nome"] == "Rossi Mario"
     cert_db = db_session.get(Certificato, data["id"])
     assert cert_db and cert_db.stato_validazione == ValidationStatus.AUTOMATIC
 
@@ -59,7 +60,7 @@ def test_update_certificato(test_client: TestClient, db_session: Session):
     db_session.add(cert)
     db_session.commit()
     update_payload = {
-        "nome_dipendente": "Test", "cognome_dipendente": "User", "corso": "Updated Course", "categoria": "General",
+        "nome": "Test User", "corso": "Updated Course", "categoria": "General",
         "data_rilascio": "01/02/2025", "data_scadenza": "01/02/2026"
     }
     response = test_client.put(f"/certificati/{cert.id}", json=update_payload)
@@ -78,7 +79,7 @@ def test_update_certificato_get_or_create(test_client: TestClient, db_session: S
     db_session.add(cert)
     db_session.commit()
     update_data = {
-        "nome_dipendente": "New", "cognome_dipendente": "Employee", "corso": "New Course", "categoria": "General",
+        "nome": "New Employee", "corso": "New Course", "categoria": "General",
         "data_rilascio": "01/03/2025", "data_scadenza": "01/03/2026"
     }
     response = test_client.put(f"/certificati/{cert.id}", json=update_data)
@@ -90,7 +91,7 @@ def test_create_duplicate_certificato_fails(test_client: TestClient, db_session:
     """Tests that creating a duplicate certificate fails."""
     seed_master_courses(db_session)
     cert_data = {
-        "nome_dipendente": "Mario", "cognome_dipendente": "Rossi", "corso": "Corso Duplicato", "categoria": "ALTRO",
+        "nome": "Mario Rossi", "corso": "Corso Duplicato", "categoria": "ALTRO",
         "data_rilascio": "01/01/2025", "data_scadenza": "01/01/2026"
     }
     assert test_client.post("/certificati/", json=cert_data).status_code == 200
@@ -101,7 +102,7 @@ def test_upload_pdf_visita_medica(test_client: TestClient, db_session: Session, 
     """Tests PDF upload for a 'VISITA MEDICA' with a direct expiration date."""
     seed_master_courses(db_session)
     mocker.patch("app.api.main.ai_extraction.extract_entities_with_ai", return_value={
-        "nome_dipendente": "Mario", "cognome_dipendente": "Rossi", "corso": "Giudizio di idoneità", "categoria": "VISITA MEDICA",
+        "nome": "Mario Rossi", "corso": "Giudizio di idoneità", "categoria": "VISITA MEDICA",
         "data_rilascio": "10-10-2025", "data_scadenza": "10-10-2026"
     })
     response = test_client.post("/upload-pdf/", files={"file": ("v.pdf", b"c", "application/pdf")})
@@ -111,13 +112,14 @@ def test_upload_pdf_visita_medica(test_client: TestClient, db_session: Session, 
 @pytest.mark.parametrize("payload_override, expected_status, detail", [
     ({"data_rilascio": ""}, 422, "La data di rilascio non può essere vuota."),
     ({"data_rilascio": "14-11-2025"}, 422, "Formato data non valido"),
-    ({"nome_dipendente": ""}, 422, "String should have at least 1 character"),
+    ({"nome": ""}, 422, "String should have at least 1 character"),
+    ({"nome": "Mario"}, 400, "Formato nome non valido"),
 ])
 def test_create_certificato_invalid_payload(test_client: TestClient, db_session: Session, payload_override, expected_status, detail):
     """Tests that creating a certificate with invalid data fails as expected."""
     seed_master_courses(db_session)
     payload = {
-        "nome_dipendente": "Mario", "cognome_dipendente": "Rossi", "corso": "Corso Base", "categoria": "ANTINCENDIO",
+        "nome": "Mario Rossi", "corso": "Corso Base", "categoria": "ANTINCENDIO",
         "data_rilascio": "14/11/2025", "data_scadenza": "14/11/2030"
     }
     payload.update(payload_override)
@@ -140,7 +142,7 @@ def test_update_data_scadenza_variations(test_client: TestClient, db_session: Se
     db_session.add(cert)
     db_session.commit()
     payload = {
-        "nome_dipendente": "Jane", "cognome_dipendente": "Doe", "corso": "Test Course", "categoria": "General",
+        "nome": "Jane Doe", "corso": "Test Course", "categoria": "General",
         "data_rilascio": "01/01/2025", "data_scadenza": scadenza_in
     }
     response = test_client.put(f"/certificati/{cert.id}", json=payload)
@@ -153,7 +155,7 @@ def test_upload_pdf(test_client: TestClient, db_session: Session, mocker):
     """Tests PDF upload and expiration date calculation."""
     seed_master_courses(db_session)
     mocker.patch("app.api.main.ai_extraction.extract_entities_with_ai", return_value={
-        "nome_dipendente": "Mario", "cognome_dipendente": "Rossi", "corso": "Corso Sicurezza", "categoria": "ANTINCENDIO",
+        "nome": "Mario Rossi", "corso": "Corso Sicurezza", "categoria": "ANTINCENDIO",
         "data_rilascio": "10-10-2025"
     })
     response = test_client.post("/upload-pdf/", files={"file": ("t.pdf", b"c", "application/pdf")})
