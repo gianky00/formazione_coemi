@@ -12,7 +12,7 @@ class GanttBarItem(QGraphicsRectItem):
         self.setData(Qt.ItemDataRole.UserRole, data)
 
         tooltip_text = f"""
-        <b>Dipendente:</b> {data['nome']}<br>
+        <b>Dipendente:</b> {data['Dipendente']}<br>
         <b>Matricola:</b> {data['matricola']}<br>
         <b>Data di Nascita:</b> {data['data_nascita']}<br>
         <b>Corso:</b> {data['corso']}<br>
