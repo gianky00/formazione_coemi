@@ -159,20 +159,34 @@ def send_email_notification(pdf_path, expiring_count, overdue_count):
     msg.attach(part)
 
     try:
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-            server.set_debuglevel(1) # Enable SMTP debug output
-            server.starttls()
-            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            server.send_message(msg, from_addr=settings.SMTP_USER, to_addrs=to_emails + cc_emails)
-            logging.info(f"Email di notifica inviata con successo a: {', '.join(to_emails)}")
+        if settings.SMTP_PORT == 465:
+            # Use SMTP_SSL for a secure connection from the start (for services like Gmail, Aruba SSL)
+            conn_method = "SMTP_SSL"
+            logging.info(f"Connecting to {settings.SMTP_HOST}:{settings.SMTP_PORT} using {conn_method}.")
+            with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+                server.set_debuglevel(1)
+                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                server.send_message(msg, from_addr=settings.SMTP_USER, to_addrs=to_emails + cc_emails)
+        else:
+            # Use standard SMTP and upgrade to TLS (for services like Outlook, Aruba STARTTLS)
+            conn_method = "SMTP with STARTTLS"
+            logging.info(f"Connecting to {settings.SMTP_HOST}:{settings.SMTP_PORT} using {conn_method}.")
+            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+                server.set_debuglevel(1)
+                server.starttls()
+                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                server.send_message(msg, from_addr=settings.SMTP_USER, to_addrs=to_emails + cc_emails)
+
+        logging.info(f"Email notification sent successfully to: {', '.join(to_emails)} using {conn_method}.")
+
     except smtplib.SMTPAuthenticationError as e:
-        logging.error(f"Errore di autenticazione SMTP: {e}. Controllare SMTP_USER e SMTP_PASSWORD.")
+        logging.error(f"SMTP Authentication Error with {conn_method}: {e}. Check SMTP_USER and SMTP_PASSWORD.")
     except smtplib.SMTPConnectError as e:
-        logging.error(f"Errore di connessione SMTP: {e}. Controllare SMTP_HOST e SMTP_PORT.")
+        logging.error(f"SMTP Connection Error with {conn_method}: {e}. Check SMTP_HOST and SMTP_PORT.")
     except smtplib.SMTPException as e:
-        logging.error(f"Errore SMTP generico durante l'invio dell'email: {e}")
+        logging.error(f"Generic SMTP Error with {conn_method} while sending email: {e}")
     except Exception as e:
-        logging.error(f"Errore imprevisto durante l'invio dell'email: {e}", exc_info=True)
+        logging.error(f"An unexpected error occurred with {conn_method} while sending email: {e}", exc_info=True)
 
 def check_and_send_alerts():
     """
