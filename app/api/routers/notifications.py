@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, HTTPException
 from app.services.notification_service import check_and_send_alerts
 
 router = APIRouter()
@@ -10,6 +10,10 @@ async def send_manual_alert():
     """
     try:
         check_and_send_alerts()
-        return {"message": "Processo di notifica avviato con successo."}
+        return {"message": "Email di notifica inviata con successo."}
+    except ConnectionAbortedError as e:
+        # This catches the specific SMTP errors we are now raising
+        raise HTTPException(status_code=500, detail=f"Errore durante l'invio della notifica: {e}")
     except Exception as e:
-        return {"error": f"Errore durante l'invio della notifica: {e}"}
+        # Catch-all for any other unexpected errors
+        raise HTTPException(status_code=500, detail=f"Si è verificato un errore imprevisto: {e}")
