@@ -180,7 +180,7 @@ class DashboardView(QWidget):
             if 'data_nascita' not in df.columns:
                 df['data_nascita'] = None
 
-            column_order = ['id', 'nome', 'data_nascita', 'matricola', 'corso', 'categoria', 'data_rilascio', 'data_scadenza', 'stato_certificato']
+            column_order = ['id', 'Dipendente', 'data_nascita', 'matricola', 'corso', 'categoria', 'data_rilascio', 'data_scadenza', 'stato_certificato']
             df = df[[col for col in column_order if col in df.columns]]
 
             self.model = CertificatoTableModel(df)
@@ -192,7 +192,7 @@ class DashboardView(QWidget):
 
             header = self.table_view.horizontalHeader()
             header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-            header.setSectionResizeMode(df.columns.get_loc('nome'), QHeaderView.ResizeMode.Stretch)
+            header.setSectionResizeMode(df.columns.get_loc('Dipendente'), QHeaderView.ResizeMode.Stretch)
             header.setSectionResizeMode(df.columns.get_loc('corso'), QHeaderView.ResizeMode.Stretch)
             if 'matricola' in df.columns:
                 header.setSectionResizeMode(df.columns.get_loc('matricola'), QHeaderView.ResizeMode.ResizeToContents)

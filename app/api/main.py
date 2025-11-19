@@ -64,7 +64,8 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
         status = certificate_logic.get_certificate_status(db, cert)
         result.append(CertificatoSchema(
             id=cert.id,
-            nome=f"{cert.dipendente.nome} {cert.dipendente.cognome}",
+            nome_dipendente=cert.dipendente.nome,
+            cognome_dipendente=cert.dipendente.cognome,
             data_nascita=cert.dipendente.data_nascita.strftime('%d/%m/%Y') if cert.dipendente.data_nascita else None,
             matricola=cert.dipendente.matricola,
             corso=cert.corso.nome_corso,
@@ -84,7 +85,8 @@ def get_certificato(certificato_id: int, db: Session = Depends(get_db)):
     status = certificate_logic.get_certificate_status(db, db_cert)
     return CertificatoSchema(
         id=db_cert.id,
-        nome=f"{db_cert.dipendente.nome} {db_cert.dipendente.cognome}",
+        nome_dipendente=db_cert.dipendente.nome,
+        cognome_dipendente=db_cert.dipendente.cognome,
         data_nascita=db_cert.dipendente.data_nascita.strftime('%d/%m/%Y') if db_cert.dipendente.data_nascita else None,
         matricola=db_cert.dipendente.matricola,
         corso=db_cert.corso.nome_corso,
@@ -103,7 +105,7 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
     if len(nome_parts) < 2:
         raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
 
-    nome, cognome = nome_parts[0], " ".join(nome_parts[1:])
+    cognome, nome = nome_parts[-1], " ".join(nome_parts[:-1])
 
     # Gestione omonimie
     query = db.query(Dipendente).filter(
@@ -187,7 +189,8 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
 
     return CertificatoSchema(
         id=new_cert.id,
-        nome=f"{dipendente_info.nome} {dipendente_info.cognome}" if dipendente_info else "Da Assegnare",
+        nome_dipendente=dipendente_info.nome if dipendente_info else "Da",
+        cognome_dipendente=dipendente_info.cognome if dipendente_info else "Assegnare",
         data_nascita=dipendente_info.data_nascita.strftime('%d/%m/%Y') if dipendente_info and dipendente_info.data_nascita else None,
         matricola=dipendente_info.matricola if dipendente_info else None,
         corso=new_cert.corso.nome_corso,
@@ -208,7 +211,8 @@ def valida_certificato(certificato_id: int, db: Session = Depends(get_db)):
     status = certificate_logic.get_certificate_status(db, db_cert)
     return CertificatoSchema(
         id=db_cert.id,
-        nome=f"{db_cert.dipendente.nome} {db_cert.dipendente.cognome}",
+        nome_dipendente=db_cert.dipendente.nome,
+        cognome_dipendente=db_cert.dipendente.cognome,
         data_nascita=db_cert.dipendente.data_nascita.strftime('%d/%m/%Y') if db_cert.dipendente.data_nascita else None,
         matricola=db_cert.dipendente.matricola,
         corso=db_cert.corso.nome_corso,
@@ -227,13 +231,15 @@ def update_certificato(certificato_id: int, certificato: CertificatoAggiornament
     update_data = certificato.model_dump(exclude_unset=True)
 
     if 'nome' in update_data:
-        nome_parts = update_data['nome'].split()
+        nome_parts = update_data['nome'].strip().split()
         if len(nome_parts) < 2:
             raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
 
-        dipendente = db.query(Dipendente).filter_by(nome=nome_parts[0], cognome=" ".join(nome_parts[1:])).first()
+        cognome, nome = nome_parts[-1], " ".join(nome_parts[:-1])
+
+        dipendente = db.query(Dipendente).filter_by(nome=nome, cognome=cognome).first()
         if not dipendente:
-            dipendente = Dipendente(nome=nome_parts[0], cognome=" ".join(nome_parts[1:]))
+            dipendente = Dipendente(nome=nome, cognome=cognome)
             db.add(dipendente)
             db.flush()
         db_cert.dipendente_id = dipendente.id
@@ -272,7 +278,8 @@ def update_certificato(certificato_id: int, certificato: CertificatoAggiornament
     status = certificate_logic.get_certificate_status(db, db_cert)
     return CertificatoSchema(
         id=db_cert.id,
-        nome=f"{db_cert.dipendente.nome} {db_cert.dipendente.cognome}",
+        nome_dipendente=db_cert.dipendente.nome,
+        cognome_dipendente=db_cert.dipendente.cognome,
         data_nascita=db_cert.dipendente.data_nascita.strftime('%d/%m/%Y') if db_cert.dipendente.data_nascita else None,
         matricola=db_cert.dipendente.matricola,
         corso=db_cert.corso.nome_corso,
