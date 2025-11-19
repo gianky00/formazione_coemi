@@ -58,11 +58,16 @@ def generate_pdf_report_in_memory(expiring_certificates, overdue_certificates):
             pdf.set_font('Arial', '', 9)
             fill = False
             for cert in expiring_certificates:
+                matricola = cert.dipendente.matricola if cert.dipendente and cert.dipendente.matricola is not None else "N/A"
+                dipendente_nome = f"{cert.dipendente.nome or ''} {cert.dipendente.cognome or ''}".strip() if cert.dipendente else "N/A"
+                categoria = cert.corso.categoria_corso if cert.corso else "N/A"
+                data_scadenza = cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else "N/A"
+
                 pdf.set_fill_color(255, 255, 255) if not fill else pdf.set_fill_color(245, 245, 245)
-                pdf.cell(30, 10, cert.dipendente.matricola if cert.dipendente else 'N/A', 1, 0, 'C', 1)
-                pdf.cell(50, 10, f"{cert.dipendente.nome} {cert.dipendente.cognome}" if cert.dipendente else 'N/A', 1, 0, 'L', 1)
-                pdf.cell(70, 10, cert.corso.categoria_corso, 1, 0, 'L', 1)
-                pdf.cell(40, 10, cert.data_scadenza_calcolata.strftime('%d/%m/%Y'), 1, 1, 'C', 1)
+                pdf.cell(30, 10, matricola, 1, 0, 'C', 1)
+                pdf.cell(50, 10, dipendente_nome, 1, 0, 'L', 1)
+                pdf.cell(70, 10, categoria, 1, 0, 'L', 1)
+                pdf.cell(40, 10, data_scadenza, 1, 1, 'C', 1)
                 fill = not fill
 
         # Table for overdue certificates
@@ -77,11 +82,16 @@ def generate_pdf_report_in_memory(expiring_certificates, overdue_certificates):
             pdf.set_font('Arial', '', 9)
             fill = False
             for cert in overdue_certificates:
+                matricola = cert.dipendente.matricola if cert.dipendente and cert.dipendente.matricola is not None else "N/A"
+                dipendente_nome = f"{cert.dipendente.nome or ''} {cert.dipendente.cognome or ''}".strip() if cert.dipendente else "N/A"
+                categoria = cert.corso.categoria_corso if cert.corso else "N/A"
+                data_scadenza = cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else "N/A"
+
                 pdf.set_fill_color(255, 255, 255) if not fill else pdf.set_fill_color(245, 245, 245)
-                pdf.cell(30, 10, cert.dipendente.matricola if cert.dipendente else 'N/A', 1, 0, 'C', 1)
-                pdf.cell(50, 10, f"{cert.dipendente.nome} {cert.dipendente.cognome}" if cert.dipendente else 'N/A', 1, 0, 'L', 1)
-                pdf.cell(70, 10, cert.corso.categoria_corso, 1, 0, 'L', 1)
-                pdf.cell(40, 10, cert.data_scadenza_calcolata.strftime('%d/%m/%Y'), 1, 1, 'C', 1)
+                pdf.cell(30, 10, matricola, 1, 0, 'C', 1)
+                pdf.cell(50, 10, dipendente_nome, 1, 0, 'L', 1)
+                pdf.cell(70, 10, categoria, 1, 0, 'L', 1)
+                pdf.cell(40, 10, data_scadenza, 1, 1, 'C', 1)
                 fill = not fill
 
         # Return PDF content as bytes
