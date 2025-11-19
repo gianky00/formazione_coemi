@@ -41,50 +41,57 @@ class PDF(FPDF):
 
 def generate_pdf_report_in_memory(expiring_certificates, overdue_certificates):
     """Generates a professional PDF report and returns its content as bytes."""
-    pdf = PDF()
-    pdf.alias_nb_pages()
-    pdf.add_page()
-    pdf.set_font('Arial', '', 12)
+    try:
+        pdf = PDF()
+        pdf.alias_nb_pages()
+        pdf.add_page()
+        pdf.set_font('Arial', '', 12)
 
-    # Table for expiring certificates
-    if expiring_certificates:
-        pdf.set_font('Arial', 'B', 10)
-        pdf.set_fill_color(240, 248, 255)
-        pdf.cell(30, 10, 'Matricola', 1, 0, 'C', 1)
-        pdf.cell(50, 10, 'Dipendente', 1, 0, 'C', 1)
-        pdf.cell(70, 10, 'Categoria', 1, 0, 'C', 1)
-        pdf.cell(40, 10, 'Data Scadenza', 1, 1, 'C', 1)
-        pdf.set_font('Arial', '', 9)
-        fill = False
-        for cert in expiring_certificates:
-            pdf.set_fill_color(255, 255, 255) if not fill else pdf.set_fill_color(245, 245, 245)
-            pdf.cell(30, 10, cert.dipendente.matricola if cert.dipendente else 'N/A', 1, 0, 'C', 1)
-            pdf.cell(50, 10, f"{cert.dipendente.nome} {cert.dipendente.cognome}" if cert.dipendente else 'N/A', 1, 0, 'L', 1)
-            pdf.cell(70, 10, cert.corso.categoria_corso, 1, 0, 'L', 1)
-            pdf.cell(40, 10, cert.data_scadenza_calcolata.strftime('%d/%m/%Y'), 1, 1, 'C', 1)
-            fill = not fill
+        # Table for expiring certificates
+        if expiring_certificates:
+            pdf.set_font('Arial', 'B', 10)
+            pdf.set_fill_color(240, 248, 255)
+            pdf.cell(30, 10, 'Matricola', 1, 0, 'C', 1)
+            pdf.cell(50, 10, 'Dipendente', 1, 0, 'C', 1)
+            pdf.cell(70, 10, 'Categoria', 1, 0, 'C', 1)
+            pdf.cell(40, 10, 'Data Scadenza', 1, 1, 'C', 1)
+            pdf.set_font('Arial', '', 9)
+            fill = False
+            for cert in expiring_certificates:
+                pdf.set_fill_color(255, 255, 255) if not fill else pdf.set_fill_color(245, 245, 245)
+                pdf.cell(30, 10, cert.dipendente.matricola if cert.dipendente else 'N/A', 1, 0, 'C', 1)
+                pdf.cell(50, 10, f"{cert.dipendente.nome} {cert.dipendente.cognome}" if cert.dipendente else 'N/A', 1, 0, 'L', 1)
+                pdf.cell(70, 10, cert.corso.categoria_corso, 1, 0, 'L', 1)
+                pdf.cell(40, 10, cert.data_scadenza_calcolata.strftime('%d/%m/%Y'), 1, 1, 'C', 1)
+                fill = not fill
 
-    # Table for overdue certificates
-    if overdue_certificates:
-        pdf.ln(10)
-        pdf.set_font('Arial', 'B', 10)
-        pdf.set_fill_color(254, 242, 242)
-        pdf.cell(30, 10, 'Matricola', 1, 0, 'C', 1)
-        pdf.cell(50, 10, 'Dipendente', 1, 0, 'C', 1)
-        pdf.cell(70, 10, 'Categoria', 1, 0, 'C', 1)
-        pdf.cell(40, 10, 'Data Scadenza', 1, 1, 'C', 1)
-        pdf.set_font('Arial', '', 9)
-        fill = False
-        for cert in overdue_certificates:
-            pdf.set_fill_color(255, 255, 255) if not fill else pdf.set_fill_color(245, 245, 245)
-            pdf.cell(30, 10, cert.dipendente.matricola if cert.dipendente else 'N/A', 1, 0, 'C', 1)
-            pdf.cell(50, 10, f"{cert.dipendente.nome} {cert.dipendente.cognome}" if cert.dipendente else 'N/A', 1, 0, 'L', 1)
-            pdf.cell(70, 10, cert.corso.categoria_corso, 1, 0, 'L', 1)
-            pdf.cell(40, 10, cert.data_scadenza_calcolata.strftime('%d/%m/%Y'), 1, 1, 'C', 1)
-            fill = not fill
+        # Table for overdue certificates
+        if overdue_certificates:
+            pdf.ln(10)
+            pdf.set_font('Arial', 'B', 10)
+            pdf.set_fill_color(254, 242, 242)
+            pdf.cell(30, 10, 'Matricola', 1, 0, 'C', 1)
+            pdf.cell(50, 10, 'Dipendente', 1, 0, 'C', 1)
+            pdf.cell(70, 10, 'Categoria', 1, 0, 'C', 1)
+            pdf.cell(40, 10, 'Data Scadenza', 1, 1, 'C', 1)
+            pdf.set_font('Arial', '', 9)
+            fill = False
+            for cert in overdue_certificates:
+                pdf.set_fill_color(255, 255, 255) if not fill else pdf.set_fill_color(245, 245, 245)
+                pdf.cell(30, 10, cert.dipendente.matricola if cert.dipendente else 'N/A', 1, 0, 'C', 1)
+                pdf.cell(50, 10, f"{cert.dipendente.nome} {cert.dipendente.cognome}" if cert.dipendente else 'N/A', 1, 0, 'L', 1)
+                pdf.cell(70, 10, cert.corso.categoria_corso, 1, 0, 'L', 1)
+                pdf.cell(40, 10, cert.data_scadenza_calcolata.strftime('%d/%m/%Y'), 1, 1, 'C', 1)
+                fill = not fill
 
-    # Return PDF content as bytes
-    return pdf.output(dest='S')
+        # Return PDF content as bytes
+        return pdf.output(dest='S')
+    except FileNotFoundError as e:
+        logging.error(f"Errore durante la generazione del PDF: File non trovato, probabilmente il logo. {e}")
+        raise ValueError(f"Impossibile generare il PDF: assicurarsi che il file 'desktop_app/assets/logo.png' esista.")
+    except Exception as e:
+        logging.error(f"Errore imprevisto durante la generazione del PDF: {e}", exc_info=True)
+        raise ValueError(f"Si è verificato un errore imprevisto durante la creazione del report PDF: {e}")
 
 def send_email_notification(pdf_content_bytes, expiring_count, overdue_count):
     """Sends an email with the PDF report (from bytes) attached."""
@@ -223,10 +230,10 @@ def check_and_send_alerts():
             logging.info(f"Trovati {len(expiring_certificates)} certificati in scadenza e {len(overdue_certificates)} scaduti.")
             pdf_content_bytes = generate_pdf_report_in_memory(expiring_certificates, overdue_certificates)
 
-            # --- Safety Check ---
+            # --- Definitive Safety Check ---
             if not pdf_content_bytes:
-                logging.error("La generazione del PDF è fallita e ha restituito un contenuto vuoto.")
-                raise ValueError("La generazione del PDF è fallita.")
+                logging.error("PDF generation failed, resulting in empty content.")
+                raise ValueError("PDF generation failed.")
             # --- End Safety Check ---
 
             send_email_notification(pdf_content_bytes, len(expiring_certificates), len(overdue_certificates))
