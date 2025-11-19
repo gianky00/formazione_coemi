@@ -19,106 +19,73 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 class PDF(FPDF):
     def header(self):
-        # Logo
-        self.image('desktop_app/assets/logo.png', 10, 8, 45) # Increased logo size
-        # Arial bold 15
+        self.image('desktop_app/assets/logo.png', 10, 8, 45)
         self.set_font('Arial', 'B', 15)
-        # Move to the right
         self.cell(80)
-        # Title
         self.cell(0, 10, f"Report scadenze al {date.today().strftime('%d/%m/%Y')}", 0, 0, 'C')
-        # Line break
         self.ln(20)
 
     def footer(self):
-        # Position at 1.5 cm from bottom
         self.set_y(-15)
-        # Arial italic 8
         self.set_font('Arial', 'I', 8)
-        # Confidentiality Notice
         self.cell(0, 10, 'Restricted | Internal Use Only', 0, 0, 'L')
-        # Page number
         self.cell(0, 10, 'Pagina ' + str(self.page_no()) + '/{nb}', 0, 0, 'R')
 
 def generate_pdf_report_in_memory(expiring_visite, expiring_corsi, overdue_certificates, visite_threshold, corsi_threshold):
-    """Generates a professional PDF report and returns its content as bytes."""
+    """Generates a professional, multi-table PDF report with pagination logic."""
     try:
         pdf = PDF()
         pdf.alias_nb_pages()
         pdf.add_page()
-        pdf.set_font('Arial', '', 12)
 
-        # Table for expiring certificates
+        def draw_table(title, data, color):
+            pdf.set_font('Arial', 'B', 12)
+            pdf.cell(0, 10, title, 0, 1, 'L')
+            pdf.ln(2)
+
+            # Table Header
+            header = ['Nr.', 'Matricola', 'Dipendente', 'Categoria', 'Data Scadenza']
+            col_widths = [15, 30, 70, 60, 30]
+            pdf.set_font('Arial', 'B', 10)
+            pdf.set_fill_color(color[0], color[1], color[2])
+            for i, header_text in enumerate(header):
+                pdf.cell(col_widths[i], 10, header_text, 1, 0, 'C', 1)
+            pdf.ln()
+
+            # Table Rows
+            pdf.set_font('Arial', '', 9)
+            row_num = 1
+            for cert in data:
+                # Check for page break
+                if pdf.get_y() > (pdf.page_break_trigger - 20):
+                    pdf.add_page()
+                    pdf.set_font('Arial', 'B', 10)
+                    for i, header_text in enumerate(header):
+                        pdf.cell(col_widths[i], 10, header_text, 1, 0, 'C', 1)
+                    pdf.ln()
+                    pdf.set_font('Arial', '', 9)
+
+                matricola = cert.dipendente.matricola if cert.dipendente and cert.dipendente.matricola is not None else "N/A"
+                dipendente_nome = f"{cert.dipendente.nome or ''} {cert.dipendente.cognome or ''}".strip() if cert.dipendente else "N/A"
+                categoria = cert.corso.categoria_corso if cert.corso else "N/A"
+                data_scadenza = cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else "N/A"
+
+                pdf.cell(col_widths[0], 10, str(row_num), 1, 0, 'C')
+                pdf.cell(col_widths[1], 10, matricola, 1, 0, 'C')
+                pdf.cell(col_widths[2], 10, dipendente_nome, 1, 0, 'L')
+                pdf.cell(col_widths[3], 10, categoria, 1, 0, 'L')
+                pdf.cell(col_widths[4], 10, data_scadenza, 1, 1, 'C')
+                row_num += 1
+            pdf.ln(10) # Space after table
+
+        # Draw the three tables
         if expiring_corsi:
-            pdf.set_font('Arial', 'B', 10)
-            pdf.set_fill_color(240, 248, 255)
-            pdf.cell(30, 10, 'Matricola', 1, 0, 'C', 1)
-            pdf.cell(50, 10, 'Dipendente', 1, 0, 'C', 1)
-            pdf.cell(70, 10, 'Categoria', 1, 0, 'C', 1)
-            pdf.cell(40, 10, 'Data Scadenza', 1, 1, 'C', 1)
-            pdf.set_font('Arial', '', 9)
-            fill = False
-            for cert in expiring_corsi:
-                matricola = cert.dipendente.matricola if cert.dipendente and cert.dipendente.matricola is not None else "N/A"
-                dipendente_nome = f"{cert.dipendente.nome or ''} {cert.dipendente.cognome or ''}".strip() if cert.dipendente else "N/A"
-                categoria = cert.corso.categoria_corso if cert.corso else "N/A"
-                data_scadenza = cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else "N/A"
-
-                pdf.set_fill_color(255, 255, 255) if not fill else pdf.set_fill_color(245, 245, 245)
-                pdf.cell(30, 10, matricola, 1, 0, 'C', 1)
-                pdf.cell(50, 10, dipendente_nome, 1, 0, 'L', 1)
-                pdf.cell(70, 10, categoria, 1, 0, 'L', 1)
-                pdf.cell(40, 10, data_scadenza, 1, 1, 'C', 1)
-                fill = not fill
-
+            draw_table(f"Certificati in avvicinamento scadenza ({corsi_threshold} giorni)", expiring_corsi, (240, 248, 255))
         if expiring_visite:
-            pdf.ln(10)
-            pdf.set_font('Arial', 'B', 10)
-            pdf.set_fill_color(240, 248, 255)
-            pdf.cell(30, 10, 'Matricola', 1, 0, 'C', 1)
-            pdf.cell(50, 10, 'Dipendente', 1, 0, 'C', 1)
-            pdf.cell(70, 10, 'Categoria', 1, 0, 'C', 1)
-            pdf.cell(40, 10, 'Data Scadenza', 1, 1, 'C', 1)
-            pdf.set_font('Arial', '', 9)
-            fill = False
-            for cert in expiring_visite:
-                matricola = cert.dipendente.matricola if cert.dipendente and cert.dipendente.matricola is not None else "N/A"
-                dipendente_nome = f"{cert.dipendente.nome or ''} {cert.dipendente.cognome or ''}".strip() if cert.dipendente else "N/A"
-                categoria = cert.corso.categoria_corso if cert.corso else "N/A"
-                data_scadenza = cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else "N/A"
-
-                pdf.set_fill_color(255, 255, 255) if not fill else pdf.set_fill_color(245, 245, 245)
-                pdf.cell(30, 10, matricola, 1, 0, 'C', 1)
-                pdf.cell(50, 10, dipendente_nome, 1, 0, 'L', 1)
-                pdf.cell(70, 10, categoria, 1, 0, 'L', 1)
-                pdf.cell(40, 10, data_scadenza, 1, 1, 'C', 1)
-                fill = not fill
-
-        # Table for overdue certificates
+            draw_table(f"Visite mediche in avvicinamento scadenza ({visite_threshold} giorni)", expiring_visite, (240, 248, 255))
         if overdue_certificates:
-            pdf.ln(10)
-            pdf.set_font('Arial', 'B', 10)
-            pdf.set_fill_color(254, 242, 242)
-            pdf.cell(30, 10, 'Matricola', 1, 0, 'C', 1)
-            pdf.cell(50, 10, 'Dipendente', 1, 0, 'C', 1)
-            pdf.cell(70, 10, 'Categoria', 1, 0, 'C', 1)
-            pdf.cell(40, 10, 'Data Scadenza', 1, 1, 'C', 1)
-            pdf.set_font('Arial', '', 9)
-            fill = False
-            for cert in overdue_certificates:
-                matricola = cert.dipendente.matricola if cert.dipendente and cert.dipendente.matricola is not None else "N/A"
-                dipendente_nome = f"{cert.dipendente.nome or ''} {cert.dipendente.cognome or ''}".strip() if cert.dipendente else "N/A"
-                categoria = cert.corso.categoria_corso if cert.corso else "N/A"
-                data_scadenza = cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else "N/A"
+            draw_table("Certificati scaduti non rinnovati", overdue_certificates, (254, 242, 242))
 
-                pdf.set_fill_color(255, 255, 255) if not fill else pdf.set_fill_color(245, 245, 245)
-                pdf.cell(30, 10, matricola, 1, 0, 'C', 1)
-                pdf.cell(50, 10, dipendente_nome, 1, 0, 'L', 1)
-                pdf.cell(70, 10, categoria, 1, 0, 'L', 1)
-                pdf.cell(40, 10, data_scadenza, 1, 1, 'C', 1)
-                fill = not fill
-
-        # Return PDF content as bytes
         return pdf.output(dest='S')
     except FileNotFoundError as e:
         logging.error(f"Errore durante la generazione del PDF: File non trovato, probabilmente il logo. {e}")
@@ -147,14 +114,14 @@ def send_email_notification(pdf_content_bytes, expiring_corsi_count, expiring_vi
     <html>
     <head>
         <style>
-            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 16px; color: #333; background-color: #f9fafb; margin: 0; padding: 20px; text-align: left; }}
-            .wrapper {{ background-color: #ffffff; margin: 0 auto; padding: 30px; border-radius: 12px; max-width: 600px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
-            .header {{ text-align: center; padding-bottom: 15px; margin-bottom: 20px; border-bottom: 1px solid #e5e7eb; }}
+            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 16px; color: #333; background-color: #f9fafb; margin: 0; padding: 20px; }}
+            .wrapper {{ background-color: #ffffff; margin: 0; padding: 30px; border-radius: 12px; max-width: 600px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+            .header {{ text-align: left; padding-bottom: 15px; margin-bottom: 20px; border-bottom: 1px solid #e5e7eb; }}
             .summary-box {{ background-color: #F0F8FF; border-left: 4px solid #1D4ED8; padding: 15px; margin: 20px 0; border-radius: 4px; }}
             .summary-box p {{ margin: 0; font-size: 16px; color: #1F2937; }}
             .summary-box strong {{ font-size: 18px; }}
             .content p {{ line-height: 1.6; }}
-            .footer {{ margin-top: 30px; font-size: 12px; color: #9CA3AF; text-align: center; }}
+            .footer {{ margin-top: 30px; font-size: 12px; color: #9CA3AF; text-align: left; }}
         </style>
     </head>
     <body>
