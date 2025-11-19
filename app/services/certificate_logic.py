@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from dateutil.relativedelta import relativedelta
 from sqlalchemy.orm import Session
 from app.db.models import Certificato, Corso
@@ -16,7 +16,10 @@ def calculate_expiration_date(issue_date: date, validity_months: int) -> Optiona
         La data di scadenza calcolata, o None se la validità è zero.
     """
     if validity_months > 0:
-        return issue_date + relativedelta(months=validity_months)
+        result = issue_date + relativedelta(months=validity_months)
+        if isinstance(result, datetime):
+            return result.date()
+        return result
     return None
 
 def get_certificate_status(db: Session, certificato: Certificato) -> str:
