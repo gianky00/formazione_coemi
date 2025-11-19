@@ -31,11 +31,11 @@ class PdfWorker(QObject):
 
     def process_pdf(self, file_path):
         base_folder = os.path.dirname(file_path)
-        analyzed_folder = os.path.join(base_folder, "PDF ANALIZZATI")
         unanalyzed_folder = os.path.join(base_folder, "NON ANALIZZATI")
+        documenti_folder = os.path.join(base_folder, "DOCUMENTI DIPENDENTI")
 
-        os.makedirs(analyzed_folder, exist_ok=True)
         os.makedirs(unanalyzed_folder, exist_ok=True)
+        os.makedirs(documenti_folder, exist_ok=True)
 
         original_filename = os.path.basename(file_path)
 
@@ -48,13 +48,10 @@ class PdfWorker(QObject):
                 data = response.json()
                 entities = data.get('entities', {})
 
-                # Normalizza il formato della data prima di inviarlo
                 data_rilascio_raw = entities.get('data_rilascio', '')
                 data_scadenza_raw = entities.get('data_scadenza', '')
-
                 data_rilascio_norm = data_rilascio_raw.replace('-', '/') if data_rilascio_raw else ''
                 data_scadenza_norm = data_scadenza_raw.replace('-', '/') if data_scadenza_raw else ''
-
                 data_nascita_raw = entities.get('data_nascita', '')
                 data_nascita_norm = data_nascita_raw.replace('-', '/') if data_nascita_raw else ''
 
@@ -71,20 +68,39 @@ class PdfWorker(QObject):
                 if save_response.status_code == 200:
                     self.log_message.emit(f"File {original_filename} elaborato e salvato con successo.")
                     try:
-                        nome = entities.get('nome', 'NOME_NON_TROVATO')
-                        categoria = entities.get('categoria', 'CATEGORIA_NON_TROVATA')
-                        data_rilascio_str = entities.get('data_rilascio', '')
-                        # Assicura che la data sia analizzata con il formato corretto (DD-MM-YYYY o DD/MM/YYYY)
-                        try:
-                            dt_object = datetime.strptime(data_rilascio_str, '%d-%m-%Y')
-                        except ValueError:
-                            dt_object = datetime.strptime(data_rilascio_str, '%d/%m/%Y')
-                        formatted_date = dt_object.strftime('%d-%m-%Y')
-                        new_filename = f"{nome} {categoria} {formatted_date}.pdf"
-                        shutil.move(file_path, os.path.join(analyzed_folder, new_filename))
+                        cert_data = save_response.json()
+
+                        nome = cert_data.get('nome_dipendente', 'NOME_NON_TROVATO')
+                        cognome = cert_data.get('cognome_dipendente', 'COGNOME_NON_TROVATO')
+                        matricola = cert_data.get('matricola') if cert_data.get('matricola') else 'N-A'
+
+                        employee_folder_name = f"{cognome} {nome} ({matricola})"
+
+                        categoria = cert_data.get('categoria', 'CATEGORIA_NON_TROVATA')
+
+                        data_scadenza_str = cert_data.get('data_scadenza')
+                        stato = 'STORICO'
+                        if not data_scadenza_str:
+                            stato = 'ATTIVO'
+                            file_scadenza = "no scadenza"
+                        else:
+                            scadenza_date = datetime.strptime(data_scadenza_str, '%d/%m/%Y').date()
+                            if scadenza_date >= datetime.now().date():
+                                stato = 'ATTIVO'
+                            file_scadenza = scadenza_date.strftime('%d_%m_%Y')
+
+                        new_filename = f"{cognome} {nome} ({matricola}) - {categoria} - {file_scadenza}.pdf"
+
+                        # Create directory structure
+                        dest_path = os.path.join(documenti_folder, employee_folder_name, categoria, stato)
+                        os.makedirs(dest_path, exist_ok=True)
+
+                        shutil.move(file_path, os.path.join(dest_path, new_filename))
+
                     except Exception as e:
                         self.log_message.emit(f"Errore durante lo spostamento del file {original_filename}: {e}")
                         shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
+
                 elif save_response.status_code == 409:
                     self.log_message.emit(f"{original_filename} - Documento risulta già in Database.")
                     shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))

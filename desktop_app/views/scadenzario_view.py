@@ -141,6 +141,8 @@ class ScadenzarioView(QWidget):
         try:
             response = requests.get(f"{self.api_client.base_url}/certificati/?validated=true")
             all_data = response.json() if response.status_code == 200 else []
+            for item in all_data:
+                item['Dipendente'] = f"{item['cognome_dipendente']} {item['nome_dipendente']}"
             today = QDate.currentDate()
             self.certificates = sorted([
                 item for item in all_data
@@ -165,8 +167,8 @@ class ScadenzarioView(QWidget):
                 if status in statuses:
                     status_item = QTreeWidgetItem(category_item, [status])
                     status_item.setData(0, Qt.ItemDataRole.UserRole, "status_folder")
-                    for cert in sorted(statuses[status], key=lambda x: x['nome']):
-                        child_item = QTreeWidgetItem(status_item, [f"{cert['nome']} ({cert.get('matricola', 'N/A')})"])
+                    for cert in sorted(statuses[status], key=lambda x: x['Dipendente']):
+                        child_item = QTreeWidgetItem(status_item, [f"{cert['Dipendente']} ({cert.get('matricola', 'N/A')})"])
                         child_item.setData(0, Qt.ItemDataRole.UserRole, cert)
 
     def redraw_gantt_scene(self):
@@ -362,7 +364,7 @@ class ScadenzarioView(QWidget):
                 # Draw Text Label
                 painter.setFont(font_body)
                 painter.setPen(pen_default)
-                label = f"{cert_data['nome']} ({cert_data.get('matricola', 'N/A')}) - {cert_data['categoria']}"
+                label = f"{cert_data['Dipendente']} ({cert_data.get('matricola', 'N/A')}) - {cert_data['categoria']}"
                 label_rect = QRectF(content_rect.left(), current_y, label_area_width - 10, row_height)
 
                 # Use QFontMetrics to correctly elide text, which is more robust than flags
