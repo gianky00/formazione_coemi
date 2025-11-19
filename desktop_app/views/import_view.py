@@ -70,10 +70,11 @@ class PdfWorker(QObject):
                     try:
                         cert_data = save_response.json()
 
-                        nome_completo = cert_data.get('nome', 'NOME_NON_TROVATO')
+                        nome = cert_data.get('nome_dipendente', 'NOME_NON_TROVATO')
+                        cognome = cert_data.get('cognome_dipendente', 'COGNOME_NON_TROVATO')
                         matricola = cert_data.get('matricola') if cert_data.get('matricola') else 'N-A'
 
-                        employee_folder_name = f"{nome_completo} ({matricola})"
+                        employee_folder_name = f"{cognome} {nome} ({matricola})"
 
                         categoria = cert_data.get('categoria', 'CATEGORIA_NON_TROVATA')
 
@@ -88,7 +89,7 @@ class PdfWorker(QObject):
                                 stato = 'ATTIVO'
                             file_scadenza = scadenza_date.strftime('%d_%m_%Y')
 
-                        new_filename = f"{nome_completo} ({matricola}) - {categoria} - {file_scadenza}.pdf"
+                        new_filename = f"{cognome} {nome} ({matricola}) - {categoria} - {file_scadenza}.pdf"
 
                         # Create directory structure
                         dest_path = os.path.join(documenti_folder, employee_folder_name, categoria, stato)
