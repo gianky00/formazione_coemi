@@ -39,8 +39,8 @@ class PDF(FPDF):
         # Page number
         self.cell(0, 10, 'Pagina ' + str(self.page_no()) + '/{nb}', 0, 0, 'R')
 
-def generate_pdf_report(expiring_certificates, overdue_certificates):
-    """Generates a professional PDF report of expiring and overdue certificates."""
+def generate_pdf_report_in_memory(expiring_certificates, overdue_certificates):
+    """Generates a professional PDF report and returns its content as bytes."""
     pdf = PDF()
     pdf.alias_nb_pages()
     pdf.add_page()
@@ -48,15 +48,12 @@ def generate_pdf_report(expiring_certificates, overdue_certificates):
 
     # Table for expiring certificates
     if expiring_certificates:
-        # Table Header
         pdf.set_font('Arial', 'B', 10)
-        pdf.set_fill_color(240, 248, 255) # Light Alice Blue
+        pdf.set_fill_color(240, 248, 255)
         pdf.cell(30, 10, 'Matricola', 1, 0, 'C', 1)
         pdf.cell(50, 10, 'Dipendente', 1, 0, 'C', 1)
         pdf.cell(70, 10, 'Categoria', 1, 0, 'C', 1)
         pdf.cell(40, 10, 'Data Scadenza', 1, 1, 'C', 1)
-
-        # Table Rows
         pdf.set_font('Arial', '', 9)
         fill = False
         for cert in expiring_certificates:
@@ -70,16 +67,12 @@ def generate_pdf_report(expiring_certificates, overdue_certificates):
     # Table for overdue certificates
     if overdue_certificates:
         pdf.ln(10)
-
-        # Table Header
         pdf.set_font('Arial', 'B', 10)
-        pdf.set_fill_color(254, 242, 242) # Light Red
+        pdf.set_fill_color(254, 242, 242)
         pdf.cell(30, 10, 'Matricola', 1, 0, 'C', 1)
         pdf.cell(50, 10, 'Dipendente', 1, 0, 'C', 1)
         pdf.cell(70, 10, 'Categoria', 1, 0, 'C', 1)
         pdf.cell(40, 10, 'Data Scadenza', 1, 1, 'C', 1)
-
-        # Table Rows
         pdf.set_font('Arial', '', 9)
         fill = False
         for cert in overdue_certificates:
@@ -90,13 +83,11 @@ def generate_pdf_report(expiring_certificates, overdue_certificates):
             pdf.cell(40, 10, cert.data_scadenza_calcolata.strftime('%d/%m/%Y'), 1, 1, 'C', 1)
             fill = not fill
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-        pdf_path = tmp_file.name
-        pdf.output(pdf_path)
-    return pdf_path
+    # Return PDF content as bytes
+    return pdf.output(dest='S')
 
-def send_email_notification(pdf_path, expiring_count, overdue_count):
-    """Sends an email with the PDF report attached."""
+def send_email_notification(pdf_content_bytes, expiring_count, overdue_count):
+    """Sends an email with the PDF report (from bytes) attached."""
     to_emails = [email.strip() for email in settings.EMAIL_RECIPIENTS_TO.split(',') if email.strip()]
     cc_emails = [email.strip() for email in settings.EMAIL_RECIPIENTS_CC.split(',') if email.strip()]
 
@@ -147,10 +138,9 @@ def send_email_notification(pdf_path, expiring_count, overdue_count):
     """
     msg.attach(MIMEText(html_body, 'html'))
 
-    with open(pdf_path, "rb") as attachment:
-        part = MIMEBase("application", "octet-stream")
-        part.set_payload(attachment.read())
-
+    # Attach the PDF from bytes
+    part = MIMEBase("application", "octet-stream")
+    part.set_payload(pdf_content_bytes)
     encoders.encode_base64(part)
     part.add_header(
         "Content-Disposition",
@@ -227,8 +217,8 @@ def check_and_send_alerts():
         # 3. Generate report and send email if there's anything to report
         if expiring_certificates or overdue_certificates:
             logging.info(f"Trovati {len(expiring_certificates)} certificati in scadenza e {len(overdue_certificates)} scaduti.")
-            pdf_path = generate_pdf_report(expiring_certificates, overdue_certificates)
-            send_email_notification(pdf_path, len(expiring_certificates), len(overdue_certificates))
+            pdf_content_bytes = generate_pdf_report_in_memory(expiring_certificates, overdue_certificates)
+            send_email_notification(pdf_content_bytes, len(expiring_certificates), len(overdue_certificates))
         else:
             logging.info("Nessuna notifica di scadenza da inviare oggi.")
 
