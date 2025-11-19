@@ -192,3 +192,27 @@ def test_get_certificati_includes_orphaned(test_client: TestClient, db_session: 
     data_validated = response_validated.json()
     found_validated = any(cert['id'] == orphaned_cert.id for cert in data_validated)
     assert not found_validated, "Orphaned certificate should not be in the response for validated certificates"
+
+def test_duplicate_check_for_orphaned_certs(test_client: TestClient, db_session: Session):
+    """Tests that duplicate check for orphaned certs is based on the raw name."""
+    seed_master_courses(db_session)
+
+    # Create first orphaned certificate
+    cert_data1 = {
+        "nome": "Orphan One", "corso": "Orphan Course", "categoria": "ALTRO",
+        "data_rilascio": "10/10/2025", "data_scadenza": None
+    }
+    response1 = test_client.post("/certificati/", json=cert_data1)
+    assert response1.status_code == 200
+
+    # Create second orphaned certificate for a DIFFERENT person, but same course/date
+    cert_data2 = {
+        "nome": "Orphan Two", "corso": "Orphan Course", "categoria": "ALTRO",
+        "data_rilascio": "10/10/2025", "data_scadenza": None
+    }
+    response2 = test_client.post("/certificati/", json=cert_data2)
+    assert response2.status_code == 200, "Should be able to create certs for different people"
+
+    # Attempt to create a TRUE duplicate of the first certificate
+    response3 = test_client.post("/certificati/", json=cert_data1)
+    assert response3.status_code == 409, "Should NOT be able to create a true duplicate"
