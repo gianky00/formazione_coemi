@@ -200,8 +200,15 @@ class ScadenzarioView(QWidget):
             today_line.setPen(QPen(QColor("#1D4ED8"), 2))
             self.gantt_scene.addItem(today_line)
 
-        # Sort certificates by expiration date to ensure they are displayed from top to bottom
-        sorted_certs = sorted(self.certificates, key=lambda x: QDate.fromString(x['data_scadenza'], "dd/MM/yyyy"))
+        # Filter certificates to only draw those visible in the current date range
+        visible_certs = [
+            cert for cert in self.certificates
+            if (QDate.fromString(cert['data_scadenza'], "dd/MM/yyyy").addDays(-30) <= end_date) and \
+               (QDate.fromString(cert['data_scadenza'], "dd/MM/yyyy") >= start_date)
+        ]
+
+        # Sort the visible certificates by expiration date to ensure they are displayed from top to bottom
+        sorted_certs = sorted(visible_certs, key=lambda x: QDate.fromString(x['data_scadenza'], "dd/MM/yyyy"))
 
         y_pos = header_height
         for cert_data in sorted_certs:
