@@ -58,15 +58,24 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
     certificati = query.all()
     result = []
     for cert in certificati:
-        if not cert.dipendente or not cert.corso:
+        if not cert.corso:
             continue
+
+        if cert.dipendente:
+            nome_completo = f"{cert.dipendente.cognome} {cert.dipendente.nome}"
+            data_nascita = cert.dipendente.data_nascita.strftime('%d/%m/%Y') if cert.dipendente.data_nascita else None
+            matricola = cert.dipendente.matricola
+        else:
+            nome_completo = "DA ASSEGNARE"
+            data_nascita = None
+            matricola = None
 
         status = certificate_logic.get_certificate_status(db, cert)
         result.append(CertificatoSchema(
             id=cert.id,
-            nome=f"{cert.dipendente.cognome} {cert.dipendente.nome}",
-            data_nascita=cert.dipendente.data_nascita.strftime('%d/%m/%Y') if cert.dipendente.data_nascita else None,
-            matricola=cert.dipendente.matricola,
+            nome=nome_completo,
+            data_nascita=data_nascita,
+            matricola=matricola,
             corso=cert.corso.nome_corso,
             categoria=cert.corso.categoria_corso or "General",
             data_rilascio=cert.data_rilascio.strftime('%d/%m/%Y'),
@@ -147,19 +156,26 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
         db.flush()
 
     # Controllo duplicati
-    existing_cert_query = db.query(Certificato).filter_by(
-        corso_id=course.id,
-        data_rilascio=datetime.strptime(certificato.data_rilascio, '%d/%m/%Y').date()
+    existing_cert_query = db.query(Certificato).filter(
+        Certificato.corso_id == course.id,
+        Certificato.data_rilascio == datetime.strptime(certificato.data_rilascio, '%d/%m/%Y').date()
     )
 
     if dipendente_id:
-        existing_cert_query = existing_cert_query.filter_by(dipendente_id=dipendente_id)
+        existing_cert_query = existing_cert_query.filter(Certificato.dipendente_id == dipendente_id)
+    else:
+        # Per gli orfani, controlla anche il nome raw per evitare duplicati per la stessa persona non mappata
+        existing_cert_query = existing_cert_query.filter(
+            Certificato.dipendente_id.is_(None),
+            Certificato.nome_dipendente_raw.ilike(f"%{certificato.nome.strip()}%")
+        )
 
     if existing_cert_query.first():
         raise HTTPException(status_code=409, detail="Un certificato identico per questo dipendente e corso esiste già.")
 
     new_cert = Certificato(
         dipendente_id=dipendente_id,
+        nome_dipendente_raw=certificato.nome.strip(),
         corso_id=course.id,
         data_rilascio=datetime.strptime(certificato.data_rilascio, '%d/%m/%Y').date(),
         data_scadenza_calcolata=datetime.strptime(certificato.data_scadenza, '%d/%m/%Y').date() if certificato.data_scadenza else None,
