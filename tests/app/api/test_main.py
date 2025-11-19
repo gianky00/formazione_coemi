@@ -162,3 +162,33 @@ def test_upload_pdf(test_client: TestClient, db_session: Session, mocker):
     response = test_client.post("/upload-pdf/", files={"file": ("t.pdf", b"c", "application/pdf")})
     assert response.status_code == 200
     assert "data_scadenza" in response.json()["entities"]
+
+def test_get_certificati_includes_orphaned(test_client: TestClient, db_session: Session):
+    """Tests that orphaned certificates are returned when validated=false."""
+    seed_master_courses(db_session)
+    corso = db_session.query(Corso).filter_by(nome_corso="General").one()
+
+    # Create an orphaned certificate
+    orphaned_cert = Certificato(
+        dipendente_id=None,
+        corso_id=corso.id,
+        data_rilascio=date(2025, 1, 1),
+        stato_validazione=ValidationStatus.AUTOMATIC
+    )
+    db_session.add(orphaned_cert)
+    db_session.commit()
+
+    response = test_client.get("/certificati/?validated=false")
+    assert response.status_code == 200
+    data = response.json()
+
+    # Check if the orphaned certificate is in the response
+    found = any(cert['id'] == orphaned_cert.id and cert['nome'] == "DA ASSEGNARE" for cert in data)
+    assert found, "Orphaned certificate not found in the response for unvalidated certificates"
+
+    # Also check that it's NOT in the validated list
+    response_validated = test_client.get("/certificati/?validated=true")
+    assert response_validated.status_code == 200
+    data_validated = response_validated.json()
+    found_validated = any(cert['id'] == orphaned_cert.id for cert in data_validated)
+    assert not found_validated, "Orphaned certificate should not be in the response for validated certificates"

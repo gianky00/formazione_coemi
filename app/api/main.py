@@ -58,15 +58,24 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
     certificati = query.all()
     result = []
     for cert in certificati:
-        if not cert.dipendente or not cert.corso:
+        if not cert.corso:
             continue
+
+        if cert.dipendente:
+            nome_completo = f"{cert.dipendente.cognome} {cert.dipendente.nome}"
+            data_nascita = cert.dipendente.data_nascita.strftime('%d/%m/%Y') if cert.dipendente.data_nascita else None
+            matricola = cert.dipendente.matricola
+        else:
+            nome_completo = "DA ASSEGNARE"
+            data_nascita = None
+            matricola = None
 
         status = certificate_logic.get_certificate_status(db, cert)
         result.append(CertificatoSchema(
             id=cert.id,
-            nome=f"{cert.dipendente.cognome} {cert.dipendente.nome}",
-            data_nascita=cert.dipendente.data_nascita.strftime('%d/%m/%Y') if cert.dipendente.data_nascita else None,
-            matricola=cert.dipendente.matricola,
+            nome=nome_completo,
+            data_nascita=data_nascita,
+            matricola=matricola,
             corso=cert.corso.nome_corso,
             categoria=cert.corso.categoria_corso or "General",
             data_rilascio=cert.data_rilascio.strftime('%d/%m/%Y'),
