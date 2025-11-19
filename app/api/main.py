@@ -105,7 +105,7 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
     if len(nome_parts) < 2:
         raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
 
-    cognome, nome = nome_parts[-1], " ".join(nome_parts[:-1])
+    nome, cognome = nome_parts[0], " ".join(nome_parts[1:])
 
     # Gestione omonimie
     query = db.query(Dipendente).filter(
