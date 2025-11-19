@@ -15,11 +15,13 @@ class ScadenzarioView(QWidget):
     def __init__(self):
         super().__init__()
         self.layout = QVBoxLayout(self)
-        self.layout.setSpacing(10)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(5)
 
         # Main Title and Description
         title_layout = QVBoxLayout()
-        title_layout.setSpacing(2)
+        title_layout.setSpacing(0)
+        title_layout.setContentsMargins(20, 15, 20, 10)
         title = QLabel("Scadenzario Grafico")
         title.setStyleSheet("font-size: 24px; font-weight: 700;")
         title_layout.addWidget(title)
@@ -30,6 +32,7 @@ class ScadenzarioView(QWidget):
 
         # Toolbar Layout
         toolbar_layout = QHBoxLayout()
+        toolbar_layout.setContentsMargins(20, 0, 20, 10)
         toolbar_layout.setSpacing(10)
 
         self.prev_month_button = QPushButton("<")
