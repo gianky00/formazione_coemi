@@ -25,14 +25,14 @@ def calculate_expiration_date(issue_date: date, validity_months: int) -> Optiona
 
 def get_certificate_status(db: Session, certificato: Certificato) -> str:
     """
-    Determina lo stato di un certificato (attivo, scaduto, o rinnovato).
+    Determina lo stato di un certificato (attivo, scaduto, o archiviato).
 
     Args:
         db: La sessione del database.
         certificato: L'oggetto Certificato da valutare.
 
     Returns:
-        Lo stato del certificato come stringa ('attivo', 'scaduto', 'rinnovato').
+        Lo stato del certificato come stringa ('attivo', 'scaduto', 'archiviato').
     """
     if certificato.data_scadenza_calcolata is None:
         return "attivo"
@@ -58,8 +58,7 @@ def get_certificate_status(db: Session, certificato: Certificato) -> str:
     newer_cert_exists = db.query(Certificato).join(Corso).filter(
         Certificato.dipendente_id == certificato.dipendente_id,
         Corso.categoria_corso == certificato.corso.categoria_corso,
-        Certificato.data_rilascio > certificato.data_rilascio,
-        (Certificato.data_scadenza_calcolata >= date.today()) | (Certificato.data_scadenza_calcolata.is_(None))
+        Certificato.data_rilascio > certificato.data_rilascio
     ).first()
 
-    return "rinnovato" if newer_cert_exists else "scaduto"
+    return "archiviato" if newer_cert_exists else "scaduto"
