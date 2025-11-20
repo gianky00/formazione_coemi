@@ -27,7 +27,11 @@ class DashboardViewModel(QObject):
             if data:
                 self._df_original = pd.DataFrame(data)
                 # The API returns 'nome' pre-formatted as "COGNOME NOME"
-                self._df_original.rename(columns={'nome': 'Dipendente'}, inplace=True)
+                self._df_original.rename(columns={
+                    'nome': 'Dipendente',
+                    'data_rilascio': 'DATA_EMISSIONE',
+                    'corso': 'DOCUMENTO'
+                }, inplace=True)
             else:
                 self._df_original = pd.DataFrame()
 

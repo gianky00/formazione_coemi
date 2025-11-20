@@ -40,16 +40,7 @@ class Sidebar(QWidget):
         self.toggle_btn.setObjectName("toggle_btn")
         self.toggle_btn.setIcon(QIcon(create_colored_icon("desktop_app/icons/hamburger.svg", QColor("white"))))
         self.toggle_btn.setIconSize(QSize(28, 28))
-        self.toggle_btn.clicked.connect(self.toggle_sidebar)
         self.layout.addWidget(self.toggle_btn)
-
-        self.logo_label = QLabel()
-        self.logo_label.setObjectName("logo")
-        self.logo_pixmap = QPixmap("desktop_app/assets/logo.png")
-        self.logo_label.setPixmap(self.logo_pixmap.scaled(250, 60, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
-        self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.logo_label.setMinimumHeight(80)
-        self.layout.addWidget(self.logo_label)
 
         self.nav_buttons = QVBoxLayout()
         self.nav_buttons.setSpacing(5)
@@ -66,22 +57,10 @@ class Sidebar(QWidget):
         self.help_button = self.add_nav_button("Supporto", "desktop_app/icons/help.svg", bottom=True)
         self.update_button_icons()
 
-        self.animation = QPropertyAnimation(self, b"minimumWidth")
-        self.animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
-        self.animation.setDuration(300)
-
         self.setMinimumWidth(self.expanded_width)
 
-    def toggle_sidebar(self):
+    def toggle_expansion(self):
         self.is_expanded = not self.is_expanded
-        start_width = self.width()
-        end_width = self.expanded_width if self.is_expanded else self.collapsed_width
-
-        self.animation.setStartValue(start_width)
-        self.animation.setEndValue(end_width)
-        self.animation.start()
-
-        # Update button text visibility
         for text, button in self.buttons.items():
             button.setText(text if self.is_expanded else "")
 
@@ -115,8 +94,29 @@ class MainWindow(QMainWindow):
         self.main_layout = QHBoxLayout(self.central_widget)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
+
+        # --- New Sidebar Container ---
+        sidebar_container = QWidget()
+        sidebar_container.setStyleSheet("background-color: #0F172A;")
+        sidebar_layout = QVBoxLayout(sidebar_container)
+        sidebar_layout.setContentsMargins(0, 0, 0, 0)
+        sidebar_layout.setSpacing(0)
+
+        # Logo
+        logo_label = QLabel()
+        logo_pixmap = QPixmap("desktop_app/assets/logo.png")
+        logo_label.setPixmap(logo_pixmap.scaled(250, 60, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_label.setMinimumHeight(80)
+        sidebar_layout.addWidget(logo_label)
+
+        # Original Sidebar (now just the collapsible part)
         self.sidebar = Sidebar()
-        self.main_layout.addWidget(self.sidebar)
+        sidebar_layout.addWidget(self.sidebar)
+
+        self.main_layout.addWidget(sidebar_container)
+        # --- End New ---
+
         self.content_area = QFrame()
         self.content_layout = QVBoxLayout(self.content_area)
         self.content_layout.setContentsMargins(32, 32, 32, 32)
@@ -124,6 +124,12 @@ class MainWindow(QMainWindow):
         self.stacked_widget = QStackedWidget()
         self.content_layout.addWidget(self.stacked_widget)
         self.main_layout.addWidget(self.content_area, 1)
+
+        # Animation Setup
+        self.sidebar_animation = QPropertyAnimation(self.sidebar, b"minimumWidth")
+        self.sidebar_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        self.sidebar_animation.setDuration(300)
+
         self._init_status_bar()
         self._init_views()
         self._init_connections()
@@ -165,7 +171,20 @@ class MainWindow(QMainWindow):
         for view in self.views.values():
             self.stacked_widget.addWidget(view)
 
+    def toggle_sidebar(self):
+        self.sidebar.toggle_expansion()
+
+        start_width = self.sidebar.width()
+        end_width = self.sidebar.expanded_width if self.sidebar.is_expanded else self.sidebar.collapsed_width
+
+        self.sidebar_animation.setStartValue(start_width)
+        self.sidebar_animation.setEndValue(end_width)
+        self.sidebar_animation.start()
+
     def _init_connections(self):
+        # Connect sidebar toggle button
+        self.sidebar.toggle_btn.clicked.connect(self.toggle_sidebar)
+
         # Quando l'importazione è completata, aggiorna la vista di convalida
         self.views["Analizza"].import_completed.connect(self.views["Convalida Dati"].refresh_data)
 

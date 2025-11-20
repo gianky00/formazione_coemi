@@ -77,7 +77,7 @@ class DashboardView(QWidget):
         title_layout = QVBoxLayout()
         title_layout.setSpacing(5)
         title = QLabel("Database Certificati")
-        title.setObjectName("viewTitle")
+        title.setStyleSheet("font-size: 28px; font-weight: 700;")
         title_layout.addWidget(title)
         description = QLabel("Visualizza, gestisci ed esporta tutti i certificati dei dipendenti.")
         description.setObjectName("viewDescription")
@@ -180,7 +180,7 @@ class DashboardView(QWidget):
             if 'data_nascita' not in df.columns:
                 df['data_nascita'] = None
 
-            column_order = ['id', 'Dipendente', 'data_nascita', 'matricola', 'corso', 'categoria', 'data_rilascio', 'data_scadenza', 'stato_certificato']
+            column_order = ['id', 'Dipendente', 'data_nascita', 'matricola', 'DOCUMENTO', 'categoria', 'DATA_EMISSIONE', 'data_scadenza', 'stato_certificato']
             df = df[[col for col in column_order if col in df.columns]]
 
             self.model = CertificatoTableModel(df)
@@ -193,7 +193,7 @@ class DashboardView(QWidget):
             header = self.table_view.horizontalHeader()
             header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
             header.setSectionResizeMode(df.columns.get_loc('Dipendente'), QHeaderView.ResizeMode.Stretch)
-            header.setSectionResizeMode(df.columns.get_loc('corso'), QHeaderView.ResizeMode.Stretch)
+            header.setSectionResizeMode(df.columns.get_loc('DOCUMENTO'), QHeaderView.ResizeMode.Stretch)
             if 'matricola' in df.columns:
                 header.setSectionResizeMode(df.columns.get_loc('matricola'), QHeaderView.ResizeMode.ResizeToContents)
             if 'data_nascita' in df.columns:
