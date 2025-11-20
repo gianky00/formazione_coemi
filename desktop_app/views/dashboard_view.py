@@ -17,11 +17,11 @@ class StatusDelegate(QStyledItemDelegate):
         if status:
             painter.save()
             color_map = {
-                "attivo": QColor("#ECFDF5"), "rinnovato": QColor("#ECFDF5"),
+                "attivo": QColor("#ECFDF5"), "archiviato": QColor("#ECFDF5"),
                 "scaduto": QColor("#FEF2F2"), "in_scadenza": QColor("#FFFBEB")
             }
             text_color_map = {
-                "attivo": QColor("#059669"), "rinnovato": QColor("#059669"),
+                "attivo": QColor("#059669"), "archiviato": QColor("#059669"),
                 "scaduto": QColor("#DC2626"), "in_scadenza": QColor("#F59E0B")
             }
             color = color_map.get(status, QColor("white"))
@@ -32,7 +32,7 @@ class StatusDelegate(QStyledItemDelegate):
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRoundedRect(rect, rect.height() / 2, rect.height() / 2)
             painter.setPen(text_color)
-            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, status.capitalize())
+            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, status.replace("_", " ").capitalize())
             painter.restore()
 
 class CertificatoTableModel(QAbstractTableModel):
@@ -54,7 +54,7 @@ class CertificatoTableModel(QAbstractTableModel):
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
             if not self._data.empty and section < len(self._data.columns):
-                return str(self._data.columns[section])
+                return str(self._data.columns[section]).replace("_", " ")
         return None
 
 class DashboardView(QWidget):
