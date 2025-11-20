@@ -61,30 +61,7 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
         if not cert.corso:
             continue
 
-        ragione_fallimento = None
-        if cert.dipendente:
-            nome_completo = f"{cert.dipendente.cognome} {cert.dipendente.nome}"
-            data_nascita = cert.dipendente.data_nascita.strftime('%d/%m/%Y') if cert.dipendente.data_nascita else None
-            matricola = cert.dipendente.matricola
-        else:
-            nome_completo = cert.nome_dipendente_raw or "DA ASSEGNARE"
-            data_nascita = cert.data_nascita_raw
-            matricola = None
-            ragione_fallimento = "Non trovato in anagrafica (matricola mancante)."
-
-        status = certificate_logic.get_certificate_status(db, cert)
-        result.append(CertificatoSchema(
-            id=cert.id,
-            nome=nome_completo,
-            data_nascita=data_nascita,
-            matricola=matricola,
-            corso=cert.corso.nome_corso,
-            categoria=cert.corso.categoria_corso or "General",
-            data_rilascio=cert.data_rilascio.strftime('%d/%m/%Y'),
-            data_scadenza=cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else None,
-            stato_certificato=status,
-            assegnazione_fallita_ragione=ragione_fallimento
-        ))
+        result.append(certificate_logic.serialize_certificato(cert, db))
     return result
 
 @router.get("/certificati/{certificato_id}", response_model=CertificatoSchema)
@@ -93,28 +70,7 @@ def get_certificato(certificato_id: int, db: Session = Depends(get_db)):
     if not db_cert:
         raise HTTPException(status_code=404, detail="Certificato non trovato")
 
-    status = certificate_logic.get_certificate_status(db, db_cert)
-
-    if db_cert.dipendente:
-        nome_completo = f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}"
-        data_nascita = db_cert.dipendente.data_nascita.strftime('%d/%m/%Y') if db_cert.dipendente.data_nascita else None
-        matricola = db_cert.dipendente.matricola
-    else:
-        nome_completo = db_cert.nome_dipendente_raw or "DA ASSEGNARE"
-        data_nascita = db_cert.data_nascita_raw
-        matricola = None
-
-    return CertificatoSchema(
-        id=db_cert.id,
-        nome=nome_completo,
-        data_nascita=data_nascita,
-        matricola=matricola,
-        corso=db_cert.corso.nome_corso,
-        categoria=db_cert.corso.categoria_corso or "General",
-        data_rilascio=db_cert.data_rilascio.strftime('%d/%m/%Y'),
-        data_scadenza=db_cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_cert.data_scadenza_calcolata else None,
-        stato_certificato=status
-    )
+    return certificate_logic.serialize_certificato(db_cert, db)
 
 @router.post("/certificati/", response_model=CertificatoSchema)
 def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = Depends(get_db)):
@@ -186,25 +142,7 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
     db.commit()
     db.refresh(new_cert)
 
-    status = certificate_logic.get_certificate_status(db, new_cert)
-
-    dipendente_info = db.get(Dipendente, new_cert.dipendente_id) if new_cert.dipendente_id else None
-    ragione_fallimento = None
-    if not dipendente_info:
-        ragione_fallimento = "Non trovato in anagrafica (matricola mancante)."
-
-    return CertificatoSchema(
-        id=new_cert.id,
-        nome=f"{dipendente_info.cognome} {dipendente_info.nome}" if dipendente_info else new_cert.nome_dipendente_raw or "Da Assegnare",
-        data_nascita=dipendente_info.data_nascita.strftime('%d/%m/%Y') if dipendente_info and dipendente_info.data_nascita else new_cert.data_nascita_raw,
-        matricola=dipendente_info.matricola if dipendente_info else None,
-        corso=new_cert.corso.nome_corso,
-        categoria=new_cert.corso.categoria_corso or "General",
-        data_rilascio=new_cert.data_rilascio.strftime('%d/%m/%Y'),
-        data_scadenza=new_cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if new_cert.data_scadenza_calcolata else None,
-        stato_certificato=status,
-        assegnazione_fallita_ragione=ragione_fallimento
-    )
+    return certificate_logic.serialize_certificato(new_cert, db)
 
 @router.put("/certificati/{certificato_id}/valida", response_model=CertificatoSchema)
 def valida_certificato(certificato_id: int, db: Session = Depends(get_db)):
@@ -214,28 +152,7 @@ def valida_certificato(certificato_id: int, db: Session = Depends(get_db)):
     db_cert.stato_validazione = ValidationStatus.MANUAL
     db.commit()
     db.refresh(db_cert)
-    status = certificate_logic.get_certificate_status(db, db_cert)
-
-    if db_cert.dipendente:
-        nome_completo = f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}"
-        data_nascita = db_cert.dipendente.data_nascita.strftime('%d/%m/%Y') if db_cert.dipendente.data_nascita else None
-        matricola = db_cert.dipendente.matricola
-    else:
-        nome_completo = db_cert.nome_dipendente_raw or "DA ASSEGNARE"
-        data_nascita = db_cert.data_nascita_raw
-        matricola = None
-
-    return CertificatoSchema(
-        id=db_cert.id,
-        nome=nome_completo,
-        data_nascita=data_nascita,
-        matricola=matricola,
-        corso=db_cert.corso.nome_corso,
-        categoria=db_cert.corso.categoria_corso or "General",
-        data_rilascio=db_cert.data_rilascio.strftime('%d/%m/%Y'),
-        data_scadenza=db_cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_cert.data_scadenza_calcolata else None,
-        stato_certificato=status
-    )
+    return certificate_logic.serialize_certificato(db_cert, db)
 
 @router.put("/certificati/{certificato_id}", response_model=CertificatoSchema)
 def update_certificato(certificato_id: int, certificato: CertificatoAggiornamentoSchema, db: Session = Depends(get_db)):
@@ -295,21 +212,7 @@ def update_certificato(certificato_id: int, certificato: CertificatoAggiornament
     db_cert.stato_validazione = ValidationStatus.MANUAL
     db.commit()
     db.refresh(db_cert)
-    status = certificate_logic.get_certificate_status(db, db_cert)
-
-    dipendente_info = db_cert.dipendente  # Reload the relationship
-
-    return CertificatoSchema(
-        id=db_cert.id,
-        nome=f"{dipendente_info.cognome} {dipendente_info.nome}" if dipendente_info else db_cert.nome_dipendente_raw or "Da Assegnare",
-        data_nascita=dipendente_info.data_nascita.strftime('%d/%m/%Y') if dipendente_info and dipendente_info.data_nascita else None,
-        matricola=dipendente_info.matricola if dipendente_info else None,
-        corso=db_cert.corso.nome_corso,
-        categoria=db_cert.corso.categoria_corso or "General",
-        data_rilascio=db_cert.data_rilascio.strftime('%d/%m/%Y'),
-        data_scadenza=db_cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_cert.data_scadenza_calcolata else None,
-        stato_certificato=status
-    )
+    return certificate_logic.serialize_certificato(db_cert, db)
 
 @router.delete("/certificati/{certificato_id}")
 def delete_certificato(certificato_id: int, db: Session = Depends(get_db)):
