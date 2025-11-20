@@ -19,7 +19,7 @@ class ConfigView(QWidget):
         title_layout = QVBoxLayout()
         title_layout.setSpacing(5)
         title = QLabel("Configurazione")
-        title.setObjectName("viewTitle")
+        title.setStyleSheet("font-size: 28px; font-weight: 700;")
         title_layout.addWidget(title)
         description = QLabel("Gestisci le impostazioni e le chiavi API dell'applicazione.")
         description.setObjectName("viewDescription")

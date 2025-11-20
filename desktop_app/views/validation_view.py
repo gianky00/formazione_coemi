@@ -48,7 +48,7 @@ class ValidationView(QWidget):
         title_layout = QVBoxLayout()
         title_layout.setSpacing(5)
         title = QLabel("Convalida Dati")
-        title.setObjectName("viewTitle") # Using object name for styling
+        title.setStyleSheet("font-size: 28px; font-weight: 700;")
         title_layout.addWidget(title)
         description = QLabel("Verifica, modifica e approva i dati estratti prima dell'archiviazione.")
         description.setObjectName("viewDescription")
@@ -143,6 +143,12 @@ class ValidationView(QWidget):
                 self.df = pd.DataFrame()
             else:
                 self.df = pd.DataFrame(data)
+                self.df.rename(columns={
+                    'nome': 'DIPENDENTE',
+                    'data_rilascio': 'DATA_EMISSIONE',
+                    'corso': 'DOCUMENTO',
+                    'assegnazione_fallita_ragione': 'CAUSA'
+                }, inplace=True)
 
             self.model = SimpleTableModel(self.df, self)
             self.table_view.setModel(self.model)
@@ -151,8 +157,9 @@ class ValidationView(QWidget):
                 if 'data_nascita' not in self.df.columns:
                     self.df['data_nascita'] = None
 
-                column_order = ['id', 'nome', 'data_nascita', 'matricola', 'corso', 'categoria', 'data_rilascio', 'data_scadenza', 'stato_certificato']
-                self.df = self.df[[col for col in column_order if col in self.df.columns]]
+                column_order = ['id', 'DIPENDENTE', 'data_nascita', 'matricola', 'DOCUMENTO', 'categoria', 'DATA_EMISSIONE', 'data_scadenza', 'stato_certificato', 'CAUSA']
+                existing_columns = [col for col in column_order if col in self.df.columns]
+                self.df = self.df[existing_columns]
 
                 # Hide 'id' column
                 id_col_index = self.df.columns.get_loc('id')
@@ -161,10 +168,10 @@ class ValidationView(QWidget):
                 # Adjust column widths
                 header = self.table_view.horizontalHeader()
                 header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-                if 'nome' in self.df.columns:
-                    header.setSectionResizeMode(self.df.columns.get_loc('nome'), QHeaderView.ResizeMode.Stretch)
-                if 'corso' in self.df.columns:
-                    header.setSectionResizeMode(self.df.columns.get_loc('corso'), QHeaderView.ResizeMode.Stretch)
+                if 'DIPENDENTE' in self.df.columns:
+                    header.setSectionResizeMode(self.df.columns.get_loc('DIPENDENTE'), QHeaderView.ResizeMode.Stretch)
+                if 'DOCUMENTO' in self.df.columns:
+                    header.setSectionResizeMode(self.df.columns.get_loc('DOCUMENTO'), QHeaderView.ResizeMode.Stretch)
                 if 'data_nascita' in self.df.columns:
                     header.setSectionResizeMode(self.df.columns.get_loc('data_nascita'), QHeaderView.ResizeMode.ResizeToContents)
 
