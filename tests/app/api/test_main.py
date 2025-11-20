@@ -290,3 +290,36 @@ def test_api_returns_failure_reason_for_orphaned_certs(test_client: TestClient, 
 
     assert found_cert is not None
     assert found_cert["assegnazione_fallita_ragione"] == "Dipendente non trovato in anagrafica (matricola mancante)."
+
+def test_validate_orphaned_certificate(test_client: TestClient, db_session: Session):
+    """Tests that validating an orphaned certificate works and preserves raw data."""
+    seed_master_courses(db_session)
+
+    raw_name = "Orphan to Validate"
+    raw_birth_date = "15/05/1995"
+
+    # Create an orphaned certificate directly in the DB
+    cert = Certificato(
+        dipendente_id=None,
+        nome_dipendente_raw=raw_name,
+        data_nascita_raw=raw_birth_date,
+        corso=db_session.query(Corso).filter_by(nome_corso="General").one(),
+        data_rilascio=date(2025, 1, 1),
+        stato_validazione=ValidationStatus.AUTOMATIC
+    )
+    db_session.add(cert)
+    db_session.commit()
+
+    # Call the validation endpoint
+    response = test_client.put(f"/certificati/{cert.id}/valida")
+    assert response.status_code == 200
+
+    # Verify the response contains the raw data
+    data = response.json()
+    assert data["nome"] == raw_name
+    assert data["data_nascita"] == raw_birth_date
+    assert data["matricola"] is None
+
+    # Verify the state changed in the DB
+    db_session.refresh(cert)
+    assert cert.stato_validazione == ValidationStatus.MANUAL
