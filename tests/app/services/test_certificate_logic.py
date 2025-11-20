@@ -90,3 +90,41 @@ def test_get_certificate_status_rinnovato(db_session: Session):
 
     assert get_certificate_status(db_session, cert_vecchio) == "rinnovato"
     assert get_certificate_status(db_session, cert_nuovo) == "attivo"
+
+def test_orphan_certificates_not_renewed_by_others(db_session: Session):
+    """
+    Test that an expired orphaned certificate for one person is NOT marked as 'rinnovato'
+    just because there is a newer orphaned certificate for ANOTHER person.
+    """
+    # Create a course
+    corso = Corso(nome_corso="Safety First", validita_mesi=12, categoria_corso="SAFETY")
+    db_session.add(corso)
+    db_session.commit()
+
+    # Create expired orphan certificate for "Alice"
+    cert_alice = Certificato(
+        dipendente_id=None,
+        nome_dipendente_raw="Alice",
+        corso_id=corso.id,
+        data_rilascio=date(2020, 1, 1),
+        data_scadenza_calcolata=date(2021, 1, 1)
+    )
+
+    # Create newer valid orphan certificate for "Bob"
+    cert_bob = Certificato(
+        dipendente_id=None,
+        nome_dipendente_raw="Bob",
+        corso_id=corso.id,
+        data_rilascio=date(2024, 1, 1),
+        data_scadenza_calcolata=date(2030, 1, 1)
+    )
+
+    db_session.add_all([cert_alice, cert_bob])
+    db_session.commit()
+
+    # Check status of Alice's certificate
+    # It should be "scaduto" because Bob's certificate has nothing to do with Alice
+    # And orphans cannot renew other orphans
+    status = get_certificate_status(db_session, cert_alice)
+
+    assert status == "scaduto", f"Expected 'scaduto' but got '{status}'. Orphaned certificates are being mixed up!"
