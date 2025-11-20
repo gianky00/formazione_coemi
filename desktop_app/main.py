@@ -45,6 +45,7 @@ class SplashScreen(QWidget):
 
 
 def get_hw_id_safe():
+    import sys
     try:
         from pyarmor_runtime import get_machine_id
         val = get_machine_id()

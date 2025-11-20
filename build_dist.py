@@ -123,7 +123,9 @@ def build():
         "--hidden-import", "sqlalchemy.sql.default_comparator",
         "--hidden-import", "uvicorn.loops.auto",
         "--hidden-import", "uvicorn.protocols.http.auto",
+        "--hidden-import", "uvicorn",
         "--hidden-import", "uvicorn.lifespan.on",
+        "--hidden-import", "app.main",
         "--hidden-import", "app.db.models", # Ensure models are found
         "--hidden-import", "app.api.routers.tuning",
         "--hidden-import", "app.api.routers.notifications",
