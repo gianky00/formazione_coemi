@@ -13,11 +13,11 @@ REM Crea un file temporaneo
 set OUTFILE=info_hardware.txt
 
 echo --- DISK SERIAL NUMBER --- > %OUTFILE%
-wmic diskdrive get SerialNumber >> %OUTFILE%
+powershell -Command "Get-CimInstance Win32_DiskDrive | Select-Object -First 1 -ExpandProperty SerialNumber" >> %OUTFILE%
 
 echo. >> %OUTFILE%
 echo --- MAC ADDRESS --- >> %OUTFILE%
-getmac >> %OUTFILE%
+powershell -Command "Get-CimInstance Win32_NetworkAdapterConfiguration | Where-Object {$_.IPEnabled -eq $true} | Select-Object -First 1 -ExpandProperty MACAddress" >> %OUTFILE%
 
 echo.
 echo Operazione completata!

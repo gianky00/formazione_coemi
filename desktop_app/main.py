@@ -78,6 +78,12 @@ def get_hw_id_safe():
                              if hasattr(mod, 'get_machine_id'):
                                  val = mod.get_machine_id()
                                  return val.decode('utf-8') if isinstance(val, bytes) else str(val)
+
+                             # Fallback for direct extension import
+                             submod = importlib.import_module(f"{name}.pyarmor_runtime")
+                             if hasattr(submod, 'get_machine_id'):
+                                  val = submod.get_machine_id()
+                                  return val.decode('utf-8') if isinstance(val, bytes) else str(val)
                          except:
                              pass
             except Exception:

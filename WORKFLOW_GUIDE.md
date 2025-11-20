@@ -5,7 +5,7 @@
 **Devi PRIMA offuscare (compilare) il codice.**
 
 ### Perché?
-La licenza che generi (`pyarmor.rkey`) deve essere compatibile con il "Runtime" (il motore di sicurezza) che viene creato durante la fase di offuscamento. Ogni volta che esegui una build pulita, potrebbe essere generato un nuovo runtime, quindi la licenza deve corrispondere.
+La licenza che generi (`pyarmor.rkey`) deve essere compatibile con il "Runtime" (il motore di sicurezza) che viene creato durante la fase di offuscamento.
 
 ---
 
@@ -21,25 +21,22 @@ python build_dist.py
 Questo crea l'eseguibile protetto in `dist/package/Intelleo.exe`.
 
 ### 2. Distribuzione Iniziale
-Invia `Intelleo.exe` (e la cartella omonima se non è one-file, ma qui è one-file) al cliente.
+Invia `Intelleo.exe` e il file `get_client_info.bat` al cliente.
 **Nota:** Senza licenza, l'app non funzionerà ancora.
 
 ### 3. Ottenere l'ID Hardware del Cliente
-Hai due metodi. **Il Metodo A è il più sicuro** perché garantisce che l'ID sia quello *esatto* che PyArmor si aspetta.
+Il metodo standard è usare lo script batch, che recupera il **Seriale del Disco** e il **MAC Address**.
 
-*   **Metodo A (Consigliato):**
-    Chiedi al cliente di lanciare `Intelleo.exe`. Visto che manca la licenza, apparirà un messaggio di errore che mostra il suo **ID Hardware** (una stringa alfanumerica). Fattelo inviare.
-
-*   **Metodo B (Script BAT):**
-    Invia al cliente il file `get_client_info.bat`. Lui lo esegue e ti incolla il Seriale Disco / MAC Address.
-    *Attenzione:* Se usi questo metodo, devi essere sicuro che PyArmor sia configurato per accettare esattamente quel formato di seriale come ID. Se PyArmor calcola l'ID in modo diverso (es. hash combinato), la licenza generata con il seriale grezzo potrebbe non funzionare.
+1.  Chiedi al cliente di eseguire `get_client_info.bat`.
+2.  Il cliente ti invierà il testo copiato (es. Seriale Disco: `50026B78...`).
 
 ### 4. Generare la Licenza
-Una volta che hai l'ID (diciamo `XXXX-YYYY-ZZZZ` o il seriale disco), sul tuo PC esegui:
+Una volta che hai il seriale (es. `50026B7882000000`), sul tuo PC esegui:
 ```bash
 python admin_license_gui.py
 ```
-*   Incolla l'ID nel campo "Hardware ID".
+*   Incolla il seriale nel campo "Hardware ID".
+    *   *Nota:* Se vuoi legarlo anche al MAC address, puoi incollare entrambi o una combinazione, ma di solito il Seriale Disco è sufficiente e più stabile.
 *   Imposta la scadenza.
 *   Clicca "Genera Licenza".
 
