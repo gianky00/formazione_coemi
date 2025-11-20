@@ -94,11 +94,21 @@ def get_certificato(certificato_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Certificato non trovato")
 
     status = certificate_logic.get_certificate_status(db, db_cert)
+
+    if db_cert.dipendente:
+        nome_completo = f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}"
+        data_nascita = db_cert.dipendente.data_nascita.strftime('%d/%m/%Y') if db_cert.dipendente.data_nascita else None
+        matricola = db_cert.dipendente.matricola
+    else:
+        nome_completo = db_cert.nome_dipendente_raw or "DA ASSEGNARE"
+        data_nascita = db_cert.data_nascita_raw
+        matricola = None
+
     return CertificatoSchema(
         id=db_cert.id,
-        nome=f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}",
-        data_nascita=db_cert.dipendente.data_nascita.strftime('%d/%m/%Y') if db_cert.dipendente.data_nascita else None,
-        matricola=db_cert.dipendente.matricola,
+        nome=nome_completo,
+        data_nascita=data_nascita,
+        matricola=matricola,
         corso=db_cert.corso.nome_corso,
         categoria=db_cert.corso.categoria_corso or "General",
         data_rilascio=db_cert.data_rilascio.strftime('%d/%m/%Y'),
