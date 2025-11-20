@@ -70,12 +70,14 @@ class PdfWorker(QObject):
 
                 if save_response.status_code == 200:
                     cert_data = save_response.json()
-                    nome_completo = cert_data.get('nome', 'ERRORE')
+                    ragione_fallimento = cert_data.get('assegnazione_fallita_ragione')
 
-                    if nome_completo == "Da Assegnare":
-                        self.log_message.emit(f"File {original_filename} analizzato ma non associato. Assegnazione manuale richiesta.")
+                    if ragione_fallimento:
+                        log_msg = f"File {original_filename} analizzato. Assegnazione manuale richiesta: {ragione_fallimento}"
+                        self.log_message.emit(log_msg)
                         shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
                     else:
+                        nome_completo = cert_data.get('nome', 'ERRORE')
                         self.log_message.emit(f"File {original_filename} elaborato e salvato per {nome_completo}.")
                         try:
                             matricola = cert_data.get('matricola') if cert_data.get('matricola') else 'N-A'
