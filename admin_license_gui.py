@@ -82,11 +82,15 @@ class LicenseAdminApp:
                 if lines:
                     hwid = lines[-1] # Assume last line is the ID
 
-                if hwid and "Error" not in hwid:
+                if hwid and "Error" not in hwid and "N/A" not in hwid:
                     self.ent_hwid.delete(0, tk.END)
                     self.ent_hwid.insert(0, hwid)
                     messagebox.showinfo("Info", f"ID recuperato dall'eseguibile: {hwid}")
                     return
+                else:
+                    # Show full output for debugging
+                    debug_info = f"Output: {res.stdout}\nError: {res.stderr}"
+                    messagebox.showwarning("Debug Info", f"Impossibile trovare ID valido.\n{debug_info}\n\nControlla il file 'debug_hwid.log' nella cartella dist/package.")
 
             # 2. Try Obfuscated Script (if exe not found)
             launcher_path = os.path.join("dist", "obfuscated", "launcher.py")

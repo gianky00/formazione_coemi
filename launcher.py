@@ -21,44 +21,66 @@ if getattr(sys, 'frozen', False):
 # Add current directory to sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+def log_debug(msg):
+    if getattr(sys, 'frozen', False):
+        try:
+            exe_dir = os.path.dirname(sys.executable)
+            log_path = os.path.join(exe_dir, "debug_hwid.log")
+            with open(log_path, "a") as f:
+                f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - {msg}\n")
+        except:
+            pass
+
 def get_hw_id_safe():
+    log_debug("Attempting to get HWID...")
     try:
         from pyarmor_runtime import get_machine_id
+        log_debug("Imported pyarmor_runtime successfully.")
         val = get_machine_id()
         return val.decode('utf-8') if isinstance(val, bytes) else str(val)
-    except ImportError:
+    except ImportError as e:
+        log_debug(f"ImportError for standard pyarmor_runtime: {e}")
         # Fallback for pyarmor_runtime_xxxxxx in plain text scripts
         import importlib
         import pkgutil
 
         # 1. Try pkgutil first
+        log_debug("Scanning pkgutil...")
         for finder, name, ispkg in pkgutil.iter_modules():
             if name.startswith("pyarmor_runtime_"):
+                log_debug(f"Found candidate via pkgutil: {name}")
                 try:
                     mod = importlib.import_module(name)
                     if hasattr(mod, 'get_machine_id'):
                         val = mod.get_machine_id()
                         return val.decode('utf-8') if isinstance(val, bytes) else str(val)
-                except:
+                except Exception as e:
+                    log_debug(f"Failed to import {name}: {e}")
                     pass
 
         # 2. Explicit scan of sys._MEIPASS (for PyInstaller)
         if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            log_debug(f"Scanning _MEIPASS: {sys._MEIPASS}")
             try:
                 for name in os.listdir(sys._MEIPASS):
                     if name.startswith("pyarmor_runtime_") and os.path.isdir(os.path.join(sys._MEIPASS, name)):
+                         log_debug(f"Found candidate in _MEIPASS: {name}")
                          try:
                              mod = importlib.import_module(name)
                              if hasattr(mod, 'get_machine_id'):
                                  val = mod.get_machine_id()
                                  return val.decode('utf-8') if isinstance(val, bytes) else str(val)
-                         except:
+                         except Exception as e:
+                             log_debug(f"Failed to import {name}: {e}")
                              pass
-            except Exception:
+            except Exception as e:
+                log_debug(f"Error scanning _MEIPASS: {e}")
                 pass
 
+        log_debug("Failed to find runtime.")
         return "N/A"
-    except Exception:
+    except Exception as e:
+        log_debug(f"Unexpected error in get_hw_id_safe: {e}")
         return "Error"
 
 def run_backend():

@@ -80,12 +80,28 @@ def build():
     # Construct --add-data arguments. Separator is ; on Windows, : on Linux.
     sep = ";" if os.name == 'nt' else ":"
 
+    # Find pyarmor_runtime directory to include it explicitly
+    runtime_dir = None
+    for name in os.listdir(OBF_DIR):
+        if name.startswith("pyarmor_runtime_") and os.path.isdir(os.path.join(OBF_DIR, name)):
+            runtime_dir = name
+            break
+
+    if not runtime_dir:
+        print("Warning: Could not find pyarmor_runtime directory. Build might fail to run.")
+    else:
+        print(f"Found runtime: {runtime_dir}")
+
     # Assets paths relative to OBF_DIR (desktop_app/assets is inside OBF_DIR)
     # Source: desktop_app/assets (in OBF_DIR) -> Dest: desktop_app/assets
     add_data = [
         f"desktop_app/assets{sep}desktop_app/assets",
         f"desktop_app/icons{sep}desktop_app/icons"
     ]
+
+    if runtime_dir:
+        # Include the runtime package explicitly
+        add_data.append(f"{os.path.join(OBF_DIR, runtime_dir)}{sep}{runtime_dir}")
 
     # Use python -m PyInstaller to avoid PATH issues
     cmd_pyinstaller = [
@@ -96,9 +112,13 @@ def build():
         "--clean",
         "--distpath", os.path.join(DIST_DIR, "package"),
         "--workpath", os.path.join(DIST_DIR, "build"),
-        # Add data
-        "--add-data", add_data[0],
-        "--add-data", add_data[1],
+    ]
+
+    # Add data arguments
+    for d in add_data:
+        cmd_pyinstaller.extend(["--add-data", d])
+
+    cmd_pyinstaller.extend([
         # Hidden imports commonly needed
         "--hidden-import", "sqlalchemy.sql.default_comparator",
         "--hidden-import", "uvicorn.loops.auto",
@@ -109,7 +129,7 @@ def build():
         "--hidden-import", "app.api.routers.notifications",
         # Main script (launcher in OBF_DIR)
         os.path.join(OBF_DIR, "launcher.py")
-    ]
+    ])
 
     run_command(cmd_pyinstaller)
 
