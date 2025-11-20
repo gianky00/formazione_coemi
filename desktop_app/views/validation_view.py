@@ -31,7 +31,7 @@ class SimpleTableModel(QAbstractTableModel):
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
             if not self._data.empty and section < len(self._data.columns):
-                return str(self._data.columns[section])
+                return str(self._data.columns[section]).replace("_", " ")
         return None
 
 class ValidationView(QWidget):
@@ -147,6 +147,9 @@ class ValidationView(QWidget):
             self.table_view.setModel(self.model)
 
             if not self.df.empty:
+                if 'stato_certificato' in self.df.columns:
+                    self.df['stato_certificato'] = self.df['stato_certificato'].apply(lambda x: str(x).replace('_', ' ') if x else x)
+
                 if 'data_nascita' not in self.df.columns:
                     self.df['data_nascita'] = None
 

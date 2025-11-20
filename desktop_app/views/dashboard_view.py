@@ -32,7 +32,7 @@ class StatusDelegate(QStyledItemDelegate):
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRoundedRect(rect, rect.height() / 2, rect.height() / 2)
             painter.setPen(text_color)
-            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, status.capitalize())
+            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, status.replace("_", " ").capitalize())
             painter.restore()
 
 class CertificatoTableModel(QAbstractTableModel):
@@ -54,7 +54,7 @@ class CertificatoTableModel(QAbstractTableModel):
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
             if not self._data.empty and section < len(self._data.columns):
-                return str(self._data.columns[section])
+                return str(self._data.columns[section]).replace("_", " ")
         return None
 
 class DashboardView(QWidget):
