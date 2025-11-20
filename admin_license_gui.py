@@ -29,6 +29,7 @@ class LicenseAdminApp:
         self.ent_hwid.grid(row=0, column=1, pady=5, padx=5)
         self.ent_hwid.bind("<Control-v>", lambda e: self.paste_hwid()) # Bind paste shortcut
         ttk.Button(frm_container, text="Incolla", command=self.paste_hwid).grid(row=0, column=2, padx=5)
+        ttk.Button(frm_container, text="Rileva ID Locale", command=self.get_local_id).grid(row=0, column=3, padx=5)
 
         # Expiration
         ttk.Label(frm_container, text="Scadenza (YYYY-MM-DD):").grid(row=1, column=0, sticky="w", pady=5)
@@ -57,6 +58,55 @@ class LicenseAdminApp:
             self.ent_hwid.insert(0, text)
         except:
             pass
+
+    def get_local_id(self):
+        # Try to get ID from built application
+        import os
+        try:
+            # 1. Try Executable
+            exe_path = os.path.join("dist", "package", "Intelleo.exe")
+            if os.path.exists(exe_path):
+                # Run with --hwid
+                # Use CREATE_NO_WINDOW flag on Windows to avoid popping up cmd
+                startupinfo = None
+                if os.name == 'nt':
+                    startupinfo = subprocess.STARTUPINFO()
+                    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+
+                res = subprocess.run([exe_path, "--hwid"], capture_output=True, text=True, startupinfo=startupinfo)
+                hwid = res.stdout.strip()
+                # Output might contain other logs? Our main.py prints only the ID and exits if --hwid is passed,
+                # but PyInstaller bootloader might print something? Usually clean.
+                # We filter lines just in case.
+                lines = hwid.splitlines()
+                if lines:
+                    hwid = lines[-1] # Assume last line is the ID
+
+                if hwid and "Error" not in hwid:
+                    self.ent_hwid.delete(0, tk.END)
+                    self.ent_hwid.insert(0, hwid)
+                    messagebox.showinfo("Info", f"ID recuperato dall'eseguibile: {hwid}")
+                    return
+
+            # 2. Try Obfuscated Script (if exe not found)
+            launcher_path = os.path.join("dist", "obfuscated", "launcher.py")
+            if os.path.exists(launcher_path):
+                 res = subprocess.run([sys.executable, launcher_path, "--hwid"], capture_output=True, text=True)
+                 hwid = res.stdout.strip()
+                 if hwid:
+                     lines = hwid.splitlines()
+                     hwid = lines[-1]
+
+                 if "N/A" not in hwid and hwid and "Error" not in hwid:
+                     self.ent_hwid.delete(0, tk.END)
+                     self.ent_hwid.insert(0, hwid)
+                     messagebox.showinfo("Info", f"ID recuperato dagli script: {hwid}")
+                     return
+
+            messagebox.showwarning("Attenzione", "Impossibile recuperare l'ID Locale.\n\n1. Assicurati di aver compilato l'applicazione (python build_dist.py).\n2. L'ID è disponibile solo nell'applicazione protetta (offuscata).")
+
+        except Exception as e:
+            messagebox.showerror("Errore", f"Errore durante il recupero dell'ID: {e}")
 
     def generate(self):
         hw_id = self.ent_hwid.get().strip()
