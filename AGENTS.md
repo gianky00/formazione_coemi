@@ -6,10 +6,10 @@ This document provides instructions for AI agents working on this codebase.
 
 > **IMPORTANT**: Before starting any task, refer to the detailed documentation in the `.jules-docs/` folder.
 
-*   **[Project Overview](.jules-docs/project_overview.md)**: Architecture, directory structure, and patterns.
-*   **[Business Logic](.jules-docs/business_logic.md)**: Certificate lifecycle, status rules, and validities.
-*   **[AI Integration](.jules-docs/ai_integration.md)**: How the Gemini prompt works and how to extend it.
-*   **[Testing Guide](.jules-docs/testing_guide.md)**: Mocking strategies and test execution.
+*   **[System Architecture](.jules-docs/SYSTEM_ARCHITECTURE.md)**: High-level diagrams, dependency graph, and component interactions.
+*   **[Data Models](.jules-docs/DATA_MODELS.md)**: Database schema, Pydantic DTOs, and JSON interfaces.
+*   **[Critical Flows](.jules-docs/CRITICAL_FLOWS.md)**: Detailed algorithms for ingestion, notification, and status logic.
+*   **[Dev Protocols](.jules-docs/DEV_PROTOCOLS.md)**: Coding standards, error handling strategies, and testing requirements.
 
 ## Code Style
 
@@ -31,11 +31,4 @@ This document provides instructions for AI agents working on this codebase.
 ## Database
 
 -   The database is managed using SQLAlchemy.
--   All database models are defined in `app/db/models.py`.
--   The database is seeded with initial data by the `seed_database` function in `app/db/seeding.py`.
-
-## AI Service
-
--   The AI service is used to extract entities from PDF files.
--   The AI service is mocked in the test environment to ensure that tests are not dependent on it.
--   See `.jules-docs/ai_integration.md` for prompt details.
+-   See `.jules-docs/DATA_MODELS.md` for schema details.
