@@ -39,7 +39,7 @@ def test_get_certificate_status(db_session: Session):
         dipendente_id=dipendente.id,
         corso_id=corso.id,
         data_rilascio=date.today(),
-        data_scadenza_calcolata=date.today() + date.resolution * 30
+        data_scadenza_calcolata=date.today() + date.resolution * 100
     )
     # Certificato scaduto (senza rinnovi)
     cert_scaduto = Certificato(
@@ -83,7 +83,7 @@ def test_get_certificate_status_rinnovato(db_session: Session):
         dipendente_id=dipendente.id,
         corso_id=corso.id,
         data_rilascio=date(2021, 1, 1),
-        data_scadenza_calcolata=date.today() + date.resolution * 30 # Scadenza futura
+        data_scadenza_calcolata=date.today() + date.resolution * 100 # Scadenza futura
     )
     db_session.add_all([cert_vecchio, cert_nuovo])
     db_session.commit()

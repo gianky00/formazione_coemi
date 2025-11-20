@@ -3,6 +3,7 @@ from dateutil.relativedelta import relativedelta
 from sqlalchemy.orm import Session
 from app.db.models import Certificato, Corso
 from typing import Optional
+from app.core.config import settings
 
 def calculate_expiration_date(issue_date: date, validity_months: int) -> Optional[date]:
     """
@@ -36,7 +37,17 @@ def get_certificate_status(db: Session, certificato: Certificato) -> str:
     if certificato.data_scadenza_calcolata is None:
         return "attivo"
 
-    if certificato.data_scadenza_calcolata >= date.today():
+    today = date.today()
+
+    if certificato.data_scadenza_calcolata >= today:
+        days_to_expire = (certificato.data_scadenza_calcolata - today).days
+        threshold = settings.ALERT_THRESHOLD_DAYS
+
+        if certificato.corso and certificato.corso.categoria_corso == "VISITA MEDICA":
+            threshold = settings.ALERT_THRESHOLD_DAYS_VISITE
+
+        if days_to_expire <= threshold:
+            return "in_scadenza"
         return "attivo"
 
     newer_cert_exists = db.query(Certificato).join(Corso).filter(
