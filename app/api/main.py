@@ -70,7 +70,7 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
             nome_completo = cert.nome_dipendente_raw or "DA ASSEGNARE"
             data_nascita = cert.data_nascita_raw
             matricola = None
-            ragione_fallimento = "Dipendente non trovato in anagrafica (matricola mancante)."
+            ragione_fallimento = "Non trovato in anagrafica (matricola mancante)."
 
         status = certificate_logic.get_certificate_status(db, cert)
         result.append(CertificatoSchema(
@@ -204,7 +204,7 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
     dipendente_info = db.get(Dipendente, new_cert.dipendente_id) if new_cert.dipendente_id else None
     ragione_fallimento = None
     if not dipendente_info:
-        ragione_fallimento = "Dipendente non trovato in anagrafica (matricola mancante)."
+        ragione_fallimento = "Non trovato in anagrafica (matricola mancante)."
 
     return CertificatoSchema(
         id=new_cert.id,

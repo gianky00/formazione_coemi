@@ -276,7 +276,7 @@ def test_api_returns_failure_reason_for_orphaned_certs(test_client: TestClient, 
     response_create = test_client.post("/certificati/", json=cert_data)
     assert response_create.status_code == 200
     created_data = response_create.json()
-    assert created_data["assegnazione_fallita_ragione"] == "Dipendente non trovato in anagrafica (matricola mancante)."
+    assert created_data["assegnazione_fallita_ragione"] == "Non trovato in anagrafica (matricola mancante)."
 
     # Test get list endpoint
     response_get = test_client.get("/certificati/?validated=false")
@@ -289,7 +289,7 @@ def test_api_returns_failure_reason_for_orphaned_certs(test_client: TestClient, 
             break
 
     assert found_cert is not None
-    assert found_cert["assegnazione_fallita_ragione"] == "Dipendente non trovato in anagrafica (matricola mancante)."
+    assert found_cert["assegnazione_fallita_ragione"] == "Non trovato in anagrafica (matricola mancante)."
 
 def test_validate_orphaned_certificate(test_client: TestClient, db_session: Session):
     """Tests that validating an orphaned certificate works and preserves raw data."""
