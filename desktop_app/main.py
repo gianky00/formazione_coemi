@@ -150,7 +150,7 @@ def main():
         }
 
         /* Pill/Badge Styles */
-        QLabel[status="attivo"], QLabel[status="rinnovato"] {
+        QLabel[status="attivo"], QLabel[status="archiviato"] {
             background-color: #ECFDF5;
             color: #059669;
             padding: 4px 12px;
