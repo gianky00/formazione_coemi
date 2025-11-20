@@ -261,6 +261,9 @@ def update_certificato(certificato_id: int, certificato: CertificatoAggiornament
     if 'nome' in update_data:
         if not update_data['nome'] or not update_data['nome'].strip():
             raise HTTPException(status_code=400, detail="Il nome non può essere vuoto.")
+
+        db_cert.nome_dipendente_raw = update_data['nome'].strip()
+
         nome_parts = update_data['nome'].strip().split()
         if len(nome_parts) < 2:
             raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
@@ -319,7 +322,7 @@ def update_certificato(certificato_id: int, certificato: CertificatoAggiornament
 
     return CertificatoSchema(
         id=db_cert.id,
-        nome=f"{dipendente_info.cognome} {dipendente_info.nome}" if dipendente_info else "Da Assegnare",
+        nome=f"{dipendente_info.cognome} {dipendente_info.nome}" if dipendente_info else db_cert.nome_dipendente_raw or "Da Assegnare",
         data_nascita=dipendente_info.data_nascita.strftime('%d/%m/%Y') if dipendente_info and dipendente_info.data_nascita else None,
         matricola=dipendente_info.matricola if dipendente_info else None,
         corso=db_cert.corso.nome_corso,
