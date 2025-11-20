@@ -1,0 +1,2 @@
+.\Scripts\activate
+python -m pytest tests

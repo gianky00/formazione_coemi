@@ -37,7 +37,13 @@ def get_gemini_model():
         return None
 
 def _generate_prompt() -> str:
-    categorie_str = ", ".join(f'"{c}"' for c in CATEGORIE_STATICHE)
+    # Assicuriamo che ATEX sia incluso nelle categorie inviate al prompt
+    categorie_list = list(CATEGORIE_STATICHE)
+    if "ATEX" not in categorie_list:
+        categorie_list.append("ATEX")
+    
+    categorie_str = ", ".join(f'"{c}"' for c in categorie_list)
+    
     esempi_categorie = """
 - ANTINCENDIO: "Addetto Antincendio Rischio Basso", "Corso Antincendio Rischio Medio"
 - PREPOSTO: [USA QUESTA SOLO PER CORSI/ATTESTATI] "Corso per Preposti alla Sicurezza", "Aggiornamento Preposto".
@@ -49,6 +55,7 @@ def _generate_prompt() -> str:
 - MODULO RECESSO RAPPORTO DI LAVORO: [USA QUESTA PER DIMISSIONI/RECESSO] "Modulo Recesso Rapporto di Lavoro", "Comunicazione di dimissioni"
 - HLO: [USA QUESTA PER ATTESTATI HLO] "Attestato HLO", "Certificato HLO"
 - TESSERA HLO: [USA QUESTA PER TESSERE HLO] "Tessera HLO", "Badge HLO"
+- ATEX: [USA QUESTA PER CORSI ATEX] "Formazione su Protezione da Atmosfere Esplosive", "ATEX", "Addetti verifiche impianti elettrici ATEX"
 - ALTRO: (qualsiasi altro documento non classificabile)
 """
     return f"""
@@ -77,8 +84,9 @@ Estrai le seguenti informazioni e classificalo. Restituisci ESCLUSIVAMENTE un og
     6.  Se il documento è una **"Carta d'Identità"**, la categoria è **SEMPRE** "CARTA DI IDENTITA". La data di scadenza è nel campo "Scadenza".
     7.  Se il documento è un **"Modulo Recesso Rapporto di Lavoro"** o una comunicazione di dimissioni, la categoria è **SEMPRE** "MODULO RECESSO RAPPORTO DI LAVORO" e la `data_scadenza` deve essere `null`.
     8.  Se il documento è relativo a un HLO (Helicopter Landing Officer), controlla se è un **attestato di corso** (in quel caso la categoria è "HLO") o una **tessera/badge personale** (in quel caso la categoria è "TESSERA HLO").
+    9.  Se il documento riguarda la formazione su **"Atmosfere Esplosive"** o contiene il termine **"ATEX"**, la categoria deve essere **SEMPRE** "ATEX".
 
-    ERRORE COMUNE DA EVITare:
+    ERRORE COMUNE DA EVITARE:
     - NON classificare "NOMINA... Preposto" come "PREPOSTO". Quella è una "NOMINE".
     - NON classificare un "Giudizio di idoneità" in base alla mansione. La categoria è "VISITA MEDICA".
 
@@ -108,7 +116,13 @@ def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
             data = data[0]
 
         data.setdefault("categoria", "ALTRO")
-        if data["categoria"] not in CATEGORIE_STATICHE:
+
+        # Aggiungiamo ATEX alle categorie valide consentite
+        valid_categories = list(CATEGORIE_STATICHE)
+        if "ATEX" not in valid_categories:
+            valid_categories.append("ATEX")
+
+        if data["categoria"] not in valid_categories:
             logging.warning(f"Invalid category '{data['categoria']}'. Defaulting to 'ALTRO'.")
             data["categoria"] = "ALTRO"
 
