@@ -27,6 +27,7 @@ def create_colored_icon(icon_path: str, color: QColor) -> QIcon:
 class Sidebar(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setStyleSheet("background-color: #1E293B;")
         self.is_expanded = True
         self.expanded_width = 280
         self.collapsed_width = 80
@@ -43,7 +44,7 @@ class Sidebar(QWidget):
         self.layout.addWidget(self.toggle_btn)
 
         self.nav_buttons = QVBoxLayout()
-        self.nav_buttons.setSpacing(5)
+        self.nav_buttons.setSpacing(0) # Spacing will be handled by margins/separators
         self.buttons = {}
         self.add_nav_button("Analizza", "desktop_app/icons/analizza.svg")
         self.add_nav_button("Convalida Dati", "desktop_app/icons/convalida.svg")
@@ -71,6 +72,13 @@ class Sidebar(QWidget):
             button.setIcon(create_colored_icon(icon_path, color))
 
     def add_nav_button(self, text, icon_path, bottom=False):
+        if not bottom and self.nav_buttons.count() > 0:
+            separator = QFrame()
+            separator.setFrameShape(QFrame.Shape.HLine)
+            separator.setFixedHeight(1)
+            separator.setStyleSheet("border: none; background-color: #334155;")
+            self.nav_buttons.addWidget(separator)
+
         button = QPushButton(text)
         button.setProperty("icon_path", icon_path)
         button.setIconSize(QSize(28, 28))
@@ -95,35 +103,43 @@ class MainWindow(QMainWindow):
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
 
-        # --- New Sidebar Container ---
-        sidebar_container = QWidget()
-        sidebar_container.setStyleSheet("background-color: #0F172A;")
-        sidebar_layout = QVBoxLayout(sidebar_container)
-        sidebar_layout.setContentsMargins(0, 0, 0, 0)
-        sidebar_layout.setSpacing(0)
+        # Sidebar (no container needed here anymore)
+        self.sidebar = Sidebar()
+        self.main_layout.addWidget(self.sidebar)
 
-        # Logo
+        # --- New Right Panel ---
+        right_panel = QWidget()
+        right_panel_layout = QVBoxLayout(right_panel)
+        right_panel_layout.setContentsMargins(0, 0, 0, 0)
+        right_panel_layout.setSpacing(0)
+
+        # Top Bar for Logo
+        top_bar = QFrame()
+        top_bar.setFixedHeight(80)
+        top_bar.setObjectName("top_bar")
+        top_bar_layout = QHBoxLayout(top_bar)
+        top_bar_layout.setContentsMargins(20, 0, 20, 0)
+
+        top_bar_layout.addStretch() # Pushes logo to the right
+
         logo_label = QLabel()
         logo_pixmap = QPixmap("desktop_app/assets/logo.png")
         logo_label.setPixmap(logo_pixmap.scaled(250, 60, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
-        logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        logo_label.setMinimumHeight(80)
-        sidebar_layout.addWidget(logo_label)
+        logo_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        top_bar_layout.addWidget(logo_label)
 
-        # Original Sidebar (now just the collapsible part)
-        self.sidebar = Sidebar()
-        sidebar_layout.addWidget(self.sidebar)
+        right_panel_layout.addWidget(top_bar)
 
-        self.main_layout.addWidget(sidebar_container)
-        # --- End New ---
-
+        # Content Area (now inside the right panel)
         self.content_area = QFrame()
         self.content_layout = QVBoxLayout(self.content_area)
         self.content_layout.setContentsMargins(32, 32, 32, 32)
         self.content_layout.setSpacing(24)
         self.stacked_widget = QStackedWidget()
         self.content_layout.addWidget(self.stacked_widget)
-        self.main_layout.addWidget(self.content_area, 1)
+
+        right_panel_layout.addWidget(self.content_area, 1)
+        self.main_layout.addWidget(right_panel, 1)
 
         # Animation Setup
         self.sidebar_animation = QPropertyAnimation(self.sidebar, b"minimumWidth")
