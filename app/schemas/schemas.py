@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional
 from datetime import date, datetime
 
@@ -9,8 +9,7 @@ class DipendenteSchema(BaseModel):
     cognome: str
     data_nascita: Optional[date] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class CertificatoSchema(BaseModel):
     id: int
