@@ -66,10 +66,28 @@ def get_hw_id_safe():
                     if name.startswith("pyarmor_runtime_") and os.path.isdir(os.path.join(sys._MEIPASS, name)):
                          log_debug(f"Found candidate in _MEIPASS: {name}")
                          try:
+                             files = os.listdir(os.path.join(sys._MEIPASS, name))
+                             log_debug(f"Files in {name}: {files}")
+                         except:
+                             pass
+
+                         try:
                              mod = importlib.import_module(name)
+                             log_debug(f"Imported {name}. Attributes: {dir(mod)}")
                              if hasattr(mod, 'get_machine_id'):
                                  val = mod.get_machine_id()
                                  return val.decode('utf-8') if isinstance(val, bytes) else str(val)
+
+                             # Fallback for direct extension import
+                             try:
+                                 submod = importlib.import_module(f"{name}.pyarmor_runtime")
+                                 log_debug(f"Imported submodule {name}.pyarmor_runtime")
+                                 if hasattr(submod, 'get_machine_id'):
+                                      val = submod.get_machine_id()
+                                      return val.decode('utf-8') if isinstance(val, bytes) else str(val)
+                             except Exception as e:
+                                 log_debug(f"Submodule import failed: {e}")
+
                          except Exception as e:
                              log_debug(f"Failed to import {name}: {e}")
                              pass
