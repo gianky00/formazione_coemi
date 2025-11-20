@@ -10,7 +10,28 @@ def run_command(cmd, cwd=None):
         print(f"Error running command: {cmd}")
         sys.exit(result.returncode)
 
+def check_dependencies():
+    """Check if PyInstaller and pyarmor are installed."""
+    import importlib.util
+    missing = []
+
+    # Check PyInstaller
+    if importlib.util.find_spec("PyInstaller") is None:
+        missing.append("pyinstaller")
+
+    # Check pyarmor
+    if importlib.util.find_spec("pyarmor") is None:
+        missing.append("pyarmor")
+
+    if missing:
+        print("Error: Missing build dependencies.")
+        print(f"Please install: {', '.join(missing)}")
+        print(f"Command: {sys.executable} -m pip install {' '.join(missing)}")
+        sys.exit(1)
+
 def build():
+    check_dependencies()
+
     # Configuration
     DIST_DIR = "dist"
     OBF_DIR = os.path.join(DIST_DIR, "obfuscated")
