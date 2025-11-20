@@ -50,6 +50,11 @@ def get_certificate_status(db: Session, certificato: Certificato) -> str:
             return "in_scadenza"
         return "attivo"
 
+    # If the certificate is not linked to an employee, it cannot be considered "renewed"
+    # by another certificate (even another orphan).
+    if certificato.dipendente_id is None:
+        return "scaduto"
+
     newer_cert_exists = db.query(Certificato).join(Corso).filter(
         Certificato.dipendente_id == certificato.dipendente_id,
         Corso.categoria_corso == certificato.corso.categoria_corso,
