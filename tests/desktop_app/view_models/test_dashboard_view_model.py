@@ -99,3 +99,97 @@ def test_load_data_failure(mock_get):
     error_mock.assert_called_once_with("Impossibile caricare i dati: Connection error")
     data_changed_mock.assert_called_once()
     assert vm.filtered_data.empty
+
+@patch('requests.delete')
+@patch('requests.get')
+def test_delete_certificates_success(mock_get, mock_delete):
+    # Setup load_data mock
+    mock_get.return_value.status_code = 200
+    mock_get.return_value.json.return_value = [] # Empty after delete for simplicity
+
+    # Setup delete mock
+    mock_delete.return_value.status_code = 204
+
+    vm = DashboardViewModel()
+
+    operation_completed_mock = Mock()
+    vm.operation_completed.connect(operation_completed_mock)
+
+    vm.delete_certificates([1, 2])
+
+    assert mock_delete.call_count == 2
+    operation_completed_mock.assert_called_once_with("2 certificati cancellati con successo.")
+    # Verify it reloads data
+    assert mock_get.called
+
+@patch('requests.delete')
+def test_delete_certificates_partial_failure(mock_delete):
+    # Success for ID 1, Failure for ID 2
+    def side_effect(url):
+        if url.endswith("/1"):
+            resp = Mock()
+            resp.status_code = 204
+            return resp
+        else:
+            raise requests.exceptions.RequestException("Delete failed")
+
+    mock_delete.side_effect = side_effect
+
+    vm = DashboardViewModel()
+    vm.load_data = Mock() # Mock load_data to avoid extra calls
+
+    operation_completed_mock = Mock()
+    vm.operation_completed.connect(operation_completed_mock)
+
+    error_occurred_mock = Mock()
+    vm.error_occurred.connect(error_occurred_mock)
+
+    vm.delete_certificates([1, 2])
+
+    operation_completed_mock.assert_called_once_with("1 certificati cancellati con successo.")
+    error_occurred_mock.assert_called_once()
+    assert "ID 2: Delete failed" in error_occurred_mock.call_args[0][0]
+
+@patch('requests.put')
+@patch('requests.get')
+def test_update_certificate_success(mock_get, mock_put):
+    mock_get.return_value.status_code = 200
+    mock_get.return_value.json.return_value = []
+
+    mock_put.return_value.status_code = 200
+
+    vm = DashboardViewModel()
+
+    operation_completed_mock = Mock()
+    vm.operation_completed.connect(operation_completed_mock)
+
+    result = vm.update_certificate(1, {"some": "data"})
+
+    assert result is True
+    operation_completed_mock.assert_called_once_with("Certificato aggiornato con successo.")
+    assert mock_get.called
+
+@patch('requests.put')
+def test_update_certificate_failure(mock_put):
+    mock_put.side_effect = requests.exceptions.RequestException("Update failed")
+
+    vm = DashboardViewModel()
+
+    error_occurred_mock = Mock()
+    vm.error_occurred.connect(error_occurred_mock)
+
+    result = vm.update_certificate(1, {"some": "data"})
+
+    assert result is False
+    error_occurred_mock.assert_called_once_with("Impossibile modificare il certificato: Update failed")
+
+def test_filter_data_empty():
+    vm = DashboardViewModel()
+    # _df_original is empty by default
+    vm.filter_data("A", "B", "C")
+    assert vm.filtered_data.empty
+
+def test_get_filter_options_empty():
+    vm = DashboardViewModel()
+    options = vm.get_filter_options()
+    assert options == {"dipendenti": [], "categorie": [], "stati": []}

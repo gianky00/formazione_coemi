@@ -140,6 +140,31 @@ def test_send_email_notification_no_recipients(mock_settings):
         notification_service.send_email_notification(b"pdf", 0, 0, 0, 60, 30)
         MockSMTP.assert_not_called()
 
+def test_send_email_notification_smtp_auth_error(mock_settings):
+    mock_settings.SMTP_PORT = 587
+    png_bytes = b'\x89PNG\r\n\x1a\n'
+    with patch("smtplib.SMTP") as MockSMTP, \
+         patch("builtins.open", mock_open(read_data=png_bytes)):
+
+        server = MockSMTP.return_value
+        server.__enter__.return_value = server
+        server.login.side_effect = smtplib.SMTPAuthenticationError(535, "Authentication failed")
+
+        with pytest.raises(ConnectionAbortedError, match="SMTP Authentication Error"):
+            notification_service.send_email_notification(b"pdf", 0, 0, 0, 60, 30)
+
+def test_send_email_notification_smtp_connect_error(mock_settings):
+    mock_settings.SMTP_PORT = 587
+    png_bytes = b'\x89PNG\r\n\x1a\n'
+    with patch("smtplib.SMTP") as MockSMTP, \
+         patch("builtins.open", mock_open(read_data=png_bytes)):
+
+        # SMTPConnectError usually happens at init
+        MockSMTP.side_effect = smtplib.SMTPConnectError(111, "Connection refused")
+
+        with pytest.raises(ConnectionAbortedError, match="SMTP Connection Error"):
+            notification_service.send_email_notification(b"pdf", 0, 0, 0, 60, 30)
+
 def test_send_email_notification_smtp_error(mock_settings):
     mock_settings.SMTP_PORT = 587
     png_bytes = b'\x89PNG\r\n\x1a\n'
@@ -151,6 +176,19 @@ def test_send_email_notification_smtp_error(mock_settings):
         server.send_message.side_effect = smtplib.SMTPException("SMTP Error")
 
         with pytest.raises(ConnectionAbortedError, match="Generic SMTP Error"):
+            notification_service.send_email_notification(b"pdf", 0, 0, 0, 60, 30)
+
+def test_send_email_notification_unexpected_error(mock_settings):
+    mock_settings.SMTP_PORT = 587
+    png_bytes = b'\x89PNG\r\n\x1a\n'
+    with patch("smtplib.SMTP") as MockSMTP, \
+         patch("builtins.open", mock_open(read_data=png_bytes)):
+
+        server = MockSMTP.return_value
+        server.__enter__.return_value = server
+        server.send_message.side_effect = Exception("Unexpected")
+
+        with pytest.raises(ConnectionAbortedError, match="An unexpected error occurred"):
             notification_service.send_email_notification(b"pdf", 0, 0, 0, 60, 30)
 
 # --- check_and_send_alerts Tests ---
