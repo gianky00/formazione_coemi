@@ -128,3 +128,38 @@ def test_orphan_certificates_not_renewed_by_others(db_session: Session):
     status = get_certificate_status(db_session, cert_alice)
 
     assert status == "scaduto", f"Expected 'scaduto' but got '{status}'. Orphaned certificates are being mixed up!"
+
+def test_infinite_validity_status(db_session: Session):
+    """
+    Testa che i certificati con validità infinita (data_scadenza_calcolata=None)
+    siano sempre 'attivo' se non c'è una scadenza esplicita, anche se sono vecchi.
+    """
+    dipendente = Dipendente(nome="Infinite", cognome="User")
+    corso = Corso(nome_corso="Nomina", validita_mesi=0, categoria_corso="NOMINE")
+    db_session.add_all([dipendente, corso])
+    db_session.commit()
+
+    # Certificato vecchio (2010) ma validità infinita
+    cert_vecchio = Certificato(
+        dipendente_id=dipendente.id,
+        corso_id=corso.id,
+        data_rilascio=date(2010, 1, 1),
+        data_scadenza_calcolata=None
+    )
+    db_session.add(cert_vecchio)
+    db_session.commit()
+
+    assert get_certificate_status(db_session, cert_vecchio) == "attivo"
+
+    # Aggiungiamo un certificato PIÙ NUOVO (2020), sempre infinito
+    cert_nuovo = Certificato(
+        dipendente_id=dipendente.id,
+        corso_id=corso.id,
+        data_rilascio=date(2020, 1, 1),
+        data_scadenza_calcolata=None
+    )
+    db_session.add(cert_nuovo)
+    db_session.commit()
+
+    assert get_certificate_status(db_session, cert_vecchio) == "attivo"
+    assert get_certificate_status(db_session, cert_nuovo) == "attivo"
