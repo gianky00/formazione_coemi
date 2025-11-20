@@ -184,6 +184,8 @@ class DashboardView(QWidget):
             status_col_index = df.columns.get_loc('stato_certificato')
             self.table_view.setItemDelegateForColumn(status_col_index, StatusDelegate())
 
+            self.table_view.verticalHeader().setDefaultSectionSize(50)
+
             header = self.table_view.horizontalHeader()
             header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
             header.setSectionResizeMode(df.columns.get_loc('Dipendente'), QHeaderView.ResizeMode.Stretch)
