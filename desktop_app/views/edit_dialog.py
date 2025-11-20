@@ -65,10 +65,10 @@ class EditCertificatoDialog(QDialog):
 
         self.scadenza_checkbox.toggled.connect(self.data_scadenza_edit.setEnabled)
 
-        self.form_layout.addRow(QLabel("Nome e Cognome:"), self.nome_edit)
-        self.form_layout.addRow(QLabel("Corso:"), self.corso_edit)
+        self.form_layout.addRow(QLabel("Dipendente:"), self.nome_edit)
+        self.form_layout.addRow(QLabel("Documento:"), self.corso_edit)
         self.form_layout.addRow(QLabel("Categoria:"), self.categoria_edit)
-        self.form_layout.addRow(QLabel("Data Rilascio:"), self.data_rilascio_edit)
+        self.form_layout.addRow(QLabel("Data emissione:"), self.data_rilascio_edit)
         self.form_layout.addRow(self.scadenza_checkbox, self.data_scadenza_edit)
 
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
