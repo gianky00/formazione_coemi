@@ -23,6 +23,14 @@ def check_dependencies():
     if importlib.util.find_spec("pyarmor") is None:
         missing.append("pyarmor")
 
+    # Check uvicorn
+    if importlib.util.find_spec("uvicorn") is None:
+        missing.append("uvicorn")
+
+    # Check sqlalchemy
+    if importlib.util.find_spec("sqlalchemy") is None:
+        missing.append("sqlalchemy")
+
     if missing:
         print("Error: Missing build dependencies.")
         print(f"Please install: {', '.join(missing)}")
