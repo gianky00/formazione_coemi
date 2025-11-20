@@ -53,6 +53,9 @@ def get_hw_id_safe():
         # Fallback for pyarmor_runtime_xxxxxx in plain text scripts
         import importlib
         import pkgutil
+        import os
+
+        # 1. Try pkgutil first (works for standard packages)
         for finder, name, ispkg in pkgutil.iter_modules():
             if name.startswith("pyarmor_runtime_"):
                 try:
@@ -62,6 +65,23 @@ def get_hw_id_safe():
                         return val.decode('utf-8') if isinstance(val, bytes) else str(val)
                 except:
                     pass
+
+        # 2. Explicit scan of sys._MEIPASS (for PyInstaller)
+        # PyInstaller extracts extensions to sys._MEIPASS
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            try:
+                for name in os.listdir(sys._MEIPASS):
+                    if name.startswith("pyarmor_runtime_") and os.path.isdir(os.path.join(sys._MEIPASS, name)):
+                         try:
+                             mod = importlib.import_module(name)
+                             if hasattr(mod, 'get_machine_id'):
+                                 val = mod.get_machine_id()
+                                 return val.decode('utf-8') if isinstance(val, bytes) else str(val)
+                         except:
+                             pass
+            except Exception:
+                pass
+
         return "N/A (Non offuscato / Runtime non trovato)"
     except Exception as e:
         return f"Errore: {e}"

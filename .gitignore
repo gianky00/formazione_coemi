@@ -36,3 +36,8 @@ check_list_AI.py
 crea_env.bat
 .coverage
 .cov
+
+# Build artifacts
+dist/
+build/
+*.spec
