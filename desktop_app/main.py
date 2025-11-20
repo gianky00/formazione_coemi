@@ -82,7 +82,7 @@ def main():
 
         /* Sidebar Styles */
         Sidebar {
-            background-color: #0B172A; /* Navy Blue/Dark */
+            background-color: #1E3A8A; /* Blue/Dark */
             border-right: 1px solid #E5E7EB;
         }
         Sidebar QLabel#logo {

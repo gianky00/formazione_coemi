@@ -44,16 +44,9 @@ class ValidationView(QWidget):
         self.layout.setContentsMargins(20, 20, 20, 20)
         self.layout.setSpacing(15)
 
-        # Title
-        title_layout = QVBoxLayout()
-        title_layout.setSpacing(5)
-        title = QLabel("Convalida Dati")
-        title.setStyleSheet("font-size: 28px; font-weight: 700;")
-        title_layout.addWidget(title)
         description = QLabel("Verifica, modifica e approva i dati estratti prima dell'archiviazione.")
         description.setObjectName("viewDescription")
-        title_layout.addWidget(description)
-        self.layout.addLayout(title_layout)
+        self.layout.addWidget(description)
 
         main_card = QWidget()
         main_card.setObjectName("card")

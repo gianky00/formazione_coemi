@@ -74,15 +74,9 @@ class DashboardView(QWidget):
         self.layout.setContentsMargins(20, 20, 20, 20)
         self.layout.setSpacing(15)
 
-        title_layout = QVBoxLayout()
-        title_layout.setSpacing(5)
-        title = QLabel("Database Certificati")
-        title.setStyleSheet("font-size: 28px; font-weight: 700;")
-        title_layout.addWidget(title)
         description = QLabel("Visualizza, gestisci ed esporta tutti i certificati dei dipendenti.")
         description.setObjectName("viewDescription")
-        title_layout.addWidget(description)
-        self.layout.addLayout(title_layout)
+        self.layout.addWidget(description)
 
         main_card = QWidget()
         main_card.setObjectName("card")
