@@ -67,17 +67,14 @@ class LicenseAdminApp:
             return
 
         # Check if pyarmor is available
-        cmd = ["pyarmor", "gen", "key", "-e", expiry]
+        # Use sys.executable -m pyarmor.cli to ensure we use the installed module
+        cmd = [sys.executable, "-m", "pyarmor.cli", "gen", "key", "-e", expiry]
         if hw_id:
             cmd.extend(["-b", hw_id])
 
         try:
             # Ensure dist folder exists or let pyarmor create it
-            # Using shell=True for Windows compatibility if pyarmor is a batch file/shim
-            import platform
-            use_shell = platform.system() == "Windows"
-
-            result = subprocess.run(cmd, capture_output=True, text=True, shell=use_shell)
+            result = subprocess.run(cmd, capture_output=True, text=True)
 
             if result.returncode == 0:
                 msg = f"Licenza generata con successo!\n\nPercorso: dist/pyarmor.rkey\nScadenza: {expiry}"
