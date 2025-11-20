@@ -34,3 +34,5 @@ uploads/
 # Script di test temporanei
 check_list_AI.py
 crea_env.bat
+.coverage
+.cov
