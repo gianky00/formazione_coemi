@@ -173,18 +173,9 @@ class ImportView(QWidget):
         self.api_client = APIClient()
         self.layout = QVBoxLayout(self)
 
-        title_layout = QVBoxLayout()
-        title_layout.setSpacing(5)
-
-        title = QLabel("Analisi Documenti")
-        title.setStyleSheet("font-size: 28px; font-weight: 700;")
-        title_layout.addWidget(title)
-
         description = QLabel("Carica, analizza ed estrai automaticamente le informazioni dai tuoi documenti.")
         description.setStyleSheet("font-size: 16px; color: #6B7280;")
-        title_layout.addWidget(description)
-
-        self.layout.addLayout(title_layout)
+        self.layout.addWidget(description)
 
         self.drop_zone = DropZone(self)
         self.drop_zone.select_folder_button.clicked.connect(self.select_folder)
