@@ -79,8 +79,6 @@ class PdfWorker(QObject):
                     else:
                         nome_completo = cert_data.get('nome', 'ERRORE')
                         self.log_message.emit(f"File {original_filename} elaborato e salvato per {nome_completo}.")
-                    else:
-                        self.log_message.emit(f"File {original_filename} elaborato e salvato per {nome_completo}.")
                         try:
                             matricola = cert_data.get('matricola') if cert_data.get('matricola') else 'N-A'
                             categoria = cert_data.get('categoria', 'CATEGORIA_NON_TROVATA')
