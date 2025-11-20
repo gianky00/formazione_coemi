@@ -259,3 +259,34 @@ def test_orphaned_certificate_retains_raw_data(test_client: TestClient, db_sessi
     assert found_cert is not None, "Orphaned certificate not found in API response"
     assert found_cert["nome"] == raw_name
     assert found_cert["data_nascita"] == raw_birth_date
+
+def test_api_returns_failure_reason_for_orphaned_certs(test_client: TestClient, db_session: Session):
+    """Tests that the API returns a reason for assignment failure for orphaned certs."""
+    seed_master_courses(db_session)
+
+    cert_data = {
+        "nome": "Orphan With Reason",
+        "data_nascita": "01/01/1980",
+        "corso": "Failure Reason Test",
+        "categoria": "ALTRO",
+        "data_rilascio": "01/01/2025"
+    }
+
+    # Test create endpoint
+    response_create = test_client.post("/certificati/", json=cert_data)
+    assert response_create.status_code == 200
+    created_data = response_create.json()
+    assert created_data["assegnazione_fallita_ragione"] == "Dipendente non trovato in anagrafica (matricola mancante)."
+
+    # Test get list endpoint
+    response_get = test_client.get("/certificati/?validated=false")
+    assert response_get.status_code == 200
+
+    found_cert = None
+    for cert in response_get.json():
+        if cert["id"] == created_data["id"]:
+            found_cert = cert
+            break
+
+    assert found_cert is not None
+    assert found_cert["assegnazione_fallita_ragione"] == "Dipendente non trovato in anagrafica (matricola mancante)."
