@@ -18,15 +18,9 @@ class ScadenzarioView(QWidget):
         self.layout.setSpacing(10)
 
         # Main Title and Description
-        title_layout = QVBoxLayout()
-        title_layout.setSpacing(2)
-        title = QLabel("Scadenzario Grafico")
-        title.setStyleSheet("font-size: 24px; font-weight: 700;")
-        title_layout.addWidget(title)
         description = QLabel("Timeline interattiva dei certificati in scadenza.")
         description.setStyleSheet("font-size: 14px; color: #6B7280;")
-        title_layout.addWidget(description)
-        self.layout.addLayout(title_layout)
+        self.layout.addWidget(description)
 
         # Toolbar Layout
         toolbar_layout = QHBoxLayout()
