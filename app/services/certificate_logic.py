@@ -48,7 +48,7 @@ def get_certificate_status(db: Session, certificato: Certificato) -> str:
             threshold = settings.ALERT_THRESHOLD_DAYS_VISITE
 
         if days_to_expire <= threshold:
-            return "in_scadenza"
+            return "in scadenza"
         return "attivo"
 
     # If the certificate is not linked to an employee, it cannot be considered "renewed"

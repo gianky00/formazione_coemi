@@ -166,7 +166,7 @@ def main():
             font-size: 12px;
             font-weight: 500;
         }
-        QLabel[status="in_scadenza"] {
+        QLabel[status="in scadenza"] {
             background-color: #FFFBEB;
             color: #F59E0B;
             padding: 4px 12px;

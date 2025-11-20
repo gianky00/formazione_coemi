@@ -78,7 +78,7 @@ Defined in `app/schemas/schemas.py`. Used for API validation.
     "categoria": str,
     "data_rilascio": str,      # DD/MM/YYYY
     "data_scadenza": str,      # DD/MM/YYYY or null
-    "stato_certificato": str,  # "attivo", "in_scadenza", "scaduto", "rinnovato"
+    "stato_certificato": str,  # "attivo", "in scadenza", "scaduto", "rinnovato"
     "assegnazione_fallita_ragione": str # Optional error message
 }
 ```

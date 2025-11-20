@@ -31,7 +31,7 @@
 | Status | Condition |
 | :--- | :--- |
 | **attivo** | `data_scadenza` > Today + Threshold |
-| **in_scadenza** | Today <= `data_scadenza` <= Today + Threshold |
+| **in scadenza** | Today <= `data_scadenza` <= Today + Threshold |
 | **scaduto** | `data_scadenza` < Today |
 | **rinnovato** | Expired, BUT a newer certificate exists for same Employee + Category. |
 
