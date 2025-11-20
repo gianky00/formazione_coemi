@@ -54,7 +54,7 @@ L'analisi dei documenti avviene tramite il modello multimodale **Google Gemini 2
     2.  Classificare il documento in una delle `CATEGORIE_STATICHE` seguendo regole rigide (es. distinzione tra "Nomina" e "Formazione").
 -   **Output:** Un oggetto JSON con tutti i dati normalizzati.
 
-> Per dettagli tecnici sul prompt e su come aggiungere nuove categorie, vedi [AI Integration Guide](.jules-docs/ai_integration.md).
+> Per dettagli tecnici sul prompt e su come aggiungere nuove categorie, vedi [Critical System Flows](.jules-docs/CRITICAL_FLOWS.md).
 
 ---
 
