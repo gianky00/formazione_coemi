@@ -188,7 +188,7 @@ class DashboardView(QWidget):
 
             header = self.table_view.horizontalHeader()
             header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-            header.setSectionResizeMode(df.columns.get_loc('Dipendente'), QHeaderView.ResizeMode.Stretch)
+            header.setSectionResizeMode(df.columns.get_loc('Dipendente'), QHeaderView.ResizeMode.ResizeToContents)
             header.setSectionResizeMode(df.columns.get_loc('DOCUMENTO'), QHeaderView.ResizeMode.Stretch)
             if 'matricola' in df.columns:
                 header.setSectionResizeMode(df.columns.get_loc('matricola'), QHeaderView.ResizeMode.ResizeToContents)
