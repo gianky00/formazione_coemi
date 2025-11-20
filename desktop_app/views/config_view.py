@@ -15,16 +15,9 @@ class ConfigView(QWidget):
         self.layout.setContentsMargins(20, 20, 20, 20)
         self.layout.setSpacing(15)
 
-        # Title
-        title_layout = QVBoxLayout()
-        title_layout.setSpacing(5)
-        title = QLabel("Configurazione")
-        title.setStyleSheet("font-size: 28px; font-weight: 700;")
-        title_layout.addWidget(title)
         description = QLabel("Gestisci le impostazioni e le chiavi API dell'applicazione.")
         description.setObjectName("viewDescription")
-        title_layout.addWidget(description)
-        self.layout.addLayout(title_layout)
+        self.layout.addWidget(description)
 
         # Main settings card
         main_card = QFrame()

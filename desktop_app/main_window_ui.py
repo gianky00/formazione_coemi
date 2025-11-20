@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QFrame, QMessageBox, QMenu, QProgressBar,
                              QGraphicsOpacityEffect)
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
-from PyQt6.QtCore import Qt, QSize, QDate, QPropertyAnimation, QEasingCurve
+from PyQt6.QtCore import Qt, QSize, QDate, QPropertyAnimation, QEasingCurve, QEvent
 from PyQt6.QtSvg import QSvgRenderer
 from desktop_app.views.import_view import ImportView
 from desktop_app.views.dashboard_view import DashboardView
@@ -27,10 +27,11 @@ def create_colored_icon(icon_path: str, color: QColor) -> QIcon:
 class Sidebar(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setStyleSheet("background-color: #1E293B;")
-        self.is_expanded = True
+        # Stylesheet removed to allow global styling (handled in main.py)
+        self.is_expanded = False  # Start collapsed
         self.expanded_width = 280
         self.collapsed_width = 80
+        self.setFixedWidth(self.collapsed_width)
 
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
@@ -56,9 +57,12 @@ class Sidebar(QWidget):
         self.layout.addStretch()
 
         self.help_button = self.add_nav_button("Supporto", "desktop_app/icons/help.svg", bottom=True)
-        self.update_button_icons()
 
-        self.setMinimumWidth(self.expanded_width)
+        # Initialize buttons to collapsed state (no text)
+        for button in self.buttons.values():
+            button.setText("")
+
+        self.update_button_icons()
 
     def toggle_expansion(self):
         self.is_expanded = not self.is_expanded
@@ -94,7 +98,7 @@ class Sidebar(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self, screenshot_path=None):
         super().__init__()
-        self.setWindowTitle("Intelleo")
+        self.setWindowTitle("Intelleo - Predict. Validate. Automate")
         self.setGeometry(100, 100, 1200, 800)
         self.screenshot_path = screenshot_path
         self.central_widget = QWidget()
@@ -105,6 +109,7 @@ class MainWindow(QMainWindow):
 
         # Sidebar (no container needed here anymore)
         self.sidebar = Sidebar()
+        self.sidebar.installEventFilter(self)
         self.main_layout.addWidget(self.sidebar)
 
         # --- New Right Panel ---
@@ -119,6 +124,11 @@ class MainWindow(QMainWindow):
         top_bar.setObjectName("top_bar")
         top_bar_layout = QHBoxLayout(top_bar)
         top_bar_layout.setContentsMargins(20, 0, 20, 0)
+
+        # Page Title (Left)
+        self.page_title = QLabel("")
+        self.page_title.setStyleSheet("font-size: 24px; font-weight: 700; color: #1F2937;")
+        top_bar_layout.addWidget(self.page_title)
 
         top_bar_layout.addStretch() # Pushes logo to the right
 
@@ -151,6 +161,20 @@ class MainWindow(QMainWindow):
         self._init_connections()
         self.sidebar.buttons["Analizza"].setChecked(True)
         self.fade_in_widget(self.views["Analizza"], immediate=True)
+        self.set_page_title("Analisi Documenti")
+
+    def set_page_title(self, title):
+        self.page_title.setText(title)
+
+    def eventFilter(self, source, event):
+        if source == self.sidebar:
+            if event.type() == QEvent.Type.Enter:
+                if not self.sidebar.is_expanded:
+                    self.toggle_sidebar()
+            elif event.type() == QEvent.Type.Leave:
+                if self.sidebar.is_expanded:
+                    self.toggle_sidebar()
+        return super().eventFilter(source, event)
 
     def _init_status_bar(self):
         self.status_bar = QFrame()
@@ -225,10 +249,21 @@ class MainWindow(QMainWindow):
         self.sidebar.update_button_icons()
         self.views["Scadenzario"].refresh_data()
         self.fade_in_widget(self.views["Scadenzario"])
+        self.set_page_title("Scadenzario")
 
     def handle_nav_click(self, widget):
         self.sidebar.update_button_icons()
         self.fade_in_widget(widget)
+
+        # Update title based on widget type or mapping
+        titles = {
+            "ImportView": "Analisi Documenti",
+            "ValidationView": "Convalida Dati",
+            "DashboardView": "Database Certificati",
+            "ScadenzarioView": "Scadenzario",
+            "ConfigView": "Configurazione"
+        }
+        self.set_page_title(titles.get(type(widget).__name__, ""))
 
     def fade_in_widget(self, widget, immediate=False):
         if hasattr(self, 'current_fade_animation') and self.current_fade_animation:
