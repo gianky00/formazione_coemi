@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import or_
 from app.db.session import get_db
 from app.db.models import Corso, Certificato, ValidationStatus, Dipendente
-from app.services import ai_extraction, certificate_logic
+from app.services import ai_extraction, certificate_logic, matcher
 from datetime import datetime
 from typing import Optional, List
 from app.schemas.schemas import CertificatoSchema, CertificatoCreazioneSchema, CertificatoAggiornamentoSchema, DipendenteSchema
@@ -70,7 +70,7 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
             nome_completo = cert.nome_dipendente_raw or "DA ASSEGNARE"
             data_nascita = cert.data_nascita_raw
             matricola = None
-            ragione_fallimento = "Dipendente non trovato in anagrafica (matricola mancante)."
+            ragione_fallimento = "Non trovato in anagrafica (matricola mancante)."
 
         status = certificate_logic.get_certificate_status(db, cert)
         result.append(CertificatoSchema(
@@ -128,21 +128,8 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
     if len(nome_parts) < 2:
         raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
 
-    nome, cognome = nome_parts[0], " ".join(nome_parts[1:])
-
     # Cerca una corrispondenza esatta nei dati anagrafici
-    dipendente_trovato = None
-    query = db.query(Dipendente).filter(
-        or_(
-            (Dipendente.nome.ilike(nome)) & (Dipendente.cognome.ilike(cognome)),
-            (Dipendente.nome.ilike(cognome)) & (Dipendente.cognome.ilike(nome))
-        )
-    )
-
-    dipendenti = query.all()
-    if len(dipendenti) == 1:
-        dipendente_trovato = dipendenti[0]
-
+    dipendente_trovato = matcher.find_employee_by_name(db, certificato.nome)
     dipendente_id = dipendente_trovato.id if dipendente_trovato else None
 
     master_course = db.query(Corso).filter(Corso.categoria_corso.ilike(f"%{certificato.categoria.strip()}%")).first()
@@ -204,7 +191,7 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
     dipendente_info = db.get(Dipendente, new_cert.dipendente_id) if new_cert.dipendente_id else None
     ragione_fallimento = None
     if not dipendente_info:
-        ragione_fallimento = "Dipendente non trovato in anagrafica (matricola mancante)."
+        ragione_fallimento = "Non trovato in anagrafica (matricola mancante)."
 
     return CertificatoSchema(
         id=new_cert.id,
@@ -268,19 +255,11 @@ def update_certificato(certificato_id: int, certificato: CertificatoAggiornament
         if len(nome_parts) < 2:
             raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
 
-        nome, cognome = nome_parts[0], " ".join(nome_parts[1:])
-
         # Logica di matching robusta
-        query = db.query(Dipendente).filter(
-            or_(
-                (Dipendente.nome.ilike(nome)) & (Dipendente.cognome.ilike(cognome)),
-                (Dipendente.nome.ilike(cognome)) & (Dipendente.cognome.ilike(nome))
-            )
-        )
-        dipendenti = query.all()
+        match = matcher.find_employee_by_name(db, update_data['nome'])
 
-        if len(dipendenti) == 1:
-            db_cert.dipendente_id = dipendenti[0].id
+        if match:
+            db_cert.dipendente_id = match.id
         else:
             # Se non trovato o ambiguo, disassocia o gestisci come errore
             db_cert.dipendente_id = None
@@ -387,7 +366,20 @@ async def import_dipendenti_csv(file: UploadFile = File(...), db: Session = Depe
         db.rollback()
         raise HTTPException(status_code=400, detail="Errore di integrità del database. Controlla i dati del CSV.")
 
-    return {"message": "Importazione completata con successo."}
+    # Re-link orphaned certificates
+    orphaned_certs = db.query(Certificato).filter(Certificato.dipendente_id.is_(None)).all()
+    linked_count = 0
+    for cert in orphaned_certs:
+        if cert.nome_dipendente_raw:
+            match = matcher.find_employee_by_name(db, cert.nome_dipendente_raw)
+            if match:
+                cert.dipendente_id = match.id
+                linked_count += 1
+
+    if linked_count > 0:
+        db.commit()
+
+    return {"message": f"Importazione completata con successo. {linked_count} certificati orfani collegati."}
 
 @router.get("/dipendenti", response_model=List[DipendenteSchema])
 def get_dipendenti(db: Session = Depends(get_db)):

@@ -37,14 +37,10 @@ class Sidebar(QWidget):
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
 
-        # Hamburger Button
-        self.toggle_btn = QPushButton()
-        self.toggle_btn.setObjectName("toggle_btn")
-        self.toggle_btn.setIcon(QIcon(create_colored_icon("desktop_app/icons/hamburger.svg", QColor("white"))))
-        self.toggle_btn.setIconSize(QSize(28, 28))
-        self.layout.addWidget(self.toggle_btn)
+        # Hamburger Button removed
 
         self.nav_buttons = QVBoxLayout()
+        self.nav_buttons.setContentsMargins(0, 80, 0, 0) # Align below top bar
         self.nav_buttons.setSpacing(0) # Spacing will be handled by margins/separators
         self.buttons = {}
         self.add_nav_button("Analizza", "desktop_app/icons/analizza.svg")
@@ -58,9 +54,11 @@ class Sidebar(QWidget):
 
         self.help_button = self.add_nav_button("Supporto", "desktop_app/icons/help.svg", bottom=True)
 
-        # Initialize buttons to collapsed state (no text)
-        for button in self.buttons.values():
+        # Initialize buttons to collapsed state (no text) and update style
+        for text, button in self.buttons.items():
             button.setText("")
+            # Apply initial collapsed style
+            button.setStyleSheet("text-align: center; padding-left: 0px; padding-right: 0px;")
 
         self.update_button_icons()
 
@@ -68,6 +66,10 @@ class Sidebar(QWidget):
         self.is_expanded = not self.is_expanded
         for text, button in self.buttons.items():
             button.setText(text if self.is_expanded else "")
+            if self.is_expanded:
+                button.setStyleSheet("text-align: left; padding-left: 20px; padding-right: 20px;")
+            else:
+                button.setStyleSheet("text-align: center; padding-left: 0px; padding-right: 0px;")
 
     def update_button_icons(self):
         for button in self.buttons.values():
@@ -222,8 +224,7 @@ class MainWindow(QMainWindow):
         self.sidebar_animation.start()
 
     def _init_connections(self):
-        # Connect sidebar toggle button
-        self.sidebar.toggle_btn.clicked.connect(self.toggle_sidebar)
+        # Sidebar toggle button connection removed
 
         # Quando l'importazione è completata, aggiorna la vista di convalida
         self.views["Analizza"].import_completed.connect(self.views["Convalida Dati"].refresh_data)

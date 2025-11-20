@@ -158,6 +158,9 @@ class ValidationView(QWidget):
                 id_col_index = self.df.columns.get_loc('id')
                 self.table_view.setColumnHidden(id_col_index, True)
 
+                # Increase row height
+                self.table_view.verticalHeader().setDefaultSectionSize(50)
+
                 # Adjust column widths
                 header = self.table_view.horizontalHeader()
                 header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
