@@ -291,6 +291,21 @@ class MainWindow(QMainWindow):
     def show_guide(self):
         GuideDialog(self).exec()
 
+    def show_hardware_id(self):
+        try:
+            from pyarmor_runtime import get_machine_id
+            hw_id = get_machine_id().decode('utf-8') if isinstance(get_machine_id(), bytes) else str(get_machine_id())
+        except ImportError:
+            hw_id = "N/A (Non offuscato)"
+        except Exception as e:
+            hw_id = f"Errore: {str(e)}"
+
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Info Hardware")
+        msg_box.setText(f"ID Macchina:\n{hw_id}")
+        msg_box.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        msg_box.exec()
+
     def show_legal_notice(self):
         msg_box = QMessageBox()
         msg_box.setWindowTitle("Avviso Legale")
