@@ -323,3 +323,32 @@ def test_validate_orphaned_certificate(test_client: TestClient, db_session: Sess
     # Verify the state changed in the DB
     db_session.refresh(cert)
     assert cert.stato_validazione == ValidationStatus.MANUAL
+
+def test_get_single_orphaned_certificate(test_client: TestClient, db_session: Session):
+    """Tests that GET /certificati/{id} works for an orphaned certificate."""
+    seed_master_courses(db_session)
+
+    raw_name = "Single Orphan"
+    raw_birth_date = "20/02/2002"
+
+    # Create an orphaned certificate directly in the DB
+    cert = Certificato(
+        dipendente_id=None,
+        nome_dipendente_raw=raw_name,
+        data_nascita_raw=raw_birth_date,
+        corso=db_session.query(Corso).filter_by(nome_corso="General").one(),
+        data_rilascio=date(2025, 1, 1),
+        stato_validazione=ValidationStatus.AUTOMATIC
+    )
+    db_session.add(cert)
+    db_session.commit()
+
+    # Call the get single certificate endpoint
+    response = test_client.get(f"/certificati/{cert.id}")
+    assert response.status_code == 200
+
+    # Verify the response contains the raw data
+    data = response.json()
+    assert data["nome"] == raw_name
+    assert data["data_nascita"] == raw_birth_date
+    assert data["matricola"] is None
