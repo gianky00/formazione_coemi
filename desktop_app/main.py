@@ -1,126 +1,25 @@
 import sys
-import time
-from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QMessageBox
-from PyQt6.QtGui import QFont, QPixmap, QIcon
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtWidgets import QApplication
+from PyQt6.QtGui import QFont
 
-class SplashScreen(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setStyleSheet("background-color: white; border-radius: 10px;")
+# --- IMPORT FONDAMENTALE ---
+# Rendiamo disponibile MainWindow per il launcher
+# Il punto (.) indica che il file è nella stessa cartella
+from .main_window_ui import MainWindow 
 
-        layout = QVBoxLayout(self)
-        self.logo_label = QLabel()
-        pixmap = QPixmap("desktop_app/assets/logo.png").scaled(
-            950, 228, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
-        )
-        self.logo_label.setPixmap(pixmap)
-        self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.logo_label)
+def setup_styles(app: QApplication):
+    """
+    Configura il font e il foglio di stile (CSS) dell'applicazione.
+    Viene chiamata dal launcher.py all'avvio.
+    """
+    # Set a modern font
+    font = QFont("Inter")
+    # Fallback se Inter non è installato
+    font.setStyleHint(QFont.StyleHint.SansSerif)
+    app.setFont(font)
 
-        self.message_label = QLabel("Inizializzazione...")
-        self.message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.message_label.setStyleSheet("color: black; font-size: 16px;")
-        layout.addWidget(self.message_label)
-
-        self.setFixedSize(1000, 300)
-
-        self.opacity = 0.0
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.fade_in)
-        self.timer.start(10)
-
-    def fade_in(self):
-        if self.opacity >= 1.0:
-            self.timer.stop()
-        else:
-            self.opacity += 0.01
-            self.setWindowOpacity(self.opacity)
-
-    def show_message(self, message):
-        self.message_label.setText(message)
-        QApplication.processEvents()
-
-
-def get_hw_id_safe():
-    import sys
-    try:
-        from pyarmor_runtime import get_machine_id
-        val = get_machine_id()
-        return val.decode('utf-8') if isinstance(val, bytes) else str(val)
-    except ImportError:
-        # Fallback for pyarmor_runtime_xxxxxx in plain text scripts
-        import importlib
-        import pkgutil
-        import os
-
-        # 1. Try pkgutil first (works for standard packages)
-        for finder, name, ispkg in pkgutil.iter_modules():
-            if name.startswith("pyarmor_runtime_"):
-                try:
-                    mod = importlib.import_module(name)
-                    if hasattr(mod, 'get_machine_id'):
-                        val = mod.get_machine_id()
-                        return val.decode('utf-8') if isinstance(val, bytes) else str(val)
-                except:
-                    pass
-
-        # 2. Explicit scan of sys._MEIPASS (for PyInstaller)
-        # PyInstaller extracts extensions to sys._MEIPASS
-        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-            try:
-                for name in os.listdir(sys._MEIPASS):
-                    if name.startswith("pyarmor_runtime_") and os.path.isdir(os.path.join(sys._MEIPASS, name)):
-                         try:
-                             mod = importlib.import_module(name)
-                             if hasattr(mod, 'get_machine_id'):
-                                 val = mod.get_machine_id()
-                                 return val.decode('utf-8') if isinstance(val, bytes) else str(val)
-
-                             # Fallback for direct extension import
-                             submod = importlib.import_module(f"{name}.pyarmor_runtime")
-                             if hasattr(submod, 'get_machine_id'):
-                                  val = submod.get_machine_id()
-                                  return val.decode('utf-8') if isinstance(val, bytes) else str(val)
-                         except:
-                             pass
-            except Exception:
-                pass
-
-        return "N/A (Non offuscato / Runtime non trovato)"
-    except Exception as e:
-        return f"Errore: {e}"
-
-def main():
-    # Check for HWID flag first
-    if "--hwid" in sys.argv:
-        print(get_hw_id_safe())
-        sys.exit(0)
-
-    try:
-        app = QApplication(sys.argv)
-
-        # Import inside try/except to catch license errors
-        from desktop_app.main_window_ui import MainWindow
-
-        splash = SplashScreen()
-        splash.show()
-
-        splash.show_message("Inizializzazione del motore AI...")
-        time.sleep(1)
-        splash.show_message("Connessione al database...")
-        time.sleep(1)
-        splash.show_message("Avvio dell'interfaccia...")
-        time.sleep(1)
-
-        # Set a modern font
-        font = QFont("Inter")
-        app.setFont(font)
-
-        # Global stylesheet for a modern look
-        app.setStyleSheet("""
+    # Global stylesheet for a modern look
+    app.setStyleSheet("""
             /* Global Styles */
             QMainWindow, QWidget {
                 font-family: "Inter", "Segoe UI";
@@ -232,7 +131,6 @@ def main():
                 font-weight: 500;
             }
 
-
             /* Checkbox Styles */
             QCheckBox::indicator {
                 width: 20px;
@@ -287,7 +185,6 @@ def main():
                 background-color: #B91C1C;
             }
 
-
             /* ComboBox, LineEdit, DateEdit Styles */
             QComboBox, QLineEdit, QDateEdit {
                 padding: 10px;
@@ -306,47 +203,4 @@ def main():
                 width: 30px;
                 border-left: none;
             }
-        """)
-
-        screenshot_path = None
-        if "--screenshot" in sys.argv:
-            try:
-                screenshot_path = sys.argv[sys.argv.index("--screenshot") + 1]
-            except IndexError:
-                print("Usage: --screenshot <path>")
-                sys.exit(1)
-
-
-        main_win = MainWindow(screenshot_path=screenshot_path)
-        main_win.setWindowIcon(QIcon("desktop_app/assets/logo.png"))
-
-        # Simulate loading time then show main window and close splash
-        time.sleep(2)
-        main_win.showMaximized()
-        splash.close()
-
-        sys.exit(app.exec())
-
-    except Exception as e:
-        # Check for PyArmor errors (license or otherwise)
-        # PyArmor usually raises RuntimeError or specific errors depending on configuration
-        # "expired" or "license" are common keywords
-        err_str = str(e).lower()
-        if "license" in err_str or "expired" in err_str:
-            app = QApplication.instance() or QApplication(sys.argv)
-
-            hw_id = get_hw_id_safe()
-
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Icon.Critical)
-            msg.setWindowTitle("Errore Licenza")
-            msg.setText("Licenza non valida o scaduta.")
-            msg.setInformativeText(f"L'applicazione non può essere avviata.\n\nID Hardware: {hw_id}\n\nDettagli errore: {str(e)}")
-            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            msg.exec()
-            sys.exit(1)
-        else:
-            raise e
-
-if __name__ == "__main__":
-    main()
+    """)

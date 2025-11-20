@@ -41,3 +41,4 @@ crea_env.bat
 dist/
 build/
 *.spec
+dist_installer/Setup_Intelleo_v1.0.exe
