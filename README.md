@@ -44,23 +44,17 @@ Per evitare la duplicazione di dati, il sistema implementa una logica "Get or Cr
 
 ## Servizio di Analisi AI (`app/services/ai_extraction.py`)
 
-L'analisi dei PDF è un processo multimodale in due fasi, orchestrato per massimizzare l'accuratezza.
+L'analisi dei documenti avviene tramite il modello multimodale **Google Gemini 2.5 Pro** in una **singola chiamata** ottimizzata per latenza e costi.
 
-### Fase 1: Estrazione Dati Grezzi
+### Processo Unificato
 
--   **Input:** I byte grezzi del file PDF (`pdf_bytes`).
--   **Modello:** `gemini-2.5-pro`.
--   **Prompt:** Un prompt conciso e diretto che istruisce il modello a estrarre esclusivamente `nome`, `corso` e `data_rilascio` e a restituire un oggetto JSON.
--   **Output:** Un dizionario Python con i dati estratti.
+-   **Input:** I byte del PDF.
+-   **Logica:** Un prompt ingegnerizzato ("Chain-of-Thought" implicito) guida il modello a:
+    1.  Estrarre i dati anagrafici e le date.
+    2.  Classificare il documento in una delle `CATEGORIE_STATICHE` seguendo regole rigide (es. distinzione tra "Nomina" e "Formazione").
+-   **Output:** Un oggetto JSON con tutti i dati normalizzati.
 
-### Fase 2: Classificazione della Categoria
-
--   **Input:** I byte del PDF e il `corso` estratto nella Fase 1.
--   **Prompt:** Un prompt più complesso e ricco di contesto (few-shot prompting).
-    1.  Viene fornito il titolo del corso.
-    2.  Viene presentata la lista statica delle categorie ammesse (`CATEGORIE_STATICHE`).
-    3.  Vengono forniti **esempi concreti** per ogni categoria per guidare il modello (es. `ANTINCENDIO: "Addetto Antincendio Rischio Basso"`).
--   **Logica di Fallback:** Se il modello fallisce o restituisce una categoria non presente nella lista statica, il sistema imposta la categoria su `"ALTRO"` per garantire la robustezza del processo.
+> Per dettagli tecnici sul prompt e su come aggiungere nuove categorie, vedi [AI Integration Guide](.jules-docs/ai_integration.md).
 
 ---
 
