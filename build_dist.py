@@ -22,8 +22,9 @@ def build():
 
     print("--- Step 1: Obfuscating with PyArmor ---")
     # Obfuscate 'app' and 'desktop_app'
+    # Use python -m pyarmor.cli to ensure robustness
     cmd_pyarmor = [
-        "pyarmor", "gen",
+        sys.executable, "-m", "pyarmor.cli", "gen",
         "-O", OBF_DIR,
         "-r", "app", "desktop_app"
     ]
@@ -65,8 +66,9 @@ def build():
         f"desktop_app/icons{sep}desktop_app/icons"
     ]
 
+    # Use python -m PyInstaller to avoid PATH issues
     cmd_pyinstaller = [
-        "pyinstaller",
+        sys.executable, "-m", "PyInstaller",
         "--name", "Intelleo",
         "--onefile",
         "--windowed",
