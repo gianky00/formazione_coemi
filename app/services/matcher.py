@@ -15,18 +15,25 @@ def find_employee_by_name(db: Session, raw_name: str) -> Optional[Dipendente]:
     if len(nome_parts) < 2:
         return None
 
-    # Assumiamo splitting sul primo spazio per Nome / Cognome o viceversa
-    part1, part2 = nome_parts[0], " ".join(nome_parts[1:])
+    found_employees = {}
 
-    query = db.query(Dipendente).filter(
-        or_(
-            (Dipendente.nome.ilike(part1)) & (Dipendente.cognome.ilike(part2)),
-            (Dipendente.nome.ilike(part2)) & (Dipendente.cognome.ilike(part1))
+    # Try all possible splits
+    for i in range(1, len(nome_parts)):
+        part1 = " ".join(nome_parts[:i])
+        part2 = " ".join(nome_parts[i:])
+
+        query = db.query(Dipendente).filter(
+            or_(
+                (Dipendente.nome.ilike(part1)) & (Dipendente.cognome.ilike(part2)),
+                (Dipendente.nome.ilike(part2)) & (Dipendente.cognome.ilike(part1))
+            )
         )
-    )
 
-    dipendenti = query.all()
-    if len(dipendenti) == 1:
-        return dipendenti[0]
+        matches = query.all()
+        for emp in matches:
+            found_employees[emp.id] = emp
+
+    if len(found_employees) == 1:
+        return list(found_employees.values())[0]
 
     return None
