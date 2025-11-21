@@ -15,4 +15,4 @@ share/
 database.db
 Intelleo.spec
 _LICENZE_CLIENTI/
-dist/
+Output/
