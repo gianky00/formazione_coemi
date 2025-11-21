@@ -3,15 +3,11 @@ import { Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import DashboardGuide from './pages/DashboardGuide';
-import { Construction } from 'lucide-react';
-
-const UnderConstruction = ({ title }) => (
-  <div className="flex flex-col items-center justify-center h-full text-gray-400">
-    <Construction size={64} className="mb-4 opacity-50" />
-    <h2 className="text-2xl font-bold mb-2">{title}</h2>
-    <p>Questa guida è in fase di sviluppo.</p>
-  </div>
-);
+import ImportGuide from './pages/ImportGuide';
+import ValidationGuide from './pages/ValidationGuide';
+import CalendarGuide from './pages/CalendarGuide';
+import EmployeesGuide from './pages/EmployeesGuide';
+import SettingsGuide from './pages/SettingsGuide';
 
 function App() {
   return (
@@ -19,11 +15,11 @@ function App() {
       <Route path="/" element={<Layout />}>
         <Route index element={<Home />} />
         <Route path="dashboard" element={<DashboardGuide />} />
-        <Route path="import" element={<UnderConstruction title="Importazione & AI" />} />
-        <Route path="validation" element={<UnderConstruction title="Convalida Dati" />} />
-        <Route path="calendar" element={<UnderConstruction title="Scadenzario" />} />
-        <Route path="employees" element={<UnderConstruction title="Dipendenti" />} />
-        <Route path="settings" element={<UnderConstruction title="Configurazione" />} />
+        <Route path="import" element={<ImportGuide />} />
+        <Route path="validation" element={<ValidationGuide />} />
+        <Route path="calendar" element={<CalendarGuide />} />
+        <Route path="employees" element={<EmployeesGuide />} />
+        <Route path="settings" element={<SettingsGuide />} />
       </Route>
     </Routes>
   );
