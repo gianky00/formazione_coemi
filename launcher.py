@@ -22,7 +22,7 @@ if getattr(sys, 'frozen', False):
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# --- 2. VERIFICA LICENZA (Fisica + Logica) ---
+# --- 2. VERIFICA LICENZA (Fisica + Logica Implicita) ---
 def verify_license():
     # A. Check Fisico: il file deve esistere accanto all'EXE
     if getattr(sys, 'frozen', False):
@@ -30,79 +30,25 @@ def verify_license():
     else:
         base_dir = os.path.dirname(os.path.abspath(__file__))
     
-    if not os.path.exists(os.path.join(base_dir, "pyarmor.rkey")):
-        return False, "File 'pyarmor.rkey' mancante."
+    # Percorso atteso della licenza
+    lic_path = os.path.join(base_dir, "pyarmor.rkey")
 
-    # B. Check Logico: PyArmor deve validarla
+    if not os.path.exists(lic_path):
+        return False, f"File di licenza mancante.\nCercato in: {lic_path}"
+
+    # B. Check Logico Implicito:
+    # Invece di cercare API nascoste, proviamo ad importare un modulo offuscato.
+    # Se la licenza è invalida, PyArmor bloccherà l'importazione sollevando un'eccezione.
     try:
-        get_license_info_func = None
-        debug_info = []
-
-        # Tentativo 1: Import diretto
-        try:
-            from pyarmor_runtime import get_license_info
-            get_license_info_func = get_license_info
-        except ImportError:
-            pass
-
-        # Tentativo 2: Risoluzione Runtime Randomizzato
-        if not get_license_info_func:
-            search_path = sys._MEIPASS if getattr(sys, 'frozen', False) else os.path.dirname(__file__)
-            runtime_pkg_name = None
-
-            for item in os.listdir(search_path):
-                if item.startswith("pyarmor_runtime_") and os.path.isdir(os.path.join(search_path, item)):
-                    runtime_pkg_name = item
-                    break
-
-            if runtime_pkg_name:
-                try:
-                    debug_info.append(f"Found PKG: {runtime_pkg_name}")
-                    pkg = importlib.import_module(runtime_pkg_name)
-
-                    # DEBUG: Ispeziona __pyarmor__ nel package principale
-                    if hasattr(pkg, "__pyarmor__"):
-                        internal = getattr(pkg, "__pyarmor__")
-                        debug_info.append(f"PKG.__pyarmor__ content: {dir(internal)}")
-                    else:
-                        debug_info.append("PKG has no __pyarmor__")
-
-                    # DEBUG: Ispeziona sottomodulo
-                    if hasattr(pkg, "pyarmor_runtime"):
-                        sub = getattr(pkg, "pyarmor_runtime")
-                        debug_info.append(f"SUB pyarmor_runtime found.")
-
-                        if hasattr(sub, "__pyarmor__"):
-                            internal_sub = getattr(sub, "__pyarmor__")
-                            debug_info.append(f"SUB.__pyarmor__ content: {dir(internal_sub)}")
-                        else:
-                            debug_info.append("SUB has no __pyarmor__")
-
-                        # Check attributi diretti del sottomodulo
-                        debug_info.append(f"SUB dir: {dir(sub)}")
-
-                        # Tenta aliasing
-                        sys.modules["pyarmor_runtime"] = sub
-                        try:
-                            from pyarmor_runtime import get_license_info
-                            get_license_info_func = get_license_info
-                        except ImportError:
-                            if hasattr(sub, "get_license_info"):
-                                get_license_info_func = sub.get_license_info
-
-                except Exception as e:
-                     debug_info.append(f"Exception analyzing pkg: {e}")
-
-        if not get_license_info_func:
-             debug_str = "\n".join(debug_info)
-             return False, f"DEEP DEBUG MODE:\n{debug_str}"
-
-        info = get_license_info_func()
-        if not info.get('expired'): 
-            return False, "Licenza di sviluppo non consentita."
+        # Proviamo ad importare un modulo leggero del backend
+        # Nota: Questo funzionerà solo se 'app' è stato effettivamente offuscato.
+        # Se siamo in dev mode (non offuscato), funzionerà comunque.
+        import app.core.config
         return True, "OK"
     except Exception as e:
-        return False, f"Errore Runtime Generico: {str(e)}"
+        # Se PyArmor blocca l'esecuzione, l'errore sarà qui.
+        # Potrebbe essere un RuntimeError o un ImportError specifico.
+        return False, f"Licenza non valida o scaduta.\nErrore sistema: {str(e)}"
 
 # --- 3. UTILS ---
 def start_server():
@@ -131,11 +77,10 @@ if __name__ == "__main__":
     # CONTROLLO LICENZA
     ok, err = verify_license()
     if not ok:
-        # Usa critical per finestra grande
         mbox = QMessageBox()
-        mbox.setIcon(QMessageBox.Icon.Critical)
-        mbox.setWindowTitle("Errore Debug Licenza")
-        mbox.setText("Errore verifica licenza (Debug Mode).")
+        mbox.setIcon(QMessageBox.Icon.Warning) # Warning è sufficiente ora
+        mbox.setWindowTitle("Licenza")
+        mbox.setText("Verifica licenza fallita.")
         mbox.setDetailedText(err)
         mbox.exec()
         sys.exit(1)
