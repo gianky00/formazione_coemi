@@ -1,2 +1,5 @@
 .\Scripts\activate
 python -m pytest tests
+
+
+python tools/build_guide.py
