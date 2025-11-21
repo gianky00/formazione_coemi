@@ -21,8 +21,8 @@ AppUpdatesURL={#MyAppURL}
 ; Installa in C:\Program Files\Intelleo
 DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
-; Crea il file di setup sul Desktop o nella cartella Output
-OutputDir=Output
+; Crea il file di setup nella cartella dist\Intelleo
+OutputDir=dist\Intelleo
 OutputBaseFilename=Intelleo_Setup_v{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
@@ -38,8 +38,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 ; === ESEGUIBILE E DIPENDENZE PYTHON (Output di PyInstaller) ===
-; Copia tutto il contenuto della cartella compilata
-Source: "{#BuildDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Copia tutto il contenuto della cartella compilata (escludendo i setup precedenti)
+Source: "{#BuildDir}\*"; DestDir: "{app}"; Excludes: "Intelleo_Setup_*.exe"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; === ASSET GRAFICI (Come da indicazioni di Jules) ===
 ; Mantiene la struttura delle cartelle 'desktop_app' necessaria per i path relativi Python
