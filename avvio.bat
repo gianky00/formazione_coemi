@@ -26,7 +26,7 @@ ECHO Avvio backend (output in questa finestra)...
 start /b python app/main.py
 
 ECHO Avvio desktop app (output in questa finestra)...
-python desktop_app/main.py
+python -m desktop_app.main
 
 ECHO Script terminato.
 pause
