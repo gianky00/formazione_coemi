@@ -14,17 +14,8 @@ from .views.scadenzario_view import ScadenzarioView
 from .views.config_view import ConfigView
 from .views.modern_guide_view import ModernGuideDialog
 
-def get_asset_path(relative_path):
-    """
-    Resolve path to assets, handling both dev environment and frozen app.
-    """
-    if hasattr(sys, '_MEIPASS'):
-        base_path = sys._MEIPASS
-    else:
-        # In dev, we assume running from root
-        base_path = os.getcwd()
-
-    return os.path.join(base_path, relative_path)
+# Import Utils
+from .utils import get_asset_path, load_colored_icon
 
 class Sidebar(QFrame):
     def __init__(self, parent=None):
@@ -39,33 +30,34 @@ class Sidebar(QFrame):
 
         # --- Header (Toggle Left, Logo Right) ---
         self.header_frame = QFrame()
+        self.header_frame.setObjectName("sidebar_header") # For White Background
         self.header_frame.setFixedHeight(64)
         self.header_layout = QHBoxLayout(self.header_frame)
-        self.header_layout.setContentsMargins(12, 0, 12, 0) # Padding
+        self.header_layout.setContentsMargins(12, 0, 12, 0)
         self.header_layout.setSpacing(10)
 
-        # Toggle Button
+        # Toggle Button (Blue Icon for White Background)
         self.toggle_btn = QPushButton()
         self.toggle_btn.setObjectName("toggle_btn")
         self.toggle_btn.setFixedSize(32, 32)
-        self.toggle_btn.setIcon(QIcon(get_asset_path("desktop_app/icons/lucide/chevron-left.svg")))
+        self.toggle_btn.setIcon(load_colored_icon("chevron-left.svg", "#1E3A8A"))
         self.toggle_btn.setIconSize(QSize(20, 20))
         self.toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.toggle_btn.clicked.connect(self.toggle_sidebar)
         self.header_layout.addWidget(self.toggle_btn, alignment=Qt.AlignmentFlag.AlignLeft)
 
-        # Logo (Text or Image)
-        self.logo_label = QLabel("Intelleo")
-        self.logo_label.setObjectName("logo_text")
-        self.logo_label.setStyleSheet("color: white; font-size: 18px; font-weight: bold;")
+        # Logo (Image)
+        self.logo_label = QLabel()
+        self.logo_label.setObjectName("logo_label")
 
-        # Try to load image logo if available
         logo_path = get_asset_path("desktop_app/assets/logo.png")
         if os.path.exists(logo_path) and not QIcon(logo_path).isNull():
              pixmap = QPixmap(logo_path)
              # Scaled for header - Larger as requested
              self.logo_label.setPixmap(pixmap.scaled(180, 55, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
-             self.logo_label.setText("")
+        else:
+             self.logo_label.setText("INTELLEO")
+             self.logo_label.setStyleSheet("color: #1E3A8A; font-weight: bold; font-size: 18px;")
 
         self.header_layout.addWidget(self.logo_label, alignment=Qt.AlignmentFlag.AlignRight)
 
@@ -75,11 +67,11 @@ class Sidebar(QFrame):
         self.nav_container = QWidget()
         self.nav_layout = QVBoxLayout(self.nav_container)
         self.nav_layout.setContentsMargins(0, 10, 0, 10)
-        self.nav_layout.setSpacing(4) # Small spacing like guide
+        self.nav_layout.setSpacing(4)
         self.nav_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         self.buttons = {}
-        # Guide Order: Dashboard, Import, Validation, Calendar, Dipendenti(Future), Config
+        # Nav Icons are White
         self.add_button("dashboard", "Dashboard", "layout-dashboard.svg")
         self.add_button("import", "Analisi Documenti", "file-text.svg")
         self.add_button("validation", "Convalida Dati", "database.svg")
@@ -88,7 +80,7 @@ class Sidebar(QFrame):
         # Separator
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
-        line.setStyleSheet("background-color: rgba(59, 130, 246, 0.3); max-height: 1px; margin: 10px 12px;") # Blue-500/30
+        line.setStyleSheet("background-color: rgba(59, 130, 246, 0.3); max-height: 1px; margin: 10px 12px;")
         self.nav_layout.addWidget(line)
 
         self.add_button("config", "Configurazione", "settings.svg")
@@ -96,7 +88,7 @@ class Sidebar(QFrame):
 
         self.main_layout.addWidget(self.nav_container)
 
-        # Spacer to push footer down
+        # Spacer
         self.main_layout.addStretch()
 
         # --- Footer ---
@@ -117,8 +109,8 @@ class Sidebar(QFrame):
         btn.setProperty("nav_btn", "true") # For styling
         btn.setProperty("full_text", text) # Store full text
 
-        icon_path = get_asset_path(f"desktop_app/icons/lucide/{icon_name}")
-        btn.setIcon(QIcon(icon_path))
+        # White Icon
+        btn.setIcon(load_colored_icon(icon_name, "#FFFFFF"))
         btn.setIconSize(QSize(20, 20))
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -133,35 +125,27 @@ class Sidebar(QFrame):
         self.animation.setStartValue(start_width)
         self.animation.setEndValue(end_width)
 
-        # Unlock fixed width constraints for animation
         self.setMinimumWidth(0)
-        self.setMaximumWidth(16777215) # QWIDGETSIZE_MAX
+        self.setMaximumWidth(16777215)
 
         if not self.is_collapsed:
-            # Collapsing: Hide content first
-            self.toggle_btn.setIcon(QIcon(get_asset_path("desktop_app/icons/lucide/chevron-right.svg")))
+            # Collapsing
+            self.toggle_btn.setIcon(load_colored_icon("chevron-right.svg", "#1E3A8A"))
             self.logo_label.hide()
             self.footer_label.hide()
+            self.update_buttons_layout(centered=True)
             self.hide_button_texts()
 
         def on_finished():
             self.setFixedWidth(end_width)
-            if self.is_collapsed: # Means we just finished Expanding (because logic flip is below) - Wait, logic flip is confusing here.
-                pass
-            else:
-                # Finished Collapsing
-                pass
-
-            # Re-check logic:
-            # If we were collapsed (True), we are expanding. End width 260.
-            # On finish (260), show text.
             if end_width == 260:
-                self.toggle_btn.setIcon(QIcon(get_asset_path("desktop_app/icons/lucide/chevron-left.svg")))
+                # Expanded
+                self.toggle_btn.setIcon(load_colored_icon("chevron-left.svg", "#1E3A8A"))
                 self.logo_label.show()
                 self.footer_label.show()
+                self.update_buttons_layout(centered=False)
                 self.restore_button_texts()
 
-        # Connect signal uniquely
         try: self.animation.finished.disconnect()
         except: pass
         self.animation.finished.connect(on_finished)
@@ -169,10 +153,16 @@ class Sidebar(QFrame):
         self.animation.start()
         self.is_collapsed = not self.is_collapsed
 
+    def update_buttons_layout(self, centered):
+        for btn in self.buttons.values():
+            btn.setProperty("centered", str(centered).lower())
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
+
     def hide_button_texts(self):
         for btn in self.buttons.values():
             btn.setText("")
-            btn.setToolTip(btn.property("full_text")) # Show tooltip when collapsed
+            btn.setToolTip(btn.property("full_text"))
 
     def restore_button_texts(self):
         for btn in self.buttons.values():

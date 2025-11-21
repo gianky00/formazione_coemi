@@ -49,6 +49,12 @@ def setup_styles(app: QApplication):
                 color: #FFFFFF;
             }
 
+            /* Sidebar Header Frame (Specific override) */
+            Sidebar QFrame#sidebar_header {
+                background-color: #FFFFFF;
+                border-bottom: 1px solid #E5E7EB;
+            }
+
             /* Sidebar Toggle Button */
             Sidebar QPushButton#toggle_btn {
                 background-color: transparent;
@@ -59,7 +65,7 @@ def setup_styles(app: QApplication):
                 color: #FFFFFF;
             }
             Sidebar QPushButton#toggle_btn:hover {
-                background-color: rgba(255, 255, 255, 0.1);
+                background-color: rgba(31, 41, 55, 0.1); /* Dark hover because on white bg */
             }
 
             /* Sidebar Navigation Buttons */
@@ -73,6 +79,13 @@ def setup_styles(app: QApplication):
                 margin: 4px 12px;
                 color: #FFFFFF; /* Pure White for better contrast */
                 background-color: transparent;
+            }
+
+            /* Centered state (collapsed) */
+            Sidebar QPushButton[nav_btn="true"][centered="true"] {
+                text-align: center;
+                padding: 12px;
+                margin: 4px 8px; /* Slightly tighter margins */
             }
 
             Sidebar QPushButton[nav_btn="true"]:hover {
@@ -89,7 +102,7 @@ def setup_styles(app: QApplication):
             /* Sidebar Footer */
             Sidebar QLabel#version_label {
                 color: #93C5FD; /* Blue-300 */
-                font-size: 13px; /* Increased from 11px */
+                font-size: 14px; /* Increased from 13px */
                 padding: 10px;
                 font-weight: 500;
             }
