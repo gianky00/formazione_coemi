@@ -86,16 +86,17 @@ def scan_imports(source_dirs):
     return list(detected_imports)
 
 def check_dependencies():
-    """Verifica installazione librerie critiche basata su requirements.txt."""
+    """Verifica installazione librerie critiche."""
     print("--- Checking Build Dependencies ---")
+    # Lista pulita: rimosso Playwright, fpdf, pandas se non usati
     required_libs = [
         ("PyInstaller", "pyinstaller"), ("pyarmor", "pyarmor"),
         ("fastapi", "fastapi"), ("uvicorn", "uvicorn"), 
-        ("sqlalchemy", "sqlalchemy"), ("pandas", "pandas"), 
+        ("sqlalchemy", "sqlalchemy"), 
         ("google.generativeai", "google-generativeai"),
-        ("fpdf", "fpdf2"),
+        ("google.cloud.aiplatform", "google-cloud-aiplatform"),
         ("multipart", "python-multipart"), ("PyQt6", "PyQt6"), 
-        ("apscheduler", "apscheduler"), ("requests", "requests"),
+        ("requests", "requests"),
         ("pydantic_settings", "pydantic-settings"),
         ("httpx", "httpx"), 
         ("google.protobuf", "protobuf") 
@@ -135,12 +136,22 @@ def collect_submodules(base_dir):
 def build():
     kill_existing_process()
     check_dependencies()
+    
+    # ### --- PUNTO INSERIMENTO LICENZA PYARMOR ---
+    # Se hai un file di licenza (es. pyarmor-regcode-xxxx.txt o .zip), 
+    # decommenta le due righe seguenti e inserisci il nome corretto del file.
+    # Questo registrerà la licenza prima di offuscare.
+    
+    # print("--- Step 0.1: Registering PyArmor License ---")
+    # run_command([sys.executable, "-m", "pyarmor.cli", "reg", "pyarmor-regcode-xxxx.txt"]) # <--- METTI QUI IL TUO FILE
+    
+    # ---------------------------------------------
 
     if os.path.exists(DIST_DIR):
         try:
             shutil.rmtree(DIST_DIR)
         except PermissionError:
-            print("\nERRORE: File bloccato. Chiudi Intelleo.exe.")
+            print("\nERRORE: File bloccato. Chiudi Intelleo.exe o la cartella dist.")
             sys.exit(1)
             
     os.makedirs(OBF_DIR, exist_ok=True)
@@ -149,7 +160,6 @@ def build():
 
     print("\n--- Step 1: Obfuscating with PyArmor ---")
     
-    # Offusca le cartelle app, desktop_app E il file launcher.py
     cmd_pyarmor = [
         sys.executable, "-m", "pyarmor.cli", "gen",
         "-O", OBF_DIR,
@@ -159,7 +169,6 @@ def build():
 
     print("\n--- Step 2: Preparing Assets for Packaging ---")
     
-    # Funzione helper per copiare cartelle
     def copy_dir_if_exists(src, dst_name):
         full_src = src
         full_dst = os.path.join(OBF_DIR, dst_name)
@@ -171,7 +180,6 @@ def build():
     copy_dir_if_exists("desktop_app/assets", "desktop_app/assets")
     copy_dir_if_exists("desktop_app/icons", "desktop_app/icons")
 
-    # Copia file configurazione se esistono
     if os.path.exists("requirements.txt"):
         shutil.copy("requirements.txt", os.path.join(OBF_DIR, "requirements.txt"))
     if os.path.exists(".env"):
@@ -182,7 +190,6 @@ def build():
     sep = ";" if os.name == 'nt' else ":"
     runtime_dir = None
     
-    # Cerca la cartella runtime generata da PyArmor
     for name in os.listdir(OBF_DIR):
         if name.startswith("pyarmor_runtime_") and os.path.isdir(os.path.join(OBF_DIR, name)):
             runtime_dir = name
@@ -192,7 +199,6 @@ def build():
         print("ERROR: PyArmor runtime folder not found inside obfuscated dir!")
         sys.exit(1)
 
-    # Definizione dati da includere nell'EXE
     add_data = [
         f"desktop_app/assets{sep}desktop_app/assets",
         f"desktop_app/icons{sep}desktop_app/icons",
@@ -202,26 +208,27 @@ def build():
     cmd_pyinstaller = [
         sys.executable, "-m", "PyInstaller",
         "--name", APP_NAME,
-        "--onefile",
-        "--windowed", # Nasconde la console (mettilo a --console se vuoi debuggare)
+        "--onedir",   # <--- MODIFICATO: Usa cartella invece di file unico (per Inno Setup)
+        "--windowed", 
         "--clean",
-        "--distpath", os.path.join(DIST_DIR, "package"),
+        "--distpath", DIST_DIR, # Crea dist/Intelleo
         "--workpath", os.path.join(DIST_DIR, "build"),
-        f"--paths={OBF_DIR}", # Importante: Cerca i moduli nella cartella offuscata
+        f"--paths={OBF_DIR}",
     ]
     
     for d in add_data:
         cmd_pyinstaller.extend(["--add-data", d])
 
     # --- FIX AGGRESSIVO PER GOOGLE CLOUD & PROTOBUF ---
-    # Raccogliamo tutto ciò che riguarda google cloud e aiplatform
     cmd_pyinstaller.extend(["--collect-all", "google.cloud"])
+    cmd_pyinstaller.extend(["--collect-all", "google.cloud.aiplatform"]) 
+    cmd_pyinstaller.extend(["--collect-all", "google_cloud_aiplatform"]) 
     cmd_pyinstaller.extend(["--collect-all", "google.generativeai"])
     cmd_pyinstaller.extend(["--collect-all", "grpc"])
     cmd_pyinstaller.extend(["--collect-all", "proto"])
     cmd_pyinstaller.extend(["--collect-all", "google.protobuf"]) 
 
-    # LISTA IMPORT MANUALE CRITICI
+    # LISTA IMPORT MANUALE
     manual_hidden_imports = [
         "sqlalchemy.sql.default_comparator",
         "pysqlite2", "MySQLdb", "psycopg2", "dotenv",
@@ -231,25 +238,24 @@ def build():
         "PyQt6.QtSvg", "PyQt6.QtNetwork", "PyQt6.QtPrintSupport",
         "PyQt6.QtWidgets", "PyQt6.QtCore", "PyQt6.QtGui",
         
-        # --- FIX EMAIL (AGGIUNTO email.mime.image) ---
+        # --- FIX EMAIL ---
         "email.mime.text", "email.mime.multipart", "email.mime.application",
         "email.mime.base", "email.mime.image", "email.header", "email.utils", "email.encoders",
-        # ---------------------------------------------
+        # -----------------
 
         "pydantic_settings",
         "httpx", 
         
-        # --- GOOGLE IMPORTS SPECIFICI ---
+        # --- GOOGLE IMPORTS ---
+        "google.cloud.aiplatform",
+        "google.cloud.aiplatform_v1",
+        "google.cloud.aiplatform.gapic",
         "google.api_core",
         "google.auth",
         "google.protobuf", 
         "grpc",
-        
-        "pandas._libs.tslibs.base",
-        "apscheduler.triggers.interval", "apscheduler.triggers.cron",
     ]
 
-    # Unione di tutti gli import necessari
     all_hidden_imports = list(set(manual_hidden_imports + auto_detected_libs))
     all_hidden_imports.extend(collect_submodules("desktop_app"))
     all_hidden_imports.extend(collect_submodules("app"))
@@ -257,14 +263,14 @@ def build():
     for imp in all_hidden_imports:
         cmd_pyinstaller.extend(["--hidden-import", imp])
 
-    # PUNTO DI INGRESSO: Il launcher.py offuscato
     cmd_pyinstaller.append(os.path.join(OBF_DIR, ENTRY_SCRIPT))
 
     run_command(cmd_pyinstaller)
 
-    exe_path = os.path.join(DIST_DIR, 'package', f'{APP_NAME}.exe')
+    exe_path = os.path.join(DIST_DIR, APP_NAME, f'{APP_NAME}.exe')
     print("\n" + "="*60)
     print(f"BUILD COMPLETATA!")
+    print(f"Cartella output: {os.path.join(DIST_DIR, APP_NAME)}")
     print(f"Eseguibile: {exe_path}")
     print("="*60 + "\n")
 

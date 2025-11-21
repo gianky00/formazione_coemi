@@ -55,9 +55,13 @@ Source: ".env.example"; DestDir: "{app}"; DestName: ".env"; Flags: onlyifdoesnte
 ; perché in Program Files l'utente standard non può scrivere di default.
 Source: "database.db"; DestDir: "{app}"; Flags: onlyifdoesntexist uninsneveruninstall; Permissions: users-modify
 
-; === DOCUMENTAZIONE ===
-Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
-Source: "AGENTS.md"; DestDir: "{app}"; Flags: ignoreversion
+; === DOCUMENTAZIONE (opzionale, solo se i file esistono) ===
+Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "AGENTS.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+
+; === DOCUMENTAZIONE JULES ===
+; Copia tutti i file .md dalla cartella .jules-docs
+Source: ".jules-docs\*.md"; DestDir: "{app}\.jules-docs"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
