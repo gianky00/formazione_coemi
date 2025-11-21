@@ -74,5 +74,27 @@ def create_assets():
     small_img.save(small_path, "BMP")
     print(f"Created {small_path}")
 
+    # 3. Large Logo (Custom Branding)
+    # For "Exceptional" look: 300x150
+    large_size = QSize(300, 150)
+    large_img = QImage(large_size, QImage.Format.Format_RGB32)
+    large_img.fill(QColor("#FFFFFF"))
+
+    painter = QPainter(large_img)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+    if os.path.exists(logo_path):
+        logo = QPixmap(logo_path)
+        if not logo.isNull():
+            scaled_logo = logo.scaled(280, 130, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            x = (large_size.width() - scaled_logo.width()) // 2
+            y = (large_size.height() - scaled_logo.height()) // 2
+            painter.drawPixmap(x, y, scaled_logo)
+
+    painter.end()
+    large_path = os.path.join(assets_dir, "installer_logo_large.bmp")
+    large_img.save(large_path, "BMP")
+    print(f"Created {large_path}")
+
 if __name__ == "__main__":
     create_assets()

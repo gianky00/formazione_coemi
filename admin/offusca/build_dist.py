@@ -215,6 +215,7 @@ def build():
         "--console",  # <--- MODIFICATO: Abilita console per debug visivo (finestra nera)
         "--clean",
         "--noconfirm", # <--- FIX: Sovrascrive directory output senza chiedere conferma
+        "--icon", os.path.join(OBF_DIR, "desktop_app", "icons", "icon.ico"), # <--- FIX: Icona personalizzata
         "--distpath", DIST_DIR, # Crea dist/Intelleo
         "--workpath", os.path.join(DIST_DIR, "build"),
         f"--paths={OBF_DIR}",
