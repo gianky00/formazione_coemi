@@ -234,6 +234,17 @@ class MainWindow(QMainWindow):
         self.sidebar.buttons["config"].clicked.connect(lambda: self.switch_to("config"))
         self.sidebar.buttons["help"].clicked.connect(self.show_help)
 
+        # Cross-view updates logic
+        # 1. When Import finishes -> Refresh Validation View
+        self.views["import"].import_completed.connect(self.views["validation"].refresh_data)
+
+        # 2. When Validation finishes -> Refresh Dashboard and Scadenzario
+        self.views["validation"].validation_completed.connect(self.views["dashboard"].load_data)
+        self.views["validation"].validation_completed.connect(self.views["scadenzario"].refresh_data)
+
+        # 3. Also when Dashboard changes data (edit/delete) -> Refresh Scadenzario
+        self.views["dashboard"].database_changed.connect(self.views["scadenzario"].refresh_data)
+
     def switch_to(self, key):
         if key not in self.views: return
 
