@@ -53,6 +53,10 @@ class Certificato(Base):
     file path to the certificate PDF, and its validation status.
     """
     __tablename__ = 'certificati'
+    __table_args__ = (
+        UniqueConstraint('dipendente_id', 'corso_id', 'data_rilascio', name='_cert_unique_uc'),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
     dipendente_id = Column(Integer, ForeignKey('dipendenti.id'), nullable=True)
     nome_dipendente_raw = Column(String, nullable=True)  # Store the raw name from AI

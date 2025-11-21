@@ -3,9 +3,10 @@ import pytest
 from unittest.mock import patch
 from app.core.config import Settings
 
-def test_settings_load_from_env():
-    """Test that settings load values from the environment (pytest.ini)."""
-    # pytest.ini sets SMTP_HOST=smtp.test.com
+def test_settings_load_from_env(monkeypatch):
+    """Test that settings load values from the environment."""
+    monkeypatch.setenv("SMTP_HOST", "smtp.test.com")
+    monkeypatch.setenv("GEMINI_API_KEY", "test_key")
     settings = Settings()
     assert settings.SMTP_HOST == "smtp.test.com"
     assert settings.GEMINI_API_KEY == "test_key"
