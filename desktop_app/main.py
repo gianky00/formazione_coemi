@@ -38,31 +38,54 @@ def setup_styles(app: QApplication):
 
             /* Sidebar Styles */
             Sidebar {
-                background-color: #1E3A8A; /* Blue/Dark */
-                border-right: 1px solid #E5E7EB;
+                background-color: #1E3A8A; /* Blue-900 */
+                border-right: 1px solid #1E3A8A;
             }
-            Sidebar QLabel#logo {
-                padding: 20px;
-            }
-            Sidebar QPushButton {
-                text-align: left;
-                padding: 15px 20px;
-                border: none;
-                font-size: 16px;
-                border-radius: 10px;
-                margin: 8px 12px;
-                color: white; /* Ensure text is white */
-            }
-            /* Style for the hamburger button */
+
+            /* Sidebar Toggle Button */
             Sidebar QPushButton#toggle_btn {
-                margin: 8px 12px 20px 12px; /* Add some margin below */
+                background-color: transparent;
+                border: none;
+                border-radius: 6px;
+                padding: 4px;
+                margin: 0px;
+                color: #DBEAFE; /* Blue-100 */
             }
-            Sidebar QPushButton:hover {
-                background-color: rgba(29, 78, 216, 0.1);
+            Sidebar QPushButton#toggle_btn:hover {
+                background-color: rgba(255, 255, 255, 0.1);
+                color: #FFFFFF;
             }
-            Sidebar QPushButton:checked {
-                background-color: #2563EB; /* Brighter Blue for Selection */
-                font-weight: 600; /* Semibold */
+
+            /* Sidebar Navigation Buttons */
+            Sidebar QPushButton[nav_btn="true"] {
+                text-align: left;
+                padding: 12px 16px;
+                border: none;
+                font-size: 15px;
+                font-weight: 500;
+                border-radius: 8px;
+                margin: 4px 12px;
+                color: #DBEAFE; /* Blue-100 */
+                background-color: transparent;
+            }
+
+            Sidebar QPushButton[nav_btn="true"]:hover {
+                background-color: rgba(29, 78, 216, 0.4); /* Blue-700 with opacity */
+                color: #FFFFFF;
+            }
+
+            Sidebar QPushButton[nav_btn="true"]:checked {
+                background-color: #1D4ED8; /* Blue-700 (Accent) */
+                color: #FFFFFF;
+                font-weight: 600;
+                border-left: 3px solid #60A5FA; /* Optional: Indicator line */
+            }
+
+            /* Sidebar Footer */
+            Sidebar QLabel#version_label {
+                color: #60A5FA; /* Blue-400 */
+                font-size: 11px;
+                padding: 10px;
             }
 
             /* Table Styles */
