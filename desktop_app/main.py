@@ -42,6 +42,13 @@ def setup_styles(app: QApplication):
                 border-right: 1px solid #1E3A8A;
             }
 
+            /* FIX: Ensure all children of Sidebar have transparent background
+               to inherit the Blue-900 color, and White text */
+            Sidebar QWidget {
+                background-color: transparent;
+                color: #FFFFFF;
+            }
+
             /* Sidebar Toggle Button */
             Sidebar QPushButton#toggle_btn {
                 background-color: transparent;
@@ -49,11 +56,10 @@ def setup_styles(app: QApplication):
                 border-radius: 6px;
                 padding: 4px;
                 margin: 0px;
-                color: #DBEAFE; /* Blue-100 */
+                color: #FFFFFF;
             }
             Sidebar QPushButton#toggle_btn:hover {
                 background-color: rgba(255, 255, 255, 0.1);
-                color: #FFFFFF;
             }
 
             /* Sidebar Navigation Buttons */
@@ -65,13 +71,12 @@ def setup_styles(app: QApplication):
                 font-weight: 500;
                 border-radius: 8px;
                 margin: 4px 12px;
-                color: #DBEAFE; /* Blue-100 */
+                color: #FFFFFF; /* Pure White for better contrast */
                 background-color: transparent;
             }
 
             Sidebar QPushButton[nav_btn="true"]:hover {
                 background-color: rgba(29, 78, 216, 0.4); /* Blue-700 with opacity */
-                color: #FFFFFF;
             }
 
             Sidebar QPushButton[nav_btn="true"]:checked {
@@ -83,9 +88,10 @@ def setup_styles(app: QApplication):
 
             /* Sidebar Footer */
             Sidebar QLabel#version_label {
-                color: #60A5FA; /* Blue-400 */
-                font-size: 11px;
+                color: #93C5FD; /* Blue-300 */
+                font-size: 13px; /* Increased from 11px */
                 padding: 10px;
+                font-weight: 500;
             }
 
             /* Table Styles */
@@ -98,6 +104,7 @@ def setup_styles(app: QApplication):
             QTableView::item {
                 padding: 12px;
                 border-bottom: 1px solid #E5E7EB;
+                color: #1F2937; /* Ensure text is dark in white table */
             }
             QTableView::item:selected {
                 background-color: #EFF6FF; /* Light blue */
@@ -215,10 +222,10 @@ def setup_styles(app: QApplication):
                 border-radius: 8px;
                 font-size: 14px;
                 background-color: #FFFFFF;
+                color: #1F2937;
             }
             QComboBox:focus, QLineEdit:focus, QDateEdit:focus {
                 border: 1px solid #1D4ED8;
-                /* Simulating focus ring with a border */
             }
             QComboBox::drop-down {
                 subcontrol-origin: padding;

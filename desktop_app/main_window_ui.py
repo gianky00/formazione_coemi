@@ -63,8 +63,8 @@ class Sidebar(QFrame):
         logo_path = get_asset_path("desktop_app/assets/logo.png")
         if os.path.exists(logo_path) and not QIcon(logo_path).isNull():
              pixmap = QPixmap(logo_path)
-             # Scaled for header
-             self.logo_label.setPixmap(pixmap.scaled(120, 40, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+             # Scaled for header - Larger as requested
+             self.logo_label.setPixmap(pixmap.scaled(180, 55, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
              self.logo_label.setText("")
 
         self.header_layout.addWidget(self.logo_label, alignment=Qt.AlignmentFlag.AlignRight)
