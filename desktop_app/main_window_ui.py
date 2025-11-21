@@ -1,8 +1,9 @@
 import os
 import sys
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
-                             QPushButton, QStackedWidget, QLabel, QFrame, QSizePolicy)
-from PyQt6.QtCore import Qt, QSize
+                             QPushButton, QStackedWidget, QLabel, QFrame, QSizePolicy,
+                             QScrollArea, QLayout)
+from PyQt6.QtCore import Qt, QSize, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup
 from PyQt6.QtGui import QIcon, QPixmap
 
 # Import views
@@ -20,7 +21,7 @@ def get_asset_path(relative_path):
     if hasattr(sys, '_MEIPASS'):
         base_path = sys._MEIPASS
     else:
-        # In dev, we assume running from root, but let's be robust
+        # In dev, we assume running from root
         base_path = os.getcwd()
 
     return os.path.join(base_path, relative_path)
@@ -30,46 +31,153 @@ class Sidebar(QFrame):
         super().__init__(parent)
         self.setFixedWidth(260)
         self.setObjectName("sidebar")
-        self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(0, 0, 0, 0)
-        self.layout.setSpacing(10)
 
-        # Logo
-        self.logo_label = QLabel()
-        self.logo_label.setObjectName("logo")
+        # Main Layout
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
 
+        # --- Header (Toggle Left, Logo Right) ---
+        self.header_frame = QFrame()
+        self.header_frame.setFixedHeight(64)
+        self.header_layout = QHBoxLayout(self.header_frame)
+        self.header_layout.setContentsMargins(12, 0, 12, 0) # Padding
+        self.header_layout.setSpacing(10)
+
+        # Toggle Button
+        self.toggle_btn = QPushButton()
+        self.toggle_btn.setObjectName("toggle_btn")
+        self.toggle_btn.setFixedSize(32, 32)
+        self.toggle_btn.setIcon(QIcon(get_asset_path("desktop_app/icons/lucide/chevron-left.svg")))
+        self.toggle_btn.setIconSize(QSize(20, 20))
+        self.toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.toggle_btn.clicked.connect(self.toggle_sidebar)
+        self.header_layout.addWidget(self.toggle_btn, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        # Logo (Text or Image)
+        self.logo_label = QLabel("Intelleo")
+        self.logo_label.setObjectName("logo_text")
+        self.logo_label.setStyleSheet("color: white; font-size: 18px; font-weight: bold;")
+
+        # Try to load image logo if available
         logo_path = get_asset_path("desktop_app/assets/logo.png")
-
         if os.path.exists(logo_path) and not QIcon(logo_path).isNull():
              pixmap = QPixmap(logo_path)
-             # Scaled for sidebar
-             self.logo_label.setPixmap(pixmap.scaled(220, 80, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
-        else:
-             self.logo_label.setText("INTELLEO")
-             self.logo_label.setStyleSheet("color: white; font-size: 24px; font-weight: bold; padding: 20px;")
-        self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.layout.addWidget(self.logo_label)
+             # Scaled for header - Larger as requested
+             self.logo_label.setPixmap(pixmap.scaled(180, 55, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+             self.logo_label.setText("")
 
-        # Navigation Buttons
+        self.header_layout.addWidget(self.logo_label, alignment=Qt.AlignmentFlag.AlignRight)
+
+        self.main_layout.addWidget(self.header_frame)
+
+        # --- Navigation Items ---
+        self.nav_container = QWidget()
+        self.nav_layout = QVBoxLayout(self.nav_container)
+        self.nav_layout.setContentsMargins(0, 10, 0, 10)
+        self.nav_layout.setSpacing(4) # Small spacing like guide
+        self.nav_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
         self.buttons = {}
-        self.add_button("import", "Analisi Documenti", "analizza.svg")
-        self.add_button("validation", "Convalida Dati", "convalida.svg")
-        self.add_button("dashboard", "Database Certificati", "database.svg")
-        self.add_button("scadenzario", "Scadenzario", "scadenzario.svg")
+        # Guide Order: Dashboard, Import, Validation, Calendar, Dipendenti(Future), Config
+        self.add_button("dashboard", "Dashboard", "layout-dashboard.svg")
+        self.add_button("import", "Analisi Documenti", "file-text.svg")
+        self.add_button("validation", "Convalida Dati", "database.svg")
+        self.add_button("scadenzario", "Scadenzario", "calendar.svg")
 
-        self.layout.addStretch()
+        # Separator
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setStyleSheet("background-color: rgba(59, 130, 246, 0.3); max-height: 1px; margin: 10px 12px;") # Blue-500/30
+        self.nav_layout.addWidget(line)
 
-        self.add_button("config", "Configurazione", "icon.ico")
-        self.add_button("help", "Guida Utente", "help.svg")
+        self.add_button("config", "Configurazione", "settings.svg")
+        self.add_button("help", "Guida Utente", "book-open.svg")
+
+        self.main_layout.addWidget(self.nav_container)
+
+        # Spacer to push footer down
+        self.main_layout.addStretch()
+
+        # --- Footer ---
+        self.footer_label = QLabel("v1.0.0 • Intelleo")
+        self.footer_label.setObjectName("version_label")
+        self.footer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.main_layout.addWidget(self.footer_label)
+
+        # Animation State
+        self.is_collapsed = False
+        self.animation = QPropertyAnimation(self, b"minimumWidth")
+        self.animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        self.animation.setDuration(300)
 
     def add_button(self, key, text, icon_name):
         btn = QPushButton(text)
         btn.setCheckable(True)
-        icon_path = get_asset_path(f"desktop_app/icons/{icon_name}")
+        btn.setProperty("nav_btn", "true") # For styling
+        btn.setProperty("full_text", text) # Store full text
+
+        icon_path = get_asset_path(f"desktop_app/icons/lucide/{icon_name}")
         btn.setIcon(QIcon(icon_path))
-        btn.setIconSize(QSize(24, 24))
-        self.layout.addWidget(btn)
+        btn.setIconSize(QSize(20, 20))
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        self.nav_layout.addWidget(btn)
         self.buttons[key] = btn
+
+    def toggle_sidebar(self):
+        start_width = self.width()
+        end_width = 260 if self.is_collapsed else 64
+
+        self.animation.stop()
+        self.animation.setStartValue(start_width)
+        self.animation.setEndValue(end_width)
+
+        # Unlock fixed width constraints for animation
+        self.setMinimumWidth(0)
+        self.setMaximumWidth(16777215) # QWIDGETSIZE_MAX
+
+        if not self.is_collapsed:
+            # Collapsing: Hide content first
+            self.toggle_btn.setIcon(QIcon(get_asset_path("desktop_app/icons/lucide/chevron-right.svg")))
+            self.logo_label.hide()
+            self.footer_label.hide()
+            self.hide_button_texts()
+
+        def on_finished():
+            self.setFixedWidth(end_width)
+            if self.is_collapsed: # Means we just finished Expanding (because logic flip is below) - Wait, logic flip is confusing here.
+                pass
+            else:
+                # Finished Collapsing
+                pass
+
+            # Re-check logic:
+            # If we were collapsed (True), we are expanding. End width 260.
+            # On finish (260), show text.
+            if end_width == 260:
+                self.toggle_btn.setIcon(QIcon(get_asset_path("desktop_app/icons/lucide/chevron-left.svg")))
+                self.logo_label.show()
+                self.footer_label.show()
+                self.restore_button_texts()
+
+        # Connect signal uniquely
+        try: self.animation.finished.disconnect()
+        except: pass
+        self.animation.finished.connect(on_finished)
+
+        self.animation.start()
+        self.is_collapsed = not self.is_collapsed
+
+    def hide_button_texts(self):
+        for btn in self.buttons.values():
+            btn.setText("")
+            btn.setToolTip(btn.property("full_text")) # Show tooltip when collapsed
+
+    def restore_button_texts(self):
+        for btn in self.buttons.values():
+            btn.setText(btn.property("full_text"))
+            btn.setToolTip("")
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -115,7 +223,7 @@ class MainWindow(QMainWindow):
         self._init_views()
         self._connect_signals()
 
-        # Default Page (can be overridden by analysis trigger)
+        # Default Page
         self.switch_to("dashboard")
 
     def _init_views(self):
@@ -146,7 +254,7 @@ class MainWindow(QMainWindow):
 
         # Update Title
         if key in self.sidebar.buttons:
-             self.page_title.setText(self.sidebar.buttons[key].text())
+             self.page_title.setText(self.sidebar.buttons[key].property("full_text"))
 
         # Switch Page
         self.stacked_widget.setCurrentWidget(self.views[key])
