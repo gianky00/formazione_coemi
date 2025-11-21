@@ -11,7 +11,7 @@ from .views.dashboard_view import DashboardView
 from .views.validation_view import ValidationView
 from .views.scadenzario_view import ScadenzarioView
 from .views.config_view import ConfigView
-from .views.guide_dialog import GuideDialog
+from .views.modern_guide_view import ModernGuideDialog
 
 def get_asset_path(relative_path):
     """
@@ -152,7 +152,7 @@ class MainWindow(QMainWindow):
         self.stacked_widget.setCurrentWidget(self.views[key])
 
     def show_help(self):
-        dialog = GuideDialog(self)
+        dialog = ModernGuideDialog(self)
         dialog.exec()
 
     def analyze_folder(self, folder_path):
