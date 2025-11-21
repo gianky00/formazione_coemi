@@ -13,6 +13,7 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 # --------------------------------
 
 # --- CONFIGURAZIONE ---
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 ENTRY_SCRIPT = "launcher.py"
 APP_NAME = "Intelleo"
 DIST_DIR = "dist"
@@ -55,11 +56,12 @@ def scan_imports(source_dirs):
     std_libs = get_std_libs()
 
     # Aggiungi l'entry script alla scansione
-    files_to_scan = [ENTRY_SCRIPT]
+    files_to_scan = [os.path.join(ROOT_DIR, ENTRY_SCRIPT)]
     
     for source_dir in source_dirs:
-        if not os.path.exists(source_dir): continue
-        for root, _, files in os.walk(source_dir):
+        full_source_dir = os.path.join(ROOT_DIR, source_dir)
+        if not os.path.exists(full_source_dir): continue
+        for root, _, files in os.walk(full_source_dir):
             for file in files:
                 if file.endswith(".py"):
                     files_to_scan.append(os.path.join(root, file))
@@ -121,12 +123,13 @@ def check_dependencies():
 
 def collect_submodules(base_dir):
     modules = []
-    if not os.path.exists(base_dir): return modules
-    print(f"Auto-collecting modules from: {base_dir}...")
-    for root, _, files in os.walk(base_dir):
+    full_path = os.path.join(ROOT_DIR, base_dir)
+    if not os.path.exists(full_path): return modules
+    print(f"Auto-collecting modules from: {full_path}...")
+    for root, _, files in os.walk(full_path):
         for file in files:
             if file.endswith(".py") and file != "__init__.py":
-                rel_path = os.path.relpath(os.path.join(root, file), ".")
+                rel_path = os.path.relpath(os.path.join(root, file), ROOT_DIR)
                 module_name = rel_path.replace(os.sep, ".")[:-3]
                 modules.append(module_name)
     return modules
@@ -163,14 +166,14 @@ def build():
     cmd_pyarmor = [
         sys.executable, "-m", "pyarmor.cli", "gen",
         "-O", OBF_DIR,
-        "-r", "app", "desktop_app", ENTRY_SCRIPT
+        "-r", os.path.join(ROOT_DIR, "app"), os.path.join(ROOT_DIR, "desktop_app"), os.path.join(ROOT_DIR, ENTRY_SCRIPT)
     ]
     run_command(cmd_pyarmor)
 
     print("\n--- Step 2: Preparing Assets for Packaging ---")
     
     def copy_dir_if_exists(src, dst_name):
-        full_src = src
+        full_src = os.path.join(ROOT_DIR, src)
         full_dst = os.path.join(OBF_DIR, dst_name)
         if os.path.exists(full_src):
             if os.path.exists(full_dst): shutil.rmtree(full_dst)
@@ -180,10 +183,10 @@ def build():
     copy_dir_if_exists("desktop_app/assets", "desktop_app/assets")
     copy_dir_if_exists("desktop_app/icons", "desktop_app/icons")
 
-    if os.path.exists("requirements.txt"):
-        shutil.copy("requirements.txt", os.path.join(OBF_DIR, "requirements.txt"))
-    if os.path.exists(".env"):
-        shutil.copy(".env", os.path.join(OBF_DIR, ".env"))
+    if os.path.exists(os.path.join(ROOT_DIR, "requirements.txt")):
+        shutil.copy(os.path.join(ROOT_DIR, "requirements.txt"), os.path.join(OBF_DIR, "requirements.txt"))
+    if os.path.exists(os.path.join(ROOT_DIR, ".env")):
+        shutil.copy(os.path.join(ROOT_DIR, ".env"), os.path.join(OBF_DIR, ".env"))
 
     print("\n--- Step 3: Packaging with PyInstaller ---")
     
