@@ -157,6 +157,9 @@ class ValidationView(QWidget):
                 existing_columns = [col for col in column_order if col in self.df.columns]
                 self.df = self.df[existing_columns]
 
+                self.model = SimpleTableModel(self.df, self)
+                self.table_view.setModel(self.model)
+
                 # Hide 'id' column
                 id_col_index = self.df.columns.get_loc('id')
                 self.table_view.setColumnHidden(id_col_index, True)
@@ -179,6 +182,13 @@ class ValidationView(QWidget):
             self.df = pd.DataFrame()
             self.model = SimpleTableModel(self.df, self)
             self.table_view.setModel(self.model)
+
+        # Reconnect the selection signal because setModel() clears previous selection model
+        if self.table_view.selectionModel():
+            self.table_view.selectionModel().selectionChanged.connect(self.update_button_states)
+
+        # Update buttons initially
+        self.update_button_states()
 
 
     def get_selected_ids(self):
