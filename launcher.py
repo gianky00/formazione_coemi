@@ -18,7 +18,10 @@ if getattr(sys, 'frozen', False):
     os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
     
     # Cartella temporanea (per gli asset grafici)
-    os.chdir(sys._MEIPASS)
+    if hasattr(sys, '_MEIPASS'):
+        os.chdir(sys._MEIPASS)
+    else:
+        os.chdir(EXE_DIR)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -109,6 +112,19 @@ if __name__ == "__main__":
         w.ensurePolished()
         w.showMaximized()
         splash.finish(w)
+
+        # CHECK CLI ARGS FOR ANALYSIS
+        args = sys.argv[1:]
+        if "--analyze" in args:
+            try:
+                idx = args.index("--analyze")
+                if idx + 1 < len(args):
+                    folder_path = args[idx + 1]
+                    if os.path.isdir(folder_path):
+                        w.analyze_folder(folder_path)
+            except Exception as e:
+                print(f"Error in CLI analysis: {e}")
+
         sys.exit(qt_app.exec())
     else:
         sys.exit(1)

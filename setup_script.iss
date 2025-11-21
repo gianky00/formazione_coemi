@@ -25,14 +25,23 @@ SolidCompression=yes
 WizardStyle=modern
 ; Licenza EULA (RTF Professionale)
 LicenseFile=EULA.rtf
-; Icona del setup (opzionale, decommenta se hai un .ico)
-; SetupIconFile=desktop_app\icons\app_icon.ico
+; Immagini personalizzate per l'installer
+WizardImageFile=desktop_app\assets\installer_wizard.bmp
+WizardSmallImageFile=desktop_app\assets\installer_small.bmp
+; Icona del setup
+SetupIconFile=desktop_app\icons\icon.ico
 
 [Languages]
 Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+
+[Registry]
+; Menu contestuale "Analizza con Intelleo"
+Root: HKCR; Subkey: "Directory\shell\IntelleoAnalyze"; ValueType: string; ValueName: ""; ValueData: "Analizza con Intelleo"; Flags: uninsdeletekey
+Root: HKCR; Subkey: "Directory\shell\IntelleoAnalyze"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekey
+Root: HKCR; Subkey: "Directory\shell\IntelleoAnalyze\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" --analyze ""%1"""; Flags: uninsdeletekey
 
 [Files]
 ; === ESEGUIBILE E DIPENDENZE PYTHON (Output di PyInstaller) ===
@@ -74,5 +83,82 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
 
 [Code]
-// Sezione codice opzionale per controlli avanzati
-// (Esempio: Verificare se il database esiste già in AppData, se si volesse spostarlo lì)
+var
+  ConfigPage: TInputQueryWizardPage;
+
+procedure InitializeWizard;
+begin
+  ConfigPage := CreateInputQueryWizardPage(wpSelectTasks,
+    'Configurazione Iniziale', 'Inserisci le impostazioni opzionali per l''applicazione',
+    'Se lasciati vuoti, verranno mantenuti i valori predefiniti o esistenti.');
+
+  ConfigPage.Add('Gemini API Key:', False);
+  ConfigPage.Add('Google Cloud Project ID:', False);
+  ConfigPage.Add('GCS Bucket Name:', False);
+  ConfigPage.Add('SMTP Host:', False);
+  ConfigPage.Add('SMTP Port:', False);
+  ConfigPage.Add('SMTP User:', False);
+  ConfigPage.Add('SMTP Password:', True);
+  ConfigPage.Add('Email A (separati da virgola):', False);
+  ConfigPage.Add('Email CC (separati da virgola):', False);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  Lines: TArrayOfString;
+  I: Integer;
+  EnvPath: String;
+  Val: String;
+begin
+  if CurStep = ssPostInstall then
+  begin
+    EnvPath := ExpandConstant('{app}\.env');
+
+    // Carica il file .env (che è stato copiato da .env.example o preservato)
+    if LoadStringsFromFile(EnvPath, Lines) then
+    begin
+      for I := 0 to GetArrayLength(Lines) - 1 do
+      begin
+        // Aggiorna solo se l'utente ha inserito un valore
+
+        Val := ConfigPage.Values[0];
+        if (Val <> '') and (Pos('GEMINI_API_KEY=', Lines[I]) = 1) then
+          Lines[I] := 'GEMINI_API_KEY="' + Val + '"';
+
+        Val := ConfigPage.Values[1];
+        if (Val <> '') and (Pos('GOOGLE_CLOUD_PROJECT=', Lines[I]) = 1) then
+          Lines[I] := 'GOOGLE_CLOUD_PROJECT="' + Val + '"';
+
+        Val := ConfigPage.Values[2];
+        if (Val <> '') and (Pos('GCS_BUCKET_NAME=', Lines[I]) = 1) then
+          Lines[I] := 'GCS_BUCKET_NAME="' + Val + '"';
+
+        Val := ConfigPage.Values[3];
+        if (Val <> '') and (Pos('SMTP_HOST=', Lines[I]) = 1) then
+          Lines[I] := 'SMTP_HOST="' + Val + '"';
+
+        Val := ConfigPage.Values[4];
+        if (Val <> '') and (Pos('SMTP_PORT=', Lines[I]) = 1) then
+          Lines[I] := 'SMTP_PORT=' + Val;
+
+        Val := ConfigPage.Values[5];
+        if (Val <> '') and (Pos('SMTP_USER=', Lines[I]) = 1) then
+          Lines[I] := 'SMTP_USER="' + Val + '"';
+
+        Val := ConfigPage.Values[6];
+        if (Val <> '') and (Pos('SMTP_PASSWORD=', Lines[I]) = 1) then
+          Lines[I] := 'SMTP_PASSWORD="' + Val + '"';
+
+        Val := ConfigPage.Values[7];
+        if (Val <> '') and (Pos('EMAIL_RECIPIENTS_TO=', Lines[I]) = 1) then
+          Lines[I] := 'EMAIL_RECIPIENTS_TO="' + Val + '"';
+
+        Val := ConfigPage.Values[8];
+        if (Val <> '') and (Pos('EMAIL_RECIPIENTS_CC=', Lines[I]) = 1) then
+          Lines[I] := 'EMAIL_RECIPIENTS_CC="' + Val + '"';
+      end;
+
+      SaveStringsToFile(EnvPath, Lines, False);
+    end;
+  end;
+end;
