@@ -209,7 +209,7 @@ def build():
         sys.executable, "-m", "PyInstaller",
         "--name", APP_NAME,
         "--onedir",   # <--- MODIFICATO: Usa cartella invece di file unico (per Inno Setup)
-        "--windowed", 
+        "--console",  # <--- MODIFICATO: Abilita console per debug visivo (finestra nera)
         "--clean",
         "--distpath", DIST_DIR, # Crea dist/Intelleo
         "--workpath", os.path.join(DIST_DIR, "build"),
