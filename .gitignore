@@ -11,3 +11,8 @@ share/
 .env
 .vscode/
 .idea/
+*.log
+database.db
+Intelleo.spec
+Intelleo.spec
+Intelleo.spec
