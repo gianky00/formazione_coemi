@@ -1,4 +1,5 @@
 import sys
+import builtins
 from unittest.mock import MagicMock
 
 class DummySignal:
@@ -55,6 +56,19 @@ class DummyQWidget:
         pass
     def setSpacing(self, spacing):
         pass
+    def setCursor(self, cursor):
+        pass
+    def setToolTip(self, text):
+        pass
+    def setProperty(self, name, value):
+        pass
+    def property(self, name):
+        return "mock_property"
+    def style(self):
+        m = MagicMock()
+        m.unpolish = MagicMock()
+        m.polish = MagicMock()
+        return m
     def addWidget(self, widget, *args, **kwargs):
         pass
     def addLayout(self, layout):
@@ -160,23 +174,23 @@ class DummyQWidget:
         pass
 
     # Signals
-    @property
+    @builtins.property
     def clicked(self):
         return self._clicked
 
-    @property
+    @builtins.property
     def toggled(self):
         return self._toggled
 
-    @property
+    @builtins.property
     def accepted(self):
         return self._accepted
 
-    @property
+    @builtins.property
     def rejected(self):
         return self._rejected
 
-    @property
+    @builtins.property
     def currentIndexChanged(self):
         return self._currentIndexChanged
 

@@ -80,6 +80,7 @@ class ConfigView(QWidget):
 
         self.import_button = QPushButton("Importa Dipendenti da CSV")
         self.import_button.setObjectName("secondary")
+        self.import_button.setToolTip("Formato CSV richiesto. Dimensione massima: 5MB.")
         self.import_button.clicked.connect(self.import_csv)
 
         button_layout = QHBoxLayout()

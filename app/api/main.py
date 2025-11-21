@@ -7,8 +7,10 @@ from sqlalchemy import or_
 from app.db.session import get_db
 from app.db.models import Corso, Certificato, ValidationStatus, Dipendente
 from app.services import ai_extraction, certificate_logic, matcher
+from app.utils.date_parser import parse_date_flexible
 from datetime import datetime
 from typing import Optional, List
+import charset_normalizer
 from app.schemas.schemas import CertificatoSchema, CertificatoCreazioneSchema, CertificatoAggiornamentoSchema, DipendenteSchema
 
 router = APIRouter()
@@ -27,17 +29,34 @@ def health_check():
 
 @router.post("/upload-pdf/")
 async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    pdf_bytes = await file.read()
-    extracted_data = ai_extraction.extract_entities_with_ai(pdf_bytes)
+    MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
+
+    # Read file with size limit check
+    pdf_bytes = bytearray()
+    while True:
+        chunk = await file.read(1024 * 1024)  # Read 1MB chunks
+        if not chunk:
+            break
+        pdf_bytes.extend(chunk)
+        if len(pdf_bytes) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=413, detail="Il file supera il limite massimo di 20MB.")
+
+    extracted_data = ai_extraction.extract_entities_with_ai(bytes(pdf_bytes))
     if "error" in extracted_data:
         raise HTTPException(status_code=500, detail=extracted_data["error"])
 
-    if extracted_data.get("data_scadenza"):
-        extracted_data["data_scadenza"] = extracted_data["data_scadenza"].replace("-", "/")
+    # Flexible Date Parsing and Correction
+    for date_field in ["data_scadenza", "data_rilascio", "data_nascita"]:
+        if extracted_data.get(date_field):
+            parsed_date = parse_date_flexible(extracted_data[date_field])
+            if parsed_date:
+                extracted_data[date_field] = parsed_date.strftime('%d/%m/%Y')
+            # If parsing fails, we leave it as is (or could set to None/warn)
 
+    # Logic to calculate expiration if missing
     if not extracted_data.get("data_scadenza") and extracted_data.get("data_rilascio"):
         try:
-            issue_date = datetime.strptime(extracted_data["data_rilascio"], '%d-%m-%Y').date()
+            issue_date = datetime.strptime(extracted_data["data_rilascio"], '%d/%m/%Y').date()
             category = extracted_data.get("categoria")
             course = db.query(Corso).filter(Corso.categoria_corso.ilike(f"%{category}%")).first()
             if course:
@@ -129,7 +148,8 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
         raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
 
     # Cerca una corrispondenza esatta nei dati anagrafici
-    dipendente_trovato = matcher.find_employee_by_name(db, certificato.nome)
+    dob = parse_date_flexible(certificato.data_nascita) if certificato.data_nascita else None
+    dipendente_trovato = matcher.find_employee_by_name(db, certificato.nome, dob)
     dipendente_id = dipendente_trovato.id if dipendente_trovato else None
 
     master_course = db.query(Corso).filter(Corso.categoria_corso.ilike(f"%{certificato.categoria.strip()}%")).first()
@@ -183,8 +203,12 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
         stato_validazione=ValidationStatus.AUTOMATIC
     )
     db.add(new_cert)
-    db.commit()
-    db.refresh(new_cert)
+    try:
+        db.commit()
+        db.refresh(new_cert)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Un certificato identico per questo dipendente e corso esiste già.")
 
     status = certificate_logic.get_certificate_status(db, new_cert)
 
@@ -322,11 +346,40 @@ def delete_certificato(certificato_id: int, db: Session = Depends(get_db)):
 
 @router.post("/dipendenti/import-csv")
 async def import_dipendenti_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    MAX_CSV_SIZE = 5 * 1024 * 1024  # 5 MB
+
+    # Read content with size check
+    content_bytes = bytearray()
+    while True:
+        chunk = await file.read(1024 * 1024)
+        if not chunk:
+            break
+        content_bytes.extend(chunk)
+        if len(content_bytes) > MAX_CSV_SIZE:
+            raise HTTPException(status_code=413, detail="Il file CSV supera il limite massimo di 5MB.")
+
+    content = bytes(content_bytes)
+
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="Il file deve essere in formato CSV.")
 
-    content = await file.read()
-    stream = io.StringIO(content.decode("utf-8"))
+    # Strategy: Try UTF-8 -> CP1252 -> Auto-detect -> Latin-1 Fallback
+    try:
+        decoded_content = content.decode('utf-8')
+    except UnicodeDecodeError:
+        try:
+            # CP1252 is very common in Western Europe/Italy for legacy Excel
+            decoded_content = content.decode('cp1252')
+        except UnicodeDecodeError:
+            # Try auto-detection
+            matches = charset_normalizer.from_bytes(content).best()
+            encoding = matches.encoding if matches else 'latin-1'
+            try:
+                decoded_content = content.decode(encoding)
+            except (UnicodeDecodeError, LookupError):
+                decoded_content = content.decode('latin-1', errors='replace')
+
+    stream = io.StringIO(decoded_content)
     reader = csv.DictReader(stream, delimiter=';')
 
     for row in reader:
@@ -371,7 +424,8 @@ async def import_dipendenti_csv(file: UploadFile = File(...), db: Session = Depe
     linked_count = 0
     for cert in orphaned_certs:
         if cert.nome_dipendente_raw:
-            match = matcher.find_employee_by_name(db, cert.nome_dipendente_raw)
+            dob_raw = parse_date_flexible(cert.data_nascita_raw) if cert.data_nascita_raw else None
+            match = matcher.find_employee_by_name(db, cert.nome_dipendente_raw, dob_raw)
             if match:
                 cert.dipendente_id = match.id
                 linked_count += 1

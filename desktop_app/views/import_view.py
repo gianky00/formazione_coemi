@@ -137,7 +137,7 @@ class DropZone(QFrame):
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(icon_label)
 
-        main_text = QLabel("Trascina i tuoi file PDF qui")
+        main_text = QLabel("Trascina i tuoi file PDF qui (Max 20MB)")
         main_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
         main_text.setStyleSheet("font-size: 20px; font-weight: 600; color: #1F2937;")
         layout.addWidget(main_text)
@@ -173,7 +173,7 @@ class ImportView(QWidget):
         self.api_client = APIClient()
         self.layout = QVBoxLayout(self)
 
-        description = QLabel("Carica, analizza ed estrai automaticamente le informazioni dai tuoi documenti.")
+        description = QLabel("Carica, analizza ed estrai automaticamente le informazioni dai tuoi documenti. (Max 20MB per file)")
         description.setStyleSheet("font-size: 16px; color: #6B7280;")
         self.layout.addWidget(description)
 
