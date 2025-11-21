@@ -18,11 +18,11 @@ class StatusDelegate(QStyledItemDelegate):
             painter.save()
             color_map = {
                 "attivo": QColor("#ECFDF5"), "archiviato": QColor("#ECFDF5"),
-                "scaduto": QColor("#FEF2F2"), "in_scadenza": QColor("#FFFBEB")
+                "scaduto": QColor("#FEF2F2"), "in scadenza": QColor("#FFFBEB")
             }
             text_color_map = {
                 "attivo": QColor("#059669"), "archiviato": QColor("#059669"),
-                "scaduto": QColor("#DC2626"), "in_scadenza": QColor("#F59E0B")
+                "scaduto": QColor("#DC2626"), "in scadenza": QColor("#F59E0B")
             }
             color = color_map.get(status, QColor("white"))
             text_color = text_color_map.get(status, QColor("black"))

@@ -25,7 +25,7 @@ def test_certificate_status_in_scadenza(db_session):
     db_session.commit()
 
     status = get_certificate_status(db_session, cert)
-    assert status == "in_scadenza"
+    assert status == "in scadenza"
 
 def test_certificate_status_attivo_outside_threshold(db_session):
     course = Corso(nome_corso="General Course 2", validita_mesi=60, categoria_corso="General")
@@ -78,4 +78,4 @@ def test_certificate_status_visita_medica_threshold(db_session):
     db_session.commit()
 
     status = get_certificate_status(db_session, cert)
-    assert status == "in_scadenza"
+    assert status == "in scadenza"

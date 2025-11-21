@@ -2,7 +2,7 @@ from datetime import date, datetime
 from unittest.mock import patch
 from sqlalchemy.orm import Session
 from app.db.models import Certificato, Dipendente, Corso
-from app.services.certificate_logic import calculate_expiration_date, get_certificate_status
+from app.services.certificate_logic import calculate_expiration_date, get_certificate_status, serialize_certificato
 
 def test_calculate_expiration_date():
     """
@@ -299,3 +299,57 @@ def test_user_scenario_chain_ending_expired(db_session: Session):
     # Verifica: L'ultimo deve essere 'scaduto'
     last_status = get_certificate_status(db_session, certs[-1])
     assert last_status == "scaduto", f"L'ultimo certificato dovrebbe essere 'scaduto', invece è '{last_status}'"
+
+
+def test_serialize_certificato(db_session: Session):
+    """
+    Testa la funzione serialize_certificato.
+    """
+    dipendente = Dipendente(nome="John", cognome="Doe", matricola="123", data_nascita=date(1990, 1, 1))
+    corso = Corso(nome_corso="Safety", validita_mesi=12, categoria_corso="Safety")
+    db_session.add_all([dipendente, corso])
+    db_session.commit()
+
+    cert = Certificato(
+        dipendente_id=dipendente.id,
+        corso_id=corso.id,
+        data_rilascio=date(2025, 1, 1),
+        data_scadenza_calcolata=date(2026, 1, 1),
+        stato_validazione="AUTOMATIC"
+    )
+    db_session.add(cert)
+    db_session.commit()
+    db_session.refresh(cert)
+
+    schema = serialize_certificato(cert, db_session)
+    assert schema.nome == "Doe John"
+    assert schema.matricola == "123"
+    assert schema.data_scadenza == "01/01/2026"
+    assert schema.assegnazione_fallita_ragione is None
+
+
+def test_serialize_certificato_orphaned(db_session: Session):
+    """
+    Testa serialize_certificato con un certificato orfano.
+    """
+    corso = Corso(nome_corso="Orphan", validita_mesi=12, categoria_corso="Orphan")
+    db_session.add(corso)
+    db_session.commit()
+
+    cert = Certificato(
+        dipendente_id=None,
+        nome_dipendente_raw="Raw Name",
+        data_nascita_raw="01/01/2000",
+        corso_id=corso.id,
+        data_rilascio=date(2025, 1, 1),
+        data_scadenza_calcolata=None,
+        stato_validazione="AUTOMATIC"
+    )
+    db_session.add(cert)
+    db_session.commit()
+    db_session.refresh(cert)
+
+    schema = serialize_certificato(cert, db_session)
+    assert schema.nome == "Raw Name"
+    assert schema.matricola is None
+    assert schema.assegnazione_fallita_ragione == "Non trovato in anagrafica (matricola mancante)."
