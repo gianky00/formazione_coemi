@@ -5,6 +5,7 @@ import socket
 import threading
 import uvicorn
 import importlib
+import pkgutil
 from PyQt6.QtWidgets import QApplication, QSplashScreen, QMessageBox
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt
@@ -36,20 +37,21 @@ def verify_license():
     # B. Check Logico: PyArmor deve validarla
     try:
         get_license_info_func = None
+        debug_info = [] # Raccoglitore di info per debug
 
-        # Tentativo 1: Import diretto (standard o versioni vecchie)
+        # Tentativo 1: Import diretto
         try:
             from pyarmor_runtime import get_license_info
             get_license_info_func = get_license_info
         except ImportError:
             pass
 
-        # Tentativo 2: Ricerca dinamica del runtime randomizzato (pyarmor_runtime_xxxxxx)
+        # Tentativo 2: Ricerca dinamica
         if not get_license_info_func:
             search_path = sys._MEIPASS if getattr(sys, 'frozen', False) else os.path.dirname(__file__)
             runtime_pkg_name = None
 
-            # Cerca la cartella del runtime
+            # Cerca la cartella
             for item in os.listdir(search_path):
                 if item.startswith("pyarmor_runtime_") and os.path.isdir(os.path.join(search_path, item)):
                     runtime_pkg_name = item
@@ -57,41 +59,46 @@ def verify_license():
 
             if runtime_pkg_name:
                 try:
-                    # Importa il pacchetto principale (es. pyarmor_runtime_009329)
+                    debug_info.append(f"Found pkg: {runtime_pkg_name}")
                     mod = importlib.import_module(runtime_pkg_name)
+                    debug_info.append(f"Dir(mod): {dir(mod)}")
 
-                    # Cerca get_license_info nel pacchetto principale
+                    # Check top level
                     if hasattr(mod, "get_license_info"):
                          get_license_info_func = mod.get_license_info
 
-                    # Fallback: Cerca nel sottomodulo 'pyarmor_runtime' (es. pyarmor_runtime_009329.pyarmor_runtime)
-                    # Questa è la struttura tipica di PyArmor 8+
+                    # Check submodule 'pyarmor_runtime'
                     if not get_license_info_func:
                         try:
-                            submod = importlib.import_module(f"{runtime_pkg_name}.pyarmor_runtime")
+                            sub_name = f"{runtime_pkg_name}.pyarmor_runtime"
+                            submod = importlib.import_module(sub_name)
+                            debug_info.append(f"Submod {sub_name} loaded. Dir: {dir(submod)}")
                             if hasattr(submod, "get_license_info"):
                                 get_license_info_func = submod.get_license_info
-                        except ImportError:
-                            pass
+                        except ImportError as e:
+                            debug_info.append(f"Import {sub_name} failed: {e}")
 
-                    # Fallback: Cerca come attributo
+                    # Check attribute 'pyarmor_runtime'
                     if not get_license_info_func and hasattr(mod, "pyarmor_runtime"):
                          sub_obj = getattr(mod, "pyarmor_runtime")
+                         debug_info.append(f"Attr pyarmor_runtime found. Type: {type(sub_obj)} Dir: {dir(sub_obj)}")
                          if hasattr(sub_obj, "get_license_info"):
                              get_license_info_func = sub_obj.get_license_info
 
                 except Exception as e:
-                     return False, f"Errore importazione runtime {runtime_pkg_name}: {e}"
+                     return False, f"Err import {runtime_pkg_name}: {e}"
+            else:
+                debug_info.append("No runtime folder found in " + search_path)
 
         if not get_license_info_func:
-             return False, "Impossibile trovare la funzione get_license_info nel runtime PyArmor."
+             # FORMATTA IL MESSAGGIO DI DEBUG PER L'UTENTE
+             debug_str = "\n".join(debug_info)
+             return False, f"DEBUG MODE: Funzione mancante.\n{debug_str}"
 
-        # Esecuzione controllo
         info = get_license_info_func()
         if not info.get('expired'): 
             return False, "Licenza di sviluppo non consentita."
         return True, "OK"
-
     except Exception as e:
         return False, f"Errore Runtime Generico: {str(e)}"
 
@@ -122,7 +129,13 @@ if __name__ == "__main__":
     # CONTROLLO LICENZA
     ok, err = verify_license()
     if not ok:
-        QMessageBox.warning(None, "Licenza", f"Errore: {err}")
+        # Usa critical per avere una finestra più grande se necessario, o warning
+        mbox = QMessageBox()
+        mbox.setIcon(QMessageBox.Icon.Critical)
+        mbox.setWindowTitle("Errore Licenza")
+        mbox.setText("Errore verifica licenza.")
+        mbox.setDetailedText(err) # Mette il debug nel dettaglio espandibile
+        mbox.exec()
         sys.exit(1)
 
     # AVVIO SERVER
