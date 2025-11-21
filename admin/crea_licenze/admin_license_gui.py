@@ -70,7 +70,7 @@ class LicenseAdminApp:
         folder_name = "".join([c for c in client_name if c.isalnum() or c in (' ', '_', '-')]).strip()
         
         # Cartella di output organizzata
-        base_output = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+        base_output = os.path.dirname(os.path.abspath(__file__))
         target_dir = os.path.join(base_output, folder_name)
 
         # Comando PyArmor (genera in cartella temporanea 'dist' locale allo script)
@@ -95,6 +95,10 @@ class LicenseAdminApp:
                     dst_lic = os.path.join(target_dir, "pyarmor.rkey")
                     if os.path.exists(dst_lic): os.remove(dst_lic)
                     shutil.move(src_default, dst_lic)
+
+                    # 1.1 Rimuovi cartella dist temporanea
+                    if os.path.exists("dist"):
+                        shutil.rmtree("dist", ignore_errors=True)
                     
                     # 2. Crea file TXT con i dettagli ID
                     txt_path = os.path.join(target_dir, "dettagli_licenza.txt")
