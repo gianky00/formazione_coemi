@@ -4,7 +4,6 @@
 #define MyAppName "Intelleo"
 #define MyAppVersion "1.0"
 #define MyAppPublisher "Giancarlo Allegretti"
-#define MyAppURL "https://github.com/gianky00/formazione_coemi"
 #define MyAppExeName "Intelleo.exe"
 ; Cartella dove si trova l'output di PyInstaller (modificare se diverso)
 #define BuildDir "dist\Intelleo"
@@ -15,18 +14,17 @@ AppId={{A1B2C3D4-E5F6-7890-1234-567890ABCDEF}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-AppPublisherURL={#MyAppURL}
-AppSupportURL={#MyAppURL}
-AppUpdatesURL={#MyAppURL}
 ; Installa in C:\Program Files\Intelleo
 DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
-; Crea il file di setup sul Desktop o nella cartella Output
-OutputDir=Output
+; Crea il file di setup nella cartella dist\Intelleo
+OutputDir=dist\Intelleo
 OutputBaseFilename=Intelleo_Setup_v{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
+; Licenza EULA (RTF Professionale)
+LicenseFile=EULA.rtf
 ; Icona del setup (opzionale, decommenta se hai un .ico)
 ; SetupIconFile=desktop_app\icons\app_icon.ico
 
@@ -38,8 +36,12 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 ; === ESEGUIBILE E DIPENDENZE PYTHON (Output di PyInstaller) ===
-; Copia tutto il contenuto della cartella compilata
-Source: "{#BuildDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Copia tutto il contenuto della cartella compilata (escludendo i setup precedenti)
+Source: "{#BuildDir}\*"; DestDir: "{app}"; Excludes: "Intelleo_Setup_*.exe"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+; === LICENZA ===
+; Copia il file di licenza nella cartella di installazione
+Source: "EULA.rtf"; DestDir: "{app}"; Flags: ignoreversion
 
 ; === ASSET GRAFICI (Come da indicazioni di Jules) ===
 ; Mantiene la struttura delle cartelle 'desktop_app' necessaria per i path relativi Python
@@ -60,8 +62,8 @@ Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntex
 Source: "AGENTS.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
 ; === DOCUMENTAZIONE JULES ===
-; Copia tutti i file .md dalla cartella .jules-docs
-Source: ".jules-docs\*.md"; DestDir: "{app}\.jules-docs"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+; Copia l'intera cartella .jules-docs (tutti i file)
+Source: ".jules-docs\*"; DestDir: "{app}\.jules-docs"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

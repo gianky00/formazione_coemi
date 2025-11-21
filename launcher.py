@@ -4,6 +4,7 @@ import time
 import socket
 import threading
 import uvicorn
+import importlib
 from PyQt6.QtWidgets import QApplication, QSplashScreen, QMessageBox
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt
@@ -21,7 +22,7 @@ if getattr(sys, 'frozen', False):
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# --- 2. VERIFICA LICENZA (Fisica + Logica) ---
+# --- 2. VERIFICA LICENZA (Fisica + Logica Implicita) ---
 def verify_license():
     # A. Check Fisico: il file deve esistere accanto all'EXE
     if getattr(sys, 'frozen', False):
@@ -29,18 +30,25 @@ def verify_license():
     else:
         base_dir = os.path.dirname(os.path.abspath(__file__))
     
-    if not os.path.exists(os.path.join(base_dir, "pyarmor.rkey")):
-        return False, "File 'pyarmor.rkey' mancante."
+    # Percorso atteso della licenza
+    lic_path = os.path.join(base_dir, "pyarmor.rkey")
 
-    # B. Check Logico: PyArmor deve validarla
+    if not os.path.exists(lic_path):
+        return False, f"File di licenza mancante.\nCercato in: {lic_path}"
+
+    # B. Check Logico Implicito:
+    # Invece di cercare API nascoste, proviamo ad importare un modulo offuscato.
+    # Se la licenza è invalida, PyArmor bloccherà l'importazione sollevando un'eccezione.
     try:
-        from pyarmor_runtime import get_license_info
-        info = get_license_info()
-        if not info.get('expired'): 
-            return False, "Licenza di sviluppo non consentita."
+        # Proviamo ad importare un modulo leggero del backend
+        # Nota: Questo funzionerà solo se 'app' è stato effettivamente offuscato.
+        # Se siamo in dev mode (non offuscato), funzionerà comunque.
+        import app.core.config
         return True, "OK"
-    except:
-        return False, "Errore Runtime (File manomessi)."
+    except Exception as e:
+        # Se PyArmor blocca l'esecuzione, l'errore sarà qui.
+        # Potrebbe essere un RuntimeError o un ImportError specifico.
+        return False, f"Licenza non valida o scaduta.\nErrore sistema: {str(e)}"
 
 # --- 3. UTILS ---
 def start_server():
@@ -66,10 +74,15 @@ if __name__ == "__main__":
         QMessageBox.critical(None, "Errore Avvio", f"Errore moduli: {e}")
         sys.exit(1)
 
-    # CONTROLLO LICENZA (Senza più EULA Dialog)
+    # CONTROLLO LICENZA
     ok, err = verify_license()
     if not ok:
-        QMessageBox.warning(None, "Licenza", f"Errore: {err}")
+        mbox = QMessageBox()
+        mbox.setIcon(QMessageBox.Icon.Warning) # Warning è sufficiente ora
+        mbox.setWindowTitle("Licenza")
+        mbox.setText("Verifica licenza fallita.")
+        mbox.setDetailedText(err)
+        mbox.exec()
         sys.exit(1)
 
     # AVVIO SERVER
