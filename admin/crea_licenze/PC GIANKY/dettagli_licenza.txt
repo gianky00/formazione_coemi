@@ -1,0 +1,4 @@
+Cliente: PC GIANKY
+Hardware ID (Disk Serial): 0025_384C_41CD_9176
+Scadenza Licenza: 2026-01-20
+Generato il: 2025-11-21
