@@ -9,8 +9,10 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
+admin/
 develop-eggs/
 dist/
+dist_installer/
 downloads/
 eggs/
 .eggs/
@@ -32,6 +34,8 @@ MANIFEST
 
 # Installer logs
 *.log
+
+.csv
 
 # Unit test / coverage
 htmlcov/
