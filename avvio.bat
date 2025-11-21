@@ -18,11 +18,7 @@ python -m pip install --upgrade pip
 ECHO Installazione requirements.txt...
 python -m pip install -r requirements.txt
 
-REM --- 4. Installa Dipendenze Playwright ---
-ECHO Installazione dipendenze Playwright...
-playwright install --with-deps
-
-REM --- 5. Avvia le Applicazioni ---
+REM --- 4. Avvia le Applicazioni ---
 ECHO Avvio applicazioni...
 set PYTHONPATH=.
 

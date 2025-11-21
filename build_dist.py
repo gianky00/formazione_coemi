@@ -93,8 +93,7 @@ def check_dependencies():
         ("fastapi", "fastapi"), ("uvicorn", "uvicorn"), 
         ("sqlalchemy", "sqlalchemy"), ("pandas", "pandas"), 
         ("google.generativeai", "google-generativeai"),
-        ("google.cloud.aiplatform", "google-cloud-aiplatform"),
-        ("playwright", "playwright"), ("fpdf", "fpdf2"),
+        ("fpdf", "fpdf2"),
         ("multipart", "python-multipart"), ("PyQt6", "PyQt6"), 
         ("apscheduler", "apscheduler"), ("requests", "requests"),
         ("pydantic_settings", "pydantic-settings"),
@@ -217,10 +216,7 @@ def build():
     # --- FIX AGGRESSIVO PER GOOGLE CLOUD & PROTOBUF ---
     # Raccogliamo tutto ciò che riguarda google cloud e aiplatform
     cmd_pyinstaller.extend(["--collect-all", "google.cloud"])
-    cmd_pyinstaller.extend(["--collect-all", "google.cloud.aiplatform"]) 
-    cmd_pyinstaller.extend(["--collect-all", "google_cloud_aiplatform"]) 
     cmd_pyinstaller.extend(["--collect-all", "google.generativeai"])
-    cmd_pyinstaller.extend(["--collect-all", "playwright"])
     cmd_pyinstaller.extend(["--collect-all", "grpc"])
     cmd_pyinstaller.extend(["--collect-all", "proto"])
     cmd_pyinstaller.extend(["--collect-all", "google.protobuf"]) 
@@ -244,16 +240,12 @@ def build():
         "httpx", 
         
         # --- GOOGLE IMPORTS SPECIFICI ---
-        "google.cloud.aiplatform",
-        "google.cloud.aiplatform_v1",
-        "google.cloud.aiplatform.gapic",
         "google.api_core",
         "google.auth",
         "google.protobuf", 
         "grpc",
         
         "pandas._libs.tslibs.base",
-        "playwright.sync_api",
         "apscheduler.triggers.interval", "apscheduler.triggers.cron",
     ]
 

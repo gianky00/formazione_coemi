@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.api import main as api_router
-from app.api.routers import tuning as tuning_router, notifications as notifications_router
+from app.api.routers import notifications as notifications_router
 from app.db.session import engine
 from app.db.models import Base
 from app.core.config import settings
@@ -43,7 +43,6 @@ app = FastAPI(
 
 # Include API routers
 app.include_router(api_router.router, prefix="/api/v1")
-app.include_router(tuning_router.router, prefix="/api/v1/tuning", tags=["Tuning"])
 app.include_router(notifications_router.router, prefix="/api/v1/notifications", tags=["Notifications"])
 
 if __name__ == "__main__":
