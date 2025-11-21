@@ -204,3 +204,10 @@ def setup_styles(app: QApplication):
                 border-left: none;
             }
     """)
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    setup_styles(app)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec())
