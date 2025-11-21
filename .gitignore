@@ -1,44 +1,13 @@
-# Cartelle e file della cache Python
 __pycache__/
 *.pyc
 .pytest_cache/
-
-# Ambiente virtuale (creato alla radice del progetto)
-/Lib/
-/Scripts/
-/Include/
-/share/
-/pyvenv.cfg
-/pip-selfcheck.json
-
-# Ambiente virtuale (se creato in una cartella 'venv' o '.venv')
-venv/
-.venv/
-
-# File delle variabili d'ambiente (Contiene l'API KEY)
-.env
-
-# Database locale
-database.db
-
-# File di log
-*.log
-
-# Cartella dei file caricati
-uploads/
-
-# File specifici dell'IDE
-.idea/
-.vscode/
-
-# Script di test temporanei
-check_list_AI.py
-crea_env.bat
-.coverage
-.cov
-
-# Build artifacts
+.jules-docs/
 dist/
-build/
-*.spec
-dist_installer/Setup_Intelleo_v1.0.exe
+uploads/
+Lib/
+Scripts/
+Include/
+share/
+.env
+.vscode/
+.idea/
