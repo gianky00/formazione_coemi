@@ -1,38 +1,34 @@
-; Script Inno Setup per Intelleo
-; 1. Compila prima il progetto Python con "build_dist.py"
-; 2. Apri questo file con Inno Setup Compiler e premi "Run" (F9)
+; Script generato per Intelleo (Formazione Coemi)
+; Compatibile con struttura PyInstaller OneDir
 
-#define MyAppName "Intelleo AI"
+#define MyAppName "Intelleo"
 #define MyAppVersion "1.0"
-#define MyAppPublisher "La Tua Azienda"
+#define MyAppPublisher "Giancarlo Allegretti"
+#define MyAppURL "https://github.com/gianky00/formazione_coemi"
 #define MyAppExeName "Intelleo.exe"
-#define OutputDir "dist_installer"
+; Cartella dove si trova l'output di PyInstaller (modificare se diverso)
+#define BuildDir "dist\Intelleo"
 
 [Setup]
-; ID univoco dell'app (Generato casualmente, non cambiarlo per gli aggiornamenti futuri di questa app)
-AppId={{A1B2C3D4-E5F6-7890-1234-56789ABCDEF0}
-
+; ID univoco per l'applicazione (generato casualmente, non cambiarlo per aggiornamenti futuri)
+AppId={{A1B2C3D4-E5F6-7890-1234-567890ABCDEF}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
+AppPublisherURL={#MyAppURL}
+AppSupportURL={#MyAppURL}
+AppUpdatesURL={#MyAppURL}
+; Installa in C:\Program Files\Intelleo
 DefaultDirName={autopf}\{#MyAppName}
-DefaultGroupName={#MyAppName}
-
-; --- CONFIGURAZIONE EULA (Fondamentale) ---
-LicenseFile=EULA.txt
-; ------------------------------------------
-
-; Opzioni estetiche
-WizardStyle=modern
+DisableProgramGroupPage=yes
+; Crea il file di setup sul Desktop o nella cartella Output
+OutputDir=Output
+OutputBaseFilename=Intelleo_Setup_v{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
-OutputDir={#OutputDir}
-OutputBaseFilename=Setup_Intelleo_v{#MyAppVersion}
-SetupIconFile=desktop_app\icons\icon.ico
-; Se non hai un'icona .ico, commenta la riga sopra con un punto e virgola
-
-; Richiedi permessi amministratore per installare in Program Files
-PrivilegesRequired=admin
+WizardStyle=modern
+; Icona del setup (opzionale, decommenta se hai un .ico)
+; SetupIconFile=desktop_app\icons\app_icon.ico
 
 [Languages]
 Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"
@@ -41,19 +37,36 @@ Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-; Il file eseguibile principale generato da PyInstaller
-Source: "dist\package\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+; === ESEGUIBILE E DIPENDENZE PYTHON (Output di PyInstaller) ===
+; Copia tutto il contenuto della cartella compilata
+Source: "{#BuildDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
-; Includi il file di licenza PyArmor (FONDAMENTALE)
-Source: "dist\package\pyarmor.rkey"; DestDir: "{app}"; Flags: ignoreversion
+; === ASSET GRAFICI (Come da indicazioni di Jules) ===
+; Mantiene la struttura delle cartelle 'desktop_app' necessaria per i path relativi Python
+Source: "desktop_app\assets\*"; DestDir: "{app}\desktop_app\assets"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "desktop_app\icons\*"; DestDir: "{app}\desktop_app\icons"; Flags: ignoreversion recursesubdirs createallsubdirs
 
-; Includi eventuali altre cartelle se necessario (es. database locali non inglobati)
-; Source: "dist\package\altri_file\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; === CONFIGURAZIONE ===
+; Copia .env.example rinominandolo in .env solo se non esiste
+Source: ".env.example"; DestDir: "{app}"; DestName: ".env"; Flags: onlyifdoesntexist uninsneveruninstall
+
+; === DATABASE ===
+; IMPORTANTE: Aggiungiamo i permessi di scrittura (Permissions: users-modify) 
+; perché in Program Files l'utente standard non può scrivere di default.
+Source: "database.db"; DestDir: "{app}"; Flags: onlyifdoesntexist uninsneveruninstall; Permissions: users-modify
+
+; === DOCUMENTAZIONE ===
+Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "AGENTS.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
 ; Avvia l'app dopo l'installazione
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+// Sezione codice opzionale per controlli avanzati
+// (Esempio: Verificare se il database esiste già in AppData, se si volesse spostarlo lì)
