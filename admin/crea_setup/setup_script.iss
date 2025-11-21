@@ -116,7 +116,7 @@ begin
 
   // Suggerimenti Professionali durante l'installazione
   TipsLabel := TNewStaticText.Create(WizardForm);
-  TipsLabel.Parent := WizardForm.InstallingPage;
+  TipsLabel.Parent := WizardForm.InstallingPage.Surface;
   TipsLabel.Caption := 'Funzionalit' + #224 + ' Professionali:' + #13#10 + #13#10 +
                        '- Analisi Documentale AI Gemini Pro' + #13#10 +
                        '- Scadenzario Intelligente e Predittivo' + #13#10 +
@@ -124,7 +124,7 @@ begin
                        '- Gestione Sicura dei Dati Aziendali';
   TipsLabel.Top := WizardForm.ProgressGauge.Top + WizardForm.ProgressGauge.Height + ScaleY(20);
   TipsLabel.Left := 0;
-  TipsLabel.Width := WizardForm.InstallingPage.SurfaceWidth;
+  TipsLabel.Width := WizardForm.InstallingPage.Surface.Width;
   TipsLabel.Font.Style := [fsBold, fsItalic];
   TipsLabel.Font.Color := clWindowText;
 end;
