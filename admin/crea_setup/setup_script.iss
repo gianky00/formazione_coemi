@@ -84,10 +84,9 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}
 var
   ConfigPage1: TInputQueryWizardPage;
   ConfigPage2: TInputQueryWizardPage;
+  TipsLabel: TNewStaticText;
 
 procedure InitializeWizard;
-var
-  TipsLabel: TNewStaticText;
 begin
   // Pagina 1: Impostazioni Cloud e AI
   ConfigPage1 := CreateInputQueryPage(wpSelectTasks,
@@ -114,19 +113,30 @@ begin
   WizardForm.WizardSmallBitmapImage.Width := ScaleX(110);
   WizardForm.WizardSmallBitmapImage.Left := WizardForm.ClientWidth - ScaleX(110);
 
-  // Suggerimenti Professionali durante l'installazione
+  // Suggerimenti Professionali (Creato nascosto, mostrato in CurPageChanged)
   TipsLabel := TNewStaticText.Create(WizardForm);
-  TipsLabel.Parent := WizardForm.InstallingPage.Surface;
+  TipsLabel.Parent := WizardForm.InnerPage;
+  TipsLabel.Visible := False;
   TipsLabel.Caption := 'Funzionalit' + #224 + ' Professionali:' + #13#10 + #13#10 +
                        '- Analisi Documentale AI Gemini Pro' + #13#10 +
                        '- Scadenzario Intelligente e Predittivo' + #13#10 +
                        '- Notifiche Automatiche via Email' + #13#10 +
                        '- Gestione Sicura dei Dati Aziendali';
-  TipsLabel.Top := WizardForm.ProgressGauge.Top + WizardForm.ProgressGauge.Height + ScaleY(20);
-  TipsLabel.Left := 0;
-  TipsLabel.Width := WizardForm.InstallingPage.Surface.Width;
   TipsLabel.Font.Style := [fsBold, fsItalic];
   TipsLabel.Font.Color := clWindowText;
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if CurPageID = wpInstalling then
+  begin
+    TipsLabel.Visible := True;
+    TipsLabel.Top := WizardForm.ProgressGauge.Top + WizardForm.ProgressGauge.Height + ScaleY(20);
+    TipsLabel.Left := 0;
+    TipsLabel.Width := WizardForm.InnerPage.ClientWidth;
+  end
+  else
+    TipsLabel.Visible := False;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
