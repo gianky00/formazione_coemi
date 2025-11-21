@@ -6,7 +6,7 @@
 #define MyAppPublisher "Giancarlo Allegretti"
 #define MyAppExeName "Intelleo.exe"
 ; Cartella dove si trova l'output di PyInstaller (modificare se diverso)
-#define BuildDir "dist\Intelleo"
+#define BuildDir "..\offusca\dist\Intelleo"
 
 [Setup]
 ; ID univoco per l'applicazione (generato casualmente, non cambiarlo per aggiornamenti futuri)
@@ -24,12 +24,12 @@ Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 ; Licenza EULA (RTF Professionale)
-LicenseFile=EULA.rtf
+LicenseFile=..\..\EULA.rtf
 ; Immagini personalizzate per l'installer
-WizardImageFile=desktop_app\assets\installer_wizard.bmp
-WizardSmallImageFile=desktop_app\assets\installer_small.bmp
+WizardImageFile=..\..\desktop_app\assets\installer_wizard.bmp
+WizardSmallImageFile=..\..\desktop_app\assets\installer_small.bmp
 ; Icona del setup
-SetupIconFile=desktop_app\icons\icon.ico
+SetupIconFile=..\..\desktop_app\icons\icon.ico
 
 [Languages]
 Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"
@@ -50,29 +50,25 @@ Source: "{#BuildDir}\*"; DestDir: "{app}"; Excludes: "Intelleo_Setup_*.exe"; Fla
 
 ; === LICENZA ===
 ; Copia il file di licenza nella cartella di installazione
-Source: "EULA.rtf"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\EULA.rtf"; DestDir: "{app}"; Flags: ignoreversion
 
 ; === ASSET GRAFICI (Come da indicazioni di Jules) ===
 ; Mantiene la struttura delle cartelle 'desktop_app' necessaria per i path relativi Python
-Source: "desktop_app\assets\*"; DestDir: "{app}\desktop_app\assets"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "desktop_app\icons\*"; DestDir: "{app}\desktop_app\icons"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\desktop_app\assets\*"; DestDir: "{app}\desktop_app\assets"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\desktop_app\icons\*"; DestDir: "{app}\desktop_app\icons"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; === CONFIGURAZIONE ===
 ; Copia .env.example rinominandolo in .env solo se non esiste
-Source: ".env.example"; DestDir: "{app}"; DestName: ".env"; Flags: onlyifdoesntexist uninsneveruninstall
+Source: "..\..\.env.example"; DestDir: "{app}"; DestName: ".env"; Flags: onlyifdoesntexist uninsneveruninstall
 
 ; === DATABASE ===
 ; IMPORTANTE: Aggiungiamo i permessi di scrittura (Permissions: users-modify) 
 ; perché in Program Files l'utente standard non può scrivere di default.
-Source: "database.db"; DestDir: "{app}"; Flags: onlyifdoesntexist uninsneveruninstall; Permissions: users-modify
-
-; === DOCUMENTAZIONE (opzionale, solo se i file esistono) ===
-Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
-Source: "AGENTS.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "..\..\database.db"; DestDir: "{app}"; Flags: onlyifdoesntexist uninsneveruninstall; Permissions: users-modify skipifsourcedoesntexist
 
 ; === DOCUMENTAZIONE JULES ===
 ; Copia l'intera cartella .jules-docs (tutti i file)
-Source: ".jules-docs\*"; DestDir: "{app}\.jules-docs"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+Source: "..\..\.jules-docs\*"; DestDir: "{app}\.jules-docs"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
