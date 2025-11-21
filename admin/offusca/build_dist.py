@@ -203,8 +203,8 @@ def build():
         sys.exit(1)
 
     add_data = [
-        f"desktop_app/assets{sep}desktop_app/assets",
-        f"desktop_app/icons{sep}desktop_app/icons",
+        f"{os.path.join(OBF_DIR, 'desktop_app', 'assets')}{sep}desktop_app/assets",
+        f"{os.path.join(OBF_DIR, 'desktop_app', 'icons')}{sep}desktop_app/icons",
         f"{os.path.join(OBF_DIR, runtime_dir)}{sep}{runtime_dir}"
     ]
 
