@@ -82,73 +82,33 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}
 
 [Code]
 var
-  ConfigPage: TWizardPage;
-  ScrollBox: TScrollBox;
-  ConfigPanel: TPanel;
-  Edits: array of TNewEdit;
-
-procedure CreateScrollableConfigPage;
-var
-  Fields: array of String;
-  i, TopPos: Integer;
-  Lbl: TNewStaticText;
-  Ed: TNewEdit;
-begin
-  ConfigPage := CreateCustomPage(wpSelectTasks, 'Configurazione Iniziale', 'Inserisci le impostazioni opzionali per l''applicazione (Scorri per vedere tutto)');
-
-  ScrollBox := TScrollBox.Create(ConfigPage);
-  ScrollBox.Parent := ConfigPage.Surface;
-  ScrollBox.Align := alClient;
-
-  ConfigPanel := TPanel.Create(ConfigPage);
-  ConfigPanel.Parent := ScrollBox;
-  ConfigPanel.Align := alTop;
-  ConfigPanel.BevelOuter := bvNone;
-  ConfigPanel.Color := clWindow;
-
-  SetArrayLength(Fields, 9);
-  Fields[0] := 'Gemini API Key:';
-  Fields[1] := 'Google Cloud Project ID:';
-  Fields[2] := 'GCS Bucket Name:';
-  Fields[3] := 'SMTP Host:';
-  Fields[4] := 'SMTP Port:';
-  Fields[5] := 'SMTP User:';
-  Fields[6] := 'SMTP Password:';
-  Fields[7] := 'Email A (separati da virgola):';
-  Fields[8] := 'Email CC (separati da virgola):';
-
-  SetArrayLength(Edits, 9);
-
-  TopPos := 0;
-  for i := 0 to 8 do
-  begin
-    Lbl := TNewStaticText.Create(ConfigPage);
-    Lbl.Parent := ConfigPanel;
-    Lbl.Caption := Fields[i];
-    Lbl.Left := 0;
-    Lbl.Top := TopPos;
-
-    Ed := TNewEdit.Create(ConfigPage);
-    Ed.Parent := ConfigPanel;
-    Ed.Top := TopPos + Lbl.Height + ScaleY(4);
-    Ed.Width := ConfigPage.SurfaceWidth - ScaleX(30);
-    Ed.Text := '';
-
-    if i = 6 then Ed.PasswordChar := '*';
-
-    Edits[i] := Ed;
-
-    TopPos := Ed.Top + Ed.Height + ScaleY(12);
-  end;
-
-  ConfigPanel.Height := TopPos;
-end;
+  ConfigPage1: TInputQueryWizardPage;
+  ConfigPage2: TInputQueryWizardPage;
 
 procedure InitializeWizard;
 var
   TipsLabel: TNewStaticText;
 begin
-  CreateScrollableConfigPage;
+  // Pagina 1: Impostazioni Cloud e AI
+  ConfigPage1 := CreateInputQueryPage(wpSelectTasks,
+    'Configurazione Generale', 'Impostazioni Cloud e Intelligenza Artificiale',
+    'Inserisci i dati richiesti. Se lasciati vuoti, verranno mantenuti i valori esistenti.');
+
+  ConfigPage1.Add('Gemini API Key:', False);
+  ConfigPage1.Add('Google Cloud Project ID:', False);
+  ConfigPage1.Add('GCS Bucket Name:', False);
+
+  // Pagina 2: Impostazioni Email (SMTP)
+  ConfigPage2 := CreateInputQueryPage(ConfigPage1.ID,
+    'Configurazione Email', 'Impostazioni SMTP per le notifiche',
+    'Configura il server di posta per l''invio automatico delle scadenze.');
+
+  ConfigPage2.Add('SMTP Host:', False);
+  ConfigPage2.Add('SMTP Port:', False);
+  ConfigPage2.Add('SMTP User:', False);
+  ConfigPage2.Add('SMTP Password:', True);
+  ConfigPage2.Add('Email A (separati da virgola):', False);
+  ConfigPage2.Add('Email CC (separati da virgola):', False);
 
   // Ingrandisci il logo in alto a destra
   WizardForm.WizardSmallBitmapImage.Width := ScaleX(110);
@@ -184,31 +144,33 @@ begin
     begin
       for I := 0 to GetArrayLength(Lines) - 1 do
       begin
-        Val := Edits[0].Text;
+        // Page 1 Values
+        Val := ConfigPage1.Values[0];
         if (Val <> '') and (Pos('GEMINI_API_KEY=', Lines[I]) = 1) then Lines[I] := 'GEMINI_API_KEY="' + Val + '"';
 
-        Val := Edits[1].Text;
+        Val := ConfigPage1.Values[1];
         if (Val <> '') and (Pos('GOOGLE_CLOUD_PROJECT=', Lines[I]) = 1) then Lines[I] := 'GOOGLE_CLOUD_PROJECT="' + Val + '"';
 
-        Val := Edits[2].Text;
+        Val := ConfigPage1.Values[2];
         if (Val <> '') and (Pos('GCS_BUCKET_NAME=', Lines[I]) = 1) then Lines[I] := 'GCS_BUCKET_NAME="' + Val + '"';
 
-        Val := Edits[3].Text;
+        // Page 2 Values
+        Val := ConfigPage2.Values[0];
         if (Val <> '') and (Pos('SMTP_HOST=', Lines[I]) = 1) then Lines[I] := 'SMTP_HOST="' + Val + '"';
 
-        Val := Edits[4].Text;
+        Val := ConfigPage2.Values[1];
         if (Val <> '') and (Pos('SMTP_PORT=', Lines[I]) = 1) then Lines[I] := 'SMTP_PORT=' + Val;
 
-        Val := Edits[5].Text;
+        Val := ConfigPage2.Values[2];
         if (Val <> '') and (Pos('SMTP_USER=', Lines[I]) = 1) then Lines[I] := 'SMTP_USER="' + Val + '"';
 
-        Val := Edits[6].Text;
+        Val := ConfigPage2.Values[3];
         if (Val <> '') and (Pos('SMTP_PASSWORD=', Lines[I]) = 1) then Lines[I] := 'SMTP_PASSWORD="' + Val + '"';
 
-        Val := Edits[7].Text;
+        Val := ConfigPage2.Values[4];
         if (Val <> '') and (Pos('EMAIL_RECIPIENTS_TO=', Lines[I]) = 1) then Lines[I] := 'EMAIL_RECIPIENTS_TO="' + Val + '"';
 
-        Val := Edits[8].Text;
+        Val := ConfigPage2.Values[5];
         if (Val <> '') and (Pos('EMAIL_RECIPIENTS_CC=', Lines[I]) = 1) then Lines[I] := 'EMAIL_RECIPIENTS_CC="' + Val + '"';
       end;
 
