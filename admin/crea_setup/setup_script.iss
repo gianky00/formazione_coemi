@@ -84,7 +84,7 @@ var
 
 procedure InitializeWizard;
 begin
-  ConfigPage := CreateInputQueryWizardPage(wpSelectTasks,
+  ConfigPage := CreateInputQueryPage(wpSelectTasks,
     'Configurazione Iniziale', 'Inserisci le impostazioni opzionali per l''applicazione',
     'Se lasciati vuoti, verranno mantenuti i valori predefiniti o esistenti.');
 
