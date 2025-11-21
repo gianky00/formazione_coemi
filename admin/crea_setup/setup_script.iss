@@ -24,7 +24,7 @@ Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 ; Licenza EULA (RTF Professionale)
-LicenseFile=..\..\EULA.rtf
+LicenseFile=EULA.rtf
 ; Immagini personalizzate per l'installer
 WizardImageFile=..\..\desktop_app\assets\installer_wizard.bmp
 WizardSmallImageFile=..\..\desktop_app\assets\installer_small.bmp
@@ -50,7 +50,7 @@ Source: "{#BuildDir}\*"; DestDir: "{app}"; Excludes: "Intelleo_Setup_*.exe"; Fla
 
 ; === LICENZA ===
 ; Copia il file di licenza nella cartella di installazione
-Source: "..\..\EULA.rtf"; DestDir: "{app}"; Flags: ignoreversion
+Source: "EULA.rtf"; DestDir: "{app}"; Flags: ignoreversion
 
 ; === ASSET GRAFICI (Come da indicazioni di Jules) ===
 ; Mantiene la struttura delle cartelle 'desktop_app' necessaria per i path relativi Python
