@@ -43,6 +43,8 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
 
     extracted_data = ai_extraction.extract_entities_with_ai(bytes(pdf_bytes))
     if "error" in extracted_data:
+        if extracted_data.get("status_code") == 429:
+            raise HTTPException(status_code=429, detail=extracted_data["error"])
         raise HTTPException(status_code=500, detail=extracted_data["error"])
 
     # Flexible Date Parsing and Correction

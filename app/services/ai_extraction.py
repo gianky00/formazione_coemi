@@ -1,6 +1,8 @@
 import google.generativeai as genai
 import logging
 import json
+from google.api_core import exceptions
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from app.core.config import settings
 from app.core.constants import CATEGORIE_STATICHE
 
@@ -95,6 +97,19 @@ Estrai le seguenti informazioni e classificalo. Restituisci ESCLUSIVAMENTE un og
 JSON:
 """
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=2, min=2, max=10),
+    retry=retry_if_exception_type(exceptions.ResourceExhausted),
+    reraise=True
+)
+def _generate_content_with_retry(model, pdf_file_part, prompt):
+    """
+    Wrapper for model.generate_content with tenacity retry logic.
+    """
+    logging.info("Calling AI for entity extraction...")
+    return model.generate_content([pdf_file_part, prompt])
+
 def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
     model = get_gemini_model()
     if model is None:
@@ -104,8 +119,8 @@ def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
     pdf_file_part = {"mime_type": "application/pdf", "data": pdf_bytes}
 
     try:
-        logging.info("Calling AI for entity extraction and classification...")
-        response = model.generate_content([pdf_file_part, prompt])
+        # Call the decorated function
+        response = _generate_content_with_retry(model, pdf_file_part, prompt)
 
         json_text = response.text.strip().replace("```json", "").replace("```", "")
         data = json.loads(json_text)
@@ -129,6 +144,9 @@ def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
         logging.info(f"Successfully extracted data: {data}")
         return data
 
+    except exceptions.ResourceExhausted as e:
+        logging.error(f"Max retries reached for ResourceExhausted. Error: {e}")
+        return {"error": f"AI call failed: {e}", "status_code": 429}
     except json.JSONDecodeError as e:
         logging.error(f"Error parsing JSON from AI response: {e}. AI response: {response.text}")
         return {"error": f"Invalid JSON from AI: {e}"}
