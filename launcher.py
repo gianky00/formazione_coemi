@@ -36,8 +36,9 @@ def verify_license():
     # B. Check Logico: PyArmor deve validarla
     try:
         get_license_info_func = None
+        debug_info = []
 
-        # Tentativo 1: Import diretto standard
+        # Tentativo 1: Import diretto
         try:
             from pyarmor_runtime import get_license_info
             get_license_info_func = get_license_info
@@ -56,39 +57,45 @@ def verify_license():
 
             if runtime_pkg_name:
                 try:
-                    # 1. Importa il pacchetto randomizzato
+                    debug_info.append(f"Found PKG: {runtime_pkg_name}")
                     pkg = importlib.import_module(runtime_pkg_name)
 
-                    # 2. Cerca il sottomodulo 'pyarmor_runtime' interno
+                    # DEBUG: Ispeziona __pyarmor__ nel package principale
+                    if hasattr(pkg, "__pyarmor__"):
+                        internal = getattr(pkg, "__pyarmor__")
+                        debug_info.append(f"PKG.__pyarmor__ content: {dir(internal)}")
+                    else:
+                        debug_info.append("PKG has no __pyarmor__")
+
+                    # DEBUG: Ispeziona sottomodulo
                     if hasattr(pkg, "pyarmor_runtime"):
-                        real_runtime = getattr(pkg, "pyarmor_runtime")
+                        sub = getattr(pkg, "pyarmor_runtime")
+                        debug_info.append(f"SUB pyarmor_runtime found.")
 
-                        # 3. TRUCCO ESSENZIALE: Aliasing in sys.modules
-                        # Facciamo credere a Python che questo sia il 'pyarmor_runtime' ufficiale
-                        sys.modules["pyarmor_runtime"] = real_runtime
+                        if hasattr(sub, "__pyarmor__"):
+                            internal_sub = getattr(sub, "__pyarmor__")
+                            debug_info.append(f"SUB.__pyarmor__ content: {dir(internal_sub)}")
+                        else:
+                            debug_info.append("SUB has no __pyarmor__")
 
-                        # 4. Ora riproviamo l'import standard
-                        # Questo spesso triggera l'inizializzazione corretta del modulo
+                        # Check attributi diretti del sottomodulo
+                        debug_info.append(f"SUB dir: {dir(sub)}")
+
+                        # Tenta aliasing
+                        sys.modules["pyarmor_runtime"] = sub
                         try:
                             from pyarmor_runtime import get_license_info
                             get_license_info_func = get_license_info
                         except ImportError:
-                            # Se fallisce ancora, controlliamo se è disponibile direttamente sull'oggetto
-                            if hasattr(real_runtime, "get_license_info"):
-                                get_license_info_func = real_runtime.get_license_info
-
-                    # 5. Fallback estremo: controllo __pyarmor__ (Internal API)
-                    if not get_license_info_func and hasattr(pkg, "__pyarmor__"):
-                         internal_api = getattr(pkg, "__pyarmor__")
-                         if hasattr(internal_api, "get_license_info"):
-                             get_license_info_func = internal_api.get_license_info
+                            if hasattr(sub, "get_license_info"):
+                                get_license_info_func = sub.get_license_info
 
                 except Exception as e:
-                     return False, f"Err init runtime {runtime_pkg_name}: {e}"
+                     debug_info.append(f"Exception analyzing pkg: {e}")
 
         if not get_license_info_func:
-             # Se fallisce tutto, diamo un errore chiaro
-             return False, "Funzione get_license_info non trovata nemmeno dopo aliasing."
+             debug_str = "\n".join(debug_info)
+             return False, f"DEEP DEBUG MODE:\n{debug_str}"
 
         info = get_license_info_func()
         if not info.get('expired'): 
@@ -124,7 +131,13 @@ if __name__ == "__main__":
     # CONTROLLO LICENZA
     ok, err = verify_license()
     if not ok:
-        QMessageBox.warning(None, "Licenza", f"Errore: {err}")
+        # Usa critical per finestra grande
+        mbox = QMessageBox()
+        mbox.setIcon(QMessageBox.Icon.Critical)
+        mbox.setWindowTitle("Errore Debug Licenza")
+        mbox.setText("Errore verifica licenza (Debug Mode).")
+        mbox.setDetailedText(err)
+        mbox.exec()
         sys.exit(1)
 
     # AVVIO SERVER
