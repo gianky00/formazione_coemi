@@ -4,6 +4,7 @@ import time
 import socket
 import threading
 import uvicorn
+import importlib
 from PyQt6.QtWidgets import QApplication, QSplashScreen, QMessageBox
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt
@@ -34,13 +35,63 @@ def verify_license():
 
     # B. Check Logico: PyArmor deve validarla
     try:
-        from pyarmor_runtime import get_license_info
+        # Tentativo 1: Import diretto (per versioni vecchie o statiche)
+        try:
+            from pyarmor_runtime import get_license_info
+        except ImportError:
+            # Tentativo 2: Ricerca dinamica del runtime randomizzato (pyarmor_runtime_xxxxxx)
+            runtime_pkg = None
+
+            # Cerca nei moduli già caricati o nel path
+            # Nota: In build frozen, spesso il runtime è già in sys.modules o importabile
+            for name in sys.builtin_module_names:
+                if name.startswith('pyarmor_runtime'):
+                    runtime_pkg = name
+                    break
+
+            if not runtime_pkg:
+                # Se non è builtin, prova a trovarlo importandolo se possibile o scandendo
+                # Ma in frozen environments (PyInstaller), di solito è un pacchetto nascosto
+                # Proviamo a scansionare i file nella directory corrente (per non-frozen) o
+                # affidiamoci al fatto che PyInstaller lo impacchetta.
+
+                # Strategia migliore per PyInstaller one-dir con PyArmor 8+:
+                # Il runtime è una cartella dentro la dist.
+                # Cerchiamo di importarlo "alla cieca" se conosciamo il prefisso? No.
+                # Cerchiamo tra i moduli disponibili se possiamo.
+
+                # In PyInstaller, sys.modules potrebbe non averlo ancora se non importato.
+                # Ma il nome è fisso al momento del build.
+                # Prova a scansionare sys.modules dopo un tentativo di import fallito?
+                pass
+
+            # Se siamo qui, proviamo un approccio diverso:
+            # PyArmor inietta il runtime. Se usiamo `gen`, il runtime ha un nome specifico.
+            # Dobbiamo trovarlo.
+
+            found = False
+            # Metodo scansione directory (funziona se non è single-file o se scompattato)
+            search_path = sys._MEIPASS if getattr(sys, 'frozen', False) else os.path.dirname(__file__)
+
+            for item in os.listdir(search_path):
+                if item.startswith("pyarmor_runtime_") and os.path.isdir(os.path.join(search_path, item)):
+                    try:
+                        mod = importlib.import_module(f"{item}")
+                        get_license_info = mod.get_license_info
+                        found = True
+                        break
+                    except Exception as e:
+                        return False, f"Trovato runtime {item} ma errore import: {e}"
+
+            if not found:
+                 return False, "Modulo pyarmor_runtime non trovato."
+
         info = get_license_info()
         if not info.get('expired'): 
             return False, "Licenza di sviluppo non consentita."
         return True, "OK"
-    except:
-        return False, "Errore Runtime (File manomessi)."
+    except Exception as e:
+        return False, f"Errore Runtime: {str(e)}"
 
 # --- 3. UTILS ---
 def start_server():
@@ -66,7 +117,7 @@ if __name__ == "__main__":
         QMessageBox.critical(None, "Errore Avvio", f"Errore moduli: {e}")
         sys.exit(1)
 
-    # CONTROLLO LICENZA (Senza più EULA Dialog)
+    # CONTROLLO LICENZA
     ok, err = verify_license()
     if not ok:
         QMessageBox.warning(None, "Licenza", f"Errore: {err}")
