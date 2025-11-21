@@ -26,7 +26,7 @@ def create_assets():
     # We create a larger one for better quality on high DPI: 328x628
     wiz_size = QSize(328, 628)
     wiz_img = QImage(wiz_size, QImage.Format.Format_RGB32)
-    wiz_img.fill(QColor("#1E3A8A")) # Brand Blue
+    wiz_img.fill(QColor("#FFFFFF")) # White for professional look
 
     painter = QPainter(wiz_img)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -43,7 +43,7 @@ def create_assets():
             y = (wiz_size.height() - scaled_logo.height()) // 2
             painter.drawPixmap(x, y, scaled_logo)
     else:
-         painter.setPen(QColor("white"))
+         painter.setPen(QColor("black"))
          painter.drawText(wiz_img.rect(), Qt.AlignmentFlag.AlignCenter, "LOGO MISSING")
 
     painter.end()
