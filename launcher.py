@@ -35,63 +35,65 @@ def verify_license():
 
     # B. Check Logico: PyArmor deve validarla
     try:
-        # Tentativo 1: Import diretto (per versioni vecchie o statiche)
+        get_license_info_func = None
+
+        # Tentativo 1: Import diretto (standard o versioni vecchie)
         try:
             from pyarmor_runtime import get_license_info
+            get_license_info_func = get_license_info
         except ImportError:
-            # Tentativo 2: Ricerca dinamica del runtime randomizzato (pyarmor_runtime_xxxxxx)
-            runtime_pkg = None
+            pass
 
-            # Cerca nei moduli già caricati o nel path
-            # Nota: In build frozen, spesso il runtime è già in sys.modules o importabile
-            for name in sys.builtin_module_names:
-                if name.startswith('pyarmor_runtime'):
-                    runtime_pkg = name
-                    break
-
-            if not runtime_pkg:
-                # Se non è builtin, prova a trovarlo importandolo se possibile o scandendo
-                # Ma in frozen environments (PyInstaller), di solito è un pacchetto nascosto
-                # Proviamo a scansionare i file nella directory corrente (per non-frozen) o
-                # affidiamoci al fatto che PyInstaller lo impacchetta.
-
-                # Strategia migliore per PyInstaller one-dir con PyArmor 8+:
-                # Il runtime è una cartella dentro la dist.
-                # Cerchiamo di importarlo "alla cieca" se conosciamo il prefisso? No.
-                # Cerchiamo tra i moduli disponibili se possiamo.
-
-                # In PyInstaller, sys.modules potrebbe non averlo ancora se non importato.
-                # Ma il nome è fisso al momento del build.
-                # Prova a scansionare sys.modules dopo un tentativo di import fallito?
-                pass
-
-            # Se siamo qui, proviamo un approccio diverso:
-            # PyArmor inietta il runtime. Se usiamo `gen`, il runtime ha un nome specifico.
-            # Dobbiamo trovarlo.
-
-            found = False
-            # Metodo scansione directory (funziona se non è single-file o se scompattato)
+        # Tentativo 2: Ricerca dinamica del runtime randomizzato (pyarmor_runtime_xxxxxx)
+        if not get_license_info_func:
             search_path = sys._MEIPASS if getattr(sys, 'frozen', False) else os.path.dirname(__file__)
+            runtime_pkg_name = None
 
+            # Cerca la cartella del runtime
             for item in os.listdir(search_path):
                 if item.startswith("pyarmor_runtime_") and os.path.isdir(os.path.join(search_path, item)):
-                    try:
-                        mod = importlib.import_module(f"{item}")
-                        get_license_info = mod.get_license_info
-                        found = True
-                        break
-                    except Exception as e:
-                        return False, f"Trovato runtime {item} ma errore import: {e}"
+                    runtime_pkg_name = item
+                    break
 
-            if not found:
-                 return False, "Modulo pyarmor_runtime non trovato."
+            if runtime_pkg_name:
+                try:
+                    # Importa il pacchetto principale (es. pyarmor_runtime_009329)
+                    mod = importlib.import_module(runtime_pkg_name)
 
-        info = get_license_info()
+                    # Cerca get_license_info nel pacchetto principale
+                    if hasattr(mod, "get_license_info"):
+                         get_license_info_func = mod.get_license_info
+
+                    # Fallback: Cerca nel sottomodulo 'pyarmor_runtime' (es. pyarmor_runtime_009329.pyarmor_runtime)
+                    # Questa è la struttura tipica di PyArmor 8+
+                    if not get_license_info_func:
+                        try:
+                            submod = importlib.import_module(f"{runtime_pkg_name}.pyarmor_runtime")
+                            if hasattr(submod, "get_license_info"):
+                                get_license_info_func = submod.get_license_info
+                        except ImportError:
+                            pass
+
+                    # Fallback: Cerca come attributo
+                    if not get_license_info_func and hasattr(mod, "pyarmor_runtime"):
+                         sub_obj = getattr(mod, "pyarmor_runtime")
+                         if hasattr(sub_obj, "get_license_info"):
+                             get_license_info_func = sub_obj.get_license_info
+
+                except Exception as e:
+                     return False, f"Errore importazione runtime {runtime_pkg_name}: {e}"
+
+        if not get_license_info_func:
+             return False, "Impossibile trovare la funzione get_license_info nel runtime PyArmor."
+
+        # Esecuzione controllo
+        info = get_license_info_func()
         if not info.get('expired'): 
             return False, "Licenza di sviluppo non consentita."
         return True, "OK"
+
     except Exception as e:
-        return False, f"Errore Runtime: {str(e)}"
+        return False, f"Errore Runtime Generico: {str(e)}"
 
 # --- 3. UTILS ---
 def start_server():
