@@ -75,7 +75,9 @@ class PdfWorker(QObject):
                     if ragione_fallimento:
                         log_msg = f"File {original_filename} analizzato. Assegnazione manuale richiesta: {ragione_fallimento}"
                         self.log_message.emit(log_msg)
-                        shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
+                        # Se assegnazione fallita, è comunque analizzato e salvato in DB.
+                        # Spostiamo in ANALIZZATI, non in NON ANALIZZATI.
+                        shutil.move(file_path, os.path.join(analyzed_folder, original_filename))
                     else:
                         nome_completo = cert_data.get('nome', 'ERRORE')
                         self.log_message.emit(f"File {original_filename} elaborato e salvato per {nome_completo}.")

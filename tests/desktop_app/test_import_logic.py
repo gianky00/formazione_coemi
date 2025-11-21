@@ -173,9 +173,40 @@ class TestPdfWorker(unittest.TestCase):
 
         # Assertions
         expected_base = os.path.dirname(file_path)
+
+        # UPDATED: Should be moved to PDF ANALIZZATI, NOT NON ANALIZZATI
+        # Because the data was successfully saved to the DB (even if orphaned)
+        expected_folder = os.path.join(expected_base, "PDF ANALIZZATI")
+        expected_dest = os.path.join(expected_folder, "orphan.pdf")
+
+        # We need to verify that "PDF ANALIZZATI" was created
+        mock_makedirs.assert_any_call(expected_folder, exist_ok=True)
+        mock_move.assert_called_with(file_path, expected_dest)
+
+    @patch('desktop_app.views.import_view.requests.post')
+    @patch('desktop_app.views.import_view.shutil.move')
+    @patch('desktop_app.views.import_view.os.makedirs')
+    @patch('builtins.open', new_callable=mock_open, read_data=b"pdf_content")
+    def test_process_pdf_ai_failure(self, mock_file, mock_makedirs, mock_move, mock_post):
+        # Setup
+        file_path = "/tmp/test_folder/error.pdf"
+
+        # Mock API response for FAILURE (e.g. 429 or 500)
+        mock_upload_resp = MagicMock()
+        mock_upload_resp.status_code = 429
+        mock_upload_resp.text = "Too Many Requests"
+
+        mock_post.side_effect = [mock_upload_resp]
+
+        # Execute
+        self.worker.process_pdf(file_path)
+
+        # Assertions
+        expected_base = os.path.dirname(file_path)
+
         # Should be moved to NON ANALIZZATI
         expected_folder = os.path.join(expected_base, "NON ANALIZZATI")
-        expected_dest = os.path.join(expected_folder, "orphan.pdf")
+        expected_dest = os.path.join(expected_folder, "error.pdf")
 
         mock_makedirs.assert_any_call(expected_folder, exist_ok=True)
         mock_move.assert_called_with(file_path, expected_dest)
