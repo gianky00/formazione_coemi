@@ -64,7 +64,7 @@ Source: "..\..\.env.example"; DestDir: "{app}"; DestName: ".env"; Flags: onlyifd
 ; === DATABASE ===
 ; IMPORTANTE: Aggiungiamo i permessi di scrittura (Permissions: users-modify) 
 ; perché in Program Files l'utente standard non può scrivere di default.
-Source: "..\..\database.db"; DestDir: "{app}"; Flags: onlyifdoesntexist uninsneveruninstall; Permissions: users-modify skipifsourcedoesntexist
+Source: "..\..\database.db"; DestDir: "{app}"; Flags: onlyifdoesntexist uninsneveruninstall skipifsourcedoesntexist; Permissions: users-modify
 
 ; === DOCUMENTAZIONE JULES ===
 ; Copia l'intera cartella .jules-docs (tutti i file)
