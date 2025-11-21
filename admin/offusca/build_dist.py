@@ -214,6 +214,7 @@ def build():
         "--onedir",   # <--- MODIFICATO: Usa cartella invece di file unico (per Inno Setup)
         "--console",  # <--- MODIFICATO: Abilita console per debug visivo (finestra nera)
         "--clean",
+        "--noconfirm", # <--- FIX: Sovrascrive directory output senza chiedere conferma
         "--distpath", DIST_DIR, # Crea dist/Intelleo
         "--workpath", os.path.join(DIST_DIR, "build"),
         f"--paths={OBF_DIR}",
