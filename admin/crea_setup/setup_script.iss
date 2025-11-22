@@ -60,17 +60,29 @@ Source: "..\..\desktop_app\assets\*"; DestDir: "{app}\desktop_app\assets"; Flags
 Source: "..\..\desktop_app\icons\*"; DestDir: "{app}\desktop_app\icons"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; === CONFIGURAZIONE ===
-; Copia .env.example rinominandolo in .env solo se non esiste
-Source: "..\..\.env.example"; DestDir: "{app}"; DestName: ".env"; Flags: onlyifdoesntexist uninsneveruninstall
+; Copia .env.example rinominandolo in .env solo se non esiste (Rimossa flag uninsneveruninstall per pulizia completa)
+Source: "..\..\.env.example"; DestDir: "{app}"; DestName: ".env"; Flags: onlyifdoesntexist
 
 ; === DATABASE ===
 ; IMPORTANTE: Aggiungiamo i permessi di scrittura (Permissions: users-modify) 
 ; perché in Program Files l'utente standard non può scrivere di default.
-Source: "..\..\database.db"; DestDir: "{app}"; Flags: onlyifdoesntexist uninsneveruninstall skipifsourcedoesntexist; Permissions: users-modify
+; (Rimossa flag uninsneveruninstall per pulizia completa)
+Source: "..\..\database_documenti.db"; DestDir: "{app}"; Flags: onlyifdoesntexist skipifsourcedoesntexist; Permissions: users-modify
 
 ; === DOCUMENTAZIONE JULES ===
 ; Copia l'intera cartella .jules-docs (tutti i file)
 Source: "..\..\.jules-docs\*"; DestDir: "{app}\.jules-docs"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+
+[UninstallDelete]
+; Forza la cancellazione di file generati dopo l'installazione per una pulizia completa
+Type: files; Name: "{app}\.env"
+Type: files; Name: "{app}\database_documenti.db"
+Type: files; Name: "{app}\database.db"
+Type: files; Name: "{app}\scadenzario.db"
+Type: files; Name: "{app}\pyarmor.rkey"
+Type: files; Name: "{app}\dettagli_licenza"
+Type: filesandordirs; Name: "{app}\_internal"
+Type: files; Name: "{app}\*.log"
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -114,9 +126,11 @@ begin
   WizardForm.WizardSmallBitmapImage.Left := WizardForm.ClientWidth - ScaleX(110);
 
   // Suggerimenti Professionali (Creato nascosto, mostrato in CurPageChanged)
+  // Modifica: Parent impostato su InstallingPage per corretto posizionamento
   TipsLabel := TNewStaticText.Create(WizardForm);
-  TipsLabel.Parent := WizardForm.InnerPage;
+  TipsLabel.Parent := WizardForm.InstallingPage;
   TipsLabel.Visible := False;
+  TipsLabel.WordWrap := True;
   TipsLabel.Caption := 'Funzionalit' + #224 + ' Professionali:' + #13#10 + #13#10 +
                        '- Analisi Documentale AI Gemini Pro' + #13#10 +
                        '- Scadenzario Intelligente e Predittivo' + #13#10 +
@@ -131,9 +145,10 @@ begin
   if CurPageID = wpInstalling then
   begin
     TipsLabel.Visible := True;
-    TipsLabel.Top := WizardForm.ProgressGauge.Top + WizardForm.ProgressGauge.Height + ScaleY(20);
+    // Posizionato sotto la barra di progresso con margine aumentato
+    TipsLabel.Top := WizardForm.ProgressGauge.Top + WizardForm.ProgressGauge.Height + ScaleY(40);
     TipsLabel.Left := 0;
-    TipsLabel.Width := WizardForm.InnerPage.ClientWidth;
+    TipsLabel.Width := WizardForm.InstallingPage.ClientWidth;
   end
   else
     TipsLabel.Visible := False;
