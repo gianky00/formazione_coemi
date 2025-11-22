@@ -1,12 +1,13 @@
 
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QTextEdit, QFileDialog, QLabel, QFrame
-from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt, QVariantAnimation
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QTextEdit, QFileDialog, QLabel, QFrame, QSizePolicy
+from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt, QVariantAnimation, QSize
 from PyQt6.QtGui import QIcon, QColor
 import requests
 import os
 import shutil
 from datetime import datetime
 from ..api_client import APIClient
+from ..components.animated_widgets import LoadingOverlay
 
 class PdfWorker(QObject):
     finished = pyqtSignal()
@@ -127,7 +128,9 @@ class DropZone(QFrame):
         self.setAcceptDrops(True)
 
         # Initial Style
-        self.update_style("#E5E7EB", "solid")
+        self._bg_color = "#FFFFFF"
+        self._border_color = "#E5E7EB"
+        self.update_style(self._bg_color, self._border_color, "solid")
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -140,12 +143,12 @@ class DropZone(QFrame):
 
         main_text = QLabel("Trascina i tuoi file PDF qui (Max 20MB)")
         main_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        main_text.setStyleSheet("font-size: 20px; font-weight: 600; color: #1F2937;")
+        main_text.setStyleSheet("font-size: 20px; font-weight: 600; color: #1F2937; background: transparent;")
         layout.addWidget(main_text)
 
         sub_text = QLabel("oppure")
         sub_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        sub_text.setStyleSheet("font-size: 16px; color: #6B7280;")
+        sub_text.setStyleSheet("font-size: 16px; color: #6B7280; background: transparent;")
         layout.addWidget(sub_text)
 
         self.select_folder_button = QPushButton("Seleziona Cartella")
@@ -153,39 +156,42 @@ class DropZone(QFrame):
         self.select_folder_button.setFixedWidth(200)
         layout.addWidget(self.select_folder_button)
 
-        # Animation Setup
+        # Animation Setup - Pulse Background Color
         self.pulse_anim = QVariantAnimation(self)
         self.pulse_anim.setDuration(1500)
         self.pulse_anim.setLoopCount(-1) # Infinite
-        self.pulse_anim.setStartValue(QColor("#3B82F6")) # Blue
-        self.pulse_anim.setKeyValueAt(0.5, QColor("#60A5FA")) # Light Blue
-        self.pulse_anim.setEndValue(QColor("#3B82F6"))
+        self.pulse_anim.setStartValue(QColor("#EFF6FF")) # Light Blue
+        self.pulse_anim.setKeyValueAt(0.5, QColor("#DBEAFE")) # Blue-100
+        self.pulse_anim.setEndValue(QColor("#EFF6FF"))
         self.pulse_anim.valueChanged.connect(self.on_pulse_value_changed)
 
-    def update_style(self, border_color, border_style="solid"):
+    def update_style(self, bg_color, border_color, border_style="solid"):
         self.setStyleSheet(f"""
             QFrame#drop_zone {{
-                background-color: #FFFFFF;
+                background-color: {bg_color};
                 border-radius: 12px;
                 border: 2px {border_style} {border_color};
             }}
+            QLabel {{ background: transparent; }}
         """)
 
     def on_pulse_value_changed(self, color):
-        self.update_style(color.name(), "dashed")
+        self.update_style(color.name(), "#3B82F6", "dashed")
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
             self.pulse_anim.start()
+        else:
+            event.ignore()
 
     def dragLeaveEvent(self, event):
         self.pulse_anim.stop()
-        self.update_style("#E5E7EB", "solid")
+        self.update_style("#FFFFFF", "#E5E7EB", "solid")
 
     def dropEvent(self, event):
         self.pulse_anim.stop()
-        self.update_style("#E5E7EB", "solid")
+        self.update_style("#FFFFFF", "#E5E7EB", "solid")
 
         files_to_process = []
         for url in event.mimeData().urls():
@@ -212,6 +218,8 @@ class ImportView(QWidget):
         self.progress_label = progress_label
         self.api_client = APIClient()
         self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(20, 20, 20, 20)
+        self.layout.setSpacing(20)
 
         description = QLabel("Carica, analizza ed estrai automaticamente le informazioni dai tuoi documenti. (Max 20MB per file)")
         description.setStyleSheet("font-size: 16px; color: #6B7280;")
@@ -219,13 +227,22 @@ class ImportView(QWidget):
 
         self.drop_zone = DropZone(self)
         self.drop_zone.select_folder_button.clicked.connect(self.select_folder)
-        self.layout.addWidget(self.drop_zone, 1) # Make drop zone stretch
+        self.layout.addWidget(self.drop_zone, 1)
 
         self.results_display = QTextEdit()
         self.results_display.setReadOnly(True)
         self.results_display.setObjectName("card")
-        self.results_display.setStyleSheet("font-family: 'Consolas', 'Menlo', monospace; background-color: #FFFFFF; color: #4B5563; border-radius: 12px; font-size: 13px;")
-        self.layout.addWidget(self.results_display, 1) # Make results stretch
+        self.results_display.setStyleSheet("font-family: 'Consolas', 'Menlo', monospace; background-color: #FFFFFF; color: #4B5563; border-radius: 12px; font-size: 13px; padding: 10px; border: 1px solid #E5E7EB;")
+        self.layout.addWidget(self.results_display, 1)
+
+        # Loading Overlay
+        self.loading_overlay = LoadingOverlay(self)
+
+    def resizeEvent(self, event):
+        # Resize overlay when view resizes
+        if self.loading_overlay.isVisible():
+             self.loading_overlay.resize(self.size())
+        super().resizeEvent(event)
 
     def select_folder(self):
         folder_path = QFileDialog.getExistingDirectory(self, "Seleziona Cartella")
@@ -243,6 +260,9 @@ class ImportView(QWidget):
             return
 
         self.results_display.setText(f"Trovati {len(file_paths)} file PDF. Inizio elaborazione...")
+
+        # Start Loading Overlay
+        self.loading_overlay.start()
 
         if self.progress_widget and self.progress_bar and self.progress_label:
             self.progress_bar.setMaximum(len(file_paths))
@@ -268,6 +288,9 @@ class ImportView(QWidget):
         self.thread.start()
 
     def on_processing_finished(self):
+        # Stop Loading Overlay
+        self.loading_overlay.stop()
+
         if self.progress_label:
             self.progress_label.setText("Elaborazione completata.")
         self.import_completed.emit()

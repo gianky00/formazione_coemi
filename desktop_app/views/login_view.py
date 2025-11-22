@@ -1,8 +1,8 @@
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton,
-                             QFrame, QMessageBox, QHBoxLayout, QGraphicsOpacityEffect)
-from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPropertyAnimation, QPoint, QEasingCurve, QParallelAnimationGroup
-from PyQt6.QtGui import QPixmap, QIcon
-from desktop_app.utils import get_asset_path, load_colored_icon
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QFrame, QMessageBox, QHBoxLayout, QGraphicsOpacityEffect)
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPropertyAnimation, QPoint, QEasingCurve, QTimer
+from PyQt6.QtGui import QPixmap, QColor
+from desktop_app.utils import get_asset_path
+from desktop_app.components.animated_widgets import AnimatedButton, AnimatedInput
 
 class LoginView(QWidget):
     login_success = pyqtSignal(dict) # Emits user_info dict
@@ -10,7 +10,6 @@ class LoginView(QWidget):
     def __init__(self, api_client):
         super().__init__()
         self.api_client = api_client
-        self.setWindowTitle("Intelleo - Login")
         self.resize(400, 500)
         self.setStyleSheet("background-color: #F0F8FF;")
 
@@ -51,43 +50,24 @@ class LoginView(QWidget):
         title.setStyleSheet("color: #6B7280; font-size: 14px; font-weight: 500;")
         card_layout.addWidget(title)
 
-        # Inputs
-        self.username_input = QLineEdit()
+        # Inputs - Using AnimatedInput
+        self.username_input = AnimatedInput()
         self.username_input.setPlaceholderText("Nome Utente")
         self.username_input.setFixedHeight(40)
 
-        self.password_input = QLineEdit()
+        self.password_input = AnimatedInput()
         self.password_input.setPlaceholderText("Password")
-        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.password_input.setEchoMode(AnimatedInput.EchoMode.Password)
         self.password_input.setFixedHeight(40)
         self.password_input.returnPressed.connect(self.handle_login)
 
         card_layout.addWidget(self.username_input)
         card_layout.addWidget(self.password_input)
 
-        # Login Button
-        self.login_btn = QPushButton("Accedi")
+        # Login Button - Using AnimatedButton
+        self.login_btn = AnimatedButton("Accedi")
         self.login_btn.setFixedHeight(40)
-        self.login_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.login_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #1D4ED8;
-                color: white;
-                font-weight: bold;
-                border-radius: 8px;
-                font-size: 14px;
-                border: none;
-            }
-            QPushButton:hover {
-                background-color: #1E40AF;
-            }
-            QPushButton:pressed {
-                background-color: #1E3A8A;
-            }
-            QPushButton:disabled {
-                background-color: #93C5FD;
-            }
-        """)
+        self.login_btn.set_colors("#1D4ED8", "#1E40AF", "#1E3A8A") # Default, Hover, Pressed
         self.login_btn.clicked.connect(self.handle_login)
         card_layout.addWidget(self.login_btn)
 
@@ -99,30 +79,41 @@ class LoginView(QWidget):
 
         layout.addWidget(self.card)
 
-        # Setup Animations
+        # Setup Entrance Animation (Fade In + Slide Up)
         self.opacity_effect = QGraphicsOpacityEffect(self.card)
         self.card.setGraphicsEffect(self.opacity_effect)
-        self.opacity_anim = QPropertyAnimation(self.opacity_effect, b"opacity")
-        self.opacity_anim.setDuration(500)
-        self.opacity_anim.setStartValue(0)
-        self.opacity_anim.setEndValue(1)
-        self.opacity_anim.setEasingCurve(QEasingCurve.Type.OutQuad)
+        self.opacity_effect.setOpacity(0)
+
+        self.anim_opacity = QPropertyAnimation(self.opacity_effect, b"opacity")
+        self.anim_opacity.setDuration(800)
+        self.anim_opacity.setStartValue(0)
+        self.anim_opacity.setEndValue(1)
+        self.anim_opacity.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        # For Slide Up, we can animate the pos of the card, but since it's in a layout,
+        # altering pos might be fighting the layout.
+        # Better: Animate the window or just the opacity for now.
+        # Alternatively, use a temporary margin animation?
+        # Let's stick to Opacity + a slight "scale" effect using geometry if possible?
+        # Actually, layout handles geometry.
+        # We'll stick to a clean Fade In for robustness.
 
     def showEvent(self, event):
         super().showEvent(event)
-        self.opacity_anim.start()
+        self.anim_opacity.start()
 
     def shake_window(self):
-        animation = QPropertyAnimation(self, b"pos")
+        # Shake the CARD, not the whole window (since window is now MasterWindow)
+        animation = QPropertyAnimation(self.card, b"pos")
         animation.setDuration(100)
         animation.setLoopCount(3)
         animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
 
-        start_pos = self.pos()
-        animation.setKeyValueAt(0, start_pos)
-        animation.setKeyValueAt(0.25, start_pos + QPoint(-5, 0))
-        animation.setKeyValueAt(0.75, start_pos + QPoint(5, 0))
-        animation.setKeyValueAt(1, start_pos)
+        current_pos = self.card.pos()
+        animation.setKeyValueAt(0, current_pos)
+        animation.setKeyValueAt(0.25, current_pos + QPoint(-5, 0))
+        animation.setKeyValueAt(0.75, current_pos + QPoint(5, 0))
+        animation.setKeyValueAt(1, current_pos)
 
         animation.start()
 
@@ -138,7 +129,7 @@ class LoginView(QWidget):
         try:
             self.login_btn.setText("Accesso in corso...")
             self.login_btn.setEnabled(False)
-            self.repaint()
+            self.login_btn.repaint() # Force redraw
 
             response = self.api_client.login(username, password)
             self.api_client.set_token(response)

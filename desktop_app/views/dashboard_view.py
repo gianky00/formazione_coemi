@@ -1,22 +1,28 @@
-
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout,
-    QComboBox, QLabel, QFileDialog, QMessageBox, QListView, QStyledItemDelegate
+    QWidget, QVBoxLayout, QTableView, QHeaderView, QHBoxLayout,
+    QComboBox, QLabel, QFileDialog, QMessageBox, QListView, QFrame
 )
-from PyQt6.QtCore import QAbstractTableModel, Qt, pyqtSignal
+from PyQt6.QtCore import QAbstractTableModel, Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QColor, QPainter
 from .edit_dialog import EditCertificatoDialog
 from ..view_models.dashboard_view_model import DashboardViewModel
 from ..api_client import APIClient
+from ..components.animated_widgets import AnimatedButton, AnimatedInput, CardWidget
+from ..components.cascade_delegate import CascadeDelegate
 import requests
 import pandas as pd
 
 
-class StatusDelegate(QStyledItemDelegate):
+class StatusDelegate(CascadeDelegate):
     def paint(self, painter, option, index):
+        painter.save()
+        if not self.prepare_painter(painter, index):
+            painter.restore()
+            return
+
+        # Custom Painting Logic
         status = index.data(Qt.ItemDataRole.DisplayRole)
         if status:
-            painter.save()
             color_map = {
                 "attivo": QColor("#ECFDF5"), "archiviato": QColor("#ECFDF5"),
                 "scaduto": QColor("#FEF2F2"), "in_scadenza": QColor("#FFFBEB")
@@ -29,12 +35,14 @@ class StatusDelegate(QStyledItemDelegate):
             text_color = text_color_map.get(status, QColor("black"))
             rect = option.rect
             rect.adjust(5, 3, -5, -3)
+
             painter.setBrush(color)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRoundedRect(rect, rect.height() / 2, rect.height() / 2)
             painter.setPen(text_color)
             painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, status.replace("_", " ").capitalize())
-            painter.restore()
+
+        painter.restore()
 
 class CertificatoTableModel(QAbstractTableModel):
     def __init__(self, data):
@@ -72,6 +80,14 @@ class DashboardView(QWidget):
         self.model = None
         self.view_model = DashboardViewModel()
         self.api_client = APIClient()
+
+        # Animation Timer
+        self.anim_timer = QTimer(self)
+        self.anim_timer.setInterval(16) # ~60 FPS
+        self.anim_timer.timeout.connect(self._animate_step)
+        self.anim_duration = 0
+        self.max_anim_time = 0
+
         self._init_ui()
         self._connect_signals()
         self.view_model.load_data()
@@ -79,60 +95,76 @@ class DashboardView(QWidget):
     def _init_ui(self):
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(20, 20, 20, 20)
-        self.layout.setSpacing(15)
+        self.layout.setSpacing(20)
 
+        # Header / Description
+        header_layout = QHBoxLayout()
         description = QLabel("Visualizza, gestisci ed esporta tutti i certificati dei dipendenti.")
-        description.setObjectName("viewDescription")
-        self.layout.addWidget(description)
+        description.setStyleSheet("color: #6B7280; font-size: 14px;")
+        header_layout.addWidget(description)
+        header_layout.addStretch()
+        self.layout.addLayout(header_layout)
 
-        main_card = QWidget()
-        main_card.setObjectName("card")
-        main_card_layout = QVBoxLayout(main_card)
-        main_card_layout.setSpacing(15)
+        # --- FILTER CARD ---
+        self.filter_card = CardWidget()
+        filter_layout = QHBoxLayout(self.filter_card)
+        filter_layout.setSpacing(15)
+        filter_layout.setContentsMargins(20, 20, 20, 20)
 
-        self._create_filter_bar(main_card_layout)
+        self.dipendente_filter = QComboBox()
+        self.dipendente_filter.setMinimumWidth(200)
+        filter_layout.addWidget(QLabel("Dipendente:"))
+        filter_layout.addWidget(self.dipendente_filter)
+
+        self.categoria_filter = QComboBox()
+        self.categoria_filter.setMinimumWidth(200)
+        filter_layout.addWidget(QLabel("Categoria:"))
+        filter_layout.addWidget(self.categoria_filter)
+
+        self.status_filter = QComboBox()
+        self.status_filter.setMinimumWidth(150)
+        filter_layout.addWidget(QLabel("Stato:"))
+        filter_layout.addWidget(self.status_filter)
+
+        filter_layout.addStretch()
+
+        # Actions in Filter Card
+        self.export_button = AnimatedButton("Esporta")
+        self.export_button.set_colors("#FFFFFF", "#F9FAFB", "#F3F4F6", text="#1F2937") # Secondary style
+        self.export_button.setStyleSheet("border: 1px solid #D1D5DB; border-radius: 8px;")
+        filter_layout.addWidget(self.export_button)
+
+        self.edit_button = AnimatedButton("Modifica")
+        filter_layout.addWidget(self.edit_button)
+
+        self.delete_button = AnimatedButton("Cancella")
+        self.delete_button.set_colors("#DC2626", "#B91C1C", "#991B1B")
+        filter_layout.addWidget(self.delete_button)
+
+        self.layout.addWidget(self.filter_card)
+
+        # --- DATA CARD ---
+        self.data_card = CardWidget()
+        data_layout = QVBoxLayout(self.data_card)
+        data_layout.setContentsMargins(0, 0, 0, 0) # Table flush with card? No, padding looks better.
+        data_layout.setContentsMargins(20, 20, 20, 20)
 
         self.table_view = QTableView()
         self.table_view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self.table_view.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
         self.table_view.setShowGrid(False)
         self.table_view.setAlternatingRowColors(True)
-        main_card_layout.addWidget(self.table_view)
-        self.layout.addWidget(main_card)
+        self.table_view.setStyleSheet("""
+            QTableView { border: none; background-color: #FFFFFF; }
+            QTableView::item:selected { background-color: #EFF6FF; color: #1E40AF; }
+        """)
 
-    def _create_filter_bar(self, parent_layout):
-        control_bar_layout = QHBoxLayout()
-        control_bar_layout.setSpacing(10)
+        data_layout.addWidget(self.table_view)
+        self.layout.addWidget(self.data_card)
 
-        self.dipendente_filter = QComboBox()
-        self.dipendente_filter.setMinimumWidth(200)
-        control_bar_layout.addWidget(QLabel("Dipendente:"))
-        control_bar_layout.addWidget(self.dipendente_filter)
-
-        self.categoria_filter = QComboBox()
-        self.categoria_filter.setMinimumWidth(200)
-        control_bar_layout.addWidget(QLabel("Categoria:"))
-        control_bar_layout.addWidget(self.categoria_filter)
-
-        self.status_filter = QComboBox()
-        self.status_filter.setMinimumWidth(150)
-        control_bar_layout.addWidget(QLabel("Stato:"))
-        control_bar_layout.addWidget(self.status_filter)
-
-        control_bar_layout.addStretch()
-
-        self.export_button = QPushButton("Esporta")
-        self.export_button.setObjectName("secondary")
-        control_bar_layout.addWidget(self.export_button)
-
-        self.edit_button = QPushButton("Modifica")
-        control_bar_layout.addWidget(self.edit_button)
-
-        self.delete_button = QPushButton("Cancella")
-        self.delete_button.setObjectName("destructive")
-        control_bar_layout.addWidget(self.delete_button)
-
-        parent_layout.addLayout(control_bar_layout)
+        # Animate Cards In
+        self.filter_card.animate_in(delay=100)
+        self.data_card.animate_in(delay=300)
 
     def _connect_signals(self):
         self.view_model.data_changed.connect(self.on_data_changed)
@@ -156,33 +188,18 @@ class DashboardView(QWidget):
         self._update_filters()
         self._restore_selection()
         self._update_button_states()
+        self._start_table_animation()
 
     def _update_table_view(self):
         df = self.view_model.filtered_data
 
-        # Disconnect previous model's signal if it exists
         if self.table_view.model() and self.table_view.selectionModel():
-            try:
-                self.table_view.selectionModel().selectionChanged.disconnect(self._update_button_states)
-            except TypeError: # This can happen if the connection was already broken
-                pass
-
-        self.model = CertificatoTableModel(df)
-        self.table_view.setModel(self.model)
-
-        # Reconnect the signal to the new model's selection model
-        if self.table_view.selectionModel():
-            self.table_view.selectionModel().selectionChanged.connect(self._update_button_states)
-
-        # Explicitly update states initially
-        self._update_button_states()
+            try: self.table_view.selectionModel().selectionChanged.disconnect(self._update_button_states)
+            except: pass
 
         if not df.empty:
-            # Assicurati che la colonna 'matricola' esista
-            if 'matricola' not in df.columns:
-                df['matricola'] = None
-            if 'data_nascita' not in df.columns:
-                df['data_nascita'] = None
+            if 'matricola' not in df.columns: df['matricola'] = None
+            if 'data_nascita' not in df.columns: df['data_nascita'] = None
 
             column_order = ['id', 'Dipendente', 'data_nascita', 'matricola', 'DOCUMENTO', 'categoria', 'DATA_EMISSIONE', 'data_scadenza', 'stato_certificato']
             df = df[[col for col in column_order if col in df.columns]]
@@ -191,19 +208,56 @@ class DashboardView(QWidget):
             self.table_view.setModel(self.model)
 
             self.table_view.setColumnHidden(df.columns.get_loc('id'), True)
+
+            # Set Delegates
+            self.status_delegate = StatusDelegate(self.table_view)
+            self.default_delegate = CascadeDelegate(self.table_view)
+
             status_col_index = df.columns.get_loc('stato_certificato')
-            self.table_view.setItemDelegateForColumn(status_col_index, StatusDelegate())
+
+            for col in range(df.shape[1]):
+                if col == status_col_index:
+                    self.table_view.setItemDelegateForColumn(col, self.status_delegate)
+                else:
+                    self.table_view.setItemDelegateForColumn(col, self.default_delegate)
 
             self.table_view.verticalHeader().setDefaultSectionSize(50)
-
             header = self.table_view.horizontalHeader()
             header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
             header.setSectionResizeMode(df.columns.get_loc('Dipendente'), QHeaderView.ResizeMode.ResizeToContents)
             header.setSectionResizeMode(df.columns.get_loc('DOCUMENTO'), QHeaderView.ResizeMode.Stretch)
-            if 'matricola' in df.columns:
-                header.setSectionResizeMode(df.columns.get_loc('matricola'), QHeaderView.ResizeMode.ResizeToContents)
-            if 'data_nascita' in df.columns:
-                header.setSectionResizeMode(df.columns.get_loc('data_nascita'), QHeaderView.ResizeMode.ResizeToContents)
+        else:
+            self.model = CertificatoTableModel(df)
+            self.table_view.setModel(self.model)
+
+        if self.table_view.selectionModel():
+            self.table_view.selectionModel().selectionChanged.connect(self._update_button_states)
+
+        self._update_button_states()
+
+    def _start_table_animation(self):
+        if not self.model or self.model.rowCount() == 0: return
+
+        # Initialize delegates
+        if hasattr(self, 'status_delegate'): self.status_delegate.start_animation()
+        if hasattr(self, 'default_delegate'): self.default_delegate.start_animation()
+
+        # Start timer loop
+        rows = self.model.rowCount()
+        self.max_anim_time = (rows * 30) + 300 + 100 # Total duration buffer
+        self.anim_duration = 0
+        self.anim_timer.start()
+
+    def _animate_step(self):
+        self.anim_duration += 16
+        self.table_view.viewport().update() # Force repaint
+
+        if self.anim_duration >= self.max_anim_time:
+            self.anim_timer.stop()
+            # Ensure final state is fully opaque
+            if hasattr(self, 'status_delegate'): self.status_delegate.is_animating = False
+            if hasattr(self, 'default_delegate'): self.default_delegate.is_animating = False
+            self.table_view.viewport().update()
 
     def _update_filters(self):
         self.dipendente_filter.blockSignals(True)
@@ -235,8 +289,6 @@ class DashboardView(QWidget):
         )
 
     def _update_button_states(self):
-        selection_model = self.table_view.selectionModel()
-        # Buttons are always enabled per user request
         self.edit_button.setEnabled(True)
         self.delete_button.setEnabled(True)
         self.export_button.setEnabled(self.model is not None and self.model.rowCount() > 0)
@@ -248,7 +300,6 @@ class DashboardView(QWidget):
         selected_rows = self.table_view.selectionModel().selectedRows()
         first_row = min(r.row() for r in selected_rows)
 
-        # Get identifier of the currently visible item at that row index
         if self.model and 0 <= first_row < self.model.rowCount():
              id_index = self.model.index(first_row, self.model._data.columns.get_loc('id'))
              return {'mode': 'reselect_by_id', 'id': self.model.data(id_index), 'fallback_row': first_row}
@@ -269,7 +320,7 @@ class DashboardView(QWidget):
             matches = self.model._data.index[self.model._data['id'] == target_id].tolist()
             if matches:
                 row_to_select = matches[0]
-            else: # Fallback if ID is gone
+            else: # Fallback
                 row_to_select = min(self._current_selection.get('fallback_row', 0), self.model.rowCount() - 1)
 
         elif selection_mode == 'reselect_by_row':

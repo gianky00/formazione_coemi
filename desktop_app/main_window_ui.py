@@ -3,8 +3,8 @@ import sys
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
                              QPushButton, QStackedWidget, QLabel, QFrame, QSizePolicy,
                              QScrollArea, QLayout, QApplication)
-from PyQt6.QtCore import Qt, QSize, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup, pyqtSignal
-from PyQt6.QtGui import QIcon, QPixmap
+from PyQt6.QtCore import Qt, QSize, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup, pyqtSignal, QPoint, pyqtProperty, QRect
+from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QBrush, QPen
 
 # Import views
 from .views.import_view import ImportView
@@ -16,6 +16,94 @@ from .views.modern_guide_view import ModernGuideDialog
 
 # Import Utils
 from .utils import get_asset_path, load_colored_icon
+
+class SidebarButton(QPushButton):
+    def __init__(self, text, icon_name, parent=None):
+        super().__init__(text, parent)
+        self.icon_name = icon_name
+        self.setCheckable(True)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setProperty("nav_btn", "true") # Keep for reference, though we paint manually
+
+        # Colors
+        self._bg_color = QColor(0, 0, 0, 0) # Transparent
+        self.default_bg = QColor(0, 0, 0, 0)
+        self.hover_bg = QColor(255, 255, 255, 25) # White with low opacity
+        self.checked_bg = QColor(29, 78, 216) # Blue-700
+
+        # Animation
+        self._anim = QPropertyAnimation(self, b"backgroundColor", self)
+        self._anim.setDuration(150)
+
+    @pyqtProperty(QColor)
+    def backgroundColor(self):
+        return self._bg_color
+
+    @backgroundColor.setter
+    def backgroundColor(self, color):
+        self._bg_color = color
+        self.update()
+
+    def enterEvent(self, event):
+        if not self.isChecked():
+            self._anim.stop()
+            self._anim.setEndValue(self.hover_bg)
+            self._anim.start()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        if not self.isChecked():
+            self._anim.stop()
+            self._anim.setEndValue(self.default_bg)
+            self._anim.start()
+        super().leaveEvent(event)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # Determine Background Color
+        bg = self._bg_color
+        if self.isChecked():
+            bg = self.checked_bg
+
+        # Draw Background
+        painter.setBrush(QBrush(bg))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawRoundedRect(self.rect(), 8, 8)
+
+        # Draw Left Border if Checked
+        if self.isChecked():
+            painter.setBrush(QBrush(QColor("#60A5FA"))) # Blue-400 Accent
+            painter.drawRoundedRect(0, 8, 4, self.height() - 16, 2, 2)
+
+        # Draw Icon
+        icon = self.icon()
+        if not icon.isNull():
+            icon_size = self.iconSize()
+            # Center vertically, left margin depends on centered property?
+            # Sidebar handles text hiding. If text is empty, center icon.
+
+            if not self.text():
+                # Centered
+                x = (self.width() - icon_size.width()) // 2
+                y = (self.height() - icon_size.height()) // 2
+                icon.paint(painter, x, y, icon_size.width(), icon_size.height())
+            else:
+                # Left Aligned
+                x = 16
+                y = (self.height() - icon_size.height()) // 2
+                icon.paint(painter, x, y, icon_size.width(), icon_size.height())
+
+                # Draw Text
+                painter.setPen(QColor("#FFFFFF"))
+                font = self.font()
+                font.setBold(self.isChecked())
+                painter.setFont(font)
+
+                text_rect = self.rect()
+                text_rect.setLeft(x + icon_size.width() + 12)
+                painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, self.text())
 
 class Sidebar(QFrame):
     logout_requested = pyqtSignal()
@@ -135,15 +223,14 @@ class Sidebar(QFrame):
         self.last_access_label.setText(f"Ultimo accesso:\n{last_access}")
 
     def add_button(self, key, text, icon_name):
-        btn = QPushButton(text)
-        btn.setCheckable(True)
-        btn.setProperty("nav_btn", "true") # For styling
+        # Use SidebarButton
+        btn = SidebarButton(text, icon_name)
         btn.setProperty("full_text", text) # Store full text
-
-        # White Icon
         btn.setIcon(load_colored_icon(icon_name, "#FFFFFF"))
         btn.setIconSize(QSize(20, 20))
-        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        # Ensure styling matches (padding etc set in paintEvent or logic)
+        btn.setFixedHeight(45)
 
         self.nav_layout.addWidget(btn)
         self.buttons[key] = btn
@@ -165,7 +252,6 @@ class Sidebar(QFrame):
             self.logo_label.hide()
             self.footer_label.hide()
             self.user_info_frame.hide()
-            self.update_buttons_layout(centered=True)
             self.hide_button_texts()
 
         def on_finished():
@@ -176,7 +262,6 @@ class Sidebar(QFrame):
                 self.logo_label.show()
                 self.footer_label.show()
                 self.user_info_frame.show()
-                self.update_buttons_layout(centered=False)
                 self.restore_button_texts()
 
         try: self.animation.finished.disconnect()
@@ -185,12 +270,6 @@ class Sidebar(QFrame):
 
         self.animation.start()
         self.is_collapsed = not self.is_collapsed
-
-    def update_buttons_layout(self, centered):
-        for btn in self.buttons.values():
-            btn.setProperty("centered", str(centered).lower())
-            btn.style().unpolish(btn)
-            btn.style().polish(btn)
 
     def hide_button_texts(self):
         for btn in self.buttons.values():
@@ -202,19 +281,15 @@ class Sidebar(QFrame):
             btn.setText(btn.property("full_text"))
             btn.setToolTip("")
 
-class MainWindow(QMainWindow):
+class MainDashboardWidget(QWidget):
     logout_requested = pyqtSignal()
 
     def __init__(self, api_client):
         super().__init__()
         self.api_client = api_client
-        self.setWindowTitle("Intelleo - Predict. Validate. Automate")
-        self.resize(1280, 800)
 
-        # Central Widget
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        self.main_layout = QHBoxLayout(central_widget)
+        # Main Layout
+        self.main_layout = QHBoxLayout(self)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
 
@@ -254,20 +329,13 @@ class MainWindow(QMainWindow):
         self.switch_to("dashboard")
 
     def _init_views(self):
-        # Pass api_client to views if they accept it
-        # For now, views like ImportView instantiate their own APIClient.
-        # To fix this properly, I need to update the views to accept APIClient.
-        # But I cannot edit all files at once. I'll do it incrementally or monkey patch.
-        # Better: I will patch the views' api_client attribute after instantiation.
-
         self.views["import"] = ImportView()
-        self.views["import"].api_client = self.api_client # Inject authenticated client
+        self.views["import"].api_client = self.api_client
 
         self.views["validation"] = ValidationView()
-        self.views["validation"].api_client = self.api_client # Inject authenticated client
+        self.views["validation"].api_client = self.api_client
 
         self.views["dashboard"] = DashboardView()
-        # DashboardView uses a ViewModel.
         if hasattr(self.views["dashboard"], 'view_model'):
              self.views["dashboard"].view_model.api_client = self.api_client
 
@@ -275,7 +343,7 @@ class MainWindow(QMainWindow):
         self.views["scadenzario"].api_client = self.api_client
 
         self.views["config"] = ConfigView()
-        self.views["config"].api_client = self.api_client # Inject authenticated client
+        self.views["config"].api_client = self.api_client
 
         for key in ["import", "validation", "dashboard", "scadenzario", "config"]:
             self.stacked_widget.addWidget(self.views[key])
@@ -288,7 +356,6 @@ class MainWindow(QMainWindow):
         self.sidebar.buttons["config"].clicked.connect(lambda: self.switch_to("config"))
         self.sidebar.buttons["help"].clicked.connect(self.show_help)
 
-        # Cross-view updates logic
         self.views["import"].import_completed.connect(self.views["validation"].refresh_data)
         self.views["validation"].validation_completed.connect(self.views["dashboard"].load_data)
         self.views["validation"].validation_completed.connect(self.views["scadenzario"].refresh_data)
@@ -297,25 +364,24 @@ class MainWindow(QMainWindow):
     def switch_to(self, key):
         if key not in self.views: return
 
-        # Update Sidebar State
         for k, btn in self.sidebar.buttons.items():
             if k in self.sidebar.buttons and k != "help":
                 btn.setChecked(k == key)
+                btn.update() # Force repaint for SidebarButton
 
-        # Update Title
         if key in self.sidebar.buttons:
              self.page_title.setText(self.sidebar.buttons[key].property("full_text"))
 
-        # Switch Page
         self.stacked_widget.setCurrentWidget(self.views[key])
 
     def show_help(self):
         dialog = ModernGuideDialog(self)
+        dialog.show() # Use show() instead of exec() for animation?
+        # Dialogs usually need exec() to be modal.
+        # But if we want animation, we can use exec() and animate inside.
+        # ModernGuideDialog.exec() calls show() internally.
         dialog.exec()
 
     def analyze_folder(self, folder_path):
-        """
-        Switch to Import view and trigger analysis for the given folder.
-        """
         self.switch_to("import")
         self.views["import"].upload_folder(folder_path)

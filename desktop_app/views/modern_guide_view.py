@@ -1,7 +1,7 @@
 import sys
 import os
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QMessageBox, QFrame, QLabel, QPushButton
-from PyQt6.QtCore import QUrl, Qt
+from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QMessageBox, QFrame, QLabel, QPushButton, QGraphicsOpacityEffect
+from PyQt6.QtCore import QUrl, Qt, QPropertyAnimation, QEasingCurve, pyqtSlot
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 
 class ModernGuideDialog(QDialog):
@@ -10,6 +10,15 @@ class ModernGuideDialog(QDialog):
         self.setWindowTitle("Guida Interattiva Intelleo")
         self.resize(1280, 800)
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowMaximizeButtonHint)
+
+        # Animation Setup
+        self.opacity_effect = QGraphicsOpacityEffect(self)
+        self.setGraphicsEffect(self.opacity_effect)
+        self.opacity_effect.setOpacity(0)
+
+        self.anim = QPropertyAnimation(self.opacity_effect, b"opacity")
+        self.anim.setDuration(400)
+        self.anim.setEasingCurve(QEasingCurve.Type.OutQuad)
 
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -82,3 +91,27 @@ class ModernGuideDialog(QDialog):
             self.webview.setHtml(html_content)
         else:
             self.webview.setUrl(QUrl.fromLocalFile(index_path))
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.anim.setStartValue(0)
+        self.anim.setEndValue(1)
+        self.anim.start()
+
+    def done(self, r):
+        # Animate Fade Out
+        if self.opacity_effect.opacity() > 0:
+            self.anim.stop()
+            self.anim.setStartValue(self.opacity_effect.opacity())
+            self.anim.setEndValue(0)
+
+            # Disconnect any previous connections to avoid multiple calls
+            try: self.anim.finished.disconnect()
+            except: pass
+
+            # When animation finishes, call super().done(r)
+            # We need to use a lambda or separate slot to pass 'r'
+            self.anim.finished.connect(lambda: super(ModernGuideDialog, self).done(r))
+            self.anim.start()
+        else:
+            super().done(r)

@@ -3,11 +3,12 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGraphicsView, QGraph
                              QSplitter, QTreeWidget, QTreeWidgetItem, QGraphicsRectItem,
                              QGraphicsTextItem, QGraphicsLineItem, QPushButton, QHBoxLayout,
                              QScrollBar, QTreeWidgetItemIterator, QMessageBox, QFileDialog, QComboBox)
-from PyQt6.QtCore import Qt, QDate, QRectF
+from PyQt6.QtCore import Qt, QDate, QRectF, QVariantAnimation, QEasingCurve
 from PyQt6.QtGui import QColor, QBrush, QPen, QFont, QLinearGradient, QPainterPath, QPainter, QPageLayout, QPageSize, QImage
 from PyQt6.QtPrintSupport import QPrinter
 import requests
 from ..api_client import APIClient
+from ..components.animated_widgets import AnimatedButton
 from collections import defaultdict
 from .gantt_item import GanttBarItem
 
@@ -26,27 +27,35 @@ class ScadenzarioView(QWidget):
         toolbar_layout = QHBoxLayout()
         toolbar_layout.setSpacing(10)
 
-        self.prev_month_button = QPushButton("<")
+        self.prev_month_button = AnimatedButton("<")
+        self.prev_month_button.setFixedSize(30, 30)
         self.prev_month_button.clicked.connect(self.prev_month)
         toolbar_layout.addWidget(self.prev_month_button)
-        self.next_month_button = QPushButton(">")
+
+        self.next_month_button = AnimatedButton(">")
+        self.next_month_button.setFixedSize(30, 30)
         self.next_month_button.clicked.connect(self.next_month)
         toolbar_layout.addWidget(self.next_month_button)
+
         toolbar_layout.addSpacing(20)
         zoom_label = QLabel("Zoom:")
         toolbar_layout.addWidget(zoom_label)
+
         self.zoom_combo = QComboBox()
         self.zoom_combo.addItems(["3 Mesi", "6 Mesi", "1 Anno"])
         self.zoom_combo.setCurrentIndex(0)
         self.zoom_combo.currentIndexChanged.connect(self.update_zoom_from_combo)
         toolbar_layout.addWidget(self.zoom_combo)
+
         toolbar_layout.addStretch()
-        self.generate_email_button = QPushButton("Genera Email")
-        self.generate_email_button.setObjectName("primary")
+
+        self.generate_email_button = AnimatedButton("Genera Email")
+        # self.generate_email_button.setObjectName("primary") # AnimatedButton handles colors
         self.generate_email_button.clicked.connect(self.generate_email)
         toolbar_layout.addWidget(self.generate_email_button)
-        self.export_pdf_button = QPushButton("Esporta PDF")
-        self.export_pdf_button.setObjectName("secondary")
+
+        self.export_pdf_button = AnimatedButton("Esporta PDF")
+        self.export_pdf_button.set_colors("#FFFFFF", "#F9FAFB", "#F3F4F6", text="#1F2937")
         self.export_pdf_button.clicked.connect(self.export_to_pdf)
         toolbar_layout.addWidget(self.export_pdf_button)
 
@@ -90,16 +99,31 @@ class ScadenzarioView(QWidget):
 
         self.api_client = APIClient()
         self.current_date = QDate.currentDate()
-        self.zoom_months = 3
+        self.zoom_months = 3.0 # Float for animation
+        self.target_zoom_months = 3.0
         self.certificates = []
+
+        # Zoom Animation
+        self.zoom_anim = QVariantAnimation(self)
+        self.zoom_anim.setDuration(400)
+        self.zoom_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self.zoom_anim.valueChanged.connect(self._on_zoom_anim_step)
+
         self.load_data()
 
     def update_zoom_from_combo(self, index):
-        zoom_map = {0: 3, 1: 6, 2: 12}
-        self.set_zoom(zoom_map.get(index, 6))
+        zoom_map = {0: 3.0, 1: 6.0, 2: 12.0}
+        target = zoom_map.get(index, 3.0)
+        self.animate_zoom(target)
 
-    def set_zoom(self, months):
-        self.zoom_months = months
+    def animate_zoom(self, target_months):
+        self.zoom_anim.stop()
+        self.zoom_anim.setStartValue(self.zoom_months)
+        self.zoom_anim.setEndValue(target_months)
+        self.zoom_anim.start()
+
+    def _on_zoom_anim_step(self, value):
+        self.zoom_months = float(value)
         self.redraw_gantt_scene()
 
     def _on_tree_item_selected(self, item, column):
@@ -136,7 +160,6 @@ class ScadenzarioView(QWidget):
             response = requests.get(f"{self.api_client.base_url}/certificati/?validated=true")
             all_data = response.json() if response.status_code == 200 else []
             for item in all_data:
-                # The API returns 'nome' pre-formatted as "COGNOME NOME"
                 item['Dipendente'] = item['nome']
             today = QDate.currentDate()
             self.certificates = sorted([
@@ -176,20 +199,36 @@ class ScadenzarioView(QWidget):
 
         today = QDate.currentDate()
         start_date = self.current_date.addDays(-self.current_date.day() + 1)
-        end_date = start_date.addMonths(self.zoom_months)
-        total_days = start_date.daysTo(end_date)
-        if total_days <= 0: return
+
+        # Calculate dynamic end date based on floating zoom_months
+        days_total = int(30.44 * self.zoom_months) # approx days
+        end_date = start_date.addDays(days_total)
+        total_days = max(1, start_date.daysTo(end_date))
 
         scene_width = self.gantt_view.viewport().width()
+        if scene_width <= 0: scene_width = 700 # Default backup
+
         col_width = scene_width / total_days
 
-        for i in range(total_days + 1):
-            date = start_date.addDays(i)
-            if date.day() == 1:
-                month_name = date.toString("MMM yyyy")
+        # Draw Header (Months)
+        # Optimization: Draw only every N days or start of month
+        current_draw_date = start_date
+        while current_draw_date <= end_date:
+            # Find next first of month
+            if current_draw_date.day() != 1:
+                next_month = current_draw_date.addMonths(1)
+                next_month.setDate(next_month.year(), next_month.month(), 1)
+                current_draw_date = next_month
+                continue
+
+            days_from_start = start_date.daysTo(current_draw_date)
+            if days_from_start <= total_days:
+                month_name = current_draw_date.toString("MMM yyyy")
                 text = QGraphicsTextItem(month_name)
-                text.setPos(i * col_width, 0)
+                text.setPos(days_from_start * col_width, 0)
                 self.gantt_scene.addItem(text)
+
+            current_draw_date = current_draw_date.addMonths(1)
 
         if start_date <= today <= end_date:
             today_x = start_date.daysTo(today) * col_width
@@ -197,14 +236,12 @@ class ScadenzarioView(QWidget):
             today_line.setPen(QPen(QColor("#1D4ED8"), 2))
             self.gantt_scene.addItem(today_line)
 
-        # Filter certificates to only draw those visible in the current date range
         visible_certs = [
             cert for cert in self.certificates
             if (QDate.fromString(cert['data_scadenza'], "dd/MM/yyyy").addDays(-30) <= end_date) and \
                (QDate.fromString(cert['data_scadenza'], "dd/MM/yyyy") >= start_date)
         ]
 
-        # Sort the visible certificates by expiration date to ensure they are displayed from top to bottom
         sorted_certs = sorted(visible_certs, key=lambda x: QDate.fromString(x['data_scadenza'], "dd/MM/yyyy"))
 
         y_pos = header_height
@@ -215,6 +252,11 @@ class ScadenzarioView(QWidget):
 
             start_x = start_date.daysTo(bar_start_date) * col_width
             end_x = start_date.daysTo(expiry_date) * col_width
+
+            # Clamp logic for smoother visual
+            # But standard GANTT implies accurate time pos.
+            # We just draw.
+
             bar_width = max(2, end_x - start_x)
 
             color = QColor(self.legend_items["Avviso (30-90 gg)"])
@@ -242,13 +284,11 @@ class ScadenzarioView(QWidget):
             if response.status_code == 200:
                 QMessageBox.information(self, "Successo", "Richiesta di invio email inviata con successo.")
             else:
-                # Extract error detail from the new backend response
                 error_data = response.json()
                 error_detail = error_data.get("detail", "Errore sconosciuto dal server.")
                 QMessageBox.critical(self, "Errore Invio Email", f"Impossibile inviare l'email:\n{error_detail}")
 
         except requests.exceptions.RequestException as e:
-            # Handle connection errors
             QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
 
     def refresh_data(self):
@@ -304,11 +344,8 @@ class ScadenzarioView(QWidget):
 
         # --- Date Range for Gantt ---
         gantt_start_date = self.current_date.addDays(-self.current_date.day() + 1)
-        gantt_end_date = gantt_start_date.addMonths(self.zoom_months)
-        total_days = gantt_start_date.daysTo(gantt_end_date)
-        if total_days <= 0:
-            QMessageBox.critical(self, "Errore", "Intervallo di date non valido per il Gantt.")
-            return
+        gantt_end_date = gantt_start_date.addDays(int(30.44 * self.zoom_months)) # Use zoom_months
+        total_days = max(1, gantt_start_date.daysTo(gantt_end_date))
 
         # --- Drawing Loop ---
         for page_num in range(total_pages):
@@ -337,15 +374,28 @@ class ScadenzarioView(QWidget):
             col_width = gantt_area_width / total_days
 
             # Draw Month Headers and Grid
-            for i in range(total_days + 1):
-                date = gantt_start_date.addDays(i)
-                x_pos = gantt_area_x_start + i * col_width
-                if date.day() == 1:
+            # Note: For PDF we might want fixed months instead of floating zoom.
+            # Using floating zoom logic is fine as long as we calculate consistently.
+
+            current_draw_date = gantt_start_date
+            while current_draw_date <= gantt_end_date:
+                if current_draw_date.day() != 1:
+                     # Snap to next month
+                     next_month = current_draw_date.addMonths(1)
+                     next_month.setDate(next_month.year(), next_month.month(), 1)
+                     current_draw_date = next_month
+                     continue
+
+                days_from_start = gantt_start_date.daysTo(current_draw_date)
+                if days_from_start <= total_days:
+                    x_pos = gantt_area_x_start + days_from_start * col_width
                     painter.setPen(pen_light)
                     painter.drawLine(int(x_pos), int(content_rect.top()), int(x_pos), int(content_rect.bottom()))
                     painter.setPen(pen_default)
                     painter.setFont(font_header)
-                    painter.drawText(int(x_pos + 3), int(content_rect.top() - 5), date.toString("MMM yyyy"))
+                    painter.drawText(int(x_pos + 3), int(content_rect.top() - 5), current_draw_date.toString("MMM yyyy"))
+
+                current_draw_date = current_draw_date.addMonths(1)
 
             # --- Draw Certificate Rows for the current page ---
             start_item_index = page_num * items_per_page
@@ -362,7 +412,6 @@ class ScadenzarioView(QWidget):
                 label = f"{cert_data['Dipendente']} ({cert_data.get('matricola', 'N/A')}) - {cert_data['categoria']}"
                 label_rect = QRectF(content_rect.left(), current_y, label_area_width - 10, row_height)
 
-                # Use QFontMetrics to correctly elide text, which is more robust than flags
                 font_metrics = painter.fontMetrics()
                 elided_label = font_metrics.elidedText(label, Qt.TextElideMode.ElideRight, int(label_rect.width()))
                 painter.drawText(label_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, elided_label)
