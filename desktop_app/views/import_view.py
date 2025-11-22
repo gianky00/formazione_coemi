@@ -41,7 +41,7 @@ class PdfWorker(QObject):
         try:
             with open(file_path, 'rb') as f:
                 files = {'file': (original_filename, f, 'application/pdf')}
-                response = requests.post(f"{self.api_client.base_url}/upload-pdf/", files=files)
+                response = requests.post(f"{self.api_client.base_url}/upload-pdf/", files=files, headers=self.api_client._get_headers())
 
             if response.status_code == 200:
                 data = response.json()
@@ -65,7 +65,7 @@ class PdfWorker(QObject):
                     "data_scadenza": data_scadenza_norm,
                     "data_nascita": data_nascita_norm
                 }
-                save_response = requests.post(f"{self.api_client.base_url}/certificati/", json=certificato)
+                save_response = requests.post(f"{self.api_client.base_url}/certificati/", json=certificato, headers=self.api_client._get_headers())
 
                 if save_response.status_code == 200:
                     cert_data = save_response.json()

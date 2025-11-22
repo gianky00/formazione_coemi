@@ -163,6 +163,7 @@ class Sidebar(QFrame):
 
         self.user_name_label = QLabel("Benvenuto, Utente!")
         self.user_name_label.setStyleSheet("color: #FFFFFF; font-weight: bold; font-size: 18px;")
+        self.user_name_label.setWordWrap(True)
         self.user_info_layout.addWidget(self.user_name_label)
 
         self.last_access_label = QLabel("Ultimo accesso: -")
@@ -236,8 +237,12 @@ class Sidebar(QFrame):
                           raise ValueError
 
                       days_left = (expiry_date - date.today()).days
-                      l3 = QLabel(f"La licenza termina tra {days_left} giorni.")
-                      l3.setStyleSheet("color: #FFFFFF; font-weight: bold; font-size: 13px;")
+                      if days_left >= 0:
+                          l3 = QLabel(f"La licenza termina tra {days_left} giorni.")
+                      else:
+                          l3 = QLabel(f"Licenza SCADUTA da {abs(days_left)} giorni.")
+
+                      l3.setStyleSheet("color: #FFFFFF; font-size: 13px;")
                       self.license_layout.addWidget(l3)
                   except:
                       pass

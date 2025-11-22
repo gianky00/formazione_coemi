@@ -68,6 +68,8 @@ class DummyQWidget:
         pass
     def setCursor(self, cursor):
         pass
+    def setWordWrap(self, on):
+        pass
     def setToolTip(self, text):
         pass
     def setProperty(self, name, value):
@@ -226,6 +228,14 @@ class DummyQDialog(DummyQWidget):
     def exec(self):
         pass
 
+class DummyQObject:
+    def __init__(self, parent=None):
+        pass
+    def moveToThread(self, thread):
+        pass
+    def deleteLater(self):
+        pass
+
 class DummyQDate:
     @staticmethod
     def currentDate():
@@ -300,6 +310,7 @@ def mock_qt_modules():
     mock_core.Qt = MagicMock()
     mock_core.QSize = MagicMock()
     mock_core.QDate = DummyQDate
+    mock_core.QObject = DummyQObject
     mock_core.QAbstractTableModel = MagicMock
 
     mock_gui = MagicMock()
