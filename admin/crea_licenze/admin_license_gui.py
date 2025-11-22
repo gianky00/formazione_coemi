@@ -102,11 +102,23 @@ class LicenseAdminApp:
                     
                     # 2. Crea file TXT con i dettagli ID
                     txt_path = os.path.join(target_dir, "dettagli_licenza.txt")
+
+                    # Format dates to DD/MM/YYYY
+                    try:
+                        expiry_obj = date.fromisoformat(expiry)
+                        expiry_str = expiry_obj.strftime('%d/%m/%Y')
+                    except ValueError:
+                        expiry_str = expiry # Fallback if invalid format
+
+                    gen_date_str = date.today().strftime('%d/%m/%Y')
+
+                    # Clean Hardware ID
+                    clean_disk_serial = disk_serial.rstrip('.')
+
                     with open(txt_path, "w", encoding="utf-8") as f:
-                        f.write(f"Cliente: {client_name}\n")
-                        f.write(f"Hardware ID (Disk Serial): {disk_serial}\n")
-                        f.write(f"Scadenza Licenza: {expiry}\n")
-                        f.write(f"Generato il: {date.today().strftime('%Y-%m-%d')}\n")
+                        f.write(f"Hardware ID: {clean_disk_serial}\n")
+                        f.write(f"Scadenza Licenza: {expiry_str}\n")
+                        f.write(f"Generato il: {gen_date_str}\n")
 
                     # Istruzioni per l'utente
                     msg = (f"Licenza GENERATA con successo!\n\n"

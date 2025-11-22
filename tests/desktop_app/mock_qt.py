@@ -16,6 +16,12 @@ class DummyEnum:
     Cancel = 2
     AdjustToContents = 0
 
+class DummyQLayoutItem:
+    def __init__(self, widget):
+        self._widget = widget
+    def widget(self):
+        return self._widget
+
 class DummyQWidget:
     # Enum mocks
     Shape = DummyEnum
@@ -24,12 +30,16 @@ class DummyQWidget:
     StandardButton = DummyEnum
     SizeAdjustPolicy = DummyEnum
 
-    def __init__(self, parent=None):
+    def __init__(self, text=None, *args, **kwargs):
         self._clicked = DummySignal()
         self._toggled = DummySignal()
         self._accepted = DummySignal()
         self._rejected = DummySignal()
         self._currentIndexChanged = DummySignal()
+        self._returnPressed = DummySignal()
+        self.widgets = []
+        self._text = text if isinstance(text, str) else ""
+
     def setLayout(self, layout):
         pass
     def layout(self):
@@ -70,11 +80,15 @@ class DummyQWidget:
         m.polish = MagicMock()
         return m
     def addWidget(self, widget, *args, **kwargs):
-        pass
+        self.widgets.append(widget)
     def addLayout(self, layout):
         pass
     def addStretch(self):
         pass
+    def itemAt(self, index):
+        if 0 <= index < len(self.widgets):
+            return DummyQLayoutItem(self.widgets[index])
+        return None
     def addSpacing(self, spacing):
         pass
     def setEchoMode(self, mode):
@@ -82,9 +96,9 @@ class DummyQWidget:
     def setPlaceholderText(self, text):
         pass
     def setText(self, text):
-        pass
+        self._text = text
     def text(self):
-        return "mock text"
+        return self._text
     def currentText(self):
         return "mock text"
     def addItems(self, items):
@@ -109,6 +123,8 @@ class DummyQWidget:
         pass
     def setStyleSheet(self, style):
         pass
+    def setGraphicsEffect(self, effect):
+        pass
     def setChecked(self, checked):
         pass
     def isChecked(self):
@@ -116,7 +132,7 @@ class DummyQWidget:
     def setCurrentWidget(self, widget):
         pass
     def count(self):
-        return 5
+        return len(self.widgets)
     def setEnabled(self, enabled):
         pass
     def selectionModel(self):
@@ -166,6 +182,10 @@ class DummyQWidget:
         return DummyQWidget()
     def adjustSize(self):
         pass
+    def update(self):
+        pass
+    def repaint(self):
+        pass
     def setCurrentText(self, text):
         pass
     def accept(self):
@@ -193,6 +213,10 @@ class DummyQWidget:
     @builtins.property
     def currentIndexChanged(self):
         return self._currentIndexChanged
+
+    @builtins.property
+    def returnPressed(self):
+        return self._returnPressed
 
 class DummyQMainWindow(DummyQWidget):
     def setCentralWidget(self, widget):

@@ -111,3 +111,13 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username: Optional[str] = None
+
+class AuditLogSchema(BaseModel):
+    id: int
+    user_id: Optional[int] = None
+    username: str
+    action: str
+    details: Optional[str] = None
+    timestamp: datetime
+
+    model_config = ConfigDict(from_attributes=True)

@@ -35,8 +35,7 @@ class ModernGuideDialog(QDialog):
         title.setStyleSheet("font-size: 18px; font-weight: bold; color: #111827;")
         sidebar_layout.addWidget(title)
 
-        sidebar_layout.addStretch()
-
+        # Move Close button to top to ensure visibility
         self.close_btn = QPushButton("Chiudi")
         self.close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         # Styling to match secondary/destructive buttons loosely or just clean
@@ -56,6 +55,8 @@ class ModernGuideDialog(QDialog):
         """)
         self.close_btn.clicked.connect(self.close)
         sidebar_layout.addWidget(self.close_btn)
+
+        sidebar_layout.addStretch()
 
         main_layout.addWidget(self.sidebar)
 

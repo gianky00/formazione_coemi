@@ -241,6 +241,59 @@ class GeneralSettingsWidget(QFrame):
         self.layout.addLayout(self.form_layout)
         self.layout.addStretch()
 
+class AuditLogWidget(QFrame):
+    def __init__(self, api_client, parent=None):
+        super().__init__(parent)
+        self.api_client = api_client
+        self.setObjectName("card")
+        self.layout = QVBoxLayout(self)
+
+        header = QHBoxLayout()
+        title = QLabel("Log Attività (Audit)")
+        title.setStyleSheet("font-size: 16px; font-weight: 600;")
+        header.addWidget(title)
+        header.addStretch()
+
+        self.refresh_btn = QPushButton("Aggiorna")
+        self.refresh_btn.clicked.connect(self.refresh_logs)
+        header.addWidget(self.refresh_btn)
+
+        self.layout.addLayout(header)
+
+        self.table = QTableWidget()
+        self.table.setColumnCount(4)
+        self.table.setHorizontalHeaderLabels(["Data/Ora", "Utente", "Azione", "Dettagli"])
+
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self.table.verticalHeader().setVisible(False)
+
+        self.layout.addWidget(self.table)
+
+    def refresh_logs(self):
+        try:
+            logs = self.api_client.get_audit_logs(limit=500)
+            self.table.setRowCount(len(logs))
+            for i, log in enumerate(logs):
+                ts = log['timestamp']
+                if 'T' in ts:
+                    ts = ts.replace('T', ' ')
+                if '.' in ts:
+                    ts = ts.split('.')[0]
+
+                self.table.setItem(i, 0, QTableWidgetItem(ts))
+                self.table.setItem(i, 1, QTableWidgetItem(log['username']))
+                self.table.setItem(i, 2, QTableWidgetItem(log['action']))
+                self.table.setItem(i, 3, QTableWidgetItem(str(log['details'] or "")))
+        except Exception as e:
+            pass
+
 class ConfigView(QWidget):
     def __init__(self):
         super().__init__()
@@ -272,8 +325,15 @@ class ConfigView(QWidget):
         self.btn_account.setFixedWidth(180)
         self.btn_account.clicked.connect(lambda: self.switch_tab(1))
 
+        self.btn_audit = QPushButton("Log Attività")
+        self.btn_audit.setCheckable(True)
+        self.btn_audit.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_audit.setFixedWidth(180)
+        self.btn_audit.clicked.connect(lambda: self.switch_tab(2))
+
         self.nav_layout.addWidget(self.btn_general)
         self.nav_layout.addWidget(self.btn_account)
+        self.nav_layout.addWidget(self.btn_audit)
 
         self.layout.addWidget(self.nav_container)
 
@@ -308,6 +368,10 @@ class ConfigView(QWidget):
         self.user_management_widget = UserManagementWidget(self.api_client)
         self.stacked_widget.addWidget(self.user_management_widget)
 
+        # Page 3: Audit Logs
+        self.audit_widget = AuditLogWidget(self.api_client)
+        self.stacked_widget.addWidget(self.audit_widget)
+
         self.layout.addWidget(self.stacked_widget)
 
         # --- Buttons (for General Settings) ---
@@ -340,6 +404,7 @@ class ConfigView(QWidget):
         self.stacked_widget.setCurrentIndex(index)
         self.btn_general.setChecked(index == 0)
         self.btn_account.setChecked(index == 1)
+        self.btn_audit.setChecked(index == 2)
 
         # Hide general action buttons if not on general tab
         self.bottom_buttons_frame.setVisible(index == 0)
@@ -350,14 +415,21 @@ class ConfigView(QWidget):
         if self.api_client and self.api_client.user_info:
             is_admin = self.api_client.user_info.get("is_admin", False)
             self.btn_account.setVisible(is_admin)
+            self.btn_audit.setVisible(is_admin)
+
             self.user_management_widget.api_client = self.api_client
+            self.audit_widget.api_client = self.api_client
+
             if is_admin:
                 self.user_management_widget.refresh_users()
+                if self.stacked_widget.currentIndex() == 2:
+                    self.audit_widget.refresh_logs()
         else:
             self.btn_account.setVisible(False)
+            self.btn_audit.setVisible(False)
 
         # Reset to general tab if Account is hidden but active (rare case)
-        if not self.btn_account.isVisible() and self.stacked_widget.currentIndex() == 1:
+        if not self.btn_account.isVisible() and self.stacked_widget.currentIndex() in [1, 2]:
             self.switch_tab(0)
 
     def get_env_path(self):
