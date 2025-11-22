@@ -290,12 +290,27 @@ class MasterWindow(QMainWindow):
 
 class ApplicationController:
     def __init__(self):
+        print("[DEBUG] ApplicationController.__init__ started")
         self.api_client = APIClient()
+        print("[DEBUG] APIClient initialized. Creating MasterWindow...")
         self.master_window = MasterWindow(self)
         self.dashboard = None
+        self.pending_analysis_path = None
+        print("[DEBUG] ApplicationController initialized.")
 
     def start(self):
+        print("[DEBUG] ApplicationController.start called. Showing Max Window.")
         self.master_window.showMaximized()
+
+    def analyze_folder(self, folder_path):
+        """
+        Triggers folder analysis. If dashboard is ready, calls it directly.
+        Otherwise, stores the path to be triggered after login.
+        """
+        if self.dashboard:
+            self.dashboard.analyze_folder(folder_path)
+        else:
+            self.pending_analysis_path = folder_path
 
     def on_login_success(self, user_info):
         # Create Dashboard if not exists
@@ -311,6 +326,11 @@ class ApplicationController:
 
         # Transition
         self.master_window.show_dashboard(self.dashboard)
+
+        # Handle deferred analysis
+        if self.pending_analysis_path:
+            self.dashboard.analyze_folder(self.pending_analysis_path)
+            self.pending_analysis_path = None
 
     def on_logout(self):
         self.api_client.logout()

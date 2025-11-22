@@ -5,9 +5,17 @@ import socket
 import threading
 import uvicorn
 import importlib
+
+# --- CRITICAL: IMPORT WEBENGINE & SET ATTRIBUTE BEFORE QAPPLICATION ---
+# This fixes "QtWebEngineWidgets must be imported or Qt.AA_ShareOpenGLContexts..."
+from PyQt6.QtWebEngineWidgets import QWebEngineView
+from PyQt6.QtCore import Qt, QCoreApplication
+
+# Set the attribute specifically required for WebEngine on Windows/Frozen builds
+QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
+
 from PyQt6.QtWidgets import QApplication, QSplashScreen, QMessageBox
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtCore import Qt
 
 # --- 1. CONFIGURAZIONE AMBIENTE ---
 if getattr(sys, 'frozen', False):
@@ -40,17 +48,10 @@ def verify_license():
         return False, f"File di licenza mancante.\nCercato in: {lic_path}"
 
     # B. Check Logico Implicito:
-    # Invece di cercare API nascoste, proviamo ad importare un modulo offuscato.
-    # Se la licenza è invalida, PyArmor bloccherà l'importazione sollevando un'eccezione.
     try:
-        # Proviamo ad importare un modulo leggero del backend
-        # Nota: Questo funzionerà solo se 'app' è stato effettivamente offuscato.
-        # Se siamo in dev mode (non offuscato), funzionerà comunque.
         import app.core.config
         return True, "OK"
     except Exception as e:
-        # Se PyArmor blocca l'esecuzione, l'errore sarà qui.
-        # Potrebbe essere un RuntimeError o un ImportError specifico.
         return False, f"Licenza non valida o scaduta.\nErrore sistema: {str(e)}"
 
 # --- 3. UTILS ---
@@ -65,23 +66,39 @@ def check_port(host, port):
         return s.connect_ex((host, port)) == 0
     except: return False
 
-# --- 4. AVVIO ---
-if __name__ == "__main__":
-    qt_app = QApplication(sys.argv)
+# --- 4. MAIN ---
+def main():
+    print("[DEBUG] Starting launcher.main() ...")
+    # Check if QApplication already exists (unlikely but safe)
+    if not QApplication.instance():
+        print("[DEBUG] Creating QApplication...")
+        qt_app = QApplication(sys.argv)
+    else:
+        print("[DEBUG] QApplication already exists.")
+        qt_app = QApplication.instance()
 
-    # Import Stile
+    # Import ApplicationController from the CORRECT module
+    # FIX: Was importing 'MainWindow' which does not exist
     try:
-        from desktop_app.main import MainWindow, setup_styles
+        print("[DEBUG] Importing ApplicationController and setup_styles...")
+        from desktop_app.main import ApplicationController, setup_styles
+        print("[DEBUG] Running setup_styles...")
         setup_styles(qt_app)
+    except ImportError as e:
+        # Detailed debug for import errors
+        import traceback
+        traceback.print_exc()
+        QMessageBox.critical(None, "Errore Moduli", f"Impossibile caricare i moduli principali:\n{e}")
+        sys.exit(1)
     except Exception as e:
-        QMessageBox.critical(None, "Errore Avvio", f"Errore moduli: {e}")
+        QMessageBox.critical(None, "Errore Avvio", f"Errore generico: {e}")
         sys.exit(1)
 
     # CONTROLLO LICENZA
     ok, err = verify_license()
     if not ok:
         mbox = QMessageBox()
-        mbox.setIcon(QMessageBox.Icon.Warning) # Warning è sufficiente ora
+        mbox.setIcon(QMessageBox.Icon.Warning)
         mbox.setWindowTitle("Licenza")
         mbox.setText("Verifica licenza fallita.")
         mbox.setDetailedText(err)
@@ -89,9 +106,11 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # AVVIO SERVER
+    print("[DEBUG] Starting server thread...")
     threading.Thread(target=start_server, daemon=True).start()
 
     # SPLASH
+    print("[DEBUG] Showing Splash Screen...")
     splash = QSplashScreen()
     if os.path.exists("desktop_app/assets/logo.png"):
         splash.setPixmap(QPixmap("desktop_app/assets/logo.png").scaled(600, 300, Qt.AspectRatioMode.KeepAspectRatio))
@@ -100,18 +119,19 @@ if __name__ == "__main__":
 
     t0 = time.time()
     ready = False
+    print("[DEBUG] Waiting for server port 8000...")
     while time.time() - t0 < 20:
         qt_app.processEvents()
         if check_port("127.0.0.1", 8000):
             ready = True
+            print("[DEBUG] Server is ready!")
             break
         time.sleep(0.2)
 
     if ready:
-        w = MainWindow()
-        w.ensurePolished()
-        w.showMaximized()
-        splash.finish(w)
+        # Instantiate Controller
+        print("[DEBUG] Instantiating ApplicationController...")
+        controller = ApplicationController()
 
         # CHECK CLI ARGS FOR ANALYSIS
         args = sys.argv[1:]
@@ -121,10 +141,26 @@ if __name__ == "__main__":
                 if idx + 1 < len(args):
                     folder_path = args[idx + 1]
                     if os.path.isdir(folder_path):
-                        w.analyze_folder(folder_path)
+                        controller.analyze_folder(folder_path)
             except Exception as e:
                 print(f"Error in CLI analysis: {e}")
 
+        print("[DEBUG] Calling controller.start()...")
+        controller.start() # Shows window
+
+        # Finish splash using the actual window from controller
+        print("[DEBUG] Finishing Splash...")
+        if hasattr(controller, 'master_window'):
+            controller.master_window.ensurePolished()
+            splash.finish(controller.master_window)
+        else:
+            splash.close()
+
+        print("[DEBUG] Starting Qt Event Loop (exec)...")
         sys.exit(qt_app.exec())
     else:
+        print("[ERROR] Server timeout!")
         sys.exit(1)
+
+if __name__ == "__main__":
+    main()
