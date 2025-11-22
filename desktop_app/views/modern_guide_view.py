@@ -3,6 +3,7 @@ import os
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QMessageBox, QFrame, QLabel, QPushButton, QGraphicsOpacityEffect
 from PyQt6.QtCore import QUrl, Qt, QPropertyAnimation, QEasingCurve, pyqtSlot
 from PyQt6.QtWebEngineWidgets import QWebEngineView
+from PyQt6.QtWebChannel import QWebChannel
 
 class ModernGuideDialog(QDialog):
     def __init__(self, parent=None):
@@ -20,50 +21,28 @@ class ModernGuideDialog(QDialog):
         self.anim.setDuration(400)
         self.anim.setEasingCurve(QEasingCurve.Type.OutQuad)
 
+        self._pending_result = 0
+
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Sidebar
-        self.sidebar = QFrame()
-        self.sidebar.setFixedWidth(200)
-        self.sidebar.setStyleSheet("background-color: #F3F4F6; border-right: 1px solid #E5E7EB;")
-        sidebar_layout = QVBoxLayout(self.sidebar)
-        sidebar_layout.setContentsMargins(20, 20, 20, 20)
-
-        title = QLabel("Guida Utente")
-        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #111827;")
-        sidebar_layout.addWidget(title)
-
-        # Move Close button to top to ensure visibility
-        self.close_btn = QPushButton("Chiudi")
-        self.close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        # Styling to match secondary/destructive buttons loosely or just clean
-        self.close_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #FFFFFF;
-                border: 1px solid #D1D5DB;
-                border-radius: 6px;
-                color: #374151;
-                padding: 8px 16px;
-                font-weight: 500;
-            }
-            QPushButton:hover {
-                background-color: #F9FAFB;
-                border-color: #9CA3AF;
-            }
-        """)
-        self.close_btn.clicked.connect(self.close)
-        sidebar_layout.addWidget(self.close_btn)
-
-        sidebar_layout.addStretch()
-
-        main_layout.addWidget(self.sidebar)
-
+        # WebEngine View
         self.webview = QWebEngineView()
+
+        # QWebChannel Setup for Bridge
+        self.channel = QWebChannel()
+        self.channel.registerObject("bridge", self)
+        self.webview.page().setWebChannel(self.channel)
+
         main_layout.addWidget(self.webview)
 
         self.load_guide()
+
+    @pyqtSlot()
+    def closeWindow(self):
+        """Slot accessible from JavaScript to close the dialog."""
+        self.accept()
 
     def load_guide(self):
         # Determine the path to the index.html
@@ -102,6 +81,7 @@ class ModernGuideDialog(QDialog):
     def done(self, r):
         # Animate Fade Out
         if self.opacity_effect.opacity() > 0:
+            self._pending_result = r
             self.anim.stop()
             self.anim.setStartValue(self.opacity_effect.opacity())
             self.anim.setEndValue(0)
@@ -110,9 +90,10 @@ class ModernGuideDialog(QDialog):
             try: self.anim.finished.disconnect()
             except: pass
 
-            # When animation finishes, call super().done(r)
-            # We need to use a lambda or separate slot to pass 'r'
-            self.anim.finished.connect(lambda: super(ModernGuideDialog, self).done(r))
+            self.anim.finished.connect(self._on_fade_out_finished)
             self.anim.start()
         else:
             super().done(r)
+
+    def _on_fade_out_finished(self):
+        super().done(self._pending_result)

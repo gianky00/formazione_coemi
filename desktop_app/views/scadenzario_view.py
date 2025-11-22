@@ -157,7 +157,7 @@ class ScadenzarioView(QWidget):
 
     def load_data(self):
         try:
-            response = requests.get(f"{self.api_client.base_url}/certificati/?validated=true")
+            response = requests.get(f"{self.api_client.base_url}/certificati/?validated=true", headers=self.api_client._get_headers())
             all_data = response.json() if response.status_code == 200 else []
             for item in all_data:
                 item['Dipendente'] = item['nome']
@@ -279,7 +279,7 @@ class ScadenzarioView(QWidget):
 
     def generate_email(self):
         try:
-            response = requests.post(f"{self.api_client.base_url}/notifications/send-manual-alert")
+            response = requests.post(f"{self.api_client.base_url}/notifications/send-manual-alert", headers=self.api_client._get_headers())
 
             if response.status_code == 200:
                 QMessageBox.information(self, "Successo", "Richiesta di invio email inviata con successo.")

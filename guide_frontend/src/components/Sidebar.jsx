@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -9,7 +9,8 @@ import {
   Users,
   ChevronRight,
   ChevronLeft,
-  BookOpen
+  BookOpen,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
@@ -51,6 +52,25 @@ const SidebarItem = ({ icon: Icon, label, to, collapsed }) => {
 
 const Sidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
+  const [bridge, setBridge] = useState(null);
+
+  useEffect(() => {
+    if (window.qt && window.qt.webChannelTransport) {
+      new window.QWebChannel(window.qt.webChannelTransport, function(channel) {
+        if (channel.objects.bridge) {
+            setBridge(channel.objects.bridge);
+        }
+      });
+    }
+  }, []);
+
+  const handleClose = () => {
+    if (bridge) {
+        bridge.closeWindow();
+    } else {
+      console.warn("Qt WebChannel bridge not available");
+    }
+  };
 
   return (
     <motion.div
@@ -87,6 +107,32 @@ const Sidebar = () => {
         <SidebarItem icon={Calendar} label="Scadenzario" to="/calendar" collapsed={collapsed} />
         <SidebarItem icon={Users} label="Dipendenti" to="/employees" collapsed={collapsed} />
         <SidebarItem icon={Settings} label="Configurazione" to="/settings" collapsed={collapsed} />
+
+        <div className="mt-4 border-t border-blue-800/50 mx-2 pt-2">
+            <button
+                onClick={handleClose}
+                className={clsx(
+                    "w-full flex items-center gap-3 p-3 rounded-lg transition-colors mb-1 group relative",
+                    "text-blue-100 hover:bg-red-900/50 hover:text-white"
+                )}
+            >
+                <X size={20} className="shrink-0" />
+                {!collapsed && (
+                    <motion.span
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="font-medium whitespace-nowrap"
+                    >
+                        Chiudi
+                    </motion.span>
+                )}
+                {collapsed && (
+                    <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none z-50 whitespace-nowrap">
+                        Chiudi
+                    </div>
+                )}
+            </button>
+        </div>
       </div>
 
       {/* Footer */}

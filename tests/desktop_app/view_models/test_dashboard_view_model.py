@@ -125,7 +125,7 @@ def test_delete_certificates_success(mock_get, mock_delete):
 @patch('requests.delete')
 def test_delete_certificates_partial_failure(mock_delete):
     # Success for ID 1, Failure for ID 2
-    def side_effect(url):
+    def side_effect(url, **kwargs):
         if url.endswith("/1"):
             resp = Mock()
             resp.status_code = 204
