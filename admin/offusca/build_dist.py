@@ -13,7 +13,7 @@ import platform
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-ENTRY_SCRIPT = "launcher.py"
+ENTRY_SCRIPT = "boot_loader.py"  # Changed from launcher.py
 APP_NAME = "Intelleo"
 DIST_DIR = "dist"
 OBF_DIR = os.path.join(DIST_DIR, "obfuscated")
@@ -95,7 +95,8 @@ def scan_imports(source_dirs):
     detected_imports = set()
     std_libs = get_std_libs()
 
-    files_to_scan = [os.path.join(ROOT_DIR, ENTRY_SCRIPT)]
+    # Also scan launcher.py explicitly as it's no longer the entry point but is imported
+    files_to_scan = [os.path.join(ROOT_DIR, ENTRY_SCRIPT), os.path.join(ROOT_DIR, "launcher.py")]
     
     for source_dir in source_dirs:
         full_source_dir = os.path.join(ROOT_DIR, source_dir)
@@ -187,7 +188,8 @@ def verify_environment():
             log_and_print("Please install Inno Setup 6.", "ERROR")
             sys.exit(1)
 
-    dlls_to_check = ["vcruntime140.dll", "msvcp140.dll"]
+    # Updated DLL list to include missing dependencies commonly causing Qt errors
+    dlls_to_check = ["vcruntime140.dll", "msvcp140.dll", "msvcp140_1.dll", "concrt140.dll", "vccorlib140.dll"]
     system_dlls_found = {}
     if os.name == 'nt':
         sys32 = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "System32")
@@ -241,10 +243,12 @@ def build():
         auto_detected_libs = scan_imports(["app", "desktop_app"])
 
         log_and_print("\n--- Step 3/7: Obfuscating with PyArmor ---")
+        # We obfuscate ENTRY_SCRIPT (boot_loader) and launcher.py
         cmd_pyarmor = [
             sys.executable, "-m", "pyarmor.cli", "gen",
             "-O", OBF_DIR,
-            "-r", os.path.join(ROOT_DIR, "app"), os.path.join(ROOT_DIR, "desktop_app"), os.path.join(ROOT_DIR, ENTRY_SCRIPT)
+            "-r", os.path.join(ROOT_DIR, "app"), os.path.join(ROOT_DIR, "desktop_app"),
+            os.path.join(ROOT_DIR, ENTRY_SCRIPT), os.path.join(ROOT_DIR, "launcher.py")
         ]
         run_command(cmd_pyarmor)
 
@@ -307,6 +311,7 @@ def build():
         for d in add_data:
             cmd_pyinstaller.extend(["--add-data", d])
 
+        # Explicitly collect packages that frequently have missing sub-dependencies or plugins
         cmd_pyinstaller.extend(["--collect-all", "google.cloud"])
         cmd_pyinstaller.extend(["--collect-all", "google.cloud.aiplatform"])
         cmd_pyinstaller.extend(["--collect-all", "google.generativeai"])
@@ -315,7 +320,17 @@ def build():
         cmd_pyinstaller.extend(["--collect-all", "desktop_app"])
         cmd_pyinstaller.extend(["--collect-all", "PyQt6-WebEngine"])
 
+        # New: Collect Auth libraries explicitly
+        cmd_pyinstaller.extend(["--collect-all", "passlib"])
+        cmd_pyinstaller.extend(["--collect-all", "bcrypt"])
+        cmd_pyinstaller.extend(["--collect-all", "jose"])
+        cmd_pyinstaller.extend(["--collect-all", "cryptography"])
+
+        # New: Collect PyQt6 base to ensure plugins are found
+        cmd_pyinstaller.extend(["--collect-all", "PyQt6"])
+
         manual_hidden_imports = [
+            "launcher", # The new logic imports this manually
             "views", "utils", "components", "api_client",
             "main_window_ui", "edit_dialog", "gantt_item", "view_models",
             "desktop_app.views", "desktop_app.utils", "desktop_app.components",
@@ -334,6 +349,11 @@ def build():
             "pydantic_settings", "httpx",
             "google.cloud.aiplatform", "google.cloud.aiplatform_v1",
             "google.api_core", "google.auth", "google.protobuf", "grpc",
+            # New: Auth and Crypto libs
+            "passlib", "passlib.handlers.bcrypt",
+            "bcrypt",
+            "jose", "jose.backends.cryptography_backend",
+            "cryptography", "cryptography.hazmat.backends.openssl"
         ]
 
         all_hidden_imports = list(set(manual_hidden_imports + auto_detected_libs))
@@ -343,6 +363,7 @@ def build():
         for imp in all_hidden_imports:
             cmd_pyinstaller.extend(["--hidden-import", imp])
 
+        # Point to the obfuscated boot_loader
         cmd_pyinstaller.append(os.path.join(OBF_DIR, ENTRY_SCRIPT))
 
         run_command(cmd_pyinstaller)

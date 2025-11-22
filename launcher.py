@@ -65,8 +65,8 @@ def check_port(host, port):
         return s.connect_ex((host, port)) == 0
     except: return False
 
-# --- 4. AVVIO ---
-if __name__ == "__main__":
+# --- 4. MAIN ---
+def main():
     qt_app = QApplication(sys.argv)
 
     # Import Stile
@@ -128,3 +128,6 @@ if __name__ == "__main__":
         sys.exit(qt_app.exec())
     else:
         sys.exit(1)
+
+if __name__ == "__main__":
+    main()
