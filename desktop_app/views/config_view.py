@@ -2,7 +2,8 @@ import os
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton,
     QMessageBox, QFrame, QFormLayout, QComboBox, QFileDialog, QHBoxLayout,
-    QTableWidget, QTableWidgetItem, QDialog, QDialogButtonBox, QCheckBox
+    QTableWidget, QTableWidgetItem, QDialog, QDialogButtonBox, QCheckBox,
+    QStackedWidget, QButtonGroup, QHeaderView
 )
 from PyQt6.QtCore import Qt
 from dotenv import load_dotenv, set_key
@@ -12,7 +13,7 @@ class UserDialog(QDialog):
     def __init__(self, parent=None, user_data=None):
         super().__init__(parent)
         self.setWindowTitle("Nuovo Utente" if not user_data else "Modifica Utente")
-        self.resize(400, 300)
+        self.resize(500, 400)  # Increased size
         self.layout = QVBoxLayout(self)
 
         form_layout = QFormLayout()
@@ -27,8 +28,6 @@ class UserDialog(QDialog):
             self.username_input.setText(user_data.get('username', ''))
             self.account_name_input.setText(user_data.get('account_name', ''))
             self.is_admin_check.setChecked(user_data.get('is_admin', False))
-            # Disable username editing for existing users if desired, but API supports it.
-            # Requirement: "admin must be able to overwrite/reset any user's password without knowing the old password"
             self.password_input.setPlaceholderText("Lascia vuoto per mantenere la password attuale")
 
         form_layout.addRow("Nome Utente:", self.username_input)
@@ -74,7 +73,14 @@ class UserManagementWidget(QFrame):
         self.table = QTableWidget()
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(["ID", "Nome Utente", "Nome Account", "Admin"])
-        self.table.horizontalHeader().setStretchLastSection(True)
+
+        # Configure Header Resizing
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents) # ID
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)          # Username
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)          # Account Name
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents) # Admin
+
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.verticalHeader().setVisible(False)
@@ -102,7 +108,6 @@ class UserManagementWidget(QFrame):
                 self.table.setItem(i, 2, QTableWidgetItem(str(user.get('account_name', ''))))
                 self.table.setItem(i, 3, QTableWidgetItem("Sì" if user['is_admin'] else "No"))
         except Exception as e:
-            # Fail silently or log if API call fails (e.g. not admin)
             pass
 
     def add_user(self):
@@ -127,31 +132,10 @@ class UserManagementWidget(QFrame):
         if not rows: return None
         return int(self.table.item(rows[0].row(), 0).text())
 
-    def get_selected_username(self):
-        rows = self.table.selectionModel().selectedRows()
-        if not rows: return None
-        return self.table.item(rows[0].row(), 1).text()
-
     def edit_user(self):
         user_id = self.get_selected_user_id()
         if not user_id: return
 
-        # Fetch current details? Or just use table data?
-        # Better to just use dialog, pre-fill what we can.
-        # We don't have password, which is fine.
-
-        # Prevent editing own password via this tool if current user is this user?
-        # Requirement: "l'admin non ha la possibilità di modificare la password sua"
-        # If I am admin, I am logged in.
-        current_username = self.api_client.user_info.get("username")
-        selected_username = self.get_selected_username()
-
-        if selected_username == "admin" and current_username == "admin":
-             # Special hardcoded case: Admin cannot change Admin password
-             # But maybe can change account name?
-             pass
-
-        # Actually, let's check against current user ID if available
         current_user_id = self.api_client.user_info.get("id")
 
         user_data = {
@@ -201,27 +185,14 @@ class UserManagementWidget(QFrame):
             except Exception as e:
                 QMessageBox.critical(self, "Errore", str(e))
 
-class ConfigView(QWidget):
-    def __init__(self):
-        super().__init__()
+class GeneralSettingsWidget(QFrame):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("card")
         self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(20, 20, 20, 20)
         self.layout.setSpacing(15)
-        self.api_client = APIClient() # Default instance, will be overwritten or updated
 
-        description = QLabel("Gestisci le impostazioni e le chiavi API dell'applicazione.")
-        description.setObjectName("viewDescription")
-        self.layout.addWidget(description)
-
-        # --- User Management Section (Hidden by default) ---
-        self.user_management_widget = UserManagementWidget(self.api_client)
-        self.user_management_widget.setVisible(False)
-        self.layout.addWidget(self.user_management_widget)
-
-        # Main settings card
-        main_card = QFrame()
-        main_card.setObjectName("card")
-        self.form_layout = QFormLayout(main_card)
+        self.form_layout = QFormLayout()
         self.form_layout.setSpacing(15)
         self.form_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
 
@@ -244,7 +215,6 @@ class ConfigView(QWidget):
 
         self.email_preset_combo = QComboBox()
         self.email_preset_combo.addItems(["Manuale", "Gmail", "Outlook", "COEMI"])
-        self.email_preset_combo.currentIndexChanged.connect(self.apply_email_preset)
         self.form_layout.addRow(QLabel("Preset Email:"), self.email_preset_combo)
 
         self.smtp_host_input = QLineEdit()
@@ -268,41 +238,129 @@ class ConfigView(QWidget):
         self.recipients_cc_input.setPlaceholderText("Separati da virgola")
         self.form_layout.addRow(QLabel("Copia Conoscenza (CC):"), self.recipients_cc_input)
 
-        self.layout.addWidget(main_card)
+        self.layout.addLayout(self.form_layout)
         self.layout.addStretch()
 
-        # Save button
-        self.save_button = QPushButton("Salva Modifiche")
-        self.save_button.setObjectName("primary")
-        self.save_button.clicked.connect(self.save_config)
+class ConfigView(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(20, 20, 20, 20)
+        self.layout.setSpacing(15)
+        self.api_client = APIClient()
+
+        description = QLabel("Gestisci le impostazioni e le chiavi API dell'applicazione.")
+        description.setObjectName("viewDescription")
+        self.layout.addWidget(description)
+
+        # --- Top Navigation Tabs ---
+        self.nav_container = QFrame()
+        self.nav_layout = QHBoxLayout(self.nav_container)
+        self.nav_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.nav_layout.setSpacing(10)
+
+        self.btn_general = QPushButton("Parametri generali")
+        self.btn_general.setCheckable(True)
+        self.btn_general.setChecked(True)
+        self.btn_general.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_general.setFixedWidth(180)
+        self.btn_general.clicked.connect(lambda: self.switch_tab(0))
+
+        self.btn_account = QPushButton("Account")
+        self.btn_account.setCheckable(True)
+        self.btn_account.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_account.setFixedWidth(180)
+        self.btn_account.clicked.connect(lambda: self.switch_tab(1))
+
+        self.nav_layout.addWidget(self.btn_general)
+        self.nav_layout.addWidget(self.btn_account)
+
+        self.layout.addWidget(self.nav_container)
+
+        # Style the tabs
+        self.setStyleSheet("""
+            QPushButton[checkable="true"] {
+                background-color: #FFFFFF;
+                color: #6B7280;
+                border: 1px solid #D1D5DB;
+                border-radius: 20px;
+                padding: 8px 16px;
+                font-weight: 600;
+            }
+            QPushButton[checkable="true"]:checked {
+                background-color: #1E3A8A;
+                color: #FFFFFF;
+                border: 1px solid #1E3A8A;
+            }
+            QPushButton[checkable="true"]:hover:!checked {
+                background-color: #F3F4F6;
+            }
+        """)
+
+        # --- Stacked Content ---
+        self.stacked_widget = QStackedWidget()
+
+        # Page 1: General Settings
+        self.general_settings = GeneralSettingsWidget()
+        self.stacked_widget.addWidget(self.general_settings)
+
+        # Page 2: User Management
+        self.user_management_widget = UserManagementWidget(self.api_client)
+        self.stacked_widget.addWidget(self.user_management_widget)
+
+        self.layout.addWidget(self.stacked_widget)
+
+        # --- Buttons (for General Settings) ---
+        # These buttons should likely only be visible when General Settings is active
+        self.bottom_buttons_frame = QFrame()
+        bottom_layout = QHBoxLayout(self.bottom_buttons_frame)
+        bottom_layout.setContentsMargins(0, 0, 0, 0)
 
         self.import_button = QPushButton("Importa Dipendenti da CSV")
         self.import_button.setObjectName("secondary")
         self.import_button.setToolTip("Formato CSV richiesto. Dimensione massima: 5MB.")
         self.import_button.clicked.connect(self.import_csv)
 
-        button_layout = QHBoxLayout()
-        button_layout.addWidget(self.import_button)
-        button_layout.addStretch()
-        button_layout.addWidget(self.save_button)
-        self.layout.addLayout(button_layout)
+        self.save_button = QPushButton("Salva Modifiche")
+        self.save_button.setObjectName("primary")
+        self.save_button.clicked.connect(self.save_config)
+
+        bottom_layout.addWidget(self.import_button)
+        bottom_layout.addStretch()
+        bottom_layout.addWidget(self.save_button)
+
+        self.layout.addWidget(self.bottom_buttons_frame)
+
+        # Connect inner form logic
+        self.general_settings.email_preset_combo.currentIndexChanged.connect(self.apply_email_preset)
 
         self.load_config()
 
+    def switch_tab(self, index):
+        self.stacked_widget.setCurrentIndex(index)
+        self.btn_general.setChecked(index == 0)
+        self.btn_account.setChecked(index == 1)
+
+        # Hide general action buttons if not on general tab
+        self.bottom_buttons_frame.setVisible(index == 0)
+
     def showEvent(self, event):
         super().showEvent(event)
-        # Refresh User Management visibility
+        # Handle Admin visibility
         if self.api_client and self.api_client.user_info:
             is_admin = self.api_client.user_info.get("is_admin", False)
-            self.user_management_widget.setVisible(is_admin)
-            self.user_management_widget.api_client = self.api_client # Ensure client is up to date
+            self.btn_account.setVisible(is_admin)
+            self.user_management_widget.api_client = self.api_client
             if is_admin:
                 self.user_management_widget.refresh_users()
         else:
-            self.user_management_widget.setVisible(False)
+            self.btn_account.setVisible(False)
+
+        # Reset to general tab if Account is hidden but active (rare case)
+        if not self.btn_account.isVisible() and self.stacked_widget.currentIndex() == 1:
+            self.switch_tab(0)
 
     def get_env_path(self):
-        # Assumes .env file is in the root directory of the project
         return os.path.join(os.path.dirname(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         ), '.env')
@@ -314,67 +372,53 @@ class ConfigView(QWidget):
                 f.write("# Configuration file for Intelleo\n")
         load_dotenv(dotenv_path=env_path)
 
-        self.gemini_api_key_input.setText(os.getenv("GEMINI_API_KEY", ""))
-        self.gcp_project_id_input.setText(os.getenv("GOOGLE_CLOUD_PROJECT", ""))
-        self.gcs_bucket_name_input.setText(os.getenv("GCS_BUCKET_NAME", ""))
-        self.smtp_host_input.setText(os.getenv("SMTP_HOST", ""))
-        self.smtp_port_input.setText(os.getenv("SMTP_PORT", ""))
-        self.smtp_user_input.setText(os.getenv("SMTP_USER", ""))
-        self.smtp_password_input.setText(os.getenv("SMTP_PASSWORD", ""))
-        self.recipients_to_input.setText(os.getenv("EMAIL_RECIPIENTS_TO", ""))
-        self.recipients_cc_input.setText(os.getenv("EMAIL_RECIPIENTS_CC", ""))
+        gs = self.general_settings
+        gs.gemini_api_key_input.setText(os.getenv("GEMINI_API_KEY", ""))
+        gs.gcp_project_id_input.setText(os.getenv("GOOGLE_CLOUD_PROJECT", ""))
+        gs.gcs_bucket_name_input.setText(os.getenv("GCS_BUCKET_NAME", ""))
+        gs.smtp_host_input.setText(os.getenv("SMTP_HOST", ""))
+        gs.smtp_port_input.setText(os.getenv("SMTP_PORT", ""))
+        gs.smtp_user_input.setText(os.getenv("SMTP_USER", ""))
+        gs.smtp_password_input.setText(os.getenv("SMTP_PASSWORD", ""))
+        gs.recipients_to_input.setText(os.getenv("EMAIL_RECIPIENTS_TO", ""))
+        gs.recipients_cc_input.setText(os.getenv("EMAIL_RECIPIENTS_CC", ""))
 
     def apply_email_preset(self):
-        preset = self.email_preset_combo.currentText()
+        preset = self.general_settings.email_preset_combo.currentText()
+        gs = self.general_settings
         if preset == "Gmail":
-            self.smtp_host_input.setText("smtp.gmail.com")
-            self.smtp_port_input.setText("587")
+            gs.smtp_host_input.setText("smtp.gmail.com")
+            gs.smtp_port_input.setText("587")
         elif preset == "Outlook":
-            self.smtp_host_input.setText("smtp.office365.com")
-            self.smtp_port_input.setText("587")
+            gs.smtp_host_input.setText("smtp.office365.com")
+            gs.smtp_port_input.setText("587")
         elif preset == "COEMI":
-            self.smtp_host_input.setText("smtps.aruba.it")
-            self.smtp_port_input.setText("587")
+            gs.smtp_host_input.setText("smtps.aruba.it")
+            gs.smtp_port_input.setText("587")
 
     def import_csv(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Seleziona CSV", "", "CSV Files (*.csv)")
         if file_path:
             try:
                 response = self.api_client.import_dipendenti_csv(file_path)
-                QMessageBox.information(
-                    self,
-                    "Importazione Completata",
-                    response.get("message", "Importazione dei dipendenti completata con successo.")
-                )
+                QMessageBox.information(self, "Importazione Completata", response.get("message", "Successo"))
             except Exception as e:
-                QMessageBox.critical(
-                    self,
-                    "Errore di Importazione",
-                    f"Impossibile importare il file CSV: {e}"
-                )
+                QMessageBox.critical(self, "Errore", f"Impossibile importare: {e}")
 
     def save_config(self):
         env_path = self.get_env_path()
+        gs = self.general_settings
         try:
-            set_key(env_path, "GEMINI_API_KEY", self.gemini_api_key_input.text())
-            set_key(env_path, "GOOGLE_CLOUD_PROJECT", self.gcp_project_id_input.text())
-            set_key(env_path, "GCS_BUCKET_NAME", self.gcs_bucket_name_input.text())
-            set_key(env_path, "SMTP_HOST", self.smtp_host_input.text())
-            set_key(env_path, "SMTP_PORT", self.smtp_port_input.text())
-            set_key(env_path, "SMTP_USER", self.smtp_user_input.text())
-            set_key(env_path, "SMTP_PASSWORD", self.smtp_password_input.text())
-            set_key(env_path, "EMAIL_RECIPIENTS_TO", self.recipients_to_input.text())
-            set_key(env_path, "EMAIL_RECIPIENTS_CC", self.recipients_cc_input.text())
+            set_key(env_path, "GEMINI_API_KEY", gs.gemini_api_key_input.text())
+            set_key(env_path, "GOOGLE_CLOUD_PROJECT", gs.gcp_project_id_input.text())
+            set_key(env_path, "GCS_BUCKET_NAME", gs.gcs_bucket_name_input.text())
+            set_key(env_path, "SMTP_HOST", gs.smtp_host_input.text())
+            set_key(env_path, "SMTP_PORT", gs.smtp_port_input.text())
+            set_key(env_path, "SMTP_USER", gs.smtp_user_input.text())
+            set_key(env_path, "SMTP_PASSWORD", gs.smtp_password_input.text())
+            set_key(env_path, "EMAIL_RECIPIENTS_TO", gs.recipients_to_input.text())
+            set_key(env_path, "EMAIL_RECIPIENTS_CC", gs.recipients_cc_input.text())
 
-            QMessageBox.information(
-                self,
-                "Configurazione Salvata",
-                "Le modifiche sono state salvate con successo. "
-                "Per renderle effettive, riavvia l'applicazione."
-            )
+            QMessageBox.information(self, "Salvato", "Configurazione salvata. Riavviare per applicare.")
         except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Errore di Salvataggio",
-                f"Impossibile salvare la configurazione: {e}"
-            )
+            QMessageBox.critical(self, "Errore", f"Impossibile salvare: {e}")

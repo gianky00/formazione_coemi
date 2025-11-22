@@ -69,6 +69,25 @@ class LoginView(QWidget):
         self.login_btn = QPushButton("Accedi")
         self.login_btn.setFixedHeight(40)
         self.login_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.login_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #1D4ED8;
+                color: white;
+                font-weight: bold;
+                border-radius: 8px;
+                font-size: 14px;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #1E40AF;
+            }
+            QPushButton:pressed {
+                background-color: #1E3A8A;
+            }
+            QPushButton:disabled {
+                background-color: #93C5FD;
+            }
+        """)
         self.login_btn.clicked.connect(self.handle_login)
         card_layout.addWidget(self.login_btn)
 
