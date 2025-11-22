@@ -1,11 +1,13 @@
 import sys
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QMainWindow
 from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt
 
 # --- IMPORT FONDAMENTALE ---
-from .main_window_ui import MainWindow
+from .main_window_ui import MainDashboardWidget
 from .views.login_view import LoginView
 from .api_client import APIClient
+from .components.animated_stacked_widget import AnimatedStackedWidget
 
 def setup_styles(app: QApplication):
     """
@@ -257,45 +259,66 @@ def setup_styles(app: QApplication):
             }
     """)
 
+class MasterWindow(QMainWindow):
+    def __init__(self, controller):
+        super().__init__()
+        self.controller = controller
+        self.setWindowTitle("Intelleo - Predict. Validate. Automate")
+        self.resize(1280, 800)
+
+        self.stack = AnimatedStackedWidget()
+        self.setCentralWidget(self.stack)
+
+        # Initialize Views
+        self.login_view = LoginView(controller.api_client)
+        self.login_view.login_success.connect(controller.on_login_success)
+
+        self.dashboard_view = None # Lazy init
+
+        self.stack.addWidget(self.login_view) # Index 0
+
+    def show_login(self):
+        self.stack.fade_in(0)
+
+    def show_dashboard(self, dashboard_widget):
+        # Ensure added
+        if self.stack.indexOf(dashboard_widget) == -1:
+            self.stack.addWidget(dashboard_widget)
+
+        index = self.stack.indexOf(dashboard_widget)
+        self.stack.fade_in(index)
+
 class ApplicationController:
     def __init__(self):
         self.api_client = APIClient()
-        self.login_view = None
-        self.main_window = None
+        self.master_window = MasterWindow(self)
+        self.dashboard = None
 
     def start(self):
-        self.show_login()
-
-    def show_login(self):
-        if self.main_window:
-            self.main_window.close()
-            self.main_window = None
-
-        # Reset API client token
-        self.api_client.clear_token()
-
-        self.login_view = LoginView(self.api_client)
-        self.login_view.login_success.connect(self.on_login_success)
-        self.login_view.show()
+        self.master_window.showMaximized()
 
     def on_login_success(self, user_info):
-        if self.login_view:
-            self.login_view.close()
-            self.login_view = None
+        # Create Dashboard if not exists
+        if not self.dashboard:
+            self.dashboard = MainDashboardWidget(self.api_client)
+            self.dashboard.logout_requested.connect(self.on_logout)
 
-        self.show_main_window(user_info)
-
-    def show_main_window(self, user_info):
-        self.main_window = MainWindow(self.api_client)
-
-        # Set User Info in Sidebar
+        # Update User Info in Sidebar
         account_name = user_info.get("account_name") or user_info.get("username")
         import datetime
         now_str = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-        self.main_window.sidebar.set_user_info(account_name, now_str)
+        self.dashboard.sidebar.set_user_info(account_name, now_str)
 
-        self.main_window.logout_requested.connect(self.show_login)
-        self.main_window.showMaximized()
+        # Transition
+        self.master_window.show_dashboard(self.dashboard)
+
+    def on_logout(self):
+        self.api_client.clear_token()
+        self.master_window.show_login()
+        # Optional: Destroy dashboard to reset state completely
+        if self.dashboard:
+            self.dashboard.deleteLater()
+            self.dashboard = None
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
