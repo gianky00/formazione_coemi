@@ -21,7 +21,7 @@ class DashboardViewModel(QObject):
 
     def load_data(self):
         try:
-            response = requests.get(f"{self.api_client.base_url}/certificati/?validated=true")
+            response = requests.get(f"{self.api_client.base_url}/certificati/?validated=true", headers=self.api_client._get_headers())
             response.raise_for_status()
             data = response.json()
             if data:
@@ -86,7 +86,7 @@ class DashboardViewModel(QObject):
         error_messages = []
         for cert_id in ids:
             try:
-                response = requests.delete(f"{self.api_client.base_url}/certificati/{cert_id}")
+                response = requests.delete(f"{self.api_client.base_url}/certificati/{cert_id}", headers=self.api_client._get_headers())
                 response.raise_for_status()
                 success_count += 1
             except requests.exceptions.RequestException as e:
@@ -102,7 +102,7 @@ class DashboardViewModel(QObject):
 
     def update_certificate(self, cert_id, data):
         try:
-            response = requests.put(f"{self.api_client.base_url}/certificati/{cert_id}", json=data)
+            response = requests.put(f"{self.api_client.base_url}/certificati/{cert_id}", json=data, headers=self.api_client._get_headers())
             response.raise_for_status()
             self.operation_completed.emit("Certificato aggiornato con successo.")
             self.load_data()

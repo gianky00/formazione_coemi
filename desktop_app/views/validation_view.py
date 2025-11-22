@@ -113,7 +113,7 @@ class ValidationView(QWidget):
 
         cert_id = selected_ids[0]
         try:
-            response = requests.get(f"{self.api_client.base_url}/certificati/{cert_id}")
+            response = requests.get(f"{self.api_client.base_url}/certificati/{cert_id}", headers=self.api_client._get_headers())
             response.raise_for_status()
             cert_data = response.json()
 
@@ -121,7 +121,7 @@ class ValidationView(QWidget):
             dialog = EditCertificatoDialog(cert_data, all_categories, self)
             if dialog.exec():
                 updated_data = dialog.get_data()
-                update_response = requests.put(f"{self.api_client.base_url}/certificati/{cert_id}", json=updated_data)
+                update_response = requests.put(f"{self.api_client.base_url}/certificati/{cert_id}", json=updated_data, headers=self.api_client._get_headers())
                 update_response.raise_for_status()
                 QMessageBox.information(self, "Successo", "Certificato aggiornato con successo.")
                 self.load_data()
@@ -131,7 +131,7 @@ class ValidationView(QWidget):
     def load_data(self):
         try:
             # Fetch unvalidated certificates
-            response = requests.get(f"{self.api_client.base_url}/certificati/?validated=false")
+            response = requests.get(f"{self.api_client.base_url}/certificati/?validated=false", headers=self.api_client._get_headers())
             response.raise_for_status()
             data = response.json()
 
@@ -243,9 +243,9 @@ class ValidationView(QWidget):
         for cert_id in ids:
             try:
                 if action_type == "validate":
-                    response = requests.put(f"{self.api_client.base_url}/certificati/{cert_id}/valida")
+                    response = requests.put(f"{self.api_client.base_url}/certificati/{cert_id}/valida", headers=self.api_client._get_headers())
                 else: # delete
-                    response = requests.delete(f"{self.api_client.base_url}/certificati/{cert_id}")
+                    response = requests.delete(f"{self.api_client.base_url}/certificati/{cert_id}", headers=self.api_client._get_headers())
 
                 response.raise_for_status()
                 success_count += 1
