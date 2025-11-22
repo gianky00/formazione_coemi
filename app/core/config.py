@@ -29,8 +29,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 43200  # 30 days (60 * 24 * 30)
 
     # First Run Admin Credentials (Secure Default)
-    FIRST_RUN_ADMIN_USERNAME: str = os.getenv("FIRST_RUN_ADMIN_USERNAME", "admin")
-    FIRST_RUN_ADMIN_PASSWORD: str = os.getenv("FIRST_RUN_ADMIN_PASSWORD", "ChangeMe_Immediately!")
+    FIRST_RUN_ADMIN_USERNAME: str = "admin"
+    FIRST_RUN_ADMIN_PASSWORD: str = "allegretti@coemi"
 
     model_config = ConfigDict(
         env_file=".env",
