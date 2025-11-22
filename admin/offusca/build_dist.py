@@ -305,6 +305,7 @@ def build():
         cmd_pyinstaller.extend(["--collect-all", "grpc"])
         cmd_pyinstaller.extend(["--collect-all", "google.protobuf"])
         cmd_pyinstaller.extend(["--collect-all", "desktop_app"])
+        cmd_pyinstaller.extend(["--collect-all", "PyQt6-WebEngine"]) # FIX: Force collection of WebEngine binaries
 
         manual_hidden_imports = [
             "views", "utils", "components", "api_client",

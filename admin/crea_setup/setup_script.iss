@@ -28,7 +28,6 @@ OutputBaseFilename=Intelleo_Setup_v{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
-WizardResizable=yes
 WizardSizePercent=120
 ; Licenza EULA (RTF Professionale)
 LicenseFile=EULA.rtf
