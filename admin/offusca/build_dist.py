@@ -260,6 +260,13 @@ def build():
         copy_dir_if_exists("desktop_app/assets", "desktop_app/assets")
         copy_dir_if_exists("desktop_app/icons", "desktop_app/icons")
 
+        # COPY RUNTIME HOOK
+        rthook_src = os.path.join(os.path.dirname(__file__), "rthook_pyqt6.py")
+        rthook_dst = os.path.join(OBF_DIR, "rthook_pyqt6.py")
+        if os.path.exists(rthook_src):
+            shutil.copy(rthook_src, rthook_dst)
+            log_and_print(f"Copied runtime hook: {rthook_src} -> {rthook_dst}")
+
         if os.path.exists(os.path.join(ROOT_DIR, "requirements.txt")):
             shutil.copy(os.path.join(ROOT_DIR, "requirements.txt"), os.path.join(OBF_DIR, "requirements.txt"))
         if os.path.exists(os.path.join(ROOT_DIR, ".env")):
@@ -294,6 +301,7 @@ def build():
             "--distpath", DIST_DIR,
             "--workpath", os.path.join(DIST_DIR, "build"),
             f"--paths={OBF_DIR}",
+            f"--runtime-hook={os.path.join(OBF_DIR, 'rthook_pyqt6.py')}", # ADD RUNTIME HOOK
         ]
 
         for d in add_data:
@@ -305,7 +313,7 @@ def build():
         cmd_pyinstaller.extend(["--collect-all", "grpc"])
         cmd_pyinstaller.extend(["--collect-all", "google.protobuf"])
         cmd_pyinstaller.extend(["--collect-all", "desktop_app"])
-        cmd_pyinstaller.extend(["--collect-all", "PyQt6-WebEngine"]) # FIX: Force collection of WebEngine binaries
+        cmd_pyinstaller.extend(["--collect-all", "PyQt6-WebEngine"])
 
         manual_hidden_imports = [
             "views", "utils", "components", "api_client",
@@ -340,17 +348,17 @@ def build():
         run_command(cmd_pyinstaller)
 
         log_and_print("\n--- Step 6/7: Post-Build Cleanup & DLL Injection ---")
-        
+
         # Use absolute path for output folder to fix Inno Setup resolution
         output_folder = os.path.abspath(os.path.join(DIST_DIR, APP_NAME))
-        
+
         if os.name == 'nt':
             for dll_name, dll_path in system_dlls.items():
                 dest = os.path.join(output_folder, dll_name)
                 if not os.path.exists(dest):
                     shutil.copy(dll_path, dest)
                     log_and_print(f"Injected {dll_name} into build folder.")
-        
+
         log_and_print("\n--- Step 7/7: Compiling Installer with Inno Setup ---")
 
         iss_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "crea_setup", "setup_script.iss"))
