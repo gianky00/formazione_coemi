@@ -49,7 +49,7 @@ def _generate_prompt() -> str:
     esempi_categorie = """
 - ANTINCENDIO: "Addetto Antincendio Rischio Basso", "Corso Antincendio Rischio Medio"
 - PREPOSTO: [USA QUESTA SOLO PER CORSI/ATTESTATI] "Corso per Preposti alla Sicurezza", "Aggiornamento Preposto".
-- NOMINE: [USA QUESTA PER LETTERE DI INCARICO/ATTRIBUZIONE] "NOMINA CAPO CANTIERE", "NOMINA PREPOSTO", "Attribuzione e competenze del ruolo di Preposto"
+- NOMINA: [USA QUESTA PER LETTERE DI INCARICO/ATTRIBUZIONE] "NOMINA CAPO CANTIERE", "NOMINA PREPOSTO", "Attribuzione e competenze del ruolo di Preposto"
 - VISITA MEDICA: [USA QUESTA PER GIUDIZI DI IDONEITÀ] "Giudizio di idoneità alla Mansione Specifica", "Visita medica periodica"
 - UNILAV: [USA QUESTA PER COMUNICAZIONI OBBLIGATORIE] "UNILAV - Comunicazione di assunzione", "Comunicazione Obbligatoria Assunzione"
 - PATENTE: [USA QUESTA PER PATENTI DI GUIDA] "Patente di Guida", "Patente B"
@@ -79,7 +79,7 @@ Estrai le seguenti informazioni e classificalo. Restituisci ESCLUSIVAMENTE un og
 
     REGOLE DI CLASSIFICAZIONE ASSOLUTE:
     1.  'PREPOSTO' deve essere usata **SOLO** per **attestati di FORMAZIONE**.
-    2.  Qualsiasi **lettera di incarico** o **nomina** (es. "NOMINA CAPO CANTIERE", "Attribuzione... ruolo di Preposto") deve essere **SEMPRE** "NOMINE".
+    2.  Qualsiasi **lettera di incarico** o **nomina** (es. "NOMINA CAPO CANTIERE", "Attribuzione... ruolo di Preposto") deve essere **SEMPRE** "NOMINA".
     3.  Qualsiasi documento che sia un **"Giudizio di idoneità alla Mansione Specifica"**, emesso da un "Medico Competente" e che contenga frasi come "Visita medica del...", "accertamenti sanitari" e una scadenza (es. "Da rivedere entro il..."), deve essere **SEMPRE** "VISITA MEDICA".
     4.  Qualsiasi documento intitolato **"Comunicazione Obbligatoria di Assunzione"** o simile, e che contenga il termine "UNILAV", deve essere **SEMPRE** "UNILAV". La sua data di scadenza si trova nel campo "Data Fine".
     5.  Se il documento è una **"Patente di Guida"**, la categoria è **SEMPRE** "PATENTE". La data di scadenza è al punto 4b.
@@ -89,7 +89,7 @@ Estrai le seguenti informazioni e classificalo. Restituisci ESCLUSIVAMENTE un og
     9.  Se il documento riguarda la formazione su **"Atmosfere Esplosive"** o contiene il termine **"ATEX"**, la categoria deve essere **SEMPRE** "ATEX".
 
     ERRORE COMUNE DA EVITARE:
-    - NON classificare "NOMINA... Preposto" come "PREPOSTO". Quella è una "NOMINE".
+    - NON classificare "NOMINA... Preposto" come "PREPOSTO". Quella è una "NOMINA".
     - NON classificare un "Giudizio di idoneità" in base alla mansione. La categoria è "VISITA MEDICA".
 
     Se non riesci a classificare, usa "ALTRO".

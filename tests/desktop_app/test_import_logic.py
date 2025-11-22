@@ -9,7 +9,7 @@ class TestPdfWorker(unittest.TestCase):
     def setUp(self):
         self.api_client = MagicMock()
         self.api_client.base_url = "http://test-api"
-        self.worker = PdfWorker([], "/tmp/test_folder", self.api_client)
+        self.worker = PdfWorker([], self.api_client)
         # Mock signals to prevent segfaults or errors if no event loop
         self.worker.log_message = MagicMock()
         self.worker.status_update = MagicMock()
@@ -125,7 +125,7 @@ class TestPdfWorker(unittest.TestCase):
             "id": 1,
             "nome": "Anna Bianchi",
             "matricola": "11223",
-            "categoria": "NOMINE",
+            "categoria": "NOMINA",
             "data_scadenza": None, # No expiration
             "assegnazione_fallita_ragione": None
         }
@@ -138,11 +138,11 @@ class TestPdfWorker(unittest.TestCase):
         # Assertions
         expected_base = os.path.dirname(file_path)
         # Status should be ATTIVO
-        expected_doc_folder = os.path.join(expected_base, "DOCUMENTI DIPENDENTI", "Anna Bianchi (11223)", "NOMINE", "ATTIVO")
+        expected_doc_folder = os.path.join(expected_base, "DOCUMENTI DIPENDENTI", "Anna Bianchi (11223)", "NOMINA", "ATTIVO")
         mock_makedirs.assert_any_call(expected_doc_folder, exist_ok=True)
 
         # Filename should contain "no scadenza"
-        expected_new_filename = "Anna Bianchi (11223) - NOMINE - no scadenza.pdf"
+        expected_new_filename = "Anna Bianchi (11223) - NOMINA - no scadenza.pdf"
         expected_dest_path = os.path.join(expected_doc_folder, expected_new_filename)
         mock_move.assert_called_with(file_path, expected_dest_path)
 

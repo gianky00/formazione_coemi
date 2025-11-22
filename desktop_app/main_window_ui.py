@@ -2,7 +2,7 @@ import os
 import sys
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
                              QPushButton, QStackedWidget, QLabel, QFrame, QSizePolicy,
-                             QScrollArea, QLayout)
+                             QScrollArea, QLayout, QApplication)
 from PyQt6.QtCore import Qt, QSize, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup
 from PyQt6.QtGui import QIcon, QPixmap
 
@@ -92,6 +92,14 @@ class Sidebar(QFrame):
         self.main_layout.addStretch()
 
         # --- Footer ---
+        self.disconnect_btn = QPushButton("Disconnetti")
+        self.disconnect_btn.setObjectName("disconnect_btn")
+        self.disconnect_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.disconnect_btn.setIcon(load_colored_icon("log-out.svg", "#FFFFFF"))
+        self.disconnect_btn.setStyleSheet("color: white; text-align: left; padding: 10px; background: none; border: none; font-weight: bold;")
+        self.disconnect_btn.clicked.connect(lambda: QApplication.instance().quit())
+        self.main_layout.addWidget(self.disconnect_btn)
+
         self.footer_label = QLabel("v1.0.0 • Intelleo")
         self.footer_label.setObjectName("version_label")
         self.footer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
