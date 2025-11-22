@@ -22,7 +22,10 @@ class SimpleTableModel(QAbstractTableModel):
         if not index.isValid():
             return None
         if role == Qt.ItemDataRole.DisplayRole or role == Qt.ItemDataRole.EditRole:
-            return str(self._data.iloc[index.row(), index.column()])
+            val = self._data.iloc[index.row(), index.column()]
+            if pd.isna(val) or val == "None" or val is None:
+                return ""
+            return str(val)
         return None
 
     def flags(self, index):

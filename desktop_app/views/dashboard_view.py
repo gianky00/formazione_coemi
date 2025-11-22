@@ -9,6 +9,7 @@ from .edit_dialog import EditCertificatoDialog
 from ..view_models.dashboard_view_model import DashboardViewModel
 from ..api_client import APIClient
 import requests
+import pandas as pd
 
 
 class StatusDelegate(QStyledItemDelegate):
@@ -52,7 +53,10 @@ class CertificatoTableModel(QAbstractTableModel):
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or role != Qt.ItemDataRole.DisplayRole:
             return None
-        return str(self._data.iloc[index.row(), index.column()])
+        val = self._data.iloc[index.row(), index.column()]
+        if pd.isna(val) or val == "None" or val is None:
+            return ""
+        return str(val)
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
@@ -232,10 +236,9 @@ class DashboardView(QWidget):
 
     def _update_button_states(self):
         selection_model = self.table_view.selectionModel()
-        has_selection = selection_model is not None and selection_model.hasSelection()
-        is_single_selection = len(selection_model.selectedRows()) == 1 if has_selection else False
-        self.edit_button.setEnabled(is_single_selection)
-        self.delete_button.setEnabled(has_selection)
+        # Buttons are always enabled per user request
+        self.edit_button.setEnabled(True)
+        self.delete_button.setEnabled(True)
         self.export_button.setEnabled(self.model is not None and self.model.rowCount() > 0)
 
     def _get_selection_info(self):

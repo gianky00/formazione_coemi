@@ -252,5 +252,5 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     setup_styles(app)
     window = MainWindow()
-    window.show()
+    window.showMaximized()
     sys.exit(app.exec())

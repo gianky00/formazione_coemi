@@ -37,7 +37,7 @@ class ScadenzarioView(QWidget):
         toolbar_layout.addWidget(zoom_label)
         self.zoom_combo = QComboBox()
         self.zoom_combo.addItems(["3 Mesi", "6 Mesi", "1 Anno"])
-        self.zoom_combo.setCurrentIndex(1)
+        self.zoom_combo.setCurrentIndex(0)
         self.zoom_combo.currentIndexChanged.connect(self.update_zoom_from_combo)
         toolbar_layout.addWidget(self.zoom_combo)
         toolbar_layout.addStretch()
@@ -90,7 +90,7 @@ class ScadenzarioView(QWidget):
 
         self.api_client = APIClient()
         self.current_date = QDate.currentDate()
-        self.zoom_months = 6
+        self.zoom_months = 3
         self.certificates = []
         self.load_data()
 

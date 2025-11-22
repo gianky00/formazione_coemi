@@ -56,7 +56,11 @@ class DashboardViewModel(QObject):
             df_filtered = df_filtered[df_filtered['categoria'] == categoria]
 
         if stato != "Tutti":
-            df_filtered = df_filtered[df_filtered['stato_certificato'] == stato]
+            # Map display state back to database state
+            db_stato = stato
+            if stato == "in scadenza":
+                db_stato = "in_scadenza"
+            df_filtered = df_filtered[df_filtered['stato_certificato'] == db_stato]
 
         self._df_filtered = df_filtered
         self.data_changed.emit()
@@ -67,7 +71,10 @@ class DashboardViewModel(QObject):
 
         dipendenti = sorted(self._df_original['Dipendente'].unique())
         categorie = sorted(self._df_original['categoria'].unique())
-        stati = sorted(self._df_original['stato_certificato'].unique())
+        stati_db = sorted(self._df_original['stato_certificato'].unique())
+
+        # Map database state "in_scadenza" to display state "in scadenza"
+        stati = [s.replace("in_scadenza", "in scadenza") for s in stati_db]
 
         return {"dipendenti": dipendenti, "categorie": categorie, "stati": stati}
 

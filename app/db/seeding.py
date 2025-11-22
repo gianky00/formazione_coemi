@@ -44,7 +44,7 @@ def seed_database(db: Session = None):
             {"nome_corso": "PATENTE", "validita_mesi": 0, "categoria_corso": "PATENTE"}, # Scadenza da PDF
             {"nome_corso": "CARTA DI IDENTITA", "validita_mesi": 0, "categoria_corso": "CARTA DI IDENTITA"}, # Scadenza da PDF
             {"nome_corso": "MODULO RECESSO RAPPORTO DI LAVORO", "validita_mesi": 0, "categoria_corso": "MODULO RECESSO RAPPORTO DI LAVORO"}, # Senza scadenza
-            {"nome_corso": "NOMINE", "validita_mesi": 0, "categoria_corso": "NOMINE"},
+            {"nome_corso": "NOMINA", "validita_mesi": 0, "categoria_corso": "NOMINA"},
             {"nome_corso": "VISITA MEDICA", "validita_mesi": 0, "categoria_corso": "VISITA MEDICA"},
             {"nome_corso": "ALTRO", "validita_mesi": 0, "categoria_corso": "ALTRO"},
         ]

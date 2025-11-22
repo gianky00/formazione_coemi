@@ -14,17 +14,15 @@ class PdfWorker(QObject):
     log_message = pyqtSignal(str)
     status_update = pyqtSignal(str)
 
-    def __init__(self, pdf_files, folder_path, api_client):
+    def __init__(self, file_paths, api_client):
         super().__init__()
-        self.pdf_files = pdf_files
-        self.folder_path = folder_path
+        self.file_paths = file_paths
         self.api_client = api_client
 
     def run(self):
-        total_files = len(self.pdf_files)
-        for i, pdf_file in enumerate(self.pdf_files):
+        total_files = len(self.file_paths)
+        for i, file_path in enumerate(self.file_paths):
             self.status_update.emit(f"Elaborazione file {i+1} di {total_files}...")
-            file_path = os.path.join(self.folder_path, pdf_file)
             self.process_pdf(file_path)
             self.progress.emit(i + 1)
         self.finished.emit()
@@ -159,10 +157,20 @@ class DropZone(QFrame):
             event.acceptProposedAction()
 
     def dropEvent(self, event):
+        files_to_process = []
         for url in event.mimeData().urls():
-            if url.isLocalFile() and os.path.isdir(url.toLocalFile()):
-                self.parent().upload_folder(url.toLocalFile())
-                break
+            if url.isLocalFile():
+                path = url.toLocalFile()
+                if os.path.isfile(path) and path.lower().endswith('.pdf'):
+                    files_to_process.append(path)
+                elif os.path.isdir(path):
+                    for root, dirs, files in os.walk(path):
+                        for file in files:
+                            if file.lower().endswith('.pdf'):
+                                files_to_process.append(os.path.join(root, file))
+
+        if files_to_process:
+            self.parent().process_dropped_files(files_to_process)
 
 class ImportView(QWidget):
     import_completed = pyqtSignal()
@@ -195,23 +203,25 @@ class ImportView(QWidget):
             self.upload_folder(folder_path)
 
     def upload_folder(self, folder_path):
-        self.results_display.clear()
-        pdf_files = [f for f in os.listdir(folder_path) if f.endswith('.pdf')]
+        pdf_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith('.pdf')]
+        self.process_dropped_files(pdf_files)
 
-        if not pdf_files:
+    def process_dropped_files(self, file_paths):
+        self.results_display.clear()
+        if not file_paths:
             self.results_display.setText("Nessun file PDF trovato.")
             return
 
-        self.results_display.setText(f"Trovati {len(pdf_files)} file PDF. Inizio elaborazione...")
+        self.results_display.setText(f"Trovati {len(file_paths)} file PDF. Inizio elaborazione...")
 
         if self.progress_widget and self.progress_bar and self.progress_label:
-            self.progress_bar.setMaximum(len(pdf_files))
+            self.progress_bar.setMaximum(len(file_paths))
             self.progress_bar.setValue(0)
             self.progress_label.setText("Inizio...")
             self.progress_widget.setVisible(True)
 
         self.thread = QThread()
-        self.worker = PdfWorker(pdf_files, folder_path, self.api_client)
+        self.worker = PdfWorker(file_paths, self.api_client)
         self.worker.moveToThread(self.thread)
 
         self.thread.started.connect(self.worker.run)
