@@ -5,7 +5,6 @@ import sys
 import time
 import importlib.util
 import ast
-import sysconfig
 
 # --- FIX FONDAMENTALE PER CMD ---
 # Forza la directory di lavoro alla cartella dove si trova questo script.
@@ -34,7 +33,7 @@ def kill_existing_process():
     print("--- Step 0: Cleaning active processes ---")
     try:
         subprocess.run(["taskkill", "/F", "/IM", f"{APP_NAME}.exe"], 
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         print(f"Killed active {APP_NAME}.exe instances (if any).")
         time.sleep(1)
     except Exception:
@@ -90,7 +89,6 @@ def scan_imports(source_dirs):
 def check_dependencies():
     """Verifica installazione librerie critiche."""
     print("--- Checking Build Dependencies ---")
-    # Lista pulita: rimosso Playwright, fpdf, pandas se non usati
     required_libs = [
         ("PyInstaller", "pyinstaller"), ("pyarmor", "pyarmor"),
         ("fastapi", "fastapi"), ("uvicorn", "uvicorn"), 
@@ -122,6 +120,7 @@ def check_dependencies():
     print("All dependencies found.")
 
 def collect_submodules(base_dir):
+    """Colleziona tutti i sottomoduli Python in una cartella."""
     modules = []
     full_path = os.path.join(ROOT_DIR, base_dir)
     if not os.path.exists(full_path): return modules
@@ -129,6 +128,7 @@ def collect_submodules(base_dir):
     for root, _, files in os.walk(full_path):
         for file in files:
             if file.endswith(".py") and file != "__init__.py":
+                # Calcola il percorso relativo es: desktop_app\views\main.py -> desktop_app.views.main
                 rel_path = os.path.relpath(os.path.join(root, file), ROOT_DIR)
                 module_name = rel_path.replace(os.sep, ".")[:-3]
                 modules.append(module_name)
@@ -140,16 +140,6 @@ def build():
     kill_existing_process()
     check_dependencies()
     
-    # ### --- PUNTO INSERIMENTO LICENZA PYARMOR ---
-    # Se hai un file di licenza (es. pyarmor-regcode-xxxx.txt o .zip), 
-    # decommenta le due righe seguenti e inserisci il nome corretto del file.
-    # Questo registrerà la licenza prima di offuscare.
-    
-    # print("--- Step 0.1: Registering PyArmor License ---")
-    # run_command([sys.executable, "-m", "pyarmor.cli", "reg", "pyarmor-regcode-xxxx.txt"]) # <--- METTI QUI IL TUO FILE
-    
-    # ---------------------------------------------
-
     if os.path.exists(DIST_DIR):
         try:
             shutil.rmtree(DIST_DIR)
@@ -163,7 +153,6 @@ def build():
     print("\n--- Step 0.5: Building Modern Guide Frontend ---")
     try:
         guide_build_script = os.path.join(ROOT_DIR, "tools", "build_guide.py")
-        # Use list for subprocess
         subprocess.run([sys.executable, guide_build_script], check=True)
     except Exception as e:
         print(f"WARNING: Guide build failed: {e}")
@@ -222,12 +211,12 @@ def build():
     cmd_pyinstaller = [
         sys.executable, "-m", "PyInstaller",
         "--name", APP_NAME,
-        "--onedir",   # <--- MODIFICATO: Usa cartella invece di file unico (per Inno Setup)
-        "--console",  # <--- MODIFICATO: Abilita console per debug visivo (finestra nera)
+        "--onedir",   
+        "--windowed", # MODIFICATO: Niente console nera per l'utente finale
         "--clean",
-        "--noconfirm", # <--- FIX: Sovrascrive directory output senza chiedere conferma
-        "--icon", os.path.join(OBF_DIR, "desktop_app", "icons", "icon.ico"), # <--- FIX: Icona personalizzata
-        "--distpath", DIST_DIR, # Crea dist/Intelleo
+        "--noconfirm",
+        "--icon", os.path.join(OBF_DIR, "desktop_app", "icons", "icon.ico"),
+        "--distpath", DIST_DIR, 
         "--workpath", os.path.join(DIST_DIR, "build"),
         f"--paths={OBF_DIR}",
     ]
@@ -235,38 +224,45 @@ def build():
     for d in add_data:
         cmd_pyinstaller.extend(["--add-data", d])
 
-    # --- FIX AGGRESSIVO PER GOOGLE CLOUD & PROTOBUF ---
+    # --- FIX AGGRESSIVO PER LE DIPENDENZE AI E INTERNALI ---
+    # 1. Colleziona intere librerie complesse
     cmd_pyinstaller.extend(["--collect-all", "google.cloud"])
     cmd_pyinstaller.extend(["--collect-all", "google.cloud.aiplatform"]) 
-    cmd_pyinstaller.extend(["--collect-all", "google_cloud_aiplatform"]) 
     cmd_pyinstaller.extend(["--collect-all", "google.generativeai"])
     cmd_pyinstaller.extend(["--collect-all", "grpc"])
-    cmd_pyinstaller.extend(["--collect-all", "proto"])
     cmd_pyinstaller.extend(["--collect-all", "google.protobuf"]) 
+    cmd_pyinstaller.extend(["--collect-all", "desktop_app"]) # IMPORTANTE: Forza inclusione app
 
-    # LISTA IMPORT MANUALE
+    # 2. Lista Import Manuale (Aggiunti i moduli mancanti dal log precedente)
     manual_hidden_imports = [
+        # Moduli Interni che fallivano
+        "views", "utils", "components", "api_client", 
+        "main_window_ui", "edit_dialog", "gantt_item", "view_models",
+        "desktop_app.views", "desktop_app.utils", "desktop_app.components",
+
+        # Database e Server
         "sqlalchemy.sql.default_comparator",
         "pysqlite2", "MySQLdb", "psycopg2", "dotenv",
         "fastapi", "starlette",
         "uvicorn.loops.auto", "uvicorn.protocols.http.auto", "uvicorn.lifespan.on",
         "multipart", "python_multipart",
+        
+        # PyQt6 Plugins
         "PyQt6.QtSvg", "PyQt6.QtNetwork", "PyQt6.QtPrintSupport",
         "PyQt6.QtWidgets", "PyQt6.QtCore", "PyQt6.QtGui",
         "PyQt6.QtWebEngineWidgets", "PyQt6.QtWebEngineCore",
         
-        # --- FIX EMAIL ---
+        # Email
         "email.mime.text", "email.mime.multipart", "email.mime.application",
         "email.mime.base", "email.mime.image", "email.header", "email.utils", "email.encoders",
-        # -----------------
 
+        # Utilities
         "pydantic_settings",
         "httpx", 
         
-        # --- GOOGLE IMPORTS ---
+        # Google Specifici
         "google.cloud.aiplatform",
         "google.cloud.aiplatform_v1",
-        "google.cloud.aiplatform.gapic",
         "google.api_core",
         "google.auth",
         "google.protobuf", 
@@ -274,6 +270,7 @@ def build():
     ]
 
     all_hidden_imports = list(set(manual_hidden_imports + auto_detected_libs))
+    # Colleziona sottomoduli ma assicura che i path siano puliti
     all_hidden_imports.extend(collect_submodules("desktop_app"))
     all_hidden_imports.extend(collect_submodules("app"))
 
