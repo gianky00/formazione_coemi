@@ -132,6 +132,9 @@ def setup_styles(app: QApplication):
             QPushButton:hover {
                 background-color: #1E40AF;
             }
+            QPushButton:pressed {
+                background-color: #1E3A8A;
+            }
             QPushButton:disabled {
                 background-color: #E5E7EB;
                 border-color: #D1D5DB;
@@ -144,6 +147,7 @@ def setup_styles(app: QApplication):
             }
             QPushButton.secondary:hover, QPushButton#secondary:hover {
                 background-color: #F9FAFB;
+                border-color: #9CA3AF;
             }
             QPushButton.destructive, QPushButton#destructive {
                 background-color: #DC2626;
@@ -157,17 +161,99 @@ def setup_styles(app: QApplication):
                  /* Same as default */
             }
 
-            /* Inputs */
-            QComboBox, QLineEdit, QDateEdit, QTextEdit {
-                padding: 10px;
+            /* Inputs (LineEdit, DateEdit, TextEdit) */
+            QLineEdit, QDateEdit, QTextEdit {
+                padding: 8px 12px;
                 border: 1px solid #D1D5DB;
                 border-radius: 8px;
                 font-size: 14px;
                 background-color: #FFFFFF;
                 color: #1F2937;
             }
-            QComboBox:focus, QLineEdit:focus, QDateEdit:focus, QTextEdit:focus {
-                border: 1px solid #1D4ED8;
+            QLineEdit:hover, QDateEdit:hover, QTextEdit:hover {
+                border-color: #3B82F6; /* Blue-500 */
+            }
+            QLineEdit:focus, QDateEdit:focus, QTextEdit:focus {
+                border: 2px solid #2563EB; /* Blue-600 */
+                padding: 7px 11px; /* Adjust padding to prevent layout shift */
+            }
+
+            /* ComboBox Styles */
+            QComboBox {
+                background-color: #FFFFFF;
+                border: 1px solid #D1D5DB;
+                border-radius: 8px;
+                padding: 8px 12px;
+                font-size: 14px;
+                color: #1F2937;
+                min-width: 120px;
+            }
+            QComboBox:hover {
+                border-color: #3B82F6; /* Blue-500 */
+                background-color: #F9FAFB;
+            }
+            QComboBox:focus {
+                border: 2px solid #2563EB; /* Blue-600 */
+                padding: 7px 11px; /* Compensate for border width */
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 30px;
+                border-left-width: 0px;
+                border-top-right-radius: 8px;
+                border-bottom-right-radius: 8px;
+                background-color: transparent;
+            }
+            QComboBox::down-arrow {
+                image: url(desktop_app/icons/lucide/chevron-down.svg);
+                width: 16px;
+                height: 16px;
+            }
+            /* Popup (Drop-down list) */
+            QComboBox QAbstractItemView {
+                border: 1px solid #E5E7EB;
+                border-radius: 8px;
+                background-color: #FFFFFF;
+                selection-background-color: #EFF6FF;
+                selection-color: #1E3A8A;
+                outline: none;
+                padding: 4px;
+                min-width: 140px; /* Ensure popup isn't too thin */
+            }
+            QComboBox QAbstractItemView::item {
+                padding: 8px 12px;
+                min-height: 24px;
+                border-radius: 4px;
+            }
+            QComboBox QAbstractItemView::item:hover {
+                background-color: #F3F4F6;
+            }
+            QComboBox QAbstractItemView::item:selected {
+                background-color: #EFF6FF;
+                color: #1E40AF;
+                font-weight: 600;
+            }
+
+            /* ScrollBar Styling for cleanliness */
+            QScrollBar:vertical {
+                border: none;
+                background: #F1F5F9;
+                width: 8px;
+                margin: 0px 0px 0px 0px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical {
+                background: #CBD5E1;
+                min-height: 20px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #94A3B8;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                border: none;
+                background: none;
             }
     """)
 
@@ -204,14 +290,6 @@ class ApplicationController:
 
         # Set User Info in Sidebar
         account_name = user_info.get("account_name") or user_info.get("username")
-        # For last_access, the backend updates it on login.
-        # But the returned user_info might not have the *current* login time yet
-        # (since the token was just created).
-        # Actually, the /login endpoint updates last_login.
-        # We can just display "Adesso" or fetch user info again.
-        # For now, I'll just put "Oggi" or leave it as stored.
-        # Wait, the requirement says "sotto quando è stato fatto l'ultimo accesso".
-        # If I just logged in, my last access is now.
         import datetime
         now_str = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
         self.main_window.sidebar.set_user_info(account_name, now_str)

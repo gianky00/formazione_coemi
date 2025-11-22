@@ -1,7 +1,7 @@
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QTextEdit, QFileDialog, QLabel, QFrame
-from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt
-from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt, QVariantAnimation
+from PyQt6.QtGui import QIcon, QColor
 import requests
 import os
 import shutil
@@ -73,8 +73,6 @@ class PdfWorker(QObject):
                     if ragione_fallimento:
                         log_msg = f"File {original_filename} analizzato. Assegnazione manuale richiesta: {ragione_fallimento}"
                         self.log_message.emit(log_msg)
-                        # Se assegnazione fallita, è comunque analizzato e salvato in DB.
-                        # Spostiamo in ANALIZZATI, non in NON ANALIZZATI.
                         shutil.move(file_path, os.path.join(analyzed_folder, original_filename))
                     else:
                         nome_completo = cert_data.get('nome', 'ERRORE')
@@ -125,8 +123,11 @@ class DropZone(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFrameShape(QFrame.Shape.StyledPanel)
-        self.setObjectName("card")
+        self.setObjectName("drop_zone")
         self.setAcceptDrops(True)
+
+        # Initial Style
+        self.update_style("#E5E7EB", "solid")
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -152,11 +153,40 @@ class DropZone(QFrame):
         self.select_folder_button.setFixedWidth(200)
         layout.addWidget(self.select_folder_button)
 
+        # Animation Setup
+        self.pulse_anim = QVariantAnimation(self)
+        self.pulse_anim.setDuration(1500)
+        self.pulse_anim.setLoopCount(-1) # Infinite
+        self.pulse_anim.setStartValue(QColor("#3B82F6")) # Blue
+        self.pulse_anim.setKeyValueAt(0.5, QColor("#60A5FA")) # Light Blue
+        self.pulse_anim.setEndValue(QColor("#3B82F6"))
+        self.pulse_anim.valueChanged.connect(self.on_pulse_value_changed)
+
+    def update_style(self, border_color, border_style="solid"):
+        self.setStyleSheet(f"""
+            QFrame#drop_zone {{
+                background-color: #FFFFFF;
+                border-radius: 12px;
+                border: 2px {border_style} {border_color};
+            }}
+        """)
+
+    def on_pulse_value_changed(self, color):
+        self.update_style(color.name(), "dashed")
+
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
+            self.pulse_anim.start()
+
+    def dragLeaveEvent(self, event):
+        self.pulse_anim.stop()
+        self.update_style("#E5E7EB", "solid")
 
     def dropEvent(self, event):
+        self.pulse_anim.stop()
+        self.update_style("#E5E7EB", "solid")
+
         files_to_process = []
         for url in event.mimeData().urls():
             if url.isLocalFile():
