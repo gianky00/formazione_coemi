@@ -5,9 +5,17 @@ import socket
 import threading
 import uvicorn
 import importlib
+
+# --- CRITICAL: IMPORT WEBENGINE & SET ATTRIBUTE BEFORE QAPPLICATION ---
+# This fixes "QtWebEngineWidgets must be imported or Qt.AA_ShareOpenGLContexts..."
+from PyQt6.QtWebEngineWidgets import QWebEngineView
+from PyQt6.QtCore import Qt, QCoreApplication
+
+# Set the attribute specifically required for WebEngine on Windows/Frozen builds
+QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
+
 from PyQt6.QtWidgets import QApplication, QSplashScreen, QMessageBox
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtCore import Qt
 
 # --- 1. CONFIGURAZIONE AMBIENTE ---
 if getattr(sys, 'frozen', False):
@@ -40,17 +48,10 @@ def verify_license():
         return False, f"File di licenza mancante.\nCercato in: {lic_path}"
 
     # B. Check Logico Implicito:
-    # Invece di cercare API nascoste, proviamo ad importare un modulo offuscato.
-    # Se la licenza è invalida, PyArmor bloccherà l'importazione sollevando un'eccezione.
     try:
-        # Proviamo ad importare un modulo leggero del backend
-        # Nota: Questo funzionerà solo se 'app' è stato effettivamente offuscato.
-        # Se siamo in dev mode (non offuscato), funzionerà comunque.
         import app.core.config
         return True, "OK"
     except Exception as e:
-        # Se PyArmor blocca l'esecuzione, l'errore sarà qui.
-        # Potrebbe essere un RuntimeError o un ImportError specifico.
         return False, f"Licenza non valida o scaduta.\nErrore sistema: {str(e)}"
 
 # --- 3. UTILS ---
@@ -67,7 +68,11 @@ def check_port(host, port):
 
 # --- 4. MAIN ---
 def main():
-    qt_app = QApplication(sys.argv)
+    # Check if QApplication already exists (unlikely but safe)
+    if not QApplication.instance():
+        qt_app = QApplication(sys.argv)
+    else:
+        qt_app = QApplication.instance()
 
     # Import Stile
     try:
@@ -81,7 +86,7 @@ def main():
     ok, err = verify_license()
     if not ok:
         mbox = QMessageBox()
-        mbox.setIcon(QMessageBox.Icon.Warning) # Warning è sufficiente ora
+        mbox.setIcon(QMessageBox.Icon.Warning)
         mbox.setWindowTitle("Licenza")
         mbox.setText("Verifica licenza fallita.")
         mbox.setDetailedText(err)

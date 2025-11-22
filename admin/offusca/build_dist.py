@@ -129,6 +129,16 @@ def scan_imports(source_dirs):
 def verify_environment():
     """Verifica lo stato dell'ambiente di build."""
     log_and_print("--- Step 1/7: Environment Diagnostics ---")
+    log_and_print(f"Running with Python: {sys.executable}")
+
+    # Verify PyInstaller availability
+    try:
+        import PyInstaller
+        log_and_print(f"PyInstaller verified at: {os.path.dirname(PyInstaller.__file__)}")
+    except ImportError:
+        log_and_print("CRITICAL: PyInstaller module not found in this environment!", "ERROR")
+        log_and_print("Please run: pip install pyinstaller", "ERROR")
+        sys.exit(1)
 
     req_path = os.path.join(ROOT_DIR, "requirements.txt")
     if os.path.exists(req_path):
