@@ -2,11 +2,16 @@
 ; Compatibile con struttura PyInstaller OneDir
 
 #define MyAppName "Intelleo"
-#define MyAppVersion "1.0"
 #define MyAppPublisher "Giancarlo Allegretti"
 #define MyAppExeName "Intelleo.exe"
-; Cartella dove si trova l'output di PyInstaller (modificare se diverso)
-#define BuildDir "..\offusca\dist\Intelleo"
+
+; Default values if not defined via command line
+#ifndef MyAppVersion
+  #define MyAppVersion "1.0"
+#endif
+#ifndef BuildDir
+  #define BuildDir "..\offusca\dist\Intelleo"
+#endif
 
 [Setup]
 ; ID univoco per l'applicazione (generato casualmente, non cambiarlo per aggiornamenti futuri)
