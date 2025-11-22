@@ -343,6 +343,8 @@ def build():
             "launcher", # The new logic imports this manually
             "views", "utils", "components", "api_client",
             "main_window_ui", "edit_dialog", "gantt_item", "view_models",
+            "desktop_app.main", # EXPLICIT MAIN IMPORT
+            "desktop_app.components", # EXPLICIT COMPONENTS
             "desktop_app.views", "desktop_app.utils", "desktop_app.components",
             "sqlalchemy.sql.default_comparator", "sqlalchemy.dialects.sqlite",
             "pysqlite2", "MySQLdb", "psycopg2", "dotenv",

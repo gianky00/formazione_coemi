@@ -74,12 +74,19 @@ def main():
     else:
         qt_app = QApplication.instance()
 
-    # Import Stile
+    # Import ApplicationController from the CORRECT module
+    # FIX: Was importing 'MainWindow' which does not exist
     try:
-        from desktop_app.main import MainWindow, setup_styles
+        from desktop_app.main import ApplicationController, setup_styles
         setup_styles(qt_app)
+    except ImportError as e:
+        # Detailed debug for import errors
+        import traceback
+        traceback.print_exc()
+        QMessageBox.critical(None, "Errore Moduli", f"Impossibile caricare i moduli principali:\n{e}")
+        sys.exit(1)
     except Exception as e:
-        QMessageBox.critical(None, "Errore Avvio", f"Errore moduli: {e}")
+        QMessageBox.critical(None, "Errore Avvio", f"Errore generico: {e}")
         sys.exit(1)
 
     # CONTROLLO LICENZA
@@ -113,10 +120,8 @@ def main():
         time.sleep(0.2)
 
     if ready:
-        w = MainWindow()
-        w.ensurePolished()
-        w.showMaximized()
-        splash.finish(w)
+        # Instantiate Controller
+        controller = ApplicationController()
 
         # CHECK CLI ARGS FOR ANALYSIS
         args = sys.argv[1:]
@@ -126,9 +131,18 @@ def main():
                 if idx + 1 < len(args):
                     folder_path = args[idx + 1]
                     if os.path.isdir(folder_path):
-                        w.analyze_folder(folder_path)
+                        controller.analyze_folder(folder_path)
             except Exception as e:
                 print(f"Error in CLI analysis: {e}")
+
+        controller.start() # Shows window
+
+        # Finish splash using the actual window from controller
+        if hasattr(controller, 'master_window'):
+            controller.master_window.ensurePolished()
+            splash.finish(controller.master_window)
+        else:
+            splash.close()
 
         sys.exit(qt_app.exec())
     else:
