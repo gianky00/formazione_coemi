@@ -11,6 +11,7 @@ from ..components.animated_widgets import AnimatedButton, AnimatedInput, CardWid
 from ..components.cascade_delegate import CascadeDelegate
 import requests
 import pandas as pd
+import html
 
 
 class StatusDelegate(CascadeDelegate):
@@ -64,7 +65,8 @@ class CertificatoTableModel(QAbstractTableModel):
         val = self._data.iloc[index.row(), index.column()]
         if pd.isna(val) or val == "None" or val is None:
             return ""
-        return str(val)
+        # XSS Protection: Escape HTML characters to prevent rendering malicious code
+        return html.escape(str(val))
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:

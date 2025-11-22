@@ -24,6 +24,19 @@ class APIClient:
         self.access_token = None
         self.user_info = None
 
+    def logout(self):
+        """
+        Calls the server-side logout endpoint to blacklist the token.
+        """
+        if self.access_token:
+            try:
+                url = f"{self.base_url}/auth/logout"
+                requests.post(url, headers=self._get_headers(), timeout=5)
+            except Exception:
+                # Ignore network errors during logout, just clear local state
+                pass
+        self.clear_token()
+
     def _get_headers(self):
         headers = {}
         if self.access_token:

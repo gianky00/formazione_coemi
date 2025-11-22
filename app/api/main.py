@@ -8,6 +8,7 @@ from app.db.session import get_db
 from app.db.models import Corso, Certificato, ValidationStatus, Dipendente
 from app.services import ai_extraction, certificate_logic, matcher
 from app.utils.date_parser import parse_date_flexible
+from app.utils.file_security import verify_file_signature
 from datetime import datetime
 from typing import Optional, List
 import charset_normalizer
@@ -40,6 +41,9 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
         pdf_bytes.extend(chunk)
         if len(pdf_bytes) > MAX_FILE_SIZE:
             raise HTTPException(status_code=413, detail="Il file supera il limite massimo di 20MB.")
+
+    if not verify_file_signature(bytes(pdf_bytes), 'pdf'):
+         raise HTTPException(status_code=400, detail="File non valido: firma digitale PDF non riconosciuta.")
 
     extracted_data = ai_extraction.extract_entities_with_ai(bytes(pdf_bytes))
     if "error" in extracted_data:
@@ -364,6 +368,9 @@ async def import_dipendenti_csv(file: UploadFile = File(...), db: Session = Depe
 
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="Il file deve essere in formato CSV.")
+
+    if not verify_file_signature(content, 'csv'):
+         raise HTTPException(status_code=400, detail="File non valido: contenuto non riconosciuto come CSV/Testo.")
 
     # Strategy: Try UTF-8 -> CP1252 -> Auto-detect -> Latin-1 Fallback
     try:

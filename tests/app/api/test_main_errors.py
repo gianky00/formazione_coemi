@@ -69,6 +69,7 @@ def test_import_dipendenti_csv_invalid_extension(test_client: TestClient):
 
 def test_upload_pdf_ai_error(test_client: TestClient, mocker):
     mocker.patch("app.api.main.ai_extraction.extract_entities_with_ai", return_value={"error": "AI Error"})
-    response = test_client.post("/upload-pdf/", files={"file": ("test.pdf", b"content", "application/pdf")})
+    # Must include %PDF- header
+    response = test_client.post("/upload-pdf/", files={"file": ("test.pdf", b"%PDF-1.4 content", "application/pdf")})
     assert response.status_code == 500
     assert "AI Error" in response.json()["detail"]

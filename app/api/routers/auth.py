@@ -8,8 +8,32 @@ from app.core import security
 from app.core.config import settings
 from app.schemas.schemas import Token, User
 from app.api import deps
+from app.db.models import BlacklistedToken
 
 router = APIRouter()
+
+@router.post("/logout")
+def logout(
+    token: str = Depends(deps.oauth2_scheme),
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Invalidate the current token by adding it to the blacklist.
+    """
+    # Check again to be safe, though unique constraint handles it
+    if not db.query(BlacklistedToken).filter(BlacklistedToken.token == token).first():
+        try:
+            blacklist_entry = BlacklistedToken(token=token)
+            db.add(blacklist_entry)
+            db.commit()
+        except Exception:
+            db.rollback()
+            # If it failed, it's likely already blacklisted or race condition.
+            # We treat it as success (idempotent).
+            pass
+
+    return {"message": "Successfully logged out"}
 
 @router.post("/login", response_model=Token)
 def login_access_token(

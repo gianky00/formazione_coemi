@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from app.db.models import Corso, User
 from app.db.session import SessionLocal
 from app.core.security import get_password_hash
+from app.core.config import settings
 
 def seed_database(db: Session = None):
     """
@@ -58,11 +59,13 @@ def seed_database(db: Session = None):
                 db.add(new_corso)
 
         # --- Seed Default Admin User ---
-        admin_user = db.query(User).filter(User.username == "admin").first()
+        admin_username = settings.FIRST_RUN_ADMIN_USERNAME
+        admin_user = db.query(User).filter(User.username == admin_username).first()
+
         if not admin_user:
             admin_user = User(
-                username="admin",
-                hashed_password=get_password_hash("allegretti@coemi"),
+                username=admin_username,
+                hashed_password=get_password_hash(settings.FIRST_RUN_ADMIN_PASSWORD),
                 account_name="Amministratore",
                 is_admin=True
             )

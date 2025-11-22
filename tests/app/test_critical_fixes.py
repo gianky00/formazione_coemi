@@ -127,7 +127,7 @@ def test_pdf_date_correction(test_client, mock_ai_service):
         "data_nascita": "31.01.1980"   # DD.MM.YYYY
     }
 
-    files = {"file": ("test.pdf", b"dummy content", "application/pdf")}
+    files = {"file": ("test.pdf", b"%PDF-1.4 dummy content", "application/pdf")}
     resp = test_client.post("/upload-pdf/", files=files)
     assert resp.status_code == 200
 

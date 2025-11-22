@@ -29,6 +29,27 @@ class User(Base):
     last_login = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+class BlacklistedToken(Base):
+    """
+    Stores tokens that have been invalidated (e.g. via logout).
+    """
+    __tablename__ = 'blacklisted_tokens'
+    id = Column(Integer, primary_key=True, index=True)
+    token = Column(String, unique=True, index=True)
+    blacklisted_on = Column(DateTime, default=datetime.utcnow)
+
+class AuditLog(Base):
+    """
+    Records security-critical actions for compliance and auditing.
+    """
+    __tablename__ = 'audit_logs'
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    username = Column(String, index=True) # Store snapshot of username in case user is deleted
+    action = Column(String, index=True, nullable=False) # e.g. "PASSWORD_CHANGE", "USER_CREATE"
+    details = Column(String, nullable=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
 class Dipendente(Base):
     """
     Represents an employee in the database.
