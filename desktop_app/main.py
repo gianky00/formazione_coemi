@@ -313,7 +313,7 @@ class ApplicationController:
         self.master_window.show_dashboard(self.dashboard)
 
     def on_logout(self):
-        self.api_client.clear_token()
+        self.api_client.logout()
         self.master_window.show_login()
         # Optional: Destroy dashboard to reset state completely
         if self.dashboard:

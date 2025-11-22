@@ -7,6 +7,7 @@ from app.core import security
 from app.schemas.schemas import User, UserCreate, UserUpdate
 from app.api import deps
 from app.db.models import User as UserModel
+from app.utils.audit import log_security_action
 
 router = APIRouter()
 
@@ -49,6 +50,9 @@ def create_user(
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    log_security_action(db, current_user, "USER_CREATE", f"Created user: {user.username} (Admin: {user.is_admin})")
+
     return user
 
 @router.put("/{user_id}", response_model=User)
@@ -77,10 +81,12 @@ def update_user(
         )
 
     update_data = user_in.model_dump(exclude_unset=True)
+    password_changed = False
     if update_data.get("password"):
         hashed_password = security.get_password_hash(update_data["password"])
         del update_data["password"]
         user.hashed_password = hashed_password
+        password_changed = True
 
     for field, value in update_data.items():
         setattr(user, field, value)
@@ -88,6 +94,12 @@ def update_user(
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    if password_changed:
+        log_security_action(db, current_user, "PASSWORD_CHANGE", f"Changed password for user: {user.username}")
+    else:
+        log_security_action(db, current_user, "USER_UPDATE", f"Updated user: {user.username}. Fields: {', '.join(update_data.keys())}")
+
     return user
 
 @router.delete("/{user_id}", response_model=User)
@@ -112,6 +124,10 @@ def delete_user(
             detail="You cannot delete your own account.",
         )
 
+    username_snapshot = user.username
     db.delete(user)
     db.commit()
+
+    log_security_action(db, current_user, "USER_DELETE", f"Deleted user: {username_snapshot}")
+
     return user

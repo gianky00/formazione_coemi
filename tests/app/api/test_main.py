@@ -106,7 +106,8 @@ def test_upload_pdf_visita_medica(test_client: TestClient, db_session: Session, 
         "nome": "Mario Rossi", "corso": "Giudizio di idoneità", "categoria": "VISITA MEDICA",
         "data_rilascio": "10-10-2025", "data_scadenza": "10-10-2026"
     })
-    response = test_client.post("/upload-pdf/", files={"file": ("v.pdf", b"c", "application/pdf")})
+    # Must include %PDF- header to pass signature check
+    response = test_client.post("/upload-pdf/", files={"file": ("v.pdf", b"%PDF-1.4 fake content", "application/pdf")})
     assert response.status_code == 200
     assert response.json()["entities"]["data_scadenza"] == "10/10/2026"
 
@@ -159,7 +160,8 @@ def test_upload_pdf(test_client: TestClient, db_session: Session, mocker):
         "nome": "Mario Rossi", "corso": "Corso Sicurezza", "categoria": "ANTINCENDIO",
         "data_rilascio": "10-10-2025"
     })
-    response = test_client.post("/upload-pdf/", files={"file": ("t.pdf", b"c", "application/pdf")})
+    # Must include %PDF- header to pass signature check
+    response = test_client.post("/upload-pdf/", files={"file": ("t.pdf", b"%PDF-1.4 fake content", "application/pdf")})
     assert response.status_code == 200
     assert "data_scadenza" in response.json()["entities"]
 
