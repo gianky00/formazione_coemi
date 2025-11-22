@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton,
-                             QFrame, QMessageBox, QHBoxLayout)
-from PyQt6.QtCore import Qt, pyqtSignal, QSize
+                             QFrame, QMessageBox, QHBoxLayout, QGraphicsOpacityEffect)
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPropertyAnimation, QPoint, QEasingCurve, QParallelAnimationGroup
 from PyQt6.QtGui import QPixmap, QIcon
 from desktop_app.utils import get_asset_path, load_colored_icon
 
@@ -19,16 +19,16 @@ class LoginView(QWidget):
         layout.setContentsMargins(40, 40, 40, 40)
 
         # Card Container
-        card = QFrame()
-        card.setObjectName("card")
-        card.setStyleSheet("""
+        self.card = QFrame()
+        self.card.setObjectName("card")
+        self.card.setStyleSheet("""
             QFrame#card {
                 background-color: #FFFFFF;
                 border-radius: 12px;
                 border: 1px solid #E5E7EB;
             }
         """)
-        card_layout = QVBoxLayout(card)
+        card_layout = QVBoxLayout(self.card)
         card_layout.setSpacing(20)
         card_layout.setContentsMargins(30, 40, 30, 40)
 
@@ -97,13 +97,41 @@ class LoginView(QWidget):
         footer_label.setStyleSheet("color: #9CA3AF; font-size: 12px; margin-top: 10px;")
         card_layout.addWidget(footer_label)
 
-        layout.addWidget(card)
+        layout.addWidget(self.card)
+
+        # Setup Animations
+        self.opacity_effect = QGraphicsOpacityEffect(self.card)
+        self.card.setGraphicsEffect(self.opacity_effect)
+        self.opacity_anim = QPropertyAnimation(self.opacity_effect, b"opacity")
+        self.opacity_anim.setDuration(500)
+        self.opacity_anim.setStartValue(0)
+        self.opacity_anim.setEndValue(1)
+        self.opacity_anim.setEasingCurve(QEasingCurve.Type.OutQuad)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.opacity_anim.start()
+
+    def shake_window(self):
+        animation = QPropertyAnimation(self, b"pos")
+        animation.setDuration(100)
+        animation.setLoopCount(3)
+        animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
+
+        start_pos = self.pos()
+        animation.setKeyValueAt(0, start_pos)
+        animation.setKeyValueAt(0.25, start_pos + QPoint(-5, 0))
+        animation.setKeyValueAt(0.75, start_pos + QPoint(5, 0))
+        animation.setKeyValueAt(1, start_pos)
+
+        animation.start()
 
     def handle_login(self):
         username = self.username_input.text().strip()
         password = self.password_input.text().strip()
 
         if not username or not password:
+            self.shake_window()
             QMessageBox.warning(self, "Errore", "Inserisci nome utente e password.")
             return
 
@@ -118,6 +146,7 @@ class LoginView(QWidget):
             self.login_success.emit(self.api_client.user_info)
 
         except Exception as e:
+            self.shake_window()
             error_msg = "Credenziali non valide o errore del server."
             if hasattr(e, 'response') and e.response is not None:
                  try:
