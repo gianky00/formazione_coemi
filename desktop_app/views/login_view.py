@@ -20,6 +20,7 @@ class LoginView(QWidget):
         # Card Container
         self.card = QFrame()
         self.card.setObjectName("card")
+        self.card.setFixedWidth(450)
         self.card.setStyleSheet("""
             QFrame#card {
                 background-color: #FFFFFF;

@@ -159,6 +159,16 @@ def build():
             
     os.makedirs(OBF_DIR, exist_ok=True)
 
+    # --- STEP 0.5: BUILD GUIDE FRONTEND ---
+    print("\n--- Step 0.5: Building Modern Guide Frontend ---")
+    try:
+        guide_build_script = os.path.join(ROOT_DIR, "tools", "build_guide.py")
+        # Use list for subprocess
+        subprocess.run([sys.executable, guide_build_script], check=True)
+    except Exception as e:
+        print(f"WARNING: Guide build failed: {e}")
+        print("Proceeding without updating guide...")
+
     auto_detected_libs = scan_imports(["app", "desktop_app"])
 
     print("\n--- Step 1: Obfuscating with PyArmor ---")
@@ -205,7 +215,8 @@ def build():
     add_data = [
         f"{os.path.join(OBF_DIR, 'desktop_app', 'assets')}{sep}desktop_app/assets",
         f"{os.path.join(OBF_DIR, 'desktop_app', 'icons')}{sep}desktop_app/icons",
-        f"{os.path.join(OBF_DIR, runtime_dir)}{sep}{runtime_dir}"
+        f"{os.path.join(OBF_DIR, runtime_dir)}{sep}{runtime_dir}",
+        f"{os.path.join(ROOT_DIR, 'guide_frontend', 'dist')}{sep}guide"
     ]
 
     cmd_pyinstaller = [
@@ -242,6 +253,7 @@ def build():
         "multipart", "python_multipart",
         "PyQt6.QtSvg", "PyQt6.QtNetwork", "PyQt6.QtPrintSupport",
         "PyQt6.QtWidgets", "PyQt6.QtCore", "PyQt6.QtGui",
+        "PyQt6.QtWebEngineWidgets", "PyQt6.QtWebEngineCore",
         
         # --- FIX EMAIL ---
         "email.mime.text", "email.mime.multipart", "email.mime.application",

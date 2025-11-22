@@ -13,7 +13,7 @@ from PyQt6.QtCore import Qt
 if getattr(sys, 'frozen', False):
     # Cartella dell'EXE (per il DB)
     EXE_DIR = os.path.dirname(sys.executable)
-    db_path = os.path.join(EXE_DIR, "scadenzario.db")
+    db_path = os.path.join(EXE_DIR, "database_documenti.db")
     if os.name == 'nt': db_path = db_path.replace('\\', '\\\\')
     os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
     
