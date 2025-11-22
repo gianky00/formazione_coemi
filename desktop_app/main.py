@@ -290,12 +290,16 @@ class MasterWindow(QMainWindow):
 
 class ApplicationController:
     def __init__(self):
+        print("[DEBUG] ApplicationController.__init__ started")
         self.api_client = APIClient()
+        print("[DEBUG] APIClient initialized. Creating MasterWindow...")
         self.master_window = MasterWindow(self)
         self.dashboard = None
         self.pending_analysis_path = None
+        print("[DEBUG] ApplicationController initialized.")
 
     def start(self):
+        print("[DEBUG] ApplicationController.start called. Showing Max Window.")
         self.master_window.showMaximized()
 
     def analyze_folder(self, folder_path):

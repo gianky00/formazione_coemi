@@ -68,16 +68,21 @@ def check_port(host, port):
 
 # --- 4. MAIN ---
 def main():
+    print("[DEBUG] Starting launcher.main() ...")
     # Check if QApplication already exists (unlikely but safe)
     if not QApplication.instance():
+        print("[DEBUG] Creating QApplication...")
         qt_app = QApplication(sys.argv)
     else:
+        print("[DEBUG] QApplication already exists.")
         qt_app = QApplication.instance()
 
     # Import ApplicationController from the CORRECT module
     # FIX: Was importing 'MainWindow' which does not exist
     try:
+        print("[DEBUG] Importing ApplicationController and setup_styles...")
         from desktop_app.main import ApplicationController, setup_styles
+        print("[DEBUG] Running setup_styles...")
         setup_styles(qt_app)
     except ImportError as e:
         # Detailed debug for import errors
@@ -101,9 +106,11 @@ def main():
         sys.exit(1)
 
     # AVVIO SERVER
+    print("[DEBUG] Starting server thread...")
     threading.Thread(target=start_server, daemon=True).start()
 
     # SPLASH
+    print("[DEBUG] Showing Splash Screen...")
     splash = QSplashScreen()
     if os.path.exists("desktop_app/assets/logo.png"):
         splash.setPixmap(QPixmap("desktop_app/assets/logo.png").scaled(600, 300, Qt.AspectRatioMode.KeepAspectRatio))
@@ -112,15 +119,18 @@ def main():
 
     t0 = time.time()
     ready = False
+    print("[DEBUG] Waiting for server port 8000...")
     while time.time() - t0 < 20:
         qt_app.processEvents()
         if check_port("127.0.0.1", 8000):
             ready = True
+            print("[DEBUG] Server is ready!")
             break
         time.sleep(0.2)
 
     if ready:
         # Instantiate Controller
+        print("[DEBUG] Instantiating ApplicationController...")
         controller = ApplicationController()
 
         # CHECK CLI ARGS FOR ANALYSIS
@@ -135,17 +145,21 @@ def main():
             except Exception as e:
                 print(f"Error in CLI analysis: {e}")
 
+        print("[DEBUG] Calling controller.start()...")
         controller.start() # Shows window
 
         # Finish splash using the actual window from controller
+        print("[DEBUG] Finishing Splash...")
         if hasattr(controller, 'master_window'):
             controller.master_window.ensurePolished()
             splash.finish(controller.master_window)
         else:
             splash.close()
 
+        print("[DEBUG] Starting Qt Event Loop (exec)...")
         sys.exit(qt_app.exec())
     else:
+        print("[ERROR] Server timeout!")
         sys.exit(1)
 
 if __name__ == "__main__":

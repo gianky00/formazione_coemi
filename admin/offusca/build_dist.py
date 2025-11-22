@@ -308,7 +308,7 @@ def build():
             sys.executable, "-m", "PyInstaller",
             "--name", APP_NAME,
             "--onedir",
-            "--windowed",
+            "--console",
             "--clean",
             "--noconfirm",
             "--icon", os.path.join(OBF_DIR, "desktop_app", "icons", "icon.ico"),

@@ -8,6 +8,7 @@ class LoginView(QWidget):
     login_success = pyqtSignal(dict) # Emits user_info dict
 
     def __init__(self, api_client):
+        print("[DEBUG] LoginView.__init__ started")
         super().__init__()
         self.api_client = api_client
         self.resize(400, 500)
