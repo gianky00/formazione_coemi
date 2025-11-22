@@ -1,10 +1,11 @@
 from sqlalchemy.orm import Session
-from app.db.models import Corso
+from app.db.models import Corso, User
 from app.db.session import SessionLocal
+from app.core.security import get_password_hash
 
 def seed_database(db: Session = None):
     """
-    Populates the database with a predefined list of master courses.
+    Populates the database with a predefined list of master courses and the default admin user.
     """
     if db is None:
         db = SessionLocal()
@@ -13,6 +14,7 @@ def seed_database(db: Session = None):
         close_db = False
 
     try:
+        # --- Seed Courses ---
         corsi = [
             {"nome_corso": "ANTINCENDIO", "validita_mesi": 60, "categoria_corso": "ANTINCENDIO"}, # 5 anni
             {"nome_corso": "PRIMO SOCCORSO", "validita_mesi": 36, "categoria_corso": "PRIMO SOCCORSO"}, # 3 anni
@@ -54,6 +56,17 @@ def seed_database(db: Session = None):
             if not db_corso:
                 new_corso = Corso(**corso_data)
                 db.add(new_corso)
+
+        # --- Seed Default Admin User ---
+        admin_user = db.query(User).filter(User.username == "admin").first()
+        if not admin_user:
+            admin_user = User(
+                username="admin",
+                hashed_password=get_password_hash("allegretti@coemi"),
+                account_name="Amministratore",
+                is_admin=True
+            )
+            db.add(admin_user)
 
         db.commit()
     finally:

@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, Date, ForeignKey, Enum, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Date, ForeignKey, Enum, UniqueConstraint, DateTime, Boolean
 from sqlalchemy.orm import relationship, declarative_base
 import enum
+from datetime import datetime
 
 Base = declarative_base()
 
@@ -12,6 +13,21 @@ class ValidationStatus(str, enum.Enum):
     """
     AUTOMATIC = "AUTOMATIC"
     MANUAL = "MANUAL"
+
+class User(Base):
+    """
+    Represents a user of the application.
+    Stores authentication details and metadata.
+    """
+    __tablename__ = 'users'
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    account_name = Column(String, nullable=True) # Visible name (e.g. "Mario Rossi")
+    is_admin = Column(Boolean, default=False)
+    last_login = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 class Dipendente(Base):
     """

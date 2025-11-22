@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from pydantic import ConfigDict  # CORREZIONE: ConfigDict si importa da 'pydantic', non 'pydantic_settings'
+from pydantic import ConfigDict
 from dotenv import load_dotenv
 import os
 
@@ -23,7 +23,11 @@ class Settings(BaseSettings):
     ALERT_THRESHOLD_DAYS: int = int(os.getenv("ALERT_THRESHOLD_DAYS", 60))
     ALERT_THRESHOLD_DAYS_VISITE: int = int(os.getenv("ALERT_THRESHOLD_DAYS_VISITE", 30))
 
-    # CORREZIONE: Sostituita la 'class Config' deprecata con 'model_config'
+    # Security
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7")
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 43200  # 30 days (60 * 24 * 30)
+
     model_config = ConfigDict(
         env_file=".env",
         env_file_encoding='utf-8'
