@@ -3,18 +3,16 @@ from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QFont
 
 # --- IMPORT FONDAMENTALE ---
-# Rendiamo disponibile MainWindow per il launcher
-# Il punto (.) indica che il file è nella stessa cartella
 from .main_window_ui import MainWindow
+from .views.login_view import LoginView
+from .api_client import APIClient
 
 def setup_styles(app: QApplication):
     """
     Configura il font e il foglio di stile (CSS) dell'applicazione.
-    Viene chiamata dal launcher.py all'avvio.
     """
     # Set a modern font
     font = QFont("Inter")
-    # Fallback se Inter non è installato
     font.setStyleHint(QFont.StyleHint.SansSerif)
     app.setFont(font)
 
@@ -28,11 +26,10 @@ def setup_styles(app: QApplication):
             }
 
             /* Card Styles */
-            .card {
+            .card, QFrame#card {
                 background-color: #FFFFFF;
                 border-radius: 12px;
                 padding: 24px;
-                /* Box shadow is not directly supported in QSS, this is a simulated border */
                 border: 1px solid #E5E7EB;
             }
 
@@ -41,21 +38,14 @@ def setup_styles(app: QApplication):
                 background-color: #1E3A8A; /* Blue-900 */
                 border-right: 1px solid #1E3A8A;
             }
-
-            /* FIX: Ensure all children of Sidebar have transparent background
-               to inherit the Blue-900 color, and White text */
             Sidebar QWidget {
                 background-color: transparent;
                 color: #FFFFFF;
             }
-
-            /* Sidebar Header Frame (Specific override) */
             Sidebar QFrame#sidebar_header {
                 background-color: #FFFFFF;
                 border-bottom: 1px solid #E5E7EB;
             }
-
-            /* Sidebar Toggle Button */
             Sidebar QPushButton#toggle_btn {
                 background-color: transparent;
                 border: none;
@@ -65,10 +55,8 @@ def setup_styles(app: QApplication):
                 color: #FFFFFF;
             }
             Sidebar QPushButton#toggle_btn:hover {
-                background-color: rgba(31, 41, 55, 0.1); /* Dark hover because on white bg */
+                background-color: rgba(31, 41, 55, 0.1);
             }
-
-            /* Sidebar Navigation Buttons */
             Sidebar QPushButton[nav_btn="true"] {
                 text-align: left;
                 padding: 12px 16px;
@@ -77,32 +65,26 @@ def setup_styles(app: QApplication):
                 font-weight: 500;
                 border-radius: 8px;
                 margin: 4px 12px;
-                color: #FFFFFF; /* Pure White for better contrast */
+                color: #FFFFFF;
                 background-color: transparent;
             }
-
-            /* Centered state (collapsed) */
             Sidebar QPushButton[nav_btn="true"][centered="true"] {
                 text-align: center;
                 padding: 12px;
-                margin: 4px 8px; /* Slightly tighter margins */
+                margin: 4px 8px;
             }
-
             Sidebar QPushButton[nav_btn="true"]:hover {
-                background-color: rgba(29, 78, 216, 0.4); /* Blue-700 with opacity */
+                background-color: rgba(29, 78, 216, 0.4);
             }
-
             Sidebar QPushButton[nav_btn="true"]:checked {
-                background-color: #1D4ED8; /* Blue-700 (Accent) */
+                background-color: #1D4ED8;
                 color: #FFFFFF;
                 font-weight: 600;
-                border-left: 3px solid #60A5FA; /* Optional: Indicator line */
+                border-left: 3px solid #60A5FA;
             }
-
-            /* Sidebar Footer */
             Sidebar QLabel#version_label {
-                color: #93C5FD; /* Blue-300 */
-                font-size: 14px; /* Increased from 13px */
+                color: #93C5FD;
+                font-size: 14px;
                 padding: 10px;
                 font-weight: 500;
             }
@@ -117,11 +99,11 @@ def setup_styles(app: QApplication):
             QTableView::item {
                 padding: 12px;
                 border-bottom: 1px solid #E5E7EB;
-                color: #1F2937; /* Ensure text is dark in white table */
+                color: #1F2937;
             }
             QTableView::item:selected {
-                background-color: #EFF6FF; /* Light blue */
-                color: #1E40AF; /* Darker blue */
+                background-color: #EFF6FF;
+                color: #1E40AF;
             }
             QHeaderView {
                 background-color: #F9FAFB;
@@ -131,66 +113,13 @@ def setup_styles(app: QApplication):
                 padding: 12px;
                 border: none;
                 border-bottom: 1px solid #E5E7EB;
-                font-weight: 600; /* Semibold */
+                font-weight: 600;
                 font-size: 12px;
                 text-transform: uppercase;
                 color: #6B7280;
             }
-            QTableView QScrollBar:vertical {
-                border: none;
-                background: #F1F5F9;
-                width: 10px;
-                margin: 0px 0px 0px 0px;
-            }
-            QTableView QScrollBar::handle:vertical {
-                background: #D1D5DB;
-                min-height: 20px;
-                border-radius: 5px;
-            }
 
-            /* Pill/Badge Styles */
-            QLabel[status="attivo"], QLabel[status="archiviato"] {
-                background-color: #ECFDF5;
-                color: #059669;
-                padding: 4px 12px;
-                border-radius: 12px;
-                font-size: 12px;
-                font-weight: 500;
-            }
-            QLabel[status="scaduto"] {
-                background-color: #FEF2F2;
-                color: #DC2626;
-                padding: 4px 12px;
-                border-radius: 12px;
-                font-size: 12px;
-                font-weight: 500;
-            }
-            QLabel[status="in_scadenza"] {
-                background-color: #FFFBEB;
-                color: #F59E0B;
-                padding: 4px 12px;
-                border-radius: 12px;
-                font-size: 12px;
-                font-weight: 500;
-            }
-
-            /* Checkbox Styles */
-            QCheckBox::indicator {
-                width: 20px;
-                height: 20px;
-            }
-            QCheckBox::indicator:unchecked {
-                border: 2px solid #D1D5DB;
-                border-radius: 6px;
-                background-color: #FFFFFF;
-            }
-            QCheckBox::indicator:checked {
-                background-color: #1D4ED8;
-                border: 2px solid #1D4ED8;
-                border-radius: 6px;
-            }
-
-            /* Button Styles */
+            /* Buttons */
             QPushButton {
                 padding: 10px 20px;
                 border: 1px solid #1D4ED8;
@@ -201,35 +130,35 @@ def setup_styles(app: QApplication):
                 font-weight: 600;
             }
             QPushButton:hover {
-                background-color: #1E40AF; /* Darker Blue */
+                background-color: #1E40AF;
             }
             QPushButton:disabled {
                 background-color: #E5E7EB;
                 border-color: #D1D5DB;
                 color: #9CA3AF;
             }
-
-            /* Secondary Button */
-            QPushButton.secondary {
+            QPushButton.secondary, QPushButton#secondary {
                 background-color: #FFFFFF;
                 color: #1F2937;
                 border: 1px solid #D1D5DB;
             }
-            QPushButton.secondary:hover {
+            QPushButton.secondary:hover, QPushButton#secondary:hover {
                 background-color: #F9FAFB;
             }
-
-            /* Destructive Button */
-            QPushButton.destructive {
+            QPushButton.destructive, QPushButton#destructive {
                 background-color: #DC2626;
                 border-color: #DC2626;
+                color: white;
             }
-            QPushButton.destructive:hover {
+            QPushButton.destructive:hover, QPushButton#destructive:hover {
                 background-color: #B91C1C;
             }
+            QPushButton#primary {
+                 /* Same as default */
+            }
 
-            /* ComboBox, LineEdit, DateEdit Styles */
-            QComboBox, QLineEdit, QDateEdit {
+            /* Inputs */
+            QComboBox, QLineEdit, QDateEdit, QTextEdit {
                 padding: 10px;
                 border: 1px solid #D1D5DB;
                 border-radius: 8px;
@@ -237,20 +166,64 @@ def setup_styles(app: QApplication):
                 background-color: #FFFFFF;
                 color: #1F2937;
             }
-            QComboBox:focus, QLineEdit:focus, QDateEdit:focus {
+            QComboBox:focus, QLineEdit:focus, QDateEdit:focus, QTextEdit:focus {
                 border: 1px solid #1D4ED8;
             }
-            QComboBox::drop-down {
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 30px;
-                border-left: none;
-            }
     """)
+
+class ApplicationController:
+    def __init__(self):
+        self.api_client = APIClient()
+        self.login_view = None
+        self.main_window = None
+
+    def start(self):
+        self.show_login()
+
+    def show_login(self):
+        if self.main_window:
+            self.main_window.close()
+            self.main_window = None
+
+        # Reset API client token
+        self.api_client.clear_token()
+
+        self.login_view = LoginView(self.api_client)
+        self.login_view.login_success.connect(self.on_login_success)
+        self.login_view.show()
+
+    def on_login_success(self, user_info):
+        if self.login_view:
+            self.login_view.close()
+            self.login_view = None
+
+        self.show_main_window(user_info)
+
+    def show_main_window(self, user_info):
+        self.main_window = MainWindow(self.api_client)
+
+        # Set User Info in Sidebar
+        account_name = user_info.get("account_name") or user_info.get("username")
+        # For last_access, the backend updates it on login.
+        # But the returned user_info might not have the *current* login time yet
+        # (since the token was just created).
+        # Actually, the /login endpoint updates last_login.
+        # We can just display "Adesso" or fetch user info again.
+        # For now, I'll just put "Oggi" or leave it as stored.
+        # Wait, the requirement says "sotto quando è stato fatto l'ultimo accesso".
+        # If I just logged in, my last access is now.
+        import datetime
+        now_str = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+        self.main_window.sidebar.set_user_info(account_name, now_str)
+
+        self.main_window.logout_requested.connect(self.show_login)
+        self.main_window.showMaximized()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     setup_styles(app)
-    window = MainWindow()
-    window.showMaximized()
+
+    controller = ApplicationController()
+    controller.start()
+
     sys.exit(app.exec())

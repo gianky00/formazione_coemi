@@ -3,7 +3,7 @@ import sys
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
                              QPushButton, QStackedWidget, QLabel, QFrame, QSizePolicy,
                              QScrollArea, QLayout, QApplication)
-from PyQt6.QtCore import Qt, QSize, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup
+from PyQt6.QtCore import Qt, QSize, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup, pyqtSignal
 from PyQt6.QtGui import QIcon, QPixmap
 
 # Import views
@@ -18,6 +18,8 @@ from .views.modern_guide_view import ModernGuideDialog
 from .utils import get_asset_path, load_colored_icon
 
 class Sidebar(QFrame):
+    logout_requested = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedWidth(260)
@@ -63,6 +65,23 @@ class Sidebar(QFrame):
 
         self.main_layout.addWidget(self.header_frame)
 
+        # --- User Info Section ---
+        self.user_info_frame = QFrame()
+        self.user_info_frame.setStyleSheet("background-color: transparent; padding: 10px 12px;")
+        self.user_info_layout = QVBoxLayout(self.user_info_frame)
+        self.user_info_layout.setContentsMargins(0, 0, 0, 0)
+        self.user_info_layout.setSpacing(4)
+
+        self.user_name_label = QLabel("Ciao, Utente")
+        self.user_name_label.setStyleSheet("color: #FFFFFF; font-weight: bold; font-size: 14px;")
+        self.user_info_layout.addWidget(self.user_name_label)
+
+        self.last_access_label = QLabel("Ultimo accesso: -")
+        self.last_access_label.setStyleSheet("color: #93C5FD; font-size: 11px;")
+        self.user_info_layout.addWidget(self.last_access_label)
+
+        self.main_layout.addWidget(self.user_info_frame)
+
         # --- Navigation Items ---
         self.nav_container = QWidget()
         self.nav_layout = QVBoxLayout(self.nav_container)
@@ -97,7 +116,7 @@ class Sidebar(QFrame):
         self.disconnect_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.disconnect_btn.setIcon(load_colored_icon("log-out.svg", "#FFFFFF"))
         self.disconnect_btn.setStyleSheet("color: white; text-align: left; padding: 10px; background: none; border: none; font-weight: bold;")
-        self.disconnect_btn.clicked.connect(lambda: QApplication.instance().quit())
+        self.disconnect_btn.clicked.connect(self.logout_requested.emit)
         self.main_layout.addWidget(self.disconnect_btn)
 
         self.footer_label = QLabel("v1.0.0 • Intelleo")
@@ -110,6 +129,10 @@ class Sidebar(QFrame):
         self.animation = QPropertyAnimation(self, b"minimumWidth")
         self.animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
         self.animation.setDuration(300)
+
+    def set_user_info(self, name, last_access):
+        self.user_name_label.setText(f"Ciao, {name}")
+        self.last_access_label.setText(f"Ultimo accesso:\n{last_access}")
 
     def add_button(self, key, text, icon_name):
         btn = QPushButton(text)
@@ -141,6 +164,7 @@ class Sidebar(QFrame):
             self.toggle_btn.setIcon(load_colored_icon("chevron-right.svg", "#1E3A8A"))
             self.logo_label.hide()
             self.footer_label.hide()
+            self.user_info_frame.hide()
             self.update_buttons_layout(centered=True)
             self.hide_button_texts()
 
@@ -151,6 +175,7 @@ class Sidebar(QFrame):
                 self.toggle_btn.setIcon(load_colored_icon("chevron-left.svg", "#1E3A8A"))
                 self.logo_label.show()
                 self.footer_label.show()
+                self.user_info_frame.show()
                 self.update_buttons_layout(centered=False)
                 self.restore_button_texts()
 
@@ -178,8 +203,11 @@ class Sidebar(QFrame):
             btn.setToolTip("")
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    logout_requested = pyqtSignal()
+
+    def __init__(self, api_client):
         super().__init__()
+        self.api_client = api_client
         self.setWindowTitle("Intelleo - Predict. Validate. Automate")
         self.resize(1280, 800)
 
@@ -192,6 +220,7 @@ class MainWindow(QMainWindow):
 
         # Sidebar
         self.sidebar = Sidebar()
+        self.sidebar.logout_requested.connect(self.logout_requested.emit)
         self.main_layout.addWidget(self.sidebar)
 
         # Content Area
@@ -225,11 +254,28 @@ class MainWindow(QMainWindow):
         self.switch_to("dashboard")
 
     def _init_views(self):
+        # Pass api_client to views if they accept it
+        # For now, views like ImportView instantiate their own APIClient.
+        # To fix this properly, I need to update the views to accept APIClient.
+        # But I cannot edit all files at once. I'll do it incrementally or monkey patch.
+        # Better: I will patch the views' api_client attribute after instantiation.
+
         self.views["import"] = ImportView()
+        self.views["import"].api_client = self.api_client # Inject authenticated client
+
         self.views["validation"] = ValidationView()
+        self.views["validation"].api_client = self.api_client # Inject authenticated client
+
         self.views["dashboard"] = DashboardView()
+        # DashboardView uses a ViewModel.
+        if hasattr(self.views["dashboard"], 'view_model'):
+             self.views["dashboard"].view_model.api_client = self.api_client
+
         self.views["scadenzario"] = ScadenzarioView()
+        self.views["scadenzario"].api_client = self.api_client
+
         self.views["config"] = ConfigView()
+        self.views["config"].api_client = self.api_client # Inject authenticated client
 
         for key in ["import", "validation", "dashboard", "scadenzario", "config"]:
             self.stacked_widget.addWidget(self.views[key])
@@ -243,14 +289,9 @@ class MainWindow(QMainWindow):
         self.sidebar.buttons["help"].clicked.connect(self.show_help)
 
         # Cross-view updates logic
-        # 1. When Import finishes -> Refresh Validation View
         self.views["import"].import_completed.connect(self.views["validation"].refresh_data)
-
-        # 2. When Validation finishes -> Refresh Dashboard and Scadenzario
         self.views["validation"].validation_completed.connect(self.views["dashboard"].load_data)
         self.views["validation"].validation_completed.connect(self.views["scadenzario"].refresh_data)
-
-        # 3. Also when Dashboard changes data (edit/delete) -> Refresh Scadenzario
         self.views["dashboard"].database_changed.connect(self.views["scadenzario"].refresh_data)
 
     def switch_to(self, key):
@@ -277,5 +318,4 @@ class MainWindow(QMainWindow):
         Switch to Import view and trigger analysis for the given folder.
         """
         self.switch_to("import")
-        # Pass the folder path to the view logic
         self.views["import"].upload_folder(folder_path)

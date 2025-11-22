@@ -20,3 +20,5 @@ fpdf2==2.8.5
 apscheduler==3.10.4
 PyQt6-WebEngine==6.8.0
 tenacity
+passlib[bcrypt]
+python-jose[cryptography]

@@ -77,3 +77,37 @@ class CertificatoAggiornamentoSchema(BaseModel):
         except ValueError:
             raise ValueError("Formato data non valido. Usare DD/MM/YYYY.")
         return v
+
+# --- User Schemas ---
+
+class UserBase(BaseModel):
+    username: str
+    account_name: Optional[str] = None
+    is_admin: bool = False
+
+class UserCreate(UserBase):
+    password: str
+
+class UserUpdate(BaseModel):
+    username: Optional[str] = None
+    account_name: Optional[str] = None
+    password: Optional[str] = None
+    is_admin: Optional[bool] = None
+
+class User(UserBase):
+    id: int
+    last_login: Optional[datetime] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    user_id: int
+    username: str
+    account_name: Optional[str] = None
+    is_admin: bool
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
