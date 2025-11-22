@@ -5,10 +5,12 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import or_
 from app.db.session import get_db
-from app.db.models import Corso, Certificato, ValidationStatus, Dipendente
+from app.db.models import Corso, Certificato, ValidationStatus, Dipendente, User as UserModel
 from app.services import ai_extraction, certificate_logic, matcher
 from app.utils.date_parser import parse_date_flexible
 from app.utils.file_security import verify_file_signature
+from app.utils.audit import log_security_action
+from app.api import deps
 from datetime import datetime
 from typing import Optional, List
 import charset_normalizer
@@ -142,7 +144,11 @@ def get_certificato(certificato_id: int, db: Session = Depends(get_db)):
     )
 
 @router.post("/certificati/", response_model=CertificatoSchema)
-def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = Depends(get_db)):
+def create_certificato(
+    certificato: CertificatoCreazioneSchema,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_user)
+):
     if not certificato.data_rilascio:
         raise HTTPException(status_code=422, detail="La data di rilascio non può essere vuota.")
 
@@ -223,6 +229,8 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
     if not dipendente_info:
         ragione_fallimento = "Non trovato in anagrafica (matricola mancante)."
 
+    log_security_action(db, current_user, "CERTIFICATE_CREATE", f"Created certificate for {certificato.nome} - {certificato.corso}")
+
     return CertificatoSchema(
         id=new_cert.id,
         nome=f"{dipendente_info.cognome} {dipendente_info.nome}" if dipendente_info else new_cert.nome_dipendente_raw or "Da Assegnare",
@@ -237,7 +245,11 @@ def create_certificato(certificato: CertificatoCreazioneSchema, db: Session = De
     )
 
 @router.put("/certificati/{certificato_id}/valida", response_model=CertificatoSchema)
-def valida_certificato(certificato_id: int, db: Session = Depends(get_db)):
+def valida_certificato(
+    certificato_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_user)
+):
     db_cert = db.get(Certificato, certificato_id)
     if not db_cert:
         raise HTTPException(status_code=404, detail="Certificato non trovato")
@@ -245,6 +257,8 @@ def valida_certificato(certificato_id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_cert)
     status = certificate_logic.get_certificate_status(db, db_cert)
+
+    log_security_action(db, current_user, "CERTIFICATE_VALIDATE", f"Validated certificate ID {certificato_id}")
 
     if db_cert.dipendente:
         nome_completo = f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}"
@@ -268,7 +282,12 @@ def valida_certificato(certificato_id: int, db: Session = Depends(get_db)):
     )
 
 @router.put("/certificati/{certificato_id}", response_model=CertificatoSchema)
-def update_certificato(certificato_id: int, certificato: CertificatoAggiornamentoSchema, db: Session = Depends(get_db)):
+def update_certificato(
+    certificato_id: int,
+    certificato: CertificatoAggiornamentoSchema,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_user)
+):
     db_cert = db.get(Certificato, certificato_id)
     if not db_cert:
         raise HTTPException(status_code=404, detail="Certificato non trovato")
@@ -327,6 +346,8 @@ def update_certificato(certificato_id: int, certificato: CertificatoAggiornament
     db.refresh(db_cert)
     status = certificate_logic.get_certificate_status(db, db_cert)
 
+    log_security_action(db, current_user, "CERTIFICATE_UPDATE", f"Updated certificate ID {certificato_id}. Fields: {', '.join(update_data.keys())}")
+
     dipendente_info = db_cert.dipendente  # Reload the relationship
 
     return CertificatoSchema(
@@ -342,16 +363,31 @@ def update_certificato(certificato_id: int, certificato: CertificatoAggiornament
     )
 
 @router.delete("/certificati/{certificato_id}")
-def delete_certificato(certificato_id: int, db: Session = Depends(get_db)):
+def delete_certificato(
+    certificato_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_user)
+):
     db_cert = db.get(Certificato, certificato_id)
     if not db_cert:
         raise HTTPException(status_code=404, detail="Certificato non trovato")
+
+    # Snapshot for logging
+    log_details = f"Deleted certificate ID {certificato_id} - {db_cert.nome_dipendente_raw or 'Unknown'} - {db_cert.corso.nome_corso}"
+
     db.delete(db_cert)
     db.commit()
+
+    log_security_action(db, current_user, "CERTIFICATE_DELETE", log_details)
+
     return {"message": "Certificato cancellato con successo"}
 
 @router.post("/dipendenti/import-csv")
-async def import_dipendenti_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def import_dipendenti_csv(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_user)
+):
     MAX_CSV_SIZE = 5 * 1024 * 1024  # 5 MB
 
     # Read content with size check
@@ -441,6 +477,8 @@ async def import_dipendenti_csv(file: UploadFile = File(...), db: Session = Depe
 
     if linked_count > 0:
         db.commit()
+
+    log_security_action(db, current_user, "DIPENDENTI_IMPORT", f"Imported CSV: {file.filename}. Orphans linked: {linked_count}")
 
     return {"message": f"Importazione completata con successo. {linked_count} certificati orfani collegati."}
 

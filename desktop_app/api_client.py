@@ -90,3 +90,12 @@ class APIClient:
         response = requests.delete(url, headers=self._get_headers())
         response.raise_for_status()
         return response.json()
+
+    # --- Audit Logs ---
+
+    def get_audit_logs(self, skip=0, limit=100):
+        url = f"{self.base_url}/audit/"
+        params = {"skip": skip, "limit": limit}
+        response = requests.get(url, params=params, headers=self._get_headers())
+        response.raise_for_status()
+        return response.json()

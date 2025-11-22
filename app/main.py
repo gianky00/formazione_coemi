@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.api import main as api_router
 from app.api.routers import notifications as notifications_router
-from app.api.routers import auth, users
+from app.api.routers import auth, users, audit
 from app.db.session import engine
 from app.db.models import Base
 from app.core.config import settings
@@ -47,6 +47,7 @@ app.include_router(api_router.router, prefix="/api/v1")
 app.include_router(notifications_router.router, prefix="/api/v1/notifications", tags=["Notifications"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
+app.include_router(audit.router, prefix="/api/v1/audit", tags=["Audit"])
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

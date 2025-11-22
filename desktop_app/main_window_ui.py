@@ -1,5 +1,6 @@
 import os
 import sys
+from datetime import date, datetime
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
                              QPushButton, QStackedWidget, QLabel, QFrame, QSizePolicy,
                              QScrollArea, QLayout, QApplication)
@@ -160,12 +161,13 @@ class Sidebar(QFrame):
         self.user_info_layout.setContentsMargins(0, 0, 0, 0)
         self.user_info_layout.setSpacing(4)
 
-        self.user_name_label = QLabel("Ciao, Utente")
-        self.user_name_label.setStyleSheet("color: #FFFFFF; font-weight: bold; font-size: 14px;")
+        self.user_name_label = QLabel("Benvenuto, Utente!")
+        self.user_name_label.setStyleSheet("color: #FFFFFF; font-weight: bold; font-size: 18px;")
+        self.user_name_label.setWordWrap(True)
         self.user_info_layout.addWidget(self.user_name_label)
 
         self.last_access_label = QLabel("Ultimo accesso: -")
-        self.last_access_label.setStyleSheet("color: #93C5FD; font-size: 11px;")
+        self.last_access_label.setStyleSheet("color: #93C5FD; font-size: 13px;")
         self.user_info_layout.addWidget(self.last_access_label)
 
         self.main_layout.addWidget(self.user_info_frame)
@@ -198,18 +200,74 @@ class Sidebar(QFrame):
         # Spacer
         self.main_layout.addStretch()
 
+        # --- License Info ---
+        self.license_frame = QFrame()
+        self.license_layout = QVBoxLayout(self.license_frame)
+        self.license_layout.setContentsMargins(12, 5, 12, 10)
+        self.license_layout.setSpacing(4)
+
+        license_data = self.read_license_info()
+
+        if not license_data:
+             lbl = QLabel("import dettagli_licenza")
+             lbl.setStyleSheet("color: #FF6B6B; font-size: 14px; font-weight: bold;")
+             self.license_layout.addWidget(lbl)
+        else:
+             # Hardware ID
+             if "Hardware ID" in license_data:
+                  l1 = QLabel(f"Hardware ID:\n{license_data['Hardware ID']}")
+                  l1.setStyleSheet("color: #93C5FD; font-size: 12px;")
+                  self.license_layout.addWidget(l1)
+
+             # Scadenza
+             expiry_str = license_data.get("Scadenza Licenza", "")
+             if expiry_str:
+                  l2 = QLabel(f"Scadenza Licenza:\n{expiry_str}")
+                  l2.setStyleSheet("color: #93C5FD; font-size: 12px;")
+                  self.license_layout.addWidget(l2)
+
+                  try:
+                      if '/' in expiry_str:
+                          d, m, y = map(int, expiry_str.split('/'))
+                          expiry_date = date(y, m, d)
+                      elif '-' in expiry_str:
+                          y, m, d = map(int, expiry_str.split('-'))
+                          expiry_date = date(y, m, d)
+                      else:
+                          raise ValueError
+
+                      days_left = (expiry_date - date.today()).days
+                      if days_left >= 0:
+                          l3 = QLabel(f"La licenza termina tra {days_left} giorni.")
+                      else:
+                          l3 = QLabel(f"Licenza SCADUTA da {abs(days_left)} giorni.")
+
+                      l3.setStyleSheet("color: #FFFFFF; font-size: 13px;")
+                      self.license_layout.addWidget(l3)
+                  except:
+                      pass
+
+             # Generato il
+             if "Generato il" in license_data:
+                  l4 = QLabel(f"Generato il: {license_data['Generato il']}")
+                  l4.setStyleSheet("color: #60A5FA; font-size: 11px;")
+                  self.license_layout.addWidget(l4)
+
+        self.main_layout.addWidget(self.license_frame)
+
         # --- Footer ---
         self.disconnect_btn = QPushButton("Disconnetti")
         self.disconnect_btn.setObjectName("disconnect_btn")
         self.disconnect_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.disconnect_btn.setIcon(load_colored_icon("log-out.svg", "#FFFFFF"))
-        self.disconnect_btn.setStyleSheet("color: white; text-align: left; padding: 10px; background: none; border: none; font-weight: bold;")
+        self.disconnect_btn.setStyleSheet("color: white; text-align: left; padding: 10px; background: none; border: none; font-weight: bold; font-size: 15px;")
         self.disconnect_btn.clicked.connect(self.logout_requested.emit)
         self.main_layout.addWidget(self.disconnect_btn)
 
         self.footer_label = QLabel("v1.0.0 • Intelleo")
         self.footer_label.setObjectName("version_label")
         self.footer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.footer_label.setStyleSheet("font-size: 12px;")
         self.main_layout.addWidget(self.footer_label)
 
         # Animation State
@@ -218,8 +276,27 @@ class Sidebar(QFrame):
         self.animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
         self.animation.setDuration(300)
 
+    def read_license_info(self):
+        path = "dettagli_licenza.txt"
+        # Try to find it in root
+        if not os.path.exists(path):
+             # Try relative to executable if frozen
+             if getattr(sys, 'frozen', False):
+                 path = os.path.join(os.path.dirname(sys.executable), "dettagli_licenza.txt")
+
+        info = {}
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        if ":" in line:
+                            key, value = line.split(":", 1)
+                            info[key.strip()] = value.strip()
+            except: pass
+        return info
+
     def set_user_info(self, name, last_access):
-        self.user_name_label.setText(f"Ciao, {name}")
+        self.user_name_label.setText(f"Benvenuto, {name}!")
         self.last_access_label.setText(f"Ultimo accesso:\n{last_access}")
 
     def add_button(self, key, text, icon_name):
