@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton,
     QMessageBox, QFrame, QFormLayout, QComboBox, QFileDialog, QHBoxLayout,
     QTableWidget, QTableWidgetItem, QDialog, QDialogButtonBox, QCheckBox,
-    QStackedWidget, QButtonGroup
+    QStackedWidget, QButtonGroup, QHeaderView
 )
 from PyQt6.QtCore import Qt
 from dotenv import load_dotenv, set_key
@@ -13,7 +13,7 @@ class UserDialog(QDialog):
     def __init__(self, parent=None, user_data=None):
         super().__init__(parent)
         self.setWindowTitle("Nuovo Utente" if not user_data else "Modifica Utente")
-        self.resize(400, 300)
+        self.resize(500, 400)  # Increased size
         self.layout = QVBoxLayout(self)
 
         form_layout = QFormLayout()
@@ -73,7 +73,14 @@ class UserManagementWidget(QFrame):
         self.table = QTableWidget()
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(["ID", "Nome Utente", "Nome Account", "Admin"])
-        self.table.horizontalHeader().setStretchLastSection(True)
+
+        # Configure Header Resizing
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents) # ID
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)          # Username
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)          # Account Name
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents) # Admin
+
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.verticalHeader().setVisible(False)
