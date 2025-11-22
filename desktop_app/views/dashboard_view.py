@@ -40,6 +40,9 @@ class CertificatoTableModel(QAbstractTableModel):
         super().__init__()
         self._data = data
 
+    def flags(self, index):
+        return super().flags(index)
+
     def rowCount(self, parent=None):
         return self._data.shape[0]
 
@@ -166,6 +169,9 @@ class DashboardView(QWidget):
         # Reconnect the signal to the new model's selection model
         if self.table_view.selectionModel():
             self.table_view.selectionModel().selectionChanged.connect(self._update_button_states)
+
+        # Explicitly update states initially
+        self._update_button_states()
 
         if not df.empty:
             # Assicurati che la colonna 'matricola' esista

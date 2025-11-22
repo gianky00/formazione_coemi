@@ -2,4 +2,6 @@
 python -m pytest tests
 
 
+winget install OpenJS.NodeJS 
 python tools/build_guide.py
+
