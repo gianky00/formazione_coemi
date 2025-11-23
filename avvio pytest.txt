@@ -3,8 +3,12 @@ python -m pytest tests
 
 
 winget install OpenJS.NodeJS 
+
+.\Scripts\activate
 python tools/build_guide.py
 
+.\Scripts\activate
+python admin/offusca/build_dist.py
 
 cd /d "C:\Users\gianc\Desktop\SCRIPT\formazione_coemi"
 git init
