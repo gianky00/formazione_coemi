@@ -103,7 +103,13 @@ class DummyQWidget:
         return self._text
     def currentText(self):
         return "mock text"
+    def currentData(self):
+        return None
+    def currentIndex(self):
+        return 0
     def addItems(self, items):
+        pass
+    def addItem(self, item, userData=None):
         pass
     def setFrameShape(self, shape):
         pass
@@ -175,6 +181,8 @@ class DummyQWidget:
     def setSizeAdjustPolicy(self, policy):
         pass
     def setDisplayFormat(self, format):
+        pass
+    def setCalendarPopup(self, enable):
         pass
     def setDate(self, date):
         pass
@@ -259,6 +267,10 @@ class DummyQDate:
     def toString(self, format_str):
         return "Jan 2025"
 
+    def toPyDate(self):
+        from datetime import date
+        return date.today()
+
     def isValid(self):
         return True
 
@@ -320,11 +332,15 @@ def mock_qt_modules():
     mock_web = MagicMock()
     mock_web.QWebEngineView = MagicMock
 
+    mock_webchannel = MagicMock()
+    mock_webchannel.QWebChannel = MagicMock
+
     return {
         'PyQt6.QtWidgets': mock_widgets,
         'PyQt6.QtCore': mock_core,
         'PyQt6.QtGui': mock_gui,
         'PyQt6.QtWebEngineWidgets': mock_web,
+        'PyQt6.QtWebChannel': mock_webchannel,
         'PyQt6.QtPrintSupport': MagicMock(),
         'PyQt6.QtNetwork': MagicMock(),
     }
