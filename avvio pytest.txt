@@ -1,7 +1,8 @@
+# AVVIA TEST
 .\Scripts\activate
 python -m pytest tests
 
-
+# CREA GUIDA
 winget install OpenJS.NodeJS 
 
 .\Scripts\activate
