@@ -339,6 +339,11 @@ def build():
         # New: Collect PyQt6 base to ensure plugins are found
         cmd_pyinstaller.extend(["--collect-all", "PyQt6"])
 
+        # Collect missing dependencies
+        cmd_pyinstaller.extend(["--collect-all", "geoip2"])
+        cmd_pyinstaller.extend(["--collect-all", "user_agents"])
+        cmd_pyinstaller.extend(["--collect-all", "apscheduler"])
+
         manual_hidden_imports = [
             "launcher", # The new logic imports this manually
             "views", "utils", "components", "api_client",
@@ -365,7 +370,9 @@ def build():
             "passlib", "passlib.handlers.bcrypt",
             "bcrypt",
             "jose", "jose.backends.cryptography_backend",
-            "cryptography", "cryptography.hazmat.backends.openssl"
+            "cryptography", "cryptography.hazmat.backends.openssl",
+            # Additional dependencies
+            "pandas", "tenacity", "fpdf", "ua_parser"
         ]
 
         all_hidden_imports = list(set(manual_hidden_imports + auto_detected_libs))
