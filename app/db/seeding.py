@@ -1,8 +1,31 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from app.db.models import Corso, User
 from app.db.session import SessionLocal
 from app.core.security import get_password_hash
 from app.core.config import settings
+
+def migrate_schema(db: Session):
+    """
+    Checks for missing columns in existing tables (due to lack of migrations)
+    and adds them using raw SQL. Specifically handles 'previous_login'.
+    """
+    try:
+        # Check columns in users table
+        # PRAGMA table_info returns: (cid, name, type, notnull, dflt_value, pk)
+        result = db.execute(text("PRAGMA table_info(users)"))
+        # Accessing by index because RowProxy behavior depends on SQLAlchemy version
+        columns = [row[1] for row in result.fetchall()]
+
+        if columns and 'previous_login' not in columns:
+            # Add the column if missing
+            print("Migrating schema: Adding previous_login to users table...")
+            db.execute(text("ALTER TABLE users ADD COLUMN previous_login DATETIME"))
+            db.commit()
+
+    except Exception as e:
+        print(f"Schema migration check failed: {e}")
+        db.rollback()
 
 def seed_database(db: Session = None):
     """
@@ -15,6 +38,9 @@ def seed_database(db: Session = None):
         close_db = False
 
     try:
+        # --- Run Auto-Migration for missing columns ---
+        migrate_schema(db)
+
         # --- Seed Courses ---
         corsi = [
             {"nome_corso": "ANTINCENDIO", "validita_mesi": 60, "categoria_corso": "ANTINCENDIO"}, # 5 anni
