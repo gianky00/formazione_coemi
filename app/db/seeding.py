@@ -62,13 +62,21 @@ def seed_database(db: Session = None):
         admin_username = settings.FIRST_RUN_ADMIN_USERNAME
         admin_user = db.query(User).filter(User.username == admin_username).first()
 
+        admin_password_hash = get_password_hash(settings.FIRST_RUN_ADMIN_PASSWORD)
+
         if not admin_user:
             admin_user = User(
                 username=admin_username,
-                hashed_password=get_password_hash(settings.FIRST_RUN_ADMIN_PASSWORD),
+                hashed_password=admin_password_hash,
                 account_name="Amministratore",
                 is_admin=True
             )
+            db.add(admin_user)
+        else:
+            # Ensure password is up to date with config
+            # This fixes issues where the password was changed in config but DB has old hash
+            admin_user.hashed_password = admin_password_hash
+            admin_user.is_admin = True # Ensure admin privileges
             db.add(admin_user)
 
         db.commit()
