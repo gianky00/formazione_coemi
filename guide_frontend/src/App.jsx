@@ -8,6 +8,7 @@ import ValidationGuide from './pages/ValidationGuide';
 import CalendarGuide from './pages/CalendarGuide';
 import EmployeesGuide from './pages/EmployeesGuide';
 import SettingsGuide from './pages/SettingsGuide';
+import SecurityGuide from './pages/SecurityGuide';
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
         <Route path="validation" element={<ValidationGuide />} />
         <Route path="calendar" element={<CalendarGuide />} />
         <Route path="employees" element={<EmployeesGuide />} />
+        <Route path="security" element={<SecurityGuide />} />
         <Route path="settings" element={<SettingsGuide />} />
       </Route>
     </Routes>

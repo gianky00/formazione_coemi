@@ -23,6 +23,11 @@ def migrate_schema(db: Session):
             db.execute(text("ALTER TABLE users ADD COLUMN previous_login DATETIME"))
             db.commit()
 
+        if columns and 'last_login' not in columns:
+            print("Migrating schema: Adding last_login to users table...")
+            db.execute(text("ALTER TABLE users ADD COLUMN last_login DATETIME"))
+            db.commit()
+
         # Check columns in audit_logs table
         result = db.execute(text("PRAGMA table_info(audit_logs)"))
         audit_columns = [row[1] for row in result.fetchall()]
