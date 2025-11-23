@@ -29,6 +29,7 @@ Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 WizardSizePercent=120
+WizardResizable=yes
 ; Licenza EULA (RTF Professionale)
 LicenseFile=EULA.rtf
 ; Immagini personalizzate per l'installer
@@ -81,8 +82,9 @@ Type: files; Name: "{app}\database_documenti.db"
 Type: files; Name: "{app}\database.db"
 Type: files; Name: "{app}\scadenzario.db"
 Type: files; Name: "{app}\pyarmor.rkey"
-Type: files; Name: "{app}\dettagli_licenza"
+Type: files; Name: "{app}\dettagli_licenza.txt"
 Type: filesandordirs; Name: "{app}\_internal"
+Type: dirifempty; Name: "{app}"
 Type: files; Name: "{app}\*.log"
 ; Clean up User Data (Optional, but good for clean uninstall)
 Type: files; Name: "{localappdata}\Intelleo\.env"
@@ -102,6 +104,7 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}
 var
   ConfigPage1: TInputQueryWizardPage;
   ConfigPage2: TInputQueryWizardPage;
+  ConfigPage3: TInputQueryWizardPage;
   TipsLabel: TNewStaticText;
 
 procedure InitializeWizard;
@@ -115,33 +118,41 @@ begin
   ConfigPage1.Add('Google Cloud Project ID:', False);
   ConfigPage1.Add('GCS Bucket Name:', False);
 
-  // Pagina 2: Impostazioni Email (SMTP)
+  // Pagina 2: Impostazioni Email (SMTP Server)
   ConfigPage2 := CreateInputQueryPage(ConfigPage1.ID,
-    'Configurazione Email', 'Impostazioni SMTP per le notifiche',
-    'Configura il server di posta per l''invio automatico delle scadenze.');
+    'Configurazione Server Email', 'Impostazioni SMTP per le notifiche (Server)',
+    'Configura il server di posta in uscita.');
 
   ConfigPage2.Add('SMTP Host:', False);
   ConfigPage2.Add('SMTP Port:', False);
   ConfigPage2.Add('SMTP User:', False);
   ConfigPage2.Add('SMTP Password:', True);
-  ConfigPage2.Add('Email A (separati da virgola):', False);
-  ConfigPage2.Add('Email CC (separati da virgola):', False);
+
+  // Pagina 3: Destinatari Email
+  ConfigPage3 := CreateInputQueryPage(ConfigPage2.ID,
+    'Configurazione Destinatari', 'Indirizzi Email per le notifiche',
+    'Definisci chi riceverà gli avvisi di scadenza.');
+
+  ConfigPage3.Add('Email A (separati da virgola):', False);
+  ConfigPage3.Add('Email CC (separati da virgola):', False);
 
   // Ingrandisci il logo in alto a destra
   WizardForm.WizardSmallBitmapImage.Width := ScaleX(110);
   WizardForm.WizardSmallBitmapImage.Left := WizardForm.ClientWidth - ScaleX(110);
 
   // Suggerimenti Professionali (Creato nascosto, mostrato in CurPageChanged)
-  // Modifica: Parent impostato su InstallingPage per corretto posizionamento
   TipsLabel := TNewStaticText.Create(WizardForm);
   TipsLabel.Parent := WizardForm.InstallingPage;
   TipsLabel.Visible := False;
   TipsLabel.WordWrap := True;
-  TipsLabel.Caption := 'Funzionalit' + #224 + ' Professionali:' + #13#10 + #13#10 +
-                       '- Analisi Documentale AI Gemini Pro' + #13#10 +
-                       '- Scadenzario Intelligente e Predittivo' + #13#10 +
-                       '- Notifiche Automatiche via Email' + #13#10 +
-                       '- Gestione Sicura dei Dati Aziendali';
+  TipsLabel.Caption := 'Funzionalit' + #224 + ' Professionali Avanzate:' + #13#10 + #13#10 +
+                       '- Analisi Documentale Avanzata con AI Gemini Pro Multimodale' + #13#10 +
+                       '- Estrazione Automatica Dati da PDF e Immagini' + #13#10 +
+                       '- Scadenzario Predittivo con Calcolo Validità Intelligente' + #13#10 +
+                       '- Sistema di Notifiche Email Configurabile e Automatico' + #13#10 +
+                       '- Gestione Sicura Crittografata (AES-256) dei Dati Aziendali' + #13#10 +
+                       '- Reportistica PDF Professionale e Dashboard Interattiva' + #13#10 +
+                       '- Architettura Resiliente con Database In-Memory';
   TipsLabel.Font.Style := [fsBold, fsItalic];
   TipsLabel.Font.Color := clWindowText;
 end;
@@ -212,7 +223,7 @@ begin
     Val := ConfigPage1.Values[2];
     if Val <> '' then UpdateEnvVar(Lines, 'GCS_BUCKET_NAME', '"' + Val + '"');
 
-    // Page 2 Values
+    // Page 2 Values (Server)
     Val := ConfigPage2.Values[0];
     if Val <> '' then UpdateEnvVar(Lines, 'SMTP_HOST', '"' + Val + '"');
 
@@ -225,10 +236,11 @@ begin
     Val := ConfigPage2.Values[3];
     if Val <> '' then UpdateEnvVar(Lines, 'SMTP_PASSWORD', '"' + Val + '"');
 
-    Val := ConfigPage2.Values[4];
+    // Page 3 Values (Recipients)
+    Val := ConfigPage3.Values[0];
     if Val <> '' then UpdateEnvVar(Lines, 'EMAIL_RECIPIENTS_TO', '"' + Val + '"');
 
-    Val := ConfigPage2.Values[5];
+    Val := ConfigPage3.Values[1];
     if Val <> '' then UpdateEnvVar(Lines, 'EMAIL_RECIPIENTS_CC', '"' + Val + '"');
 
     // Only save if we have data (or file existed)

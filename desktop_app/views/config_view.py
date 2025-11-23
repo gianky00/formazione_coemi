@@ -649,9 +649,23 @@ class ConfigView(QWidget):
             self.switch_tab(0)
 
     def get_env_path(self):
-        return os.path.join(os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        ), '.env')
+        # Use User Data Directory for configuration to avoid PermissionError in Program Files
+        try:
+            from app.core.config import get_user_data_dir
+            return str(get_user_data_dir() / '.env')
+        except ImportError:
+            # Fallback if app.core is not accessible
+            if os.name == 'nt':
+                app_data = os.getenv('LOCALAPPDATA')
+                if not app_data:
+                     app_data = os.path.expanduser("~\\AppData\\Local")
+                base_dir = os.path.join(app_data, "Intelleo")
+            else:
+                base_dir = os.path.join(os.path.expanduser("~"), ".local", "share", "Intelleo")
+
+            if not os.path.exists(base_dir):
+                os.makedirs(base_dir)
+            return os.path.join(base_dir, '.env')
 
     def load_config(self):
         env_path = self.get_env_path()

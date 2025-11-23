@@ -57,11 +57,38 @@ class DBSecurityManager:
 
     def create_lock(self):
         """
-        Attempts to create the lock file. Raises PermissionError if already locked.
+        Attempts to create the lock file. Checks for stale locks from crashed sessions.
         Should be called upon successful login.
         """
         if self.check_lock_exists():
-             raise PermissionError("Database is currently locked by another active session.")
+            try:
+                with open(self.lock_path, "r") as f:
+                    content = f.read().strip()
+
+                if content.startswith("LOCKED_BY_PID_"):
+                    parts = content.split('_')
+                    if len(parts) >= 4:
+                        pid = int(parts[3])
+                        # Check if process exists
+                        try:
+                            if pid == os.getpid():
+                                self.has_lock = True
+                                logger.info("Re-acquired own lock.")
+                                return
+
+                            os.kill(pid, 0) # Check if PID is alive
+                            # If we get here, process exists.
+                            raise PermissionError(f"Database is currently locked by active process PID {pid}.")
+                        except OSError:
+                            # Process does not exist (or permission denied to check, but usually implies dead if we are owner/same user)
+                            # In Windows, permission error on os.kill(pid, 0) might happen if Admin vs User.
+                            # But usually app runs as same user.
+                            logger.warning(f"Found stale lock from dead process {pid}. Removing.")
+                            os.remove(self.lock_path)
+            except (ValueError, IndexError, OSError) as e:
+                logger.warning(f"Error investigating lock file: {e}. Assuming valid lock or race condition.")
+                if self.check_lock_exists(): # Double check if it's still there
+                     raise PermissionError("Database is currently locked by another active session.")
 
         try:
             # Use 'x' mode for atomic exclusive creation

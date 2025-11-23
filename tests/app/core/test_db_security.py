@@ -1,5 +1,6 @@
 import pytest
 import os
+import time
 import sqlite3
 from pathlib import Path
 from unittest.mock import patch
@@ -128,3 +129,24 @@ def test_pre_login_safety(temp_workspace, mock_user_data_dir):
     cur_disk = conn_disk.cursor()
     cur_disk.execute("SELECT data FROM test WHERE data='unsafe_data'")
     assert cur_disk.fetchone() is None # Data not written
+
+def test_stale_lock_removal(temp_workspace, mock_user_data_dir):
+    db_name = "database_documenti.db"
+    manager = DBSecurityManager(db_name=db_name)
+
+    # Create a stale lock file with a fake PID
+    fake_pid = 999999
+    lock_content = f"LOCKED_BY_PID_{fake_pid}_{time.time()}"
+    with open(manager.lock_path, "w") as f:
+        f.write(lock_content)
+
+    # Mock os.kill to simulate that process does not exist
+    with patch("os.kill", side_effect=OSError):
+        # Should detect stale lock, remove it, and create new one
+        manager.create_lock()
+
+    assert manager.has_lock is True
+    # Lock should be replaced with OUR pid
+    with open(manager.lock_path, "r") as f:
+        content = f.read()
+    assert f"LOCKED_BY_PID_{os.getpid()}" in content
