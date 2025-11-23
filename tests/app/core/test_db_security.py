@@ -9,6 +9,11 @@ from app.core.db_security import DBSecurityManager
 def temp_workspace(tmp_path):
     return tmp_path
 
+@pytest.fixture
+def mock_user_data_dir(temp_workspace):
+    with patch('app.core.db_security.get_user_data_dir', return_value=temp_workspace) as m:
+        yield m
+
 def create_dummy_db(path):
     conn = sqlite3.connect(path)
     c = conn.cursor()
@@ -17,13 +22,14 @@ def create_dummy_db(path):
     conn.commit()
     conn.close()
 
-def test_in_memory_lifecycle(temp_workspace):
-    db_path = temp_workspace / "database_documenti.db"
+def test_in_memory_lifecycle(temp_workspace, mock_user_data_dir):
+    db_name = "database_documenti.db"
+    db_path = temp_workspace / db_name
 
     # 1. Create Plain DB on disk
     create_dummy_db(db_path)
 
-    manager = DBSecurityManager(db_path=str(db_path))
+    manager = DBSecurityManager(db_name=db_name)
 
     # 2. Load (Should Auto-Encrypt in RAM)
     manager.load_memory_db()
@@ -71,24 +77,25 @@ def test_in_memory_lifecycle(temp_workspace):
     assert not manager.lock_path.exists()
 
     # 8. Reload (Simulate Restart)
-    manager2 = DBSecurityManager(db_path=str(db_path))
+    manager2 = DBSecurityManager(db_name=db_name)
     manager2.load_memory_db()
     conn2 = manager2.get_connection()
     cur2 = conn2.cursor()
     cur2.execute("SELECT data FROM test WHERE data='new_ram_data'")
     assert cur2.fetchone()[0] == 'new_ram_data'
 
-def test_lock_prevents_access(temp_workspace):
-    db_path = temp_workspace / "database_documenti.db"
+def test_lock_prevents_access(temp_workspace, mock_user_data_dir):
+    db_name = "database_documenti.db"
+    db_path = temp_workspace / db_name
     create_dummy_db(db_path)
 
     # Instance 1: Running and Locked
-    manager1 = DBSecurityManager(db_path=str(db_path))
+    manager1 = DBSecurityManager(db_name=db_name)
     manager1.load_memory_db()
     manager1.create_lock()
 
     # Instance 2: Startup Check
-    manager2 = DBSecurityManager(db_path=str(db_path))
+    manager2 = DBSecurityManager(db_name=db_name)
 
     # Should fail at startup if locked
     with pytest.raises(PermissionError):
@@ -96,12 +103,13 @@ def test_lock_prevents_access(temp_workspace):
 
     manager1.cleanup()
 
-def test_pre_login_safety(temp_workspace):
+def test_pre_login_safety(temp_workspace, mock_user_data_dir):
     """Verify that data is NOT saved if lock is not held (Pre-Login state)"""
-    db_path = temp_workspace / "database_documenti.db"
+    db_name = "database_documenti.db"
+    db_path = temp_workspace / db_name
     create_dummy_db(db_path)
 
-    manager = DBSecurityManager(db_path=str(db_path))
+    manager = DBSecurityManager(db_name=db_name)
     manager.load_memory_db()
     # Note: No create_lock() called
 

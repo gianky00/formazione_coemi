@@ -283,8 +283,10 @@ def build():
 
         if os.path.exists(os.path.join(ROOT_DIR, "requirements.txt")):
             shutil.copy(os.path.join(ROOT_DIR, "requirements.txt"), os.path.join(OBF_DIR, "requirements.txt"))
-        if os.path.exists(os.path.join(ROOT_DIR, ".env")):
-            shutil.copy(os.path.join(ROOT_DIR, ".env"), os.path.join(OBF_DIR, ".env"))
+
+        # NOTE: We intentionally DO NOT copy .env to the build folder anymore.
+        # User configuration is managed via AppData, and default Admin credentials
+        # are handled by app/core/config.py defaults if no .env is present in AppData.
 
         log_and_print("\n--- Step 5/7: Packaging with PyInstaller (This may take a while) ---")
         sep = ";" if os.name == 'nt' else ":"

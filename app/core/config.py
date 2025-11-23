@@ -2,8 +2,24 @@ from pydantic_settings import BaseSettings
 from pydantic import ConfigDict
 from dotenv import load_dotenv
 import os
+from pathlib import Path
+
+# Helper to determine user data directory
+def get_user_data_dir() -> Path:
+    if os.name == 'nt':
+        app_data = os.getenv('LOCALAPPDATA')
+        if not app_data:
+             app_data = os.path.expanduser("~\\AppData\\Local")
+        base_dir = Path(app_data) / "Intelleo"
+    else:
+        # Fallback for Linux dev/test
+        base_dir = Path.home() / ".local" / "share" / "Intelleo"
+
+    base_dir.mkdir(parents=True, exist_ok=True)
+    return base_dir
 
 # Load environment variables from .env file
+# We now prioritize the user data directory .env, but load_dotenv() still checks cwd for dev
 load_dotenv()
 
 class Settings(BaseSettings):
@@ -33,8 +49,9 @@ class Settings(BaseSettings):
     FIRST_RUN_ADMIN_PASSWORD: str = "allegretti@coemi"
 
     model_config = ConfigDict(
-        env_file=".env",
-        env_file_encoding='utf-8'
+        env_file=get_user_data_dir() / ".env",
+        env_file_encoding='utf-8',
+        extra='ignore'
     )
 
 settings = Settings()

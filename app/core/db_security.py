@@ -8,7 +8,7 @@ import ctypes
 import sqlite3
 from pathlib import Path
 from cryptography.fernet import Fernet
-from app.core.config import settings
+from app.core.config import settings, get_user_data_dir
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type, RetryError
 
 logger = logging.getLogger(__name__)
@@ -24,9 +24,21 @@ class DBSecurityManager:
     _STATIC_SECRET = "INTELLEO_DB_SECRET_KEY_V1_2024_SECURE_ACCESS"
     _HEADER = b"INTELLEO_SEC_V1"
 
-    def __init__(self, db_path: str = "database_documenti.db"):
-        self.db_path = Path(db_path).resolve()
-        self.lock_path = self.db_path.with_name(f".{self.db_path.name}.lock")
+    def __init__(self, db_name: str = "database_documenti.db"):
+        # Resolve DB path to User Data Directory to ensure Write Permissions
+        self.data_dir = get_user_data_dir()
+        self.db_path = self.data_dir / db_name
+        self.lock_path = self.data_dir / f".{db_name}.lock"
+
+        # Migration: If DB exists in CWD (Install Dir) but not in Data Dir, copy it.
+        # This handles the case where a DB is shipped with the installer or upgraded.
+        cwd_db = Path.cwd() / db_name
+        if cwd_db.exists() and not self.db_path.exists():
+            try:
+                shutil.copy2(cwd_db, self.db_path)
+                logger.info(f"Migrated database from {cwd_db} to {self.db_path}")
+            except Exception as e:
+                logger.warning(f"Failed to migrate database: {e}")
 
         self.key = self._derive_key()
         self.fernet = Fernet(self.key)

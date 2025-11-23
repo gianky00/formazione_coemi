@@ -55,8 +55,8 @@ Root: HKCR; Subkey: "Directory\shell\IntelleoAnalyze\command"; ValueType: string
 Source: "{#BuildDir}\*"; DestDir: "{app}"; Excludes: "Intelleo_Setup_*.exe"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; === LICENZA ===
-; Copia il file di licenza nella cartella di installazione
-Source: "EULA.rtf"; DestDir: "{app}"; Flags: ignoreversion
+; REMOVED from Files section to prevent it being visible in installation folder.
+; It is still embedded in the installer via LicenseFile directive.
 
 ; === ASSET GRAFICI (Come da indicazioni di Jules) ===
 ; Mantiene la struttura delle cartelle 'desktop_app' necessaria per i path relativi Python
@@ -64,18 +64,15 @@ Source: "..\..\desktop_app\assets\*"; DestDir: "{app}\desktop_app\assets"; Flags
 Source: "..\..\desktop_app\icons\*"; DestDir: "{app}\desktop_app\icons"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; === CONFIGURAZIONE ===
-; Copia .env.example rinominandolo in .env solo se non esiste (Rimossa flag uninsneveruninstall per pulizia completa)
-Source: "..\..\.env.example"; DestDir: "{app}"; DestName: ".env"; Flags: onlyifdoesntexist
+; .env handling moved to [Code] section to use User Data Directory (AppData)
 
 ; === DATABASE ===
-; IMPORTANTE: Aggiungiamo i permessi di scrittura (Permissions: users-modify) 
-; perché in Program Files l'utente standard non può scrivere di default.
-; (Rimossa flag uninsneveruninstall per pulizia completa)
-Source: "..\..\database_documenti.db"; DestDir: "{app}"; Flags: onlyifdoesntexist skipifsourcedoesntexist; Permissions: users-modify
+; Database is no longer installed to Program Files.
+; It will be created or migrated to AppData on first run by the application.
 
 ; === DOCUMENTAZIONE JULES ===
-; Copia l'intera cartella .jules-docs (tutti i file)
-Source: "..\..\.jules-docs\*"; DestDir: "{app}\.jules-docs"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+; Copia l'intera cartella docs (rinominata da .jules-docs)
+Source: "..\..\docs\*"; DestDir: "{app}\docs"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 [UninstallDelete]
 ; Forza la cancellazione di file generati dopo l'installazione per una pulizia completa
@@ -161,49 +158,77 @@ end;
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   Lines: TArrayOfString;
-  I: Integer;
   EnvPath: String;
+  AppDataDir: String;
   Val: String;
+
+  // Helper to safe update env var
+  procedure SetEnvVar(Key, Value: String);
+  var
+    J: Integer;
+    Found: Boolean;
+  begin
+    Found := False;
+    for J := 0 to GetArrayLength(Lines) - 1 do
+    begin
+      if Pos(Key + '=', Lines[J]) = 1 then
+      begin
+        Lines[J] := Key + '=' + Value;
+        Found := True;
+        Break;
+      end;
+    end;
+    if not Found then
+    begin
+      SetArrayLength(Lines, GetArrayLength(Lines) + 1);
+      Lines[GetArrayLength(Lines) - 1] := Key + '=' + Value;
+    end;
+  end;
+
 begin
   if CurStep = ssPostInstall then
   begin
-    EnvPath := ExpandConstant('{app}\.env');
+    // Write configuration to User AppData, not Program Files
+    AppDataDir := ExpandConstant('{userappdata}\Intelleo');
+    if not DirExists(AppDataDir) then ForceDirectories(AppDataDir);
 
-    if LoadStringsFromFile(EnvPath, Lines) then
-    begin
-      for I := 0 to GetArrayLength(Lines) - 1 do
-      begin
-        // Page 1 Values
-        Val := ConfigPage1.Values[0];
-        if (Val <> '') and (Pos('GEMINI_API_KEY=', Lines[I]) = 1) then Lines[I] := 'GEMINI_API_KEY="' + Val + '"';
+    EnvPath := AppDataDir + '\.env';
 
-        Val := ConfigPage1.Values[1];
-        if (Val <> '') and (Pos('GOOGLE_CLOUD_PROJECT=', Lines[I]) = 1) then Lines[I] := 'GOOGLE_CLOUD_PROJECT="' + Val + '"';
+    // Try to load existing file, otherwise start with empty array
+    if not LoadStringsFromFile(EnvPath, Lines) then
+      SetArrayLength(Lines, 0);
 
-        Val := ConfigPage1.Values[2];
-        if (Val <> '') and (Pos('GCS_BUCKET_NAME=', Lines[I]) = 1) then Lines[I] := 'GCS_BUCKET_NAME="' + Val + '"';
+    // Page 1 Values
+    Val := ConfigPage1.Values[0];
+    if Val <> '' then SetEnvVar('GEMINI_API_KEY', '"' + Val + '"');
 
-        // Page 2 Values
-        Val := ConfigPage2.Values[0];
-        if (Val <> '') and (Pos('SMTP_HOST=', Lines[I]) = 1) then Lines[I] := 'SMTP_HOST="' + Val + '"';
+    Val := ConfigPage1.Values[1];
+    if Val <> '' then SetEnvVar('GOOGLE_CLOUD_PROJECT', '"' + Val + '"');
 
-        Val := ConfigPage2.Values[1];
-        if (Val <> '') and (Pos('SMTP_PORT=', Lines[I]) = 1) then Lines[I] := 'SMTP_PORT=' + Val;
+    Val := ConfigPage1.Values[2];
+    if Val <> '' then SetEnvVar('GCS_BUCKET_NAME', '"' + Val + '"');
 
-        Val := ConfigPage2.Values[2];
-        if (Val <> '') and (Pos('SMTP_USER=', Lines[I]) = 1) then Lines[I] := 'SMTP_USER="' + Val + '"';
+    // Page 2 Values
+    Val := ConfigPage2.Values[0];
+    if Val <> '' then SetEnvVar('SMTP_HOST', '"' + Val + '"');
 
-        Val := ConfigPage2.Values[3];
-        if (Val <> '') and (Pos('SMTP_PASSWORD=', Lines[I]) = 1) then Lines[I] := 'SMTP_PASSWORD="' + Val + '"';
+    Val := ConfigPage2.Values[1];
+    if Val <> '' then SetEnvVar('SMTP_PORT', Val);
 
-        Val := ConfigPage2.Values[4];
-        if (Val <> '') and (Pos('EMAIL_RECIPIENTS_TO=', Lines[I]) = 1) then Lines[I] := 'EMAIL_RECIPIENTS_TO="' + Val + '"';
+    Val := ConfigPage2.Values[2];
+    if Val <> '' then SetEnvVar('SMTP_USER', '"' + Val + '"');
 
-        Val := ConfigPage2.Values[5];
-        if (Val <> '') and (Pos('EMAIL_RECIPIENTS_CC=', Lines[I]) = 1) then Lines[I] := 'EMAIL_RECIPIENTS_CC="' + Val + '"';
-      end;
+    Val := ConfigPage2.Values[3];
+    if Val <> '' then SetEnvVar('SMTP_PASSWORD', '"' + Val + '"');
 
-      SaveStringsToFile(EnvPath, Lines, False);
-    end;
+    Val := ConfigPage2.Values[4];
+    if Val <> '' then SetEnvVar('EMAIL_RECIPIENTS_TO', '"' + Val + '"');
+
+    Val := ConfigPage2.Values[5];
+    if Val <> '' then SetEnvVar('EMAIL_RECIPIENTS_CC', '"' + Val + '"');
+
+    // Only save if we have data (or file existed)
+    // Actually, force save if we created the file
+    SaveStringsToFile(EnvPath, Lines, False);
   end;
 end;
