@@ -278,21 +278,29 @@ class Sidebar(QFrame):
 
     def read_license_info(self):
         path = "dettagli_licenza.txt"
-        # Try to find it in root
-        if not os.path.exists(path):
-             # Try relative to executable if frozen
-             if getattr(sys, 'frozen', False):
-                 path = os.path.join(os.path.dirname(sys.executable), "dettagli_licenza.txt")
+
+        # Define fallback paths
+        possible_paths = [
+            path,
+            os.path.join("Licenza", path),
+        ]
+
+        if getattr(sys, 'frozen', False):
+            exe_dir = os.path.dirname(sys.executable)
+            possible_paths.append(os.path.join(exe_dir, path))
+            possible_paths.append(os.path.join(exe_dir, "Licenza", path))
 
         info = {}
-        if os.path.exists(path):
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    for line in f:
-                        if ":" in line:
-                            key, value = line.split(":", 1)
-                            info[key.strip()] = value.strip()
-            except: pass
+        for p in possible_paths:
+            if os.path.exists(p):
+                try:
+                    with open(p, "r", encoding="utf-8") as f:
+                        for line in f:
+                            if ":" in line:
+                                key, value = line.split(":", 1)
+                                info[key.strip()] = value.strip()
+                    if info: break
+                except: pass
         return info
 
     def set_user_info(self, name, last_access):

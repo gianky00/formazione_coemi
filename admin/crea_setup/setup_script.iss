@@ -30,6 +30,7 @@ SolidCompression=yes
 WizardStyle=modern
 WizardSizePercent=120
 WizardResizable=yes
+UninstallFilesDir={app}\Disinstalla
 ; Licenza EULA (RTF Professionale)
 LicenseFile=EULA.rtf
 ; Immagini personalizzate per l'installer
@@ -95,6 +96,7 @@ Type: dirifempty; Name: "{localappdata}\Intelleo"
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{app}\Dati Applicazione"; Filename: "{localappdata}\Intelleo"
 
 [Run]
 ; Avvia l'app dopo l'installazione
