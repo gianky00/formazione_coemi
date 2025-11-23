@@ -69,6 +69,25 @@ const DashboardGuide = () => {
           </ul>
         </Section>
 
+        <Section title="Interazioni Avanzate">
+          <div className="space-y-4">
+             <div className="p-4 bg-white border border-gray-200 rounded-lg hover:border-blue-300 transition-colors">
+                <h4 className="font-bold text-gray-800 mb-2">Modifica Rapida</h4>
+                <p className="text-sm text-gray-600">
+                   Seleziona una riga e clicca su <strong>Modifica</strong> per cambiare date o note.
+                   Le modifiche vengono tracciate nel Log Attività.
+                </p>
+             </div>
+             <div className="p-4 bg-white border border-gray-200 rounded-lg hover:border-red-300 transition-colors">
+                <h4 className="font-bold text-gray-800 mb-2">Eliminazione Sicura</h4>
+                <p className="text-sm text-gray-600">
+                   Il tasto <strong>Cancella</strong> rimuove il certificato dal database.
+                   Questa azione richiede conferma ed è irreversibile.
+                </p>
+             </div>
+          </div>
+        </Section>
+
         <Section title="Suggerimenti">
           <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg">
             <div className="flex items-start gap-3">
