@@ -64,22 +64,26 @@ class LoginView(QWidget):
 
         if logo_path:
             pixmap = QPixmap(logo_path)
-            # Scale
-            logo_label.setPixmap(pixmap.scaled(280, 84, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            # Scale with better limits (e.g. 360x150) to avoid squashing
+            scaled = pixmap.scaled(QSize(360, 150), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            logo_label.setPixmap(scaled)
         else:
             logo_label.setText("INTELLEO")
-            logo_label.setStyleSheet("font-size: 32px; font-weight: bold; color: white;")
+            logo_label.setStyleSheet("font-size: 32px; font-weight: bold; color: #1E3A8A;")
 
         left_layout.addStretch()
 
         # Container for logo to ensure visibility against blue
         logo_container = QFrame()
-        logo_container.setStyleSheet("background-color: white; border-radius: 12px; padding: 20px;")
+        logo_container.setStyleSheet("""
+            background-color: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+        """)
         logo_container_layout = QVBoxLayout(logo_container)
-        logo_container_layout.setContentsMargins(10, 10, 10, 10)
+        logo_container_layout.setContentsMargins(40, 30, 40, 30) # More generous padding
         logo_container_layout.addWidget(logo_label)
-        logo_container.setFixedSize(320, 120)
 
+        # Removed setFixedSize to allow natural fit
         left_layout.addWidget(logo_container, alignment=Qt.AlignmentFlag.AlignCenter)
 
         left_layout.addSpacing(40)
