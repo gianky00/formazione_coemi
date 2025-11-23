@@ -19,8 +19,24 @@ from PyQt6.QtGui import QPixmap
 
 # --- 1. CONFIGURAZIONE AMBIENTE ---
 if getattr(sys, 'frozen', False):
-    # Cartella dell'EXE (per il DB)
     EXE_DIR = os.path.dirname(sys.executable)
+
+    # DLL Handling: Add 'dll' subdirectory to search path
+    dll_dir = os.path.join(EXE_DIR, "dll")
+    if os.name == 'nt' and os.path.exists(dll_dir):
+        os.environ["PATH"] = dll_dir + os.pathsep + os.environ.get("PATH", "")
+        try:
+            if hasattr(os, 'add_dll_directory'):
+                os.add_dll_directory(dll_dir)
+        except Exception:
+            pass
+
+    # License Handling: Add 'Licenza' subdirectory to sys.path so PyArmor finds pyarmor.rkey
+    lic_dir = os.path.join(EXE_DIR, "Licenza")
+    if os.path.exists(lic_dir):
+        sys.path.insert(0, lic_dir)
+
+    # Cartella dell'EXE (per il DB fallback)
     db_path = os.path.join(EXE_DIR, "database_documenti.db")
     if os.name == 'nt': db_path = db_path.replace('\\', '\\\\')
     os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
@@ -35,15 +51,16 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # --- 2. VERIFICA LICENZA (Fisica + Logica Implicita) ---
 def verify_license():
-    # A. Check Fisico: il file deve esistere accanto all'EXE
+    # A. Check Fisico: il file deve esistere
     if getattr(sys, 'frozen', False):
         base_dir = os.path.dirname(sys.executable)
+        # Production: Check in Licenza folder
+        lic_path = os.path.join(base_dir, "Licenza", "pyarmor.rkey")
     else:
+        # Dev: Check in root
         base_dir = os.path.dirname(os.path.abspath(__file__))
+        lic_path = os.path.join(base_dir, "pyarmor.rkey")
     
-    # Percorso atteso della licenza
-    lic_path = os.path.join(base_dir, "pyarmor.rkey")
-
     if not os.path.exists(lic_path):
         return False, f"File di licenza mancante.\nCercato in: {lic_path}"
 
