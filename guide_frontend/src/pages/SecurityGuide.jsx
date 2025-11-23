@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, AlertTriangle, Eye, Activity, Smartphone, Mail } from 'lucide-react';
+import { Shield, AlertTriangle, Eye, Activity, Smartphone, Mail, Database, Lock } from 'lucide-react';
 
 const SecurityGuide = () => {
   return (
@@ -103,6 +103,34 @@ const SecurityGuide = () => {
             <div className="bg-red-50 p-4 rounded-lg border-l-4 border-red-500 shadow-sm">
               <h3 className="font-bold text-red-800 mb-1">CRITICAL (Critico)</h3>
               <p className="text-sm text-red-700">Minacce attive (es. Brute Force Attack, Accesso Admin non autorizzato).</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Database Sicuro */}
+        <section>
+          <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+            <Database className="w-5 h-5 text-blue-600" />
+            Architettura di Sicurezza Database
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-green-500" /> Crittografia "At Rest"
+                </h3>
+                <p className="text-sm text-gray-600">
+                    Il file database (<code>database_documenti.db</code>) è salvato su disco interamente crittografato (algoritmo AES-128 Fernet).
+                    È illeggibile per qualsiasi strumento esterno. La decrittazione avviene esclusivamente nella memoria RAM volatile durante l'uso.
+                </p>
+            </div>
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-orange-500" /> Accesso Esclusivo (.lock)
+                </h3>
+                <p className="text-sm text-gray-600">
+                    Al login, viene generato un file <code>.lock</code> che impedisce l'apertura simultanea da parte di altri utenti.
+                    Il file viene rimosso automaticamente alla chiusura. Questo garantisce l'integrità dei dati in ambienti mono-utente.
+                </p>
             </div>
           </div>
         </section>
