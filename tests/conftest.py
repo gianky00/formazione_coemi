@@ -8,7 +8,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from app.main import app
 from app.db.session import get_db
-from app.db.models import Base
+from app.db.models import Base, User
+from app.api import deps
 
 # Set dummy environment variables for tests
 os.environ["GEMINI_API_KEY"] = "test_key"
@@ -45,6 +46,11 @@ async def no_lifespan(app):
 
 app.dependency_overrides[get_db] = override_get_db
 app.router.lifespan_context = no_lifespan
+
+def override_get_current_user():
+    return User(id=1, username="admin", is_admin=True)
+
+app.dependency_overrides[deps.get_current_user] = override_get_current_user
 
 @pytest.fixture(scope="function")
 def test_client(db_session):

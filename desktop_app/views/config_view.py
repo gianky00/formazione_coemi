@@ -238,6 +238,20 @@ class GeneralSettingsWidget(QFrame):
         self.recipients_cc_input.setPlaceholderText("Separati da virgola")
         self.form_layout.addRow(QLabel("Copia Conoscenza (CC):"), self.recipients_cc_input)
 
+        # Threshold Settings
+        threshold_separator = QFrame()
+        threshold_separator.setFrameShape(QFrame.Shape.HLine)
+        threshold_separator.setFrameShadow(QFrame.Shadow.Sunken)
+        self.form_layout.addRow(threshold_separator)
+
+        self.alert_threshold_input = QLineEdit()
+        self.alert_threshold_input.setPlaceholderText("Default: 60")
+        self.form_layout.addRow(QLabel("Soglia Avviso (giorni):"), self.alert_threshold_input)
+
+        self.alert_threshold_visite_input = QLineEdit()
+        self.alert_threshold_visite_input.setPlaceholderText("Default: 30")
+        self.form_layout.addRow(QLabel("Soglia Avviso Visite Mediche (giorni):"), self.alert_threshold_visite_input)
+
         self.layout.addLayout(self.form_layout)
         self.layout.addStretch()
 
@@ -454,6 +468,8 @@ class ConfigView(QWidget):
         gs.smtp_password_input.setText(os.getenv("SMTP_PASSWORD", ""))
         gs.recipients_to_input.setText(os.getenv("EMAIL_RECIPIENTS_TO", ""))
         gs.recipients_cc_input.setText(os.getenv("EMAIL_RECIPIENTS_CC", ""))
+        gs.alert_threshold_input.setText(os.getenv("ALERT_THRESHOLD_DAYS", "60"))
+        gs.alert_threshold_visite_input.setText(os.getenv("ALERT_THRESHOLD_DAYS_VISITE", "30"))
 
     def apply_email_preset(self):
         preset = self.general_settings.email_preset_combo.currentText()
@@ -490,6 +506,8 @@ class ConfigView(QWidget):
             set_key(env_path, "SMTP_PASSWORD", gs.smtp_password_input.text())
             set_key(env_path, "EMAIL_RECIPIENTS_TO", gs.recipients_to_input.text())
             set_key(env_path, "EMAIL_RECIPIENTS_CC", gs.recipients_cc_input.text())
+            set_key(env_path, "ALERT_THRESHOLD_DAYS", gs.alert_threshold_input.text())
+            set_key(env_path, "ALERT_THRESHOLD_DAYS_VISITE", gs.alert_threshold_visite_input.text())
 
             QMessageBox.information(self, "Salvato", "Configurazione salvata. Riavviare per applicare.")
         except Exception as e:

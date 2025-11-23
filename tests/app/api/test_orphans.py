@@ -4,7 +4,8 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 from app.api.main import router
 from app.db.session import get_db
-from app.db.models import Certificato, ValidationStatus, Corso, Dipendente, Base
+from app.db.models import Certificato, ValidationStatus, Corso, Dipendente, Base, User
+from app.api import deps
 from app.schemas.schemas import CertificatoSchema
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -35,6 +36,12 @@ def test_client():
     app = FastAPI()
     app.include_router(router, prefix="/api/v1")
     app.dependency_overrides[get_db] = override_get_db
+
+    # Override auth
+    def override_get_current_user():
+        return User(id=1, username="admin", is_admin=True)
+    app.dependency_overrides[deps.get_current_user] = override_get_current_user
+
     return TestClient(app)
 
 @pytest.fixture(autouse=True)
