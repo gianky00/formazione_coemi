@@ -1,9 +1,22 @@
 import sys
 import os
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QMessageBox, QFrame, QLabel, QPushButton, QGraphicsOpacityEffect
-from PyQt6.QtCore import QUrl, Qt, QPropertyAnimation, QEasingCurve, pyqtSlot
+from PyQt6.QtCore import QUrl, Qt, QPropertyAnimation, QEasingCurve, pyqtSlot, QObject, pyqtSignal
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebChannel import QWebChannel
+
+class GuideBridge(QObject):
+    """
+    A bridge object to expose limited functionality to the frontend.
+    Using a dedicated QObject avoids exposing all QWidget properties to QWebChannel,
+    preventing 'property has no notify signal' warnings.
+    """
+    closeRequested = pyqtSignal()
+
+    @pyqtSlot()
+    def closeWindow(self):
+        """Slot accessible from JavaScript to request closing the dialog."""
+        self.closeRequested.emit()
 
 class ModernGuideDialog(QDialog):
     def __init__(self, parent=None):
@@ -32,17 +45,17 @@ class ModernGuideDialog(QDialog):
 
         # QWebChannel Setup for Bridge
         self.channel = QWebChannel()
-        self.channel.registerObject("bridge", self)
+
+        # Use a dedicated bridge object
+        self.bridge = GuideBridge()
+        self.bridge.closeRequested.connect(self.accept)
+
+        self.channel.registerObject("bridge", self.bridge)
         self.webview.page().setWebChannel(self.channel)
 
         main_layout.addWidget(self.webview)
 
         self.load_guide()
-
-    @pyqtSlot()
-    def closeWindow(self):
-        """Slot accessible from JavaScript to close the dialog."""
-        self.accept()
 
     def load_guide(self):
         # Determine the path to the index.html

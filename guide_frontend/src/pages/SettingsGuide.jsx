@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Settings, Mail, Key, Bell } from 'lucide-react';
+import { Settings, Mail, Key, Bell, Users, Activity } from 'lucide-react';
 
 const Section = ({ title, children }) => (
   <section className="mb-12">
@@ -32,6 +32,24 @@ const SettingsGuide = () => {
       </motion.div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <Section title="Gestione Utenti (Admin)">
+           <div className="flex items-start gap-3 mb-4">
+             <Users size={20} className="text-indigo-600 mt-1 shrink-0" />
+             <p>
+               Gli amministratori possono creare nuovi account per i colleghi e gestire i permessi.
+             </p>
+           </div>
+           <div className="bg-indigo-50 p-4 rounded border border-indigo-100 text-sm">
+             <p className="mb-2"><strong>Funzionalità disponibili:</strong></p>
+             <ul className="list-disc list-inside space-y-1 text-indigo-900">
+               <li>Creazione nuovi utenti.</li>
+               <li>Reset password (lasciando vuoto il campo per mantenere l'attuale).</li>
+               <li>Assegnazione ruolo Amministratore.</li>
+               <li>Eliminazione account obsoleti.</li>
+             </ul>
+           </div>
+        </Section>
+
         <Section title="Server Email (SMTP)">
           <div className="flex items-start gap-3 mb-4">
             <Mail size={20} className="text-blue-500 mt-1 shrink-0" />
@@ -77,6 +95,19 @@ const SettingsGuide = () => {
           </div>
         </div>
       </Section>
+
+        <Section title="Log Attività">
+           <div className="flex items-start gap-3">
+             <Activity size={20} className="text-blue-600 mt-1 shrink-0" />
+             <div>
+               <h3 className="font-bold text-gray-800 mb-2">Sicurezza e Audit</h3>
+               <p className="text-sm text-gray-600">
+                 La scheda "Log Attività" permette di monitorare tutte le operazioni sensibili.
+                 Per maggiori dettagli, consulta la guida dedicata <strong className="text-blue-600">Sicurezza & Audit</strong>.
+               </p>
+             </div>
+           </div>
+        </Section>
     </div>
   );
 };
