@@ -330,6 +330,20 @@ class MasterWindow(QMainWindow):
         index = self.stack.indexOf(dashboard_widget)
         self.stack.fade_in(index)
 
+    def closeEvent(self, event):
+        """
+        Intercept application close event to ensure robust logout and database cleanup.
+        """
+        if self.controller and self.controller.api_client.access_token:
+            try:
+                print("[DEBUG] Application closing: Triggering logout/cleanup...")
+                # This call is blocking and triggers backend DB save + unlock
+                self.controller.api_client.logout()
+            except Exception as e:
+                print(f"[ERROR] Cleanup failed during close: {e}")
+
+        event.accept()
+
 class ApplicationController:
     def __init__(self):
         print("[DEBUG] ApplicationController.__init__ started")
