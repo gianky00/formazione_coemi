@@ -97,6 +97,7 @@ class UserUpdate(BaseModel):
 class User(UserBase):
     id: int
     last_login: Optional[datetime] = None
+    previous_login: Optional[datetime] = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -108,6 +109,7 @@ class Token(BaseModel):
     username: str
     account_name: Optional[str] = None
     is_admin: bool
+    previous_login: Optional[datetime] = None
 
 class TokenData(BaseModel):
     username: Optional[str] = None

@@ -27,6 +27,7 @@ class User(Base):
     account_name = Column(String, nullable=True) # Visible name (e.g. "Mario Rossi")
     is_admin = Column(Boolean, default=False)
     last_login = Column(DateTime, nullable=True)
+    previous_login = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class BlacklistedToken(Base):

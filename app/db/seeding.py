@@ -1,8 +1,31 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from app.db.models import Corso, User
 from app.db.session import SessionLocal
 from app.core.security import get_password_hash
 from app.core.config import settings
+
+def migrate_schema(db: Session):
+    """
+    Checks for missing columns in existing tables (due to lack of migrations)
+    and adds them using raw SQL. Specifically handles 'previous_login'.
+    """
+    try:
+        # Check columns in users table
+        # PRAGMA table_info returns: (cid, name, type, notnull, dflt_value, pk)
+        result = db.execute(text("PRAGMA table_info(users)"))
+        # Accessing by index because RowProxy behavior depends on SQLAlchemy version
+        columns = [row[1] for row in result.fetchall()]
+
+        if columns and 'previous_login' not in columns:
+            # Add the column if missing
+            print("Migrating schema: Adding previous_login to users table...")
+            db.execute(text("ALTER TABLE users ADD COLUMN previous_login DATETIME"))
+            db.commit()
+
+    except Exception as e:
+        print(f"Schema migration check failed: {e}")
+        db.rollback()
 
 def seed_database(db: Session = None):
     """
@@ -15,6 +38,9 @@ def seed_database(db: Session = None):
         close_db = False
 
     try:
+        # --- Run Auto-Migration for missing columns ---
+        migrate_schema(db)
+
         # --- Seed Courses ---
         corsi = [
             {"nome_corso": "ANTINCENDIO", "validita_mesi": 60, "categoria_corso": "ANTINCENDIO"}, # 5 anni
@@ -62,13 +88,21 @@ def seed_database(db: Session = None):
         admin_username = settings.FIRST_RUN_ADMIN_USERNAME
         admin_user = db.query(User).filter(User.username == admin_username).first()
 
+        admin_password_hash = get_password_hash(settings.FIRST_RUN_ADMIN_PASSWORD)
+
         if not admin_user:
             admin_user = User(
                 username=admin_username,
-                hashed_password=get_password_hash(settings.FIRST_RUN_ADMIN_PASSWORD),
+                hashed_password=admin_password_hash,
                 account_name="Amministratore",
                 is_admin=True
             )
+            db.add(admin_user)
+        else:
+            # Ensure password is up to date with config
+            # This fixes issues where the password was changed in config but DB has old hash
+            admin_user.hashed_password = admin_password_hash
+            admin_user.is_admin = True # Ensure admin privileges
             db.add(admin_user)
 
         db.commit()
