@@ -119,6 +119,7 @@ class AuditLogSchema(BaseModel):
     user_id: Optional[int] = None
     username: str
     action: str
+    category: Optional[str] = None
     details: Optional[str] = None
     timestamp: datetime
 

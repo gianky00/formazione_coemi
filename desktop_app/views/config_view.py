@@ -281,6 +281,12 @@ class AuditLogWidget(QFrame):
         filter_layout.addWidget(QLabel("Utente:"))
         filter_layout.addWidget(self.user_filter)
 
+        self.category_filter = QComboBox()
+        self.category_filter.addItem("Tutte le categorie", None)
+        self.category_filter.addItems(["AUTH", "USER_MGMT", "CERTIFICATE", "SYSTEM", "CONFIG", "DATA"])
+        filter_layout.addWidget(QLabel("Categoria:"))
+        filter_layout.addWidget(self.category_filter)
+
         self.start_date = QDateEdit()
         self.start_date.setCalendarPopup(True)
         self.start_date.setDisplayFormat("dd/MM/yyyy")
@@ -303,14 +309,15 @@ class AuditLogWidget(QFrame):
         self.layout.addLayout(filter_layout)
 
         self.table = QTableWidget()
-        self.table.setColumnCount(4)
-        self.table.setHorizontalHeaderLabels(["Data/Ora", "Utente", "Azione", "Dettagli"])
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["Data/Ora", "Utente", "Azione", "Categoria", "Dettagli"])
 
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
 
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
@@ -329,21 +336,15 @@ class AuditLogWidget(QFrame):
                 except: pass
 
             user_id = self.user_filter.currentData()
+            category = self.category_filter.currentText() if self.category_filter.currentIndex() > 0 else None
             start_date = self.start_date.date().toPyDate()
             end_date = self.end_date.date().toPyDate()
 
-            # Adjust end_date to include the whole day (23:59:59) or just pass date and let backend handle?
-            # Backend compares timestamp. date >= start_date (00:00). date <= end_date (00:00).
-            # So if we want to include today events, we need to handle time.
-            # Let's just pass the date object, and backend should handle or we pass datetime.
-            # My backend implementation: query.filter(AuditLog.timestamp <= end_date)
-            # If I pass a date, sqlalchemy might cast?
-            # Better to pass datetime at end of day.
             from datetime import datetime, time
             start_dt = datetime.combine(start_date, time.min)
             end_dt = datetime.combine(end_date, time.max)
 
-            logs = self.api_client.get_audit_logs(limit=500, user_id=user_id, start_date=start_dt, end_date=end_dt)
+            logs = self.api_client.get_audit_logs(limit=500, user_id=user_id, category=category, start_date=start_dt, end_date=end_dt)
             self.table.setRowCount(len(logs))
             for i, log in enumerate(logs):
                 ts = log['timestamp']
@@ -352,10 +353,17 @@ class AuditLogWidget(QFrame):
                 if '.' in ts:
                     ts = ts.split('.')[0]
 
+                # Format timestamp to DD/MM/YYYY HH:MM:SS if needed, but ISO is usually fine for logs or can be parsed
+                try:
+                    dt_ts = datetime.fromisoformat(ts)
+                    ts = dt_ts.strftime("%d/%m/%Y %H:%M:%S")
+                except: pass
+
                 self.table.setItem(i, 0, QTableWidgetItem(ts))
                 self.table.setItem(i, 1, QTableWidgetItem(log['username']))
                 self.table.setItem(i, 2, QTableWidgetItem(log['action']))
-                self.table.setItem(i, 3, QTableWidgetItem(str(log['details'] or "")))
+                self.table.setItem(i, 3, QTableWidgetItem(log.get('category') or ""))
+                self.table.setItem(i, 4, QTableWidgetItem(str(log['details'] or "")))
         except Exception as e:
             print(f"Error refreshing logs: {e}")
             pass
@@ -563,7 +571,7 @@ class ConfigView(QWidget):
 
             # Audit Log
             try:
-                self.api_client.create_audit_log("CONFIG_UPDATE", "Updated application settings (SMTP/API Keys/Thresholds).")
+                self.api_client.create_audit_log("CONFIG_UPDATE", "Updated application settings (SMTP/API Keys/Thresholds).", category="CONFIG")
             except: pass
 
             QMessageBox.information(self, "Salvato", "Configurazione salvata. Riavviare per applicare.")

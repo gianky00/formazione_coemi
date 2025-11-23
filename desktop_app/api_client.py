@@ -93,11 +93,13 @@ class APIClient:
 
     # --- Audit Logs ---
 
-    def get_audit_logs(self, skip=0, limit=100, user_id=None, start_date=None, end_date=None):
+    def get_audit_logs(self, skip=0, limit=100, user_id=None, category=None, start_date=None, end_date=None):
         url = f"{self.base_url}/audit/"
         params = {"skip": skip, "limit": limit}
         if user_id:
             params["user_id"] = user_id
+        if category:
+            params["category"] = category
         if start_date:
             # Assuming start_date is a datetime or date object, or ISO string
             params["start_date"] = start_date.isoformat() if hasattr(start_date, 'isoformat') else start_date
@@ -108,9 +110,9 @@ class APIClient:
         response.raise_for_status()
         return response.json()
 
-    def create_audit_log(self, action, details=None):
+    def create_audit_log(self, action, details=None, category=None):
         url = f"{self.base_url}/audit/"
-        payload = {"action": action, "details": details}
+        payload = {"action": action, "details": details, "category": category}
         response = requests.post(url, json=payload, headers=self._get_headers())
         # We don't necessarily crash if audit fails, but logging it is good
         # response.raise_for_status()

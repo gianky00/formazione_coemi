@@ -28,7 +28,7 @@ def logout(
             blacklist_entry = BlacklistedToken(token=token)
             db.add(blacklist_entry)
             db.commit()
-            log_security_action(db, current_user, "LOGOUT", "User logged out successfully")
+            log_security_action(db, current_user, "LOGOUT", "User logged out successfully", category="AUTH")
         except Exception:
             db.rollback()
             # If it failed, it's likely already blacklisted or race condition.
@@ -62,7 +62,7 @@ def login_access_token(
     user.last_login = datetime.utcnow()
     db.commit()
 
-    log_security_action(db, user, "LOGIN", "User logged in successfully")
+    log_security_action(db, user, "LOGIN", "User logged in successfully", category="AUTH")
 
     return {
         "access_token": access_token,
