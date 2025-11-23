@@ -1,1 +1,3 @@
-Hardware ID: Test
+Hardware ID: 12345
+Scadenza Licenza: 31/12/2030
+Generato il: 01/01/2023
