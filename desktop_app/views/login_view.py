@@ -114,18 +114,25 @@ class LoginView(QWidget):
 
     def read_license_info(self):
         path = "dettagli_licenza.txt"
-        # Try to find it in root
-        if not os.path.exists(path):
-             # Try relative to executable if frozen
-             if getattr(sys, 'frozen', False):
-                 path = os.path.join(os.path.dirname(sys.executable), "dettagli_licenza.txt")
+
+        possible_paths = [
+            path,
+            os.path.join("Licenza", path),
+        ]
+
+        if getattr(sys, 'frozen', False):
+            exe_dir = os.path.dirname(sys.executable)
+            possible_paths.append(os.path.join(exe_dir, path))
+            possible_paths.append(os.path.join(exe_dir, "Licenza", path))
 
         content = ""
-        if os.path.exists(path):
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    content = f.read()
-            except: pass
+        for p in possible_paths:
+            if os.path.exists(p):
+                try:
+                    with open(p, "r", encoding="utf-8") as f:
+                        content = f.read()
+                    if content: break
+                except: pass
         return content
 
     def showEvent(self, event):
