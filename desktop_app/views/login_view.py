@@ -88,10 +88,12 @@ class LoginView(QWidget):
 
         left_layout.addSpacing(40)
 
-        slogan = QLabel("Predict. Validate. Automate.")
-        slogan.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        slogan.setStyleSheet("color: #93C5FD; font-size: 18px; font-weight: 500; letter-spacing: 1px;")
-        left_layout.addWidget(slogan)
+        license_text = self.read_license_info()
+        if license_text:
+            license_label = QLabel(license_text)
+            license_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            license_label.setStyleSheet("color: #93C5FD; font-size: 14px; font-weight: 500;")
+            left_layout.addWidget(license_label)
 
         left_layout.addStretch()
 
@@ -187,21 +189,13 @@ class LoginView(QWidget):
 
         right_layout.addStretch()
 
-        # License Info & Footer
-        license_text = self.read_license_info()
+        # Footer
         footer_text = "v1.0.0 • Intelleo Security"
 
         footer_layout = QVBoxLayout()
-        footer_layout.setSpacing(4)
-
-        if license_text:
-            lic_label = QLabel(license_text)
-            lic_label.setStyleSheet("color: #9CA3AF; font-size: 11px;")
-            lic_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            footer_layout.addWidget(lic_label)
 
         ver_label = QLabel(footer_text)
-        ver_label.setStyleSheet("color: #D1D5DB; font-size: 11px;")
+        ver_label.setStyleSheet("color: #6B7280; font-size: 13px;")
         ver_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         footer_layout.addWidget(ver_label)
 
