@@ -53,6 +53,7 @@ class CertificatoCreazioneSchema(BaseModel):
 
 class CertificatoAggiornamentoSchema(BaseModel):
     nome: Optional[str] = None
+    data_nascita: Optional[str] = None
     corso: Optional[str] = None
     categoria: Optional[str] = None
     data_rilascio: Optional[str] = None
