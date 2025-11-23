@@ -48,6 +48,10 @@ class DummyQWidget:
         pass
     def setWindowTitle(self, title):
         pass
+    def setWindowFlags(self, flags):
+        pass
+    def windowFlags(self):
+        return 0
     def resize(self, w, h):
         pass
     def setObjectName(self, name):
@@ -295,6 +299,19 @@ class DummyQHeaderView(DummyQWidget):
         ResizeToContents = 0
         Stretch = 1
 
+class DummyQWebEngineView(DummyQWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.url = None
+        self.html = None
+    def setUrl(self, url):
+        self.url = url
+    def setHtml(self, html):
+        self.html = html
+    def page(self):
+        page = MagicMock()
+        return page
+
 # Mock module structure
 def mock_qt_modules():
     mock_widgets = MagicMock()
@@ -330,7 +347,7 @@ def mock_qt_modules():
     mock_gui.QPixmap = MagicMock()
 
     mock_web = MagicMock()
-    mock_web.QWebEngineView = MagicMock
+    mock_web.QWebEngineView = DummyQWebEngineView
 
     mock_webchannel = MagicMock()
     mock_webchannel.QWebChannel = MagicMock

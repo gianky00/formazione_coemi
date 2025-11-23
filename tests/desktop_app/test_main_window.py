@@ -34,14 +34,16 @@ def test_mainwindow_init(mock_qt_env):
          patch("desktop_app.main_window_ui.ConfigView") as MockConfig, \
          patch("desktop_app.main_window_ui.ModernGuideDialog") as MockGuide:
 
-        from desktop_app.main_window_ui import MainWindow
+        from desktop_app.main_window_ui import MainDashboardWidget
 
-        window = MainWindow()
+        # Mock api client
+        mock_client = MagicMock()
+        window = MainDashboardWidget(mock_client)
         assert window.stacked_widget is not None
 
         # Test switch
         window.switch_to("dashboard")
-        assert window.page_title.text() != "" # It mocks the call, we can't easily check text value on MagicMock unless we configured it.
+        assert window.page_title.text() != ""
 
         # Verify views were instantiated
         MockDash.assert_called()

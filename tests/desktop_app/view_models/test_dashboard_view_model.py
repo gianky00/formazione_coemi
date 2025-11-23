@@ -3,7 +3,6 @@ import pytest
 from unittest.mock import Mock, patch
 import pandas as pd
 import requests
-from desktop_app.view_models.dashboard_view_model import DashboardViewModel
 
 @pytest.fixture
 def mock_api_data():
@@ -16,6 +15,7 @@ def mock_api_data():
 
 @patch('requests.get')
 def test_load_data_success(mock_get, mock_api_data):
+    from desktop_app.view_models.dashboard_view_model import DashboardViewModel
     mock_response = Mock()
     mock_response.status_code = 200
     mock_response.json.return_value = mock_api_data
@@ -23,13 +23,10 @@ def test_load_data_success(mock_get, mock_api_data):
 
     vm = DashboardViewModel()
 
-    # Connect to the signal to check if it's emitted
-    data_changed_mock = Mock()
-    vm.data_changed.connect(data_changed_mock)
-
     vm.load_data()
 
-    data_changed_mock.assert_called_once()
+    # Verify emit called
+    vm.data_changed.emit.assert_called_once()
     assert not vm.filtered_data.empty
     assert vm.filtered_data.shape[0] == 3
     # The view model renames 'nome' to 'Dipendente'
@@ -37,6 +34,7 @@ def test_load_data_success(mock_get, mock_api_data):
 
 @patch('requests.get')
 def test_filter_data(mock_get, mock_api_data):
+    from desktop_app.view_models.dashboard_view_model import DashboardViewModel
     mock_response = Mock()
     mock_response.status_code = 200
     mock_response.json.return_value = mock_api_data
@@ -68,6 +66,7 @@ def test_filter_data(mock_get, mock_api_data):
 
 @patch('requests.get')
 def test_get_filter_options(mock_get, mock_api_data):
+    from desktop_app.view_models.dashboard_view_model import DashboardViewModel
     mock_response = Mock()
     mock_response.status_code = 200
     mock_response.json.return_value = mock_api_data
@@ -84,25 +83,21 @@ def test_get_filter_options(mock_get, mock_api_data):
 
 @patch('requests.get')
 def test_load_data_failure(mock_get):
+    from desktop_app.view_models.dashboard_view_model import DashboardViewModel
     mock_get.side_effect = requests.exceptions.RequestException("Connection error")
 
     vm = DashboardViewModel()
 
-    error_mock = Mock()
-    vm.error_occurred.connect(error_mock)
-
-    data_changed_mock = Mock()
-    vm.data_changed.connect(data_changed_mock)
-
     vm.load_data()
 
-    error_mock.assert_called_once_with("Impossibile caricare i dati: Connection error")
-    data_changed_mock.assert_called_once()
+    vm.error_occurred.emit.assert_called_once_with("Impossibile caricare i dati: Connection error")
+    vm.data_changed.emit.assert_called_once()
     assert vm.filtered_data.empty
 
 @patch('requests.delete')
 @patch('requests.get')
 def test_delete_certificates_success(mock_get, mock_delete):
+    from desktop_app.view_models.dashboard_view_model import DashboardViewModel
     # Setup load_data mock
     mock_get.return_value.status_code = 200
     mock_get.return_value.json.return_value = [] # Empty after delete for simplicity
@@ -112,18 +107,16 @@ def test_delete_certificates_success(mock_get, mock_delete):
 
     vm = DashboardViewModel()
 
-    operation_completed_mock = Mock()
-    vm.operation_completed.connect(operation_completed_mock)
-
     vm.delete_certificates([1, 2])
 
     assert mock_delete.call_count == 2
-    operation_completed_mock.assert_called_once_with("2 certificati cancellati con successo.")
+    vm.operation_completed.emit.assert_called_once_with("2 certificati cancellati con successo.")
     # Verify it reloads data
     assert mock_get.called
 
 @patch('requests.delete')
 def test_delete_certificates_partial_failure(mock_delete):
+    from desktop_app.view_models.dashboard_view_model import DashboardViewModel
     # Success for ID 1, Failure for ID 2
     def side_effect(url, **kwargs):
         if url.endswith("/1"):
@@ -138,21 +131,16 @@ def test_delete_certificates_partial_failure(mock_delete):
     vm = DashboardViewModel()
     vm.load_data = Mock() # Mock load_data to avoid extra calls
 
-    operation_completed_mock = Mock()
-    vm.operation_completed.connect(operation_completed_mock)
-
-    error_occurred_mock = Mock()
-    vm.error_occurred.connect(error_occurred_mock)
-
     vm.delete_certificates([1, 2])
 
-    operation_completed_mock.assert_called_once_with("1 certificati cancellati con successo.")
-    error_occurred_mock.assert_called_once()
-    assert "ID 2: Delete failed" in error_occurred_mock.call_args[0][0]
+    vm.operation_completed.emit.assert_called_once_with("1 certificati cancellati con successo.")
+    vm.error_occurred.emit.assert_called_once()
+    assert "ID 2: Delete failed" in vm.error_occurred.emit.call_args[0][0]
 
 @patch('requests.put')
 @patch('requests.get')
 def test_update_certificate_success(mock_get, mock_put):
+    from desktop_app.view_models.dashboard_view_model import DashboardViewModel
     mock_get.return_value.status_code = 200
     mock_get.return_value.json.return_value = []
 
@@ -160,36 +148,33 @@ def test_update_certificate_success(mock_get, mock_put):
 
     vm = DashboardViewModel()
 
-    operation_completed_mock = Mock()
-    vm.operation_completed.connect(operation_completed_mock)
-
     result = vm.update_certificate(1, {"some": "data"})
 
     assert result is True
-    operation_completed_mock.assert_called_once_with("Certificato aggiornato con successo.")
+    vm.operation_completed.emit.assert_called_once_with("Certificato aggiornato con successo.")
     assert mock_get.called
 
 @patch('requests.put')
 def test_update_certificate_failure(mock_put):
+    from desktop_app.view_models.dashboard_view_model import DashboardViewModel
     mock_put.side_effect = requests.exceptions.RequestException("Update failed")
 
     vm = DashboardViewModel()
 
-    error_occurred_mock = Mock()
-    vm.error_occurred.connect(error_occurred_mock)
-
     result = vm.update_certificate(1, {"some": "data"})
 
     assert result is False
-    error_occurred_mock.assert_called_once_with("Impossibile modificare il certificato: Update failed")
+    vm.error_occurred.emit.assert_called_once_with("Impossibile modificare il certificato: Update failed")
 
 def test_filter_data_empty():
+    from desktop_app.view_models.dashboard_view_model import DashboardViewModel
     vm = DashboardViewModel()
     # _df_original is empty by default
     vm.filter_data("A", "B", "C")
     assert vm.filtered_data.empty
 
 def test_get_filter_options_empty():
+    from desktop_app.view_models.dashboard_view_model import DashboardViewModel
     vm = DashboardViewModel()
     options = vm.get_filter_options()
     assert options == {"dipendenti": [], "categorie": [], "stati": []}

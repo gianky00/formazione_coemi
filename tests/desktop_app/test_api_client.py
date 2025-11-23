@@ -3,20 +3,22 @@ import pytest
 from unittest.mock import Mock, patch, mock_open
 import os
 import requests
-from desktop_app.api_client import APIClient
 
 @patch.dict(os.environ, {"API_URL": "http://testserver/api/v1"})
 def test_init_custom_url():
+    from desktop_app.api_client import APIClient
     client = APIClient()
     assert client.base_url == "http://testserver/api/v1"
 
 @patch.dict(os.environ, {}, clear=True)
 def test_init_default_url():
+    from desktop_app.api_client import APIClient
     client = APIClient()
     assert client.base_url == "http://localhost:8000/api/v1"
 
 @patch('requests.post')
 def test_import_dipendenti_csv_success(mock_post):
+    from desktop_app.api_client import APIClient
     mock_response = Mock()
     mock_response.status_code = 200
     mock_response.json.return_value = {"message": "Success"}
@@ -40,6 +42,7 @@ def test_import_dipendenti_csv_success(mock_post):
 
 @patch('requests.post')
 def test_import_dipendenti_csv_failure(mock_post):
+    from desktop_app.api_client import APIClient
     mock_response = Mock()
     mock_response.status_code = 500
     mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("Server Error")
