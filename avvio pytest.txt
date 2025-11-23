@@ -8,7 +8,6 @@ winget install OpenJS.NodeJS
 .\Scripts\activate
 python tools/build_guide.py
 
-# CREA SETUP
 .\Scripts\activate
 python admin/offusca/build_dist.py
 
