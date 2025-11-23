@@ -9,6 +9,7 @@ import CalendarGuide from './pages/CalendarGuide';
 import EmployeesGuide from './pages/EmployeesGuide';
 import SettingsGuide from './pages/SettingsGuide';
 import SecurityGuide from './pages/SecurityGuide';
+import TroubleshootingGuide from './pages/TroubleshootingGuide';
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
         <Route path="employees" element={<EmployeesGuide />} />
         <Route path="security" element={<SecurityGuide />} />
         <Route path="settings" element={<SettingsGuide />} />
+        <Route path="troubleshooting" element={<TroubleshootingGuide />} />
       </Route>
     </Routes>
   );

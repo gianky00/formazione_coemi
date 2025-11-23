@@ -24,11 +24,25 @@ const SecurityGuide = () => {
             <Activity className="w-5 h-5 text-blue-600" />
             Log Attività (Audit Trail)
           </h2>
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-4">
-            <p className="text-gray-600">
-              La tabella Log Attività (in <em>Configurazione {'>'} Log Attività</em>) mostra cronologicamente tutte le azioni rilevanti.
-            </p>
+
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-6">
+            <div>
+              <h3 className="text-md font-bold text-gray-800 mb-2">Navigazione e Filtri</h3>
+              <p className="text-gray-600 mb-3 text-sm">
+                Per investigare su eventi specifici, utilizza la barra degli strumenti sopra la tabella:
+              </p>
+              <ul className="list-disc list-inside text-sm text-gray-600 space-y-1 ml-2">
+                <li><strong>Utente:</strong> Filtra le azioni compiute da uno specifico account.</li>
+                <li><strong>Categoria:</strong> Isola il tipo di evento (es. <em>AUTH</em> per i login, <em>CERTIFICATE</em> per i dati).</li>
+                <li><strong>Intervallo Date:</strong> Seleziona una data di inizio e fine per restringere la ricerca temporale.</li>
+              </ul>
+              <div className="mt-2 text-xs bg-gray-100 p-2 rounded text-gray-500">
+                Clicca su <strong>"Aggiorna"</strong> dopo aver modificato i filtri per ricaricare i dati.
+              </div>
+            </div>
+
             <div className="overflow-x-auto">
+              <h3 className="text-md font-bold text-gray-800 mb-2">Dettaglio Colonne</h3>
               <table className="min-w-full text-sm text-left text-gray-500">
                 <thead className="text-xs text-gray-700 uppercase bg-gray-50">
                   <tr>
@@ -38,20 +52,32 @@ const SecurityGuide = () => {
                 </thead>
                 <tbody>
                   <tr className="bg-white border-b">
+                    <td className="px-4 py-2 font-medium text-gray-900">Data/Ora</td>
+                    <td className="px-4 py-2">Timestamp esatto dell'evento.</td>
+                  </tr>
+                  <tr className="bg-white border-b">
                     <td className="px-4 py-2 font-medium text-gray-900">Severità</td>
-                    <td className="px-4 py-2">Livello di rischio dell'evento (Low, Medium, Critical).</td>
+                    <td className="px-4 py-2">Livello di rischio (Low, Medium, Critical).</td>
+                  </tr>
+                  <tr className="bg-white border-b">
+                    <td className="px-4 py-2 font-medium text-gray-900">Utente</td>
+                    <td className="px-4 py-2">Username dell'operatore che ha eseguito l'azione.</td>
                   </tr>
                   <tr className="bg-white border-b">
                     <td className="px-4 py-2 font-medium text-gray-900">IP & Geo</td>
-                    <td className="px-4 py-2">Indirizzo IP di origine e localizzazione approssimativa.</td>
+                    <td className="px-4 py-2">Indirizzo IP e posizione geografica stimata.</td>
                   </tr>
                   <tr className="bg-white border-b">
                     <td className="px-4 py-2 font-medium text-gray-900">Device ID</td>
-                    <td className="px-4 py-2">Impronta digitale univoca del dispositivo (Hardware ID).</td>
+                    <td className="px-4 py-2">Identificativo hardware univoco della macchina.</td>
                   </tr>
                   <tr className="bg-white border-b">
-                    <td className="px-4 py-2 font-medium text-gray-900">Modifiche</td>
-                    <td className="px-4 py-2">Dettaglio dei valori cambiati (es. <em>Soglia: 60 {'->'} 30</em>).</td>
+                    <td className="px-4 py-2 font-medium text-gray-900">Azione & Categoria</td>
+                    <td className="px-4 py-2">Tipo di operazione (es. LOGIN, UPDATE) e modulo coinvolto.</td>
+                  </tr>
+                  <tr className="bg-white border-b">
+                    <td className="px-4 py-2 font-medium text-gray-900">Dettagli & Modifiche</td>
+                    <td className="px-4 py-2">Descrizione estesa. Passa il mouse su [Modifiche] per vedere il JSON dei campi cambiati (Vecchio {'->'} Nuovo).</td>
                   </tr>
                 </tbody>
               </table>

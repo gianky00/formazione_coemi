@@ -57,26 +57,67 @@ const SettingsGuide = () => {
               Configura il server di posta in uscita per l'invio delle notifiche automatiche.
             </p>
           </div>
+          <div className="bg-blue-50 p-4 rounded border border-blue-100 mb-4">
+            <h3 className="font-bold text-blue-900 mb-2">Preset Rapidi</h3>
+            <p className="text-sm text-blue-800">
+              Utilizza il menu a tendina <strong>"Preset Email"</strong> per configurare automaticamente i parametri più comuni:
+            </p>
+            <ul className="list-disc list-inside mt-2 text-sm text-blue-800 font-medium">
+              <li>Gmail (Richiede App Password)</li>
+              <li>Outlook / Office 365</li>
+              <li>COEMI (Server Aziendale)</li>
+            </ul>
+          </div>
           <div className="bg-gray-50 p-4 rounded border border-gray-200 text-sm space-y-2">
             <p><strong>Gmail:</strong> smtp.gmail.com (Porta 465, SSL)</p>
             <p><strong>Outlook:</strong> smtp.office365.com (Porta 587, STARTTLS)</p>
             <p><strong>Aruba:</strong> smtps.aruba.it (Porta 465, SSL)</p>
           </div>
-          <p className="text-xs text-gray-500 mt-2 italic">
-            Nota: Per Gmail è necessario utilizzare una "App Password" invece della password del tuo account.
-          </p>
         </Section>
 
-        <Section title="Chiavi API">
+        <Section title="Configurazione Google Cloud API">
           <div className="flex items-start gap-3 mb-4">
             <Key size={20} className="text-yellow-600 mt-1 shrink-0" />
             <p>
-              Intelleo utilizza l'Intelligenza Artificiale di Google (Gemini Pro) per l'analisi dei documenti.
+              Per abilitare l'intelligenza artificiale, è necessario generare una chiave API personale su Google Cloud.
             </p>
           </div>
-          <p className="text-sm">
-            Inserisci qui la tua chiave <code>GOOGLE_API_KEY</code>. Senza una chiave valida, l'importazione automatica dei file non funzionerà.
-          </p>
+
+          <div className="space-y-4 text-sm">
+            <div className="flex gap-3">
+              <div className="bg-gray-100 text-gray-600 w-6 h-6 flex items-center justify-center rounded-full font-bold text-xs shrink-0">1</div>
+              <p>Accedi alla <a href="https://console.cloud.google.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Google Cloud Console</a> con il tuo account aziendale.</p>
+            </div>
+
+            <div className="flex gap-3">
+              <div className="bg-gray-100 text-gray-600 w-6 h-6 flex items-center justify-center rounded-full font-bold text-xs shrink-0">2</div>
+              <div>
+                <p>Crea un <strong>Nuovo Progetto</strong> e dagli un nome (es. "Intelleo-AI").</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <div className="bg-gray-100 text-gray-600 w-6 h-6 flex items-center justify-center rounded-full font-bold text-xs shrink-0">3</div>
+              <div>
+                <p>Nella barra di ricerca in alto, digita <strong>"Generative AI API"</strong> (o "Vertex AI API") e abilitala.</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <div className="bg-gray-100 text-gray-600 w-6 h-6 flex items-center justify-center rounded-full font-bold text-xs shrink-0">4</div>
+              <div>
+                <p>Vai su <strong>APIs & Services {'>'} Credentials</strong>.</p>
+                <p>Clicca su <strong>Create Credentials</strong> e seleziona <strong>API Key</strong>.</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <div className="bg-gray-100 text-gray-600 w-6 h-6 flex items-center justify-center rounded-full font-bold text-xs shrink-0">5</div>
+              <div>
+                <p>Copia la stringa generata (inizia con <code>AIza...</code>) e incollala nel campo <strong>Gemini API Key</strong> di Intelleo.</p>
+              </div>
+            </div>
+          </div>
         </Section>
       </div>
 

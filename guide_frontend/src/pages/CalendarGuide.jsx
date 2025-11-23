@@ -51,6 +51,20 @@ const CalendarGuide = () => {
         </div>
       </Section>
 
+      <Section title="Flusso Dati Tecnico">
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 font-mono text-sm text-slate-700">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="bg-slate-200 px-2 py-0.5 rounded text-xs font-bold uppercase">Input</span>
+              <span>Certificati Validati (Status: MANUAL)</span>
+            </div>
+            <div className="flex justify-center my-1 text-slate-400">↓</div>
+            <div className="flex items-center gap-2">
+              <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs font-bold uppercase">Output</span>
+              <span>Visualizzazione Gantt & Report PDF (Email)</span>
+            </div>
+          </div>
+      </Section>
+
       <Section title="Struttura Gerarchica">
          <p>
            La barra laterale sinistra organizza i certificati in un albero logico:

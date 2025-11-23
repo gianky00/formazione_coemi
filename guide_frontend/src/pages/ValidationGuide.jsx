@@ -39,17 +39,31 @@ const ValidationGuide = () => {
           <ul className="space-y-3 mt-4">
             <li className="flex items-start gap-3">
               <div className="bg-gray-100 p-1 rounded text-gray-600 font-bold text-xs mt-1">1</div>
-              <span>Controlla che i dati estratti (Date, Categoria) siano corretti.</span>
+              <span>Controlla le colonne chiave: <strong>DOCUMENTO</strong> (Tipologia) e <strong>DATA EMISSIONE</strong>.</span>
             </li>
             <li className="flex items-start gap-3">
               <div className="bg-gray-100 p-1 rounded text-gray-600 font-bold text-xs mt-1">2</div>
-              <span>Verifica che il dipendente sia stato associato correttamente.</span>
+              <span>Verifica la colonna <strong>DIPENDENTE</strong>. Se vedi "DA ASSEGNARE", è necessaria un'azione manuale.</span>
             </li>
             <li className="flex items-start gap-3">
               <div className="bg-gray-100 p-1 rounded text-gray-600 font-bold text-xs mt-1">3</div>
-              <span>Seleziona le righe corrette e clicca su <strong>"Convalida"</strong>.</span>
+              <span>Seleziona le righe corrette e clicca su <strong>"Convalida Selezionati"</strong>.</span>
             </li>
           </ul>
+        </Section>
+
+        <Section title="Flusso Dati Tecnico">
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 font-mono text-sm text-slate-700">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="bg-slate-200 px-2 py-0.5 rounded text-xs font-bold uppercase">Input</span>
+              <span>Dati Grezzi (JSON) da Analisi AI</span>
+            </div>
+            <div className="flex justify-center my-1 text-slate-400">↓</div>
+            <div className="flex items-center gap-2">
+              <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded text-xs font-bold uppercase">Output</span>
+              <span>Record Validato (Stato: MANUAL) in Database</span>
+            </div>
+          </div>
         </Section>
 
         <Section title="Certificati Orfani">
@@ -58,10 +72,10 @@ const ValidationGuide = () => {
             <div>
               <h3 className="font-bold text-red-800 mb-1">Dipendente Non Trovato</h3>
               <p className="text-sm text-red-700 mb-2">
-                Se l'AI non riesce ad associare un certificato ad un dipendente esistente (es. matricola mancante o nome errato), il campo Dipendente apparirà vuoto o evidenziato.
+                Se l'AI non riesce ad associare un certificato, la colonna <strong>CAUSA</strong> mostrerà il motivo (es. "Non trovato in anagrafica").
               </p>
               <p className="text-sm text-red-700 font-medium">
-                Usa il tasto "Modifica" per assegnare manualmente il certificato al dipendente corretto.
+                Usa il tasto "Modifica" per cercare e collegare manualmente il dipendente corretto.
               </p>
             </div>
           </div>
