@@ -122,5 +122,11 @@ class AuditLogSchema(BaseModel):
     category: Optional[str] = None
     details: Optional[str] = None
     timestamp: datetime
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    geolocation: Optional[str] = None
+    severity: Optional[str] = "LOW"
+    device_id: Optional[str] = None
+    changes: Optional[str] = None # JSON string
 
     model_config = ConfigDict(from_attributes=True)

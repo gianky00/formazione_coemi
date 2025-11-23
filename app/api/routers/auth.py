@@ -1,6 +1,6 @@
 from datetime import timedelta, datetime
 from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app.db.session import get_db
@@ -8,13 +8,14 @@ from app.core import security
 from app.core.config import settings
 from app.schemas.schemas import Token, User
 from app.api import deps
-from app.db.models import BlacklistedToken
+from app.db.models import BlacklistedToken, AuditLog
 from app.utils.audit import log_security_action
 
 router = APIRouter()
 
 @router.post("/logout")
 def logout(
+    request: Request,
     token: str = Depends(deps.oauth2_scheme),
     current_user: User = Depends(deps.get_current_user),
     db: Session = Depends(get_db)
@@ -28,7 +29,7 @@ def logout(
             blacklist_entry = BlacklistedToken(token=token)
             db.add(blacklist_entry)
             db.commit()
-            log_security_action(db, current_user, "LOGOUT", "User logged out successfully", category="AUTH")
+            log_security_action(db, current_user, "LOGOUT", "User logged out successfully", category="AUTH", request=request)
         except Exception:
             db.rollback()
             # If it failed, it's likely already blacklisted or race condition.
@@ -39,6 +40,7 @@ def logout(
 
 @router.post("/login", response_model=Token)
 def login_access_token(
+    request: Request,
     db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()
 ) -> Any:
     """
@@ -46,10 +48,33 @@ def login_access_token(
     """
     user = db.query(deps.User).filter(deps.User.username == form_data.username).first()
     if not user or not security.verify_password(form_data.password, user.hashed_password):
-        # We could log failed attempts here if we wanted to be very strict,
-        # but usually we log successful logins in audit.
-        # Potentially log failed login to system?
-        # For now, sticking to auditing successful actions as per typical scope.
+        # ANOMALY DETECTION: Failed Login
+        try:
+            ip = request.client.host if request.client else "Unknown"
+            # Brute force check: > 5 failures in last 10 minutes
+            cutoff = datetime.utcnow() - timedelta(minutes=10)
+            failed_count = db.query(AuditLog).filter(
+                AuditLog.action == "LOGIN_FAILED",
+                AuditLog.timestamp >= cutoff,
+                AuditLog.ip_address == ip
+            ).count()
+
+            severity = "MEDIUM" # Single failure is Medium (warning) or Low. Let's say Medium to catch attention.
+            if failed_count >= 5:
+                severity = "CRITICAL"
+
+            log_security_action(
+                db,
+                user if user else None, # Log user if known, else None
+                "LOGIN_FAILED",
+                details=f"Failed login attempt for username: {form_data.username}",
+                category="AUTH",
+                request=request,
+                severity=severity
+            )
+        except Exception as e:
+            print(f"Error logging failed login: {e}")
+
         raise HTTPException(status_code=400, detail="Incorrect email or password")
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -62,7 +87,7 @@ def login_access_token(
     user.last_login = datetime.utcnow()
     db.commit()
 
-    log_security_action(db, user, "LOGIN", "User logged in successfully", category="AUTH")
+    log_security_action(db, user, "LOGIN", "User logged in successfully", category="AUTH", request=request)
 
     return {
         "access_token": access_token,

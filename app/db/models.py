@@ -50,7 +50,13 @@ class AuditLog(Base):
     action = Column(String, index=True, nullable=False) # e.g. "PASSWORD_CHANGE", "USER_CREATE"
     category = Column(String, index=True, nullable=True) # e.g. "LOGIN", "USER", "CERTIFICATE"
     details = Column(String, nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    ip_address = Column(String, nullable=True, index=True)
+    user_agent = Column(String, nullable=True)
+    geolocation = Column(String, nullable=True)
+    severity = Column(String, default="LOW") # LOW, MEDIUM, CRITICAL
+    device_id = Column(String, nullable=True)
+    changes = Column(String, nullable=True) # JSON string
 
 class Dipendente(Base):
     """

@@ -1,4 +1,5 @@
 import os
+import json
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton,
     QMessageBox, QFrame, QFormLayout, QComboBox, QFileDialog, QHBoxLayout,
@@ -6,6 +7,7 @@ from PyQt6.QtWidgets import (
     QStackedWidget, QButtonGroup, QHeaderView, QDateEdit
 )
 from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtGui import QColor
 from dotenv import load_dotenv, set_key
 from desktop_app.api_client import APIClient
 
@@ -161,6 +163,27 @@ class UserManagementWidget(QFrame):
 
             try:
                 self.api_client.update_user(user_id, update_payload)
+
+                # Log changes
+                changes = {}
+                for k, v in update_payload.items():
+                    old_v = user_data.get(k)
+                    if k == "password":
+                        changes[k] = {"old": "***", "new": "***"}
+                    elif k == "is_admin":
+                         changes[k] = {"old": user_data.get(k), "new": v}
+                    else:
+                        changes[k] = {"old": old_v, "new": v}
+
+                try:
+                    self.api_client.create_audit_log(
+                        "USER_UPDATE",
+                        f"Updated user {user_data['username']}",
+                        category="USER_MGMT",
+                        changes=json.dumps(changes)
+                    )
+                except: pass
+
                 self.refresh_users()
             except Exception as e:
                 msg = str(e)
@@ -309,15 +332,18 @@ class AuditLogWidget(QFrame):
         self.layout.addLayout(filter_layout)
 
         self.table = QTableWidget()
-        self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels(["Data/Ora", "Utente", "Azione", "Categoria", "Dettagli"])
+        self.table.setColumnCount(8)
+        self.table.setHorizontalHeaderLabels(["Data/Ora", "Severità", "Utente", "IP", "Geo", "Azione", "Categoria", "Dettagli"])
 
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
 
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
@@ -359,11 +385,41 @@ class AuditLogWidget(QFrame):
                     ts = dt_ts.strftime("%d/%m/%Y %H:%M:%S")
                 except: pass
 
+                severity = log.get('severity', 'LOW')
+                bg_color = None
+                if severity == 'CRITICAL':
+                    bg_color = QColor("#FECACA") # Light Red
+                elif severity == 'MEDIUM':
+                    bg_color = QColor("#FFEDD5") # Light Orange
+
                 self.table.setItem(i, 0, QTableWidgetItem(ts))
-                self.table.setItem(i, 1, QTableWidgetItem(log['username']))
-                self.table.setItem(i, 2, QTableWidgetItem(log['action']))
-                self.table.setItem(i, 3, QTableWidgetItem(log.get('category') or ""))
-                self.table.setItem(i, 4, QTableWidgetItem(str(log['details'] or "")))
+                self.table.setItem(i, 1, QTableWidgetItem(severity))
+                self.table.setItem(i, 2, QTableWidgetItem(log['username']))
+                self.table.setItem(i, 3, QTableWidgetItem(log.get('ip_address') or ""))
+                self.table.setItem(i, 4, QTableWidgetItem(log.get('geolocation') or ""))
+                self.table.setItem(i, 5, QTableWidgetItem(log['action']))
+                self.table.setItem(i, 6, QTableWidgetItem(log.get('category') or ""))
+
+                details_text = str(log.get('details') or "")
+                changes_json = log.get('changes')
+                if changes_json:
+                    try:
+                        changes_dict = json.loads(changes_json)
+                        if changes_dict:
+                            details_text += f" [Modifiche: {list(changes_dict.keys())}]"
+                    except: pass
+
+                item_details = QTableWidgetItem(details_text)
+                if changes_json:
+                     item_details.setToolTip(changes_json)
+
+                self.table.setItem(i, 7, item_details)
+
+                if bg_color:
+                    for j in range(8):
+                        item = self.table.item(i, j)
+                        if item:
+                            item.setBackground(bg_color)
         except Exception as e:
             print(f"Error refreshing logs: {e}")
             pass
@@ -556,22 +612,59 @@ class ConfigView(QWidget):
     def save_config(self):
         env_path = self.get_env_path()
         gs = self.general_settings
+
+        old_settings = {
+            "GEMINI_API_KEY": os.getenv("GEMINI_API_KEY", ""),
+            "GOOGLE_CLOUD_PROJECT": os.getenv("GOOGLE_CLOUD_PROJECT", ""),
+            "GCS_BUCKET_NAME": os.getenv("GCS_BUCKET_NAME", ""),
+            "SMTP_HOST": os.getenv("SMTP_HOST", ""),
+            "SMTP_PORT": os.getenv("SMTP_PORT", ""),
+            "SMTP_USER": os.getenv("SMTP_USER", ""),
+            "SMTP_PASSWORD": os.getenv("SMTP_PASSWORD", ""),
+            "EMAIL_RECIPIENTS_TO": os.getenv("EMAIL_RECIPIENTS_TO", ""),
+            "EMAIL_RECIPIENTS_CC": os.getenv("EMAIL_RECIPIENTS_CC", ""),
+            "ALERT_THRESHOLD_DAYS": os.getenv("ALERT_THRESHOLD_DAYS", "60"),
+            "ALERT_THRESHOLD_DAYS_VISITE": os.getenv("ALERT_THRESHOLD_DAYS_VISITE", "30"),
+        }
+
+        new_settings = {
+            "GEMINI_API_KEY": gs.gemini_api_key_input.text(),
+            "GOOGLE_CLOUD_PROJECT": gs.gcp_project_id_input.text(),
+            "GCS_BUCKET_NAME": gs.gcs_bucket_name_input.text(),
+            "SMTP_HOST": gs.smtp_host_input.text(),
+            "SMTP_PORT": gs.smtp_port_input.text(),
+            "SMTP_USER": gs.smtp_user_input.text(),
+            "SMTP_PASSWORD": gs.smtp_password_input.text(),
+            "EMAIL_RECIPIENTS_TO": gs.recipients_to_input.text(),
+            "EMAIL_RECIPIENTS_CC": gs.recipients_cc_input.text(),
+            "ALERT_THRESHOLD_DAYS": gs.alert_threshold_input.text(),
+            "ALERT_THRESHOLD_DAYS_VISITE": gs.alert_threshold_visite_input.text(),
+        }
+
         try:
-            set_key(env_path, "GEMINI_API_KEY", gs.gemini_api_key_input.text())
-            set_key(env_path, "GOOGLE_CLOUD_PROJECT", gs.gcp_project_id_input.text())
-            set_key(env_path, "GCS_BUCKET_NAME", gs.gcs_bucket_name_input.text())
-            set_key(env_path, "SMTP_HOST", gs.smtp_host_input.text())
-            set_key(env_path, "SMTP_PORT", gs.smtp_port_input.text())
-            set_key(env_path, "SMTP_USER", gs.smtp_user_input.text())
-            set_key(env_path, "SMTP_PASSWORD", gs.smtp_password_input.text())
-            set_key(env_path, "EMAIL_RECIPIENTS_TO", gs.recipients_to_input.text())
-            set_key(env_path, "EMAIL_RECIPIENTS_CC", gs.recipients_cc_input.text())
-            set_key(env_path, "ALERT_THRESHOLD_DAYS", gs.alert_threshold_input.text())
-            set_key(env_path, "ALERT_THRESHOLD_DAYS_VISITE", gs.alert_threshold_visite_input.text())
+            for key, value in new_settings.items():
+                set_key(env_path, key, value)
+
+            # Calculate Diff
+            changes = {}
+            for key, val in new_settings.items():
+                old_val = old_settings.get(key)
+                if old_val != val:
+                    if "KEY" in key or "PASSWORD" in key:
+                        changes[key] = {"old": "***", "new": "***"}
+                    else:
+                        changes[key] = {"old": old_val, "new": val}
+
+            changes_json = json.dumps(changes) if changes else None
 
             # Audit Log
             try:
-                self.api_client.create_audit_log("CONFIG_UPDATE", "Updated application settings (SMTP/API Keys/Thresholds).", category="CONFIG")
+                self.api_client.create_audit_log(
+                    "CONFIG_UPDATE",
+                    "Updated application settings.",
+                    category="CONFIG",
+                    changes=changes_json
+                )
             except: pass
 
             QMessageBox.information(self, "Salvato", "Configurazione salvata. Riavviare per applicare.")

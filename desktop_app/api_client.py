@@ -1,5 +1,6 @@
 import os
 import requests
+from desktop_app.utils import get_device_id
 
 class APIClient:
     def __init__(self):
@@ -41,6 +42,12 @@ class APIClient:
         headers = {}
         if self.access_token:
             headers["Authorization"] = f"Bearer {self.access_token}"
+
+        try:
+            headers["X-Device-ID"] = get_device_id()
+        except Exception:
+            pass
+
         return headers
 
     def login(self, username, password):
@@ -110,9 +117,15 @@ class APIClient:
         response.raise_for_status()
         return response.json()
 
-    def create_audit_log(self, action, details=None, category=None):
+    def create_audit_log(self, action, details=None, category=None, changes=None, severity="LOW"):
         url = f"{self.base_url}/audit/"
-        payload = {"action": action, "details": details, "category": category}
+        payload = {
+            "action": action,
+            "details": details,
+            "category": category,
+            "changes": changes,
+            "severity": severity
+        }
         response = requests.post(url, json=payload, headers=self._get_headers())
         # We don't necessarily crash if audit fails, but logging it is good
         # response.raise_for_status()
