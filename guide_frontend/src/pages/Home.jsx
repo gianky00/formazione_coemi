@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, FileText, Database, Calendar, ArrowRight } from 'lucide-react';
+import { LayoutDashboard, FileText, Database, Calendar, ArrowRight, LifeBuoy } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const FeatureCard = ({ icon: Icon, title, desc, to, delay }) => (
@@ -40,7 +40,7 @@ const Home = () => {
             Benvenuto in <span className="text-intelleo-accent">Intelleo</span>
           </h1>
           <p className="text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed">
-            La suite completa per la gestione automatizzata delle scadenze, dei corsi di formazione e della sorveglianza sanitaria.
+            La suite completa in azienda per la gestione automatizzata delle scadenze sui corsi di formazione e visite mediche
           </p>
         </motion.div>
       </section>
@@ -80,6 +80,13 @@ const Home = () => {
             desc="Una timeline visiva (Gantt) per pianificare i rinnovi e vedere le scadenze a colpo d'occhio."
             to="/calendar"
             delay={0.4}
+          />
+          <FeatureCard
+            icon={LifeBuoy}
+            title="Risoluzione Problemi"
+            desc="Hai riscontrato un errore? Consulta le FAQ tecniche per risolvere rapidamente problemi di connessione o licenza."
+            to="/troubleshooting"
+            delay={0.5}
           />
         </div>
       </section>
