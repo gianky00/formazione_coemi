@@ -32,8 +32,28 @@ def migrate_schema(db: Session):
             db.execute(text("ALTER TABLE audit_logs ADD COLUMN category VARCHAR"))
             db.commit()
 
-        # Backfill existing logs with 'GENERAL' category
+        # Backfill existing logs with 'GENERAL' category if null
         db.execute(text("UPDATE audit_logs SET category = 'GENERAL' WHERE category IS NULL"))
+
+        # Smart Backfill: Fix 'GENERAL' categories based on Action content for historical data
+        # CERTIFICATE
+        db.execute(text("UPDATE audit_logs SET category = 'CERTIFICATE' WHERE category = 'GENERAL' AND action LIKE 'CERTIFICATE_%'"))
+
+        # AUTH
+        db.execute(text("UPDATE audit_logs SET category = 'AUTH' WHERE category = 'GENERAL' AND (action = 'LOGIN' OR action = 'LOGOUT')"))
+
+        # USER_MGMT
+        db.execute(text("UPDATE audit_logs SET category = 'USER_MGMT' WHERE category = 'GENERAL' AND (action LIKE 'USER_%' OR action = 'PASSWORD_CHANGE')"))
+
+        # DATA
+        db.execute(text("UPDATE audit_logs SET category = 'DATA' WHERE category = 'GENERAL' AND action = 'DIPENDENTI_IMPORT'"))
+
+        # SYSTEM
+        db.execute(text("UPDATE audit_logs SET category = 'SYSTEM' WHERE category = 'GENERAL' AND action = 'SYSTEM_ALERT'"))
+
+        # CONFIG
+        db.execute(text("UPDATE audit_logs SET category = 'CONFIG' WHERE category = 'GENERAL' AND action = 'CONFIG_UPDATE'"))
+
         db.commit()
 
     except Exception as e:
