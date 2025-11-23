@@ -1,1 +1,3 @@
-Hardware ID: Test
+Hardware ID: 0025_384C_41CD_9176
+Scadenza Licenza: 22/01/2026
+Generato il: 23/11/2025

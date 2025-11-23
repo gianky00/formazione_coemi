@@ -24,7 +24,11 @@ def mock_api_client():
     ]
     return client
 
-def test_sidebar_license_logic():
+@patch('desktop_app.main_window_ui.load_colored_icon')
+def test_sidebar_license_logic(mock_load_icon):
+    # Mock return value to avoid QPixmap usage
+    mock_load_icon.return_value = MagicMock()
+
     # Mock detailed_licenza.txt
     content = """Hardware ID: 12345
 Scadenza Licenza: 31/12/2030
@@ -50,7 +54,10 @@ Generato il: 01/01/2023
         if os.path.exists("dettagli_licenza.txt"):
             os.remove("dettagli_licenza.txt")
 
-def test_sidebar_license_legacy_format():
+@patch('desktop_app.main_window_ui.load_colored_icon')
+def test_sidebar_license_legacy_format(mock_load_icon):
+    mock_load_icon.return_value = MagicMock()
+
     # Mock detailed_licenza.txt with YYYY-MM-DD
     content = """Hardware ID: 12345
 Scadenza Licenza: 2030-12-31
@@ -75,7 +82,8 @@ Generato il: 2023-01-01
         if os.path.exists("dettagli_licenza.txt"):
             os.remove("dettagli_licenza.txt")
 
-def test_login_view_instantiation(mock_api_client):
+@patch('desktop_app.utils.get_asset_path', return_value=None) # Avoid loading logo pixmap
+def test_login_view_instantiation(mock_get_asset, mock_api_client):
     # Just check if it crashes
     with open("dettagli_licenza.txt", "w") as f:
         f.write("Hardware ID: Test")

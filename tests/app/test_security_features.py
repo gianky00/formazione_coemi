@@ -4,8 +4,20 @@ from sqlalchemy.orm import Session
 from app.core import security
 from app.db.models import User, BlacklistedToken, AuditLog
 from app.core.config import settings
+from app.main import app
+from app.api import deps
 
-def test_logout_invalidates_token(test_client: TestClient, db_session: Session):
+@pytest.fixture
+def enable_real_auth():
+    # Save original overrides
+    original_overrides = app.dependency_overrides.copy()
+    # Remove get_current_user override to enable real auth
+    app.dependency_overrides.pop(deps.get_current_user, None)
+    yield
+    # Restore
+    app.dependency_overrides = original_overrides
+
+def test_logout_invalidates_token(test_client: TestClient, db_session: Session, enable_real_auth):
     # 1. Login to get token
     username = "testadmin"
     password = "testpassword"
@@ -36,7 +48,7 @@ def test_logout_invalidates_token(test_client: TestClient, db_session: Session):
     assert response_rejected.status_code == 401
     assert "invalidated" in response_rejected.json()["detail"]
 
-def test_audit_logging_on_user_create(test_client: TestClient, db_session: Session):
+def test_audit_logging_on_user_create(test_client: TestClient, db_session: Session, enable_real_auth):
     # 1. Setup Admin
     username = "auditadmin"
     password = "auditpassword"
