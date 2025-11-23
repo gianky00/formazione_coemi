@@ -436,6 +436,8 @@ async def import_dipendenti_csv(
     stream = io.StringIO(decoded_content)
     reader = csv.DictReader(stream, delimiter=';')
 
+    warnings = []
+
     for row in reader:
         cognome = row.get('Cognome')
         nome = row.get('Nome')
@@ -452,26 +454,53 @@ async def import_dipendenti_csv(
             except ValueError:
                 pass  # Gestisce date non valide o formati diversi
 
-        # Upsert: aggiorna se esiste, altrimenti crea
+        # Step 1: Cerca per Matricola (Upsert standard)
         dipendente = db.query(Dipendente).filter(Dipendente.matricola == badge).first()
+
         if dipendente:
+            # Trovato per matricola -> Aggiorna dati anagrafici
             dipendente.cognome = cognome
             dipendente.nome = nome
             dipendente.data_nascita = parsed_data_nascita
         else:
-            dipendente = Dipendente(
-                cognome=cognome,
-                nome=nome,
-                matricola=badge,
-                data_nascita=parsed_data_nascita
-            )
-            db.add(dipendente)
+            # Step 2: Matricola non trovata. Cerca per Cognome + Nome + Data Nascita (Gestione Riassunzione/Cambio Matricola)
+            found_by_identity = False
+            if parsed_data_nascita:
+                # Cerca corrispondenza esatta di identità
+                matches = db.query(Dipendente).filter(
+                    Dipendente.nome.ilike(nome),
+                    Dipendente.cognome.ilike(cognome),
+                    Dipendente.data_nascita == parsed_data_nascita
+                ).all()
+
+                if len(matches) == 1:
+                    # Persona trovata univocamente -> Aggiorna la matricola
+                    dipendente = matches[0]
+                    dipendente.matricola = badge
+                    # Aggiorna anche anagrafica per uniformità (es. correzione nome)
+                    dipendente.nome = nome
+                    dipendente.cognome = cognome
+                    found_by_identity = True
+                elif len(matches) > 1:
+                    # Duplicati nel DB -> Ambiguo -> Skip e Warning
+                    warnings.append(f"Duplicato rilevato per {cognome} {nome} ({data_nascita}). Impossibile assegnare matricola {badge} automaticamente.")
+                    continue
+
+            if not found_by_identity:
+                # Nessuna corrispondenza o dati insufficienti -> Crea nuovo
+                dipendente = Dipendente(
+                    cognome=cognome,
+                    nome=nome,
+                    matricola=badge,
+                    data_nascita=parsed_data_nascita
+                )
+                db.add(dipendente)
 
     try:
         db.commit()
-    except IntegrityError:
+    except IntegrityError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail="Errore di integrità del database. Controlla i dati del CSV.")
+        raise HTTPException(status_code=400, detail=f"Errore di integrità del database: {str(e)}")
 
     # Re-link orphaned certificates
     orphaned_certs = db.query(Certificato).filter(Certificato.dipendente_id.is_(None)).all()
@@ -489,7 +518,10 @@ async def import_dipendenti_csv(
 
     log_security_action(db, current_user, "DIPENDENTI_IMPORT", f"Imported CSV: {file.filename}. Orphans linked: {linked_count}", category="DATA")
 
-    return {"message": f"Importazione completata con successo. {linked_count} certificati orfani collegati."}
+    return {
+        "message": f"Importazione completata con successo. {linked_count} certificati orfani collegati.",
+        "warnings": warnings
+    }
 
 @router.get("/dipendenti", response_model=List[DipendenteSchema])
 def get_dipendenti(db: Session = Depends(get_db)):
