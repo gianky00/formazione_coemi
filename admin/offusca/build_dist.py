@@ -283,8 +283,10 @@ def build():
 
         if os.path.exists(os.path.join(ROOT_DIR, "requirements.txt")):
             shutil.copy(os.path.join(ROOT_DIR, "requirements.txt"), os.path.join(OBF_DIR, "requirements.txt"))
-        if os.path.exists(os.path.join(ROOT_DIR, ".env")):
-            shutil.copy(os.path.join(ROOT_DIR, ".env"), os.path.join(OBF_DIR, ".env"))
+
+        # NOTE: We intentionally DO NOT copy .env to the build folder anymore.
+        # User configuration is managed via AppData, and default Admin credentials
+        # are handled by app/core/config.py defaults if no .env is present in AppData.
 
         log_and_print("\n--- Step 5/7: Packaging with PyInstaller (This may take a while) ---")
         sep = ";" if os.name == 'nt' else ":"
@@ -339,6 +341,11 @@ def build():
         # New: Collect PyQt6 base to ensure plugins are found
         cmd_pyinstaller.extend(["--collect-all", "PyQt6"])
 
+        # Collect missing dependencies
+        cmd_pyinstaller.extend(["--collect-all", "geoip2"])
+        cmd_pyinstaller.extend(["--collect-all", "user_agents"])
+        cmd_pyinstaller.extend(["--collect-all", "apscheduler"])
+
         manual_hidden_imports = [
             "launcher", # The new logic imports this manually
             "views", "utils", "components", "api_client",
@@ -365,7 +372,9 @@ def build():
             "passlib", "passlib.handlers.bcrypt",
             "bcrypt",
             "jose", "jose.backends.cryptography_backend",
-            "cryptography", "cryptography.hazmat.backends.openssl"
+            "cryptography", "cryptography.hazmat.backends.openssl",
+            # Additional dependencies
+            "pandas", "tenacity", "fpdf", "ua_parser"
         ]
 
         all_hidden_imports = list(set(manual_hidden_imports + auto_detected_libs))

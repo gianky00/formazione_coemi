@@ -8,7 +8,7 @@ import ctypes
 import sqlite3
 from pathlib import Path
 from cryptography.fernet import Fernet
-from app.core.config import settings
+from app.core.config import settings, get_user_data_dir
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type, RetryError
 
 logger = logging.getLogger(__name__)
@@ -24,9 +24,21 @@ class DBSecurityManager:
     _STATIC_SECRET = "INTELLEO_DB_SECRET_KEY_V1_2024_SECURE_ACCESS"
     _HEADER = b"INTELLEO_SEC_V1"
 
-    def __init__(self, db_path: str = "database_documenti.db"):
-        self.db_path = Path(db_path).resolve()
-        self.lock_path = self.db_path.with_name(f".{self.db_path.name}.lock")
+    def __init__(self, db_name: str = "database_documenti.db"):
+        # Resolve DB path to User Data Directory to ensure Write Permissions
+        self.data_dir = get_user_data_dir()
+        self.db_path = self.data_dir / db_name
+        self.lock_path = self.data_dir / f".{db_name}.lock"
+
+        # Migration: If DB exists in CWD (Install Dir) but not in Data Dir, copy it.
+        # This handles the case where a DB is shipped with the installer or upgraded.
+        cwd_db = Path.cwd() / db_name
+        if cwd_db.exists() and not self.db_path.exists():
+            try:
+                shutil.copy2(cwd_db, self.db_path)
+                logger.info(f"Migrated database from {cwd_db} to {self.db_path}")
+            except Exception as e:
+                logger.warning(f"Failed to migrate database: {e}")
 
         self.key = self._derive_key()
         self.fernet = Fernet(self.key)
@@ -45,11 +57,38 @@ class DBSecurityManager:
 
     def create_lock(self):
         """
-        Attempts to create the lock file. Raises PermissionError if already locked.
+        Attempts to create the lock file. Checks for stale locks from crashed sessions.
         Should be called upon successful login.
         """
         if self.check_lock_exists():
-             raise PermissionError("Database is currently locked by another active session.")
+            try:
+                with open(self.lock_path, "r") as f:
+                    content = f.read().strip()
+
+                if content.startswith("LOCKED_BY_PID_"):
+                    parts = content.split('_')
+                    if len(parts) >= 4:
+                        pid = int(parts[3])
+                        # Check if process exists
+                        try:
+                            if pid == os.getpid():
+                                self.has_lock = True
+                                logger.info("Re-acquired own lock.")
+                                return
+
+                            os.kill(pid, 0) # Check if PID is alive
+                            # If we get here, process exists.
+                            raise PermissionError(f"Database is currently locked by active process PID {pid}.")
+                        except OSError:
+                            # Process does not exist (or permission denied to check, but usually implies dead if we are owner/same user)
+                            # In Windows, permission error on os.kill(pid, 0) might happen if Admin vs User.
+                            # But usually app runs as same user.
+                            logger.warning(f"Found stale lock from dead process {pid}. Removing.")
+                            os.remove(self.lock_path)
+            except (ValueError, IndexError, OSError) as e:
+                logger.warning(f"Error investigating lock file: {e}. Assuming valid lock or race condition.")
+                if self.check_lock_exists(): # Double check if it's still there
+                     raise PermissionError("Database is currently locked by another active session.")
 
         try:
             # Use 'x' mode for atomic exclusive creation
