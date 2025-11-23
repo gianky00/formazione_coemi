@@ -1,34 +1,75 @@
-# Guida al Test della Distribuzione
+# Comprehensive Testing Guide
 
-La build è stata completata con successo. Ecco i passaggi per verificare che tutto funzioni correttamente.
+This document outlines the testing protocols for the Intelleo codebase, covering Unit Tests, Frontend Verification, and Distribution checks.
 
-## 1. Verifica Eseguibile
-Vai nella cartella:
-`dist/package/`
+## 1. Automated Unit & Integration Tests (`pytest`)
 
-Troverai il file `Intelleo.exe`.
+The project maintains a comprehensive test suite using `pytest`. These tests cover the API, Database Logic, AI Service (mocked), and Desktop Utilities.
 
-## 2. Test ID Hardware (Simulazione Cliente)
-1.  Apri un terminale (Prompt dei Comandi o PowerShell) in quella cartella.
-2.  Esegui:
+### Prerequisites
+*   Virtual Environment activated.
+*   Dependencies installed (`pip install -r requirements.txt`).
+
+### Running the Tests
+Execute the following command from the repository root:
+
+```bash
+python -m pytest
+```
+
+### Test Structure
+*   `tests/app/`: Backend tests (API endpoints, DB models, Services).
+*   `tests/desktop_app/`: Frontend logic tests (View Models, Utils, Import Logic).
+    *   *Note*: UI components (`QWidget`) are tested in headless mode using `mock_qt.py` to simulate the PyQt6 environment without a display.
+
+### Critical Considerations
+*   **Mocking**: External services (Google Gemini, SMTP) are **always mocked**. Do not require real API keys to run tests.
+*   **Database**: Tests use an isolated in-memory SQLite database (`:memory:`), separate from the development `database_documenti.db`.
+
+## 2. Frontend User Guide Verification (React)
+
+The "Modern Software Guide" (`guide_frontend/`) is a standard React + Vite application.
+
+### Verification Steps
+1.  Navigate to the directory:
     ```bash
-    Intelleo.exe --hwid
+    cd guide_frontend
     ```
-    **Risultato atteso**: Deve stampare una stringa alfanumerica (l'ID della macchina) e uscire. NON deve stampare "N/A" o errori.
-
-## 3. Generazione Licenza (Amministratore)
-1.  Torna alla root del progetto ed esegui:
+2.  Install dependencies:
     ```bash
-    python admin_license_gui.py
+    npm install
     ```
-2.  Clicca su **"Rileva ID Locale"**.
-    **Risultato atteso**: Deve riempire il campo con l'ID hardware corretto (lo stesso del punto 2).
-3.  Imposta una data di scadenza e clicca **"Genera Licenza"**.
-    **Risultato atteso**: Messaggio di successo "Licenza generata...".
+3.  Run the development server to verify UI rendering:
+    ```bash
+    npm run dev
+    ```
+4.  Build verification:
+    ```bash
+    npm run build
+    ```
+    Ensure the `dist/` folder is generated without errors.
 
-## 4. Test Applicazione Completa
-1.  Copia il file `pyarmor.rkey` generato (in `dist/`) nella cartella `dist/package/` accanto a `Intelleo.exe`.
-2.  Esegui `Intelleo.exe` (doppio click).
-    **Risultato atteso**: L'applicazione deve avviarsi, mostrare lo splash screen e caricare l'interfaccia principale senza errori di backend.
+## 3. Distribution & License Verification (Manual)
 
-Se incontri ancora errori, invia il file `dist/package/debug_hwid.log`.
+After building the application (see `BUILD_INSTRUCTIONS.md`), perform these manual checks on the generated executable.
+
+### Location
+`dist/Intelleo/Intelleo.exe`
+
+### Test 1: Hardware ID (HWID)
+Verify the application can read the machine's fingerprint.
+```bash
+Intelleo.exe --hwid
+```
+*Expected*: Prints an alphanumeric string. MUST NOT print "N/A" or crash.
+
+### Test 2: License Validation
+1.  Generate a license using `admin_license_gui.py`.
+2.  Place `pyarmor.rkey` and `dettagli_licenza.txt` in the `Licenza` subfolder.
+3.  Launch `Intelleo.exe`.
+*Expected*: App launches, skips the "License Expired" warning, and shows the Dashboard.
+*Failure*: If app closes immediately or shows errors, check `debug_hwid.log` (if enabled) or run via console.
+
+### Test 3: API/Backend Startup
+Launch the app and check the log files or console output.
+*Expected*: "FastAPI startup complete", "Database loaded in memory".

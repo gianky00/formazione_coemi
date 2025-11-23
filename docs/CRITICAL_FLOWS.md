@@ -6,13 +6,17 @@
 1.  **User Action**: Drag & Drop PDF in `ImportView`.
 2.  **API Call**: `POST /upload-pdf/` with file bytes.
 3.  **AI Processing** (`app.services.ai_extraction.extract_entities_with_ai`):
-    *   **Model**: Google Gemini 2.5 Pro.
+    *   **Model**: Google Gemini 2.5 Pro (Hardcoded).
+    *   **Resilience**: Uses `tenacity` for exponential backoff on `ResourceExhausted` (429) errors.
     *   **Logic**: Single-pass extraction + classification.
     *   **Absolute Rules**:
-        *   "NOMINA..." -> **NOMINE** (Not PREPOSTO).
+        *   "NOMINA..." -> **NOMINA** (Not PREPOSTO).
         *   "Giudizio di idoneità..." -> **VISITA MEDICA**.
         *   "UNILAV..." -> **UNILAV** (Expiry: "Data Fine").
         *   "Patente..." -> **PATENTE** (Expiry: "4b").
+        *   "Carta d'Identità..." -> **CARTA DI IDENTITA** (Expiry: "Scadenza").
+        *   "ATEX..." -> **ATEX**.
+        *   "HLO" (Course) vs "TESSERA HLO" (Card).
     *   **Output**: JSON with normalized fields.
 4.  **Date Normalization**: API converts `DD-MM-YYYY` -> `DD/MM/YYYY`.
 5.  **Persistence**: `POST /certificati/`.
@@ -41,7 +45,7 @@
 ## 3. Notification System Logic
 **Goal**: Alert admins about expiring or overdue certificates via Email.
 
-1.  **Trigger**: Daily Schedule (APScheduler) or Manual (`POST /send-manual-alert`).
+1.  **Trigger**: Daily Schedule (APScheduler, 08:00) or Manual (`POST /send-manual-alert`).
 2.  **Data Collection**:
     *   Queries all certificates.
     *   Filters using the Status Logic (above).
@@ -71,15 +75,16 @@
 1.  **Architecture**: **Strict In-Memory**.
     *   Disk File: `database_documenti.db` (Always Encrypted with Fernet).
     *   Runtime: Decrypted into RAM (`sqlite3.deserialize`).
-    *   **No plain-text data is ever written to disk.**
+    *   **No plain-text data is ever written to disk** (unless explicitly unlocked by admin).
 
 2.  **Startup Flow**:
-    *   Check for `.lock` file. If present -> **Halt** (Prevent Concurrency).
+    *   Check for `.lock` file. If present -> **Check Process Liveness**.
+        *   If process dead -> Remove Stale Lock -> Continue.
+        *   If process alive -> **Halt** (Prevent Concurrency).
     *   Load encrypted bytes -> Decrypt -> RAM.
-    *   If plain-text file detected -> Auto-upgrade (Load to RAM -> Encrypt on Save).
 
 3.  **Access Control**:
-    *   **Login**: Generates exclusive `.lock` file.
+    *   **Login**: Generates exclusive `.lock` file containing PID.
     *   **Logout / Close Window**:
         *   Trigger `db_security.cleanup()`.
         *   Serialize RAM DB -> Encrypt -> Atomic Write to Disk.
@@ -89,3 +94,15 @@
     *   Periodic Sync (APScheduler, 5 min).
     *   Explicit Sync on Logout.
     *   **Constraint**: Sync only writes if the session holds the lock.
+
+## 6. Audit & Security Monitoring
+**Goal**: Track user actions and detect threats.
+
+1.  **Event Logging**:
+    *   `app.utils.audit.log_security_action` is called for Login, Logout, User Create/Update, and Data Export.
+    *   Captures `IP`, `User-Agent`, `Device-ID` (from headers), and `Changes` (diff snapshot).
+
+2.  **Threat Detection**:
+    *   **Brute Force**: >5 Failed Logins within 10 minutes from same IP -> Logs CRITICAL event.
+    *   **Unauthorized Access**: Non-admin accessing Admin API -> Logs CRITICAL event.
+    *   **Alerting**: CRITICAL events trigger immediate email notification to admins.

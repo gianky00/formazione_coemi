@@ -59,4 +59,4 @@ The application implements a **Full-Stack Error Handling** pattern.
 
 *   **Commits**: Atomic, descriptive messages.
 *   **Branches**: Feature branches required. No direct commits to main.
-*   **Documentation**: Update `.jules-docs/` if architectural changes occur.
+*   **Documentation**: Update `docs/` if architectural changes occur.

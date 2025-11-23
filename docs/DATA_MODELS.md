@@ -2,7 +2,38 @@
 
 ## Database Schema (SQLAlchemy)
 
-Defined in `app/db/models.py`. All tables are stored in `scadenzario.db` (SQLite).
+Defined in `app/db/models.py`. The database is stored in `database_documenti.db` (SQLite), which is encrypted at rest and loaded into memory at runtime.
+
+### `User` (Table: `users`)
+Represents an authorized user of the application.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | Integer | PK, Index | Internal ID |
+| `username` | String | Unique, Index | Login Username |
+| `hashed_password` | String | | Bcrypt hash |
+| `account_name` | String | | Display Name (e.g., "Mario Rossi") |
+| `is_admin` | Boolean | | Admin privileges |
+| `last_login` | DateTime | | Timestamp of current/last login |
+| `previous_login` | DateTime | | Timestamp of the login before the current one |
+| `created_at` | DateTime | | Creation timestamp |
+
+### `AuditLog` (Table: `audit_logs`)
+Records security-critical actions for compliance and auditing.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | Integer | PK, Index | Internal ID |
+| `user_id` | Integer | FK(`users.id`) | Actor ID (Nullable for System events) |
+| `username` | String | Index | Snapshot of username |
+| `action` | String | Index | Event Type (e.g., "LOGIN_FAILED") |
+| `category` | String | Index | Scope (e.g., "AUTH", "CERTIFICATE") |
+| `details` | String | | Human-readable description |
+| `timestamp` | DateTime | Index | Event time (UTC) |
+| `ip_address` | String | Index | Client IP |
+| `severity` | String | | "LOW", "MEDIUM", "CRITICAL" |
+| `device_id` | String | | Client Hardware ID / Fingerprint |
+| `changes` | String | | JSON diff of modified data |
 
 ### `Dipendente` (Table: `dipendenti`)
 Represents an employee in the organization.
@@ -30,7 +61,7 @@ Represents a master course definition.
 **Constraint**: Unique (`nome_corso`, `categoria_corso`).
 
 #### Reference Data: Course Validity Defaults
-Defined in `app/db/seeding.py`.
+Defined in `app/db/seeding.py` and enforced by AI Logic.
 
 | Category | Validity (Months) | Behavior |
 | :--- | :--- | :--- |
@@ -38,11 +69,12 @@ Defined in `app/db/seeding.py`.
 | **PRIMO SOCCORSO** | 36 | Fixed 3 years |
 | **PREPOSTO** | 24 | Fixed 2 years |
 | **BLSD** | 12 | Fixed 1 year |
+| **ATEX** | 60 | Default 5 years |
 | **VISITA MEDICA** | 0 | Extracts "Da rivedere entro..." |
 | **UNILAV** | 0 | Extracts "Data Fine" |
 | **PATENTE** | 0 | Extracts "4b" |
 | **CARTA DI IDENTITA** | 0 | Extracts "Scadenza" |
-| **NOMINE** | 0 | No expiration (Active) |
+| **NOMINA** | 0 | No expiration (Active) |
 | **MODULO RECESSO...** | 0 | No expiration |
 | **HLO** | 0 | No expiration |
 | **TESSERA HLO** | 0 | Scadenza extracted |
@@ -58,7 +90,7 @@ Represents an issued certificate instance.
 | `corso_id` | Integer | FK(`corsi.id`) | Linked Course |
 | `data_rilascio` | Date | | Issue Date |
 | `data_scadenza_calcolata` | Date | Nullable | Calculated Expiration Date |
-| `file_path` | String | | Path to stored PDF (unused in new logic?) |
+| `file_path` | String | | Path to stored PDF |
 | `stato_validazione` | Enum | `AUTOMATIC` or `MANUAL` | Workflow status |
 | `nome_dipendente_raw` | String | Nullable | Raw extracted name (for orphans) |
 | `data_nascita_raw` | String | Nullable | Raw extracted DOB (for orphans) |
