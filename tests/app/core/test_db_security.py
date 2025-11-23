@@ -37,7 +37,8 @@ def test_security_manager_lifecycle(mock_home, temp_workspace):
     # 3. Test Initialize (Should detect plain and copy to temp)
     temp_conn_str = manager.initialize_db()
 
-    assert manager.is_locked_mode is False
+    # Auto-Lock logic sets this to True immediately
+    assert manager.is_locked_mode is True
     assert manager.temp_path.exists()
     assert manager.lock_path.exists()
 
@@ -48,9 +49,9 @@ def test_security_manager_lifecycle(mock_home, temp_workspace):
     assert cursor.fetchone()[0] == 'secret_data'
     temp_conn.close()
 
-    # 4. Toggle to Locked (Encryption)
-    manager.toggle_security_mode(True)
-    assert manager.is_locked_mode is True
+    # 4. Sync (Should encrypt because auto-lock is True)
+    sync_result = manager.sync_db()
+    assert sync_result is True
 
     # Verify Main file is now Encrypted (Header check)
     with open(db_path, "rb") as f:

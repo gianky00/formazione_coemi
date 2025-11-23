@@ -8,7 +8,7 @@ import ctypes
 from pathlib import Path
 from cryptography.fernet import Fernet
 from app.core.config import settings
-from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type, RetryError
 
 logger = logging.getLogger(__name__)
 
@@ -93,12 +93,17 @@ class DBSecurityManager:
         - Determines if Encrypted or Plain.
         - If Encrypted: Decrypts to Temp. Returns Temp Path.
         - If Plain: Returns Main Path (or copies to Temp if we want to standardize sync logic).
-
-        To simplify 'Sync' logic, we ALWAYS work on Temp.
-        If Plain, we copy Plain -> Temp.
-        If Encrypted, we Decrypt -> Temp.
         """
         self.check_lock()
+
+        # Safety check: If temp file exists, back it up before overwriting
+        if self.temp_path.exists():
+            try:
+                backup_path = self.temp_path.with_suffix(f".bak_{int(time.time())}")
+                shutil.move(self.temp_path, backup_path)
+                logger.warning(f"Found existing temp DB. Backed up to {backup_path}")
+            except Exception as e:
+                logger.warning(f"Could not backup existing temp DB: {e}")
 
         if self.is_encrypted():
             logger.info("Database is ENCRYPTED. Decrypting to temporary workspace.")
@@ -106,19 +111,24 @@ class DBSecurityManager:
             self._decrypt_to_temp()
         elif self.db_path.exists():
             logger.info("Database is PLAIN. Copying to temporary workspace.")
-            self.is_locked_mode = False
             shutil.copy2(self.db_path, self.temp_path)
+
+            # AUTO-LOCK: Enforce encryption for the next sync
+            # This satisfies the requirement "SEMPRE crittografato"
+            logger.info("Enforcing encryption for future syncs.")
+            self.is_locked_mode = True
         else:
             # New DB scenario
             logger.info("Database not found. A new one will be created in temporary workspace.")
-            self.is_locked_mode = False # Default new DBs are plain until explicitly locked
+            # Start encrypted by default
+            self.is_locked_mode = True
             pass
 
         # Return the connection string for SQLAlchemy
         # Use forward slashes for cross-platform compatibility
         return f"sqlite:///{self.temp_path.as_posix()}"
 
-    @retry(stop=stop_after_attempt(5), wait=wait_fixed(1), retry=retry_if_exception_type(PermissionError))
+    @retry(stop=stop_after_attempt(5), wait=wait_fixed(2), retry=retry_if_exception_type(PermissionError))
     def _safe_replace(self, src: Path, dst: Path):
         """
         Safely replaces the destination file with source, with retries for Windows file locking.
@@ -129,22 +139,20 @@ class DBSecurityManager:
             try:
                 os.replace(src, dst)
             except PermissionError:
-                # Sometimes removing the destination first helps if replace fails
-                # But we must be careful not to lose data if move fails after remove.
-                # os.replace is supposed to be atomic.
-                # If it fails, we raise to trigger retry.
+                # Wait and retry (handled by tenacity)
                 raise
         else:
             os.replace(src, dst)
 
-    def sync_db(self):
+    def sync_db(self) -> bool:
         """
         Synchronizes the Temp DB back to the Main DB.
         - If locked mode: Encrypt Temp -> Main.
         - If plain mode: Copy Temp -> Main.
+        Returns True if success, False if failed (e.g. locked).
         """
         if not self.temp_path.exists():
-            return
+            return True
 
         # Write to a .swp file first to prevent corruption during write
         swp_path = self.db_path.with_suffix(".swp")
@@ -156,31 +164,37 @@ class DBSecurityManager:
                 shutil.copy2(self.temp_path, swp_path)
 
             # Atomic rename (on POSIX, and decent on Windows with retry)
-            self._safe_replace(swp_path, self.db_path)
+            try:
+                self._safe_replace(swp_path, self.db_path)
+                logger.info("Database synchronized successfully.")
+                return True
+            except RetryError:
+                logger.warning("Could not sync database. The file 'database_documenti.db' is likely open in another program (e.g., DB Browser). Sync will retry later.")
+                return False
 
-            logger.info("Database synchronized successfully.")
         except Exception as e:
             logger.error(f"Failed to sync database: {e}")
             if swp_path.exists():
                 try:
                     os.remove(swp_path)
                 except: pass
-            raise
+            # If it's not a retry error, it might be something else. We log and return False.
+            return False
 
     def cleanup(self):
         """
         Final sync and cleanup of Temp/Lock files.
         """
-        try:
-            self.sync_db()
-        except Exception as e:
-            logger.error(f"Error during final sync: {e}")
+        sync_success = self.sync_db()
 
-        if self.temp_path.exists():
-            try:
-                os.remove(self.temp_path)
-            except Exception as e:
-                logger.warning(f"Could not delete temp db: {e}")
+        if sync_success:
+            if self.temp_path.exists():
+                try:
+                    os.remove(self.temp_path)
+                except Exception as e:
+                    logger.warning(f"Could not delete temp db: {e}")
+        else:
+            logger.warning("Final sync failed (File Locked?). Temporary database PRESERVED for recovery in .intelleo_data.")
 
         if self.lock_path.exists():
             try:
