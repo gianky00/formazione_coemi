@@ -1,10 +1,16 @@
+# AVVIA TEST
 .\Scripts\activate
 python -m pytest tests
 
-
+# CREA GUIDA
 winget install OpenJS.NodeJS 
+
+.\Scripts\activate
 python tools/build_guide.py
 
+# CREA SETUP
+.\Scripts\activate
+python admin/offusca/build_dist.py
 
 cd /d "C:\Users\gianc\Desktop\SCRIPT\formazione_coemi"
 git init
