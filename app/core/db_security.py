@@ -5,6 +5,7 @@ import base64
 import time
 import logging
 import ctypes
+import sqlite3
 from pathlib import Path
 from cryptography.fernet import Fernet
 from app.core.config import settings
@@ -14,223 +15,179 @@ logger = logging.getLogger(__name__)
 
 class DBSecurityManager:
     """
-    Manages the security of the SQLite database.
-    - Handles Encryption/Decryption using a static key derived from the application secret.
-    - Manages a temporary "working copy" of the database to ensure the main file remains protected at rest.
-    - Implements a file lock to enforce single-user access.
+    Manages the security of the SQLite database using strict In-Memory handling.
+    - Loads encrypted DB into RAM (sqlite3 deserialize).
+    - Saves RAM DB to encrypted disk file (sqlite3 serialize).
+    - Enforces single-user access via Lock File (created at Login).
     """
 
-    # Static secret to ensure all authorized installations can access the DB
     _STATIC_SECRET = "INTELLEO_DB_SECRET_KEY_V1_2024_SECURE_ACCESS"
-
-    # Custom Header to identify encrypted files
     _HEADER = b"INTELLEO_SEC_V1"
 
     def __init__(self, db_path: str = "database_documenti.db"):
         self.db_path = Path(db_path).resolve()
-
-        # Use User Home for Temp File to isolate it
-        # Hidden folder in user's home directory
-        self.home_dir = Path.home() / ".intelleo_data"
-        self.home_dir.mkdir(parents=True, exist_ok=True)
-
-        # Hide the directory on Windows
-        if os.name == 'nt':
-            try:
-                # FILE_ATTRIBUTE_HIDDEN = 2
-                ctypes.windll.kernel32.SetFileAttributesW(str(self.home_dir), 2)
-            except Exception:
-                pass
-
-        self.temp_path = self.home_dir / f"temp_{self.db_path.name}"
-
-        # Lock file stays with the MAIN DB to ensure visibility for other instances accessing the same DB
         self.lock_path = self.db_path.with_name(f".{self.db_path.name}.lock")
 
         self.key = self._derive_key()
         self.fernet = Fernet(self.key)
-        self.is_locked_mode = False # Tracks if we are operating in Encrypted mode
+
+        self.active_connection = None
+        self.initial_bytes = None
+        self.is_locked_mode = False
+        self.has_lock = False # Tracks if this session owns the lock
 
     def _derive_key(self) -> bytes:
-        """Derives a 32-byte URL-safe base64 key from the static secret."""
         digest = hashlib.sha256(self._STATIC_SECRET.encode()).digest()
         return base64.urlsafe_b64encode(digest)
 
-    def is_encrypted(self) -> bool:
-        """Checks if the database file is encrypted by inspecting the header."""
+    def check_lock_exists(self) -> bool:
+        return self.lock_path.exists()
+
+    def create_lock(self):
+        """
+        Attempts to create the lock file. Raises PermissionError if already locked.
+        Should be called upon successful login.
+        """
+        if self.check_lock_exists():
+             raise PermissionError("Database is currently locked by another active session.")
+
+        try:
+            # Use 'x' mode for atomic exclusive creation
+            with open(self.lock_path, "x") as f:
+                f.write(f"LOCKED_BY_PID_{os.getpid()}_{time.time()}")
+            self.has_lock = True
+            logger.info("Session lock acquired.")
+        except FileExistsError:
+             raise PermissionError("Database was locked by another session just now.")
+
+    def remove_lock(self):
+        """
+        Releases the lock if held by this session.
+        """
+        if self.has_lock:
+            if self.lock_path.exists():
+                try:
+                    os.remove(self.lock_path)
+                    logger.info("Session lock released.")
+                except Exception as e:
+                    logger.warning(f"Could not remove lock file: {e}")
+            self.has_lock = False
+
+    def load_memory_db(self):
+        """
+        Reads the DB from disk into memory.
+        - If Locked: Raises PermissionError (Stop Startup).
+        - If Missing: Initializes empty.
+        - If Encrypted: Decrypts.
+        - If Plain: Loads Plain (and marks for encryption).
+        """
+        if self.check_lock_exists():
+             raise PermissionError("Database is locked. Cannot start application.")
+
         if not self.db_path.exists():
-            return False
+            logger.info("Database missing. Initializing new in-memory DB.")
+            self.is_locked_mode = True
+            self.initial_bytes = None # Will create empty in get_connection
+            return
+
         try:
             with open(self.db_path, "rb") as f:
-                header = f.read(len(self._HEADER))
-                return header == self._HEADER
-        except Exception:
-            return False
+                content = f.read()
+        except Exception as e:
+            raise RuntimeError(f"Could not read database file: {e}")
 
-    def check_lock(self):
-        """
-        Checks if the database is locked by another process.
-        Raises PermissionError if locked.
-        Creates the lock if free.
-        """
-        if self.lock_path.exists():
-            # Check if stale? (Simple version: Assume valid if exists)
-            # In a robust system, we'd check the PID inside.
-            # For now, strictly enforce single user.
-            raise PermissionError(
-                f"Il database è bloccato da un'altra istanza. "
-                f"Rimuovi il file {self.lock_path.name} se sei sicuro che nessun altro lo stia usando."
-            )
-
-        # Create Lock
-        with open(self.lock_path, "w") as f:
-            f.write(f"LOCKED_BY_PID_{os.getpid()}_{time.time()}")
-
-    def initialize_db(self) -> str:
-        """
-        Prepares the database for use.
-        - Checks Lock.
-        - Determines if Encrypted or Plain.
-        - If Encrypted: Decrypts to Temp. Returns Temp Path.
-        - If Plain: Returns Main Path (or copies to Temp if we want to standardize sync logic).
-        """
-        self.check_lock()
-
-        # Safety check: If temp file exists, back it up before overwriting
-        if self.temp_path.exists():
+        if content.startswith(self._HEADER):
+            logger.info("Loading ENCRYPTED database into memory.")
+            self.is_locked_mode = True
             try:
-                backup_path = self.temp_path.with_suffix(f".bak_{int(time.time())}")
-                shutil.move(self.temp_path, backup_path)
-                logger.warning(f"Found existing temp DB. Backed up to {backup_path}")
+                self.initial_bytes = self.fernet.decrypt(content[len(self._HEADER):])
             except Exception as e:
-                logger.warning(f"Could not backup existing temp DB: {e}")
-
-        if self.is_encrypted():
-            logger.info("Database is ENCRYPTED. Decrypting to temporary workspace.")
-            self.is_locked_mode = True
-            self._decrypt_to_temp()
-        elif self.db_path.exists():
-            logger.info("Database is PLAIN. Copying to temporary workspace.")
-            shutil.copy2(self.db_path, self.temp_path)
-
-            # AUTO-LOCK: Enforce encryption for the next sync
-            # This satisfies the requirement "SEMPRE crittografato"
-            logger.info("Enforcing encryption for future syncs.")
-            self.is_locked_mode = True
+                raise ValueError(f"Failed to decrypt database: {e}")
         else:
-            # New DB scenario
-            logger.info("Database not found. A new one will be created in temporary workspace.")
-            # Start encrypted by default
+            logger.info("Loading PLAIN database into memory. Security upgrade enforced.")
             self.is_locked_mode = True
-            pass
+            self.initial_bytes = content
 
-        # Return the connection string for SQLAlchemy
-        # Use forward slashes for cross-platform compatibility
-        return f"sqlite:///{self.temp_path.as_posix()}"
+    def get_connection(self):
+        """
+        Factory for SQLAlchemy to create the connection.
+        Deserializes the initial bytes into the new connection's memory.
+        """
+        if self.active_connection is None:
+            # Create fresh memory connection
+            conn = sqlite3.connect(':memory:', check_same_thread=False)
+
+            if self.initial_bytes:
+                try:
+                    conn.deserialize(self.initial_bytes)
+                except AttributeError:
+                    raise RuntimeError("Your Python/SQLite version does not support 'deserialize'. Upgrade required.")
+                except Exception as e:
+                    raise RuntimeError(f"Failed to deserialize database: {e}")
+
+            self.active_connection = conn
+
+        return self.active_connection
 
     @retry(stop=stop_after_attempt(5), wait=wait_fixed(2), retry=retry_if_exception_type(PermissionError))
-    def _safe_replace(self, src: Path, dst: Path):
-        """
-        Safely replaces the destination file with source, with retries for Windows file locking.
-        """
-        # On Windows, os.replace might fail if dst is open or has sharing violation
-        # We try to force it.
-        if os.name == 'nt' and dst.exists():
+    def _safe_write(self, data: bytes):
+        swp_path = self.db_path.with_suffix(".swp")
+        with open(swp_path, "wb") as f:
+            f.write(data)
+
+        if os.name == 'nt' and self.db_path.exists():
             try:
-                os.replace(src, dst)
+                os.replace(swp_path, self.db_path)
             except PermissionError:
-                # Wait and retry (handled by tenacity)
                 raise
         else:
-            os.replace(src, dst)
+            os.replace(swp_path, self.db_path)
 
-    def sync_db(self) -> bool:
+    def save_to_disk(self) -> bool:
         """
-        Synchronizes the Temp DB back to the Main DB.
-        - If locked mode: Encrypt Temp -> Main.
-        - If plain mode: Copy Temp -> Main.
-        Returns True if success, False if failed (e.g. locked).
+        Serializes the memory DB, Encrypts it, and writes to disk.
+        CRITICAL: Only executes if this session holds the lock.
         """
-        if not self.temp_path.exists():
+        if not self.active_connection:
             return True
 
-        # Write to a .swp file first to prevent corruption during write
-        swp_path = self.db_path.with_suffix(".swp")
+        if not self.has_lock:
+            # We are in Read-Only / Pre-Login mode. Do not overwrite disk.
+            return False
 
         try:
-            if self.is_locked_mode:
-                self._encrypt_from_temp(target=swp_path)
-            else:
-                shutil.copy2(self.temp_path, swp_path)
-
-            # Atomic rename (on POSIX, and decent on Windows with retry)
             try:
-                self._safe_replace(swp_path, self.db_path)
-                logger.info("Database synchronized successfully.")
-                return True
-            except RetryError:
-                logger.warning("Could not sync database. The file 'database_documenti.db' is likely open in another program (e.g., DB Browser). Sync will retry later.")
+                serialized = self.active_connection.serialize()
+            except AttributeError:
+                logger.error("SQLite serialize not supported.")
                 return False
 
+            if self.is_locked_mode:
+                final_data = self._HEADER + self.fernet.encrypt(serialized)
+            else:
+                final_data = serialized
+
+            self._safe_write(final_data)
+            logger.info("Database state saved to disk.")
+            return True
         except Exception as e:
-            logger.error(f"Failed to sync database: {e}")
-            if swp_path.exists():
-                try:
-                    os.remove(swp_path)
-                except: pass
-            # If it's not a retry error, it might be something else. We log and return False.
+            logger.error(f"Failed to save database: {e}")
             return False
 
     def cleanup(self):
         """
-        Final sync and cleanup of Temp/Lock files.
+        Shutdown handler. Saves state and releases lock.
         """
-        sync_success = self.sync_db()
-
-        if sync_success:
-            if self.temp_path.exists():
-                try:
-                    os.remove(self.temp_path)
-                except Exception as e:
-                    logger.warning(f"Could not delete temp db: {e}")
-        else:
-            logger.warning("Final sync failed (File Locked?). Temporary database PRESERVED for recovery in .intelleo_data.")
-
-        if self.lock_path.exists():
-            try:
-                os.remove(self.lock_path)
-            except Exception as e:
-                logger.warning(f"Could not remove lock file: {e}")
+        self.save_to_disk()
+        self.remove_lock()
 
     def toggle_security_mode(self, enable_encryption: bool):
-        """
-        Switches between Encrypted (Locked) and Plain (Unlocked) storage.
-        Triggers an immediate Sync in the new mode.
-        """
         self.is_locked_mode = enable_encryption
-        self.sync_db()
+        self.save_to_disk()
 
-    def _decrypt_to_temp(self):
-        with open(self.db_path, "rb") as f:
-            content = f.read()
+    # Alias for backward compatibility if needed, or just for main.py
+    def sync_db(self):
+        return self.save_to_disk()
 
-        if not content.startswith(self._HEADER):
-            raise ValueError("Invalid Database Header")
-
-        encrypted_data = content[len(self._HEADER):]
-        decrypted_data = self.fernet.decrypt(encrypted_data)
-
-        with open(self.temp_path, "wb") as f:
-            f.write(decrypted_data)
-
-    def _encrypt_from_temp(self, target: Path):
-        with open(self.temp_path, "rb") as f:
-            data = f.read()
-
-        encrypted_data = self.fernet.encrypt(data)
-
-        with open(target, "wb") as f:
-            f.write(self._HEADER + encrypted_data)
-
-# Singleton Instance
+# Singleton
 db_security = DBSecurityManager()

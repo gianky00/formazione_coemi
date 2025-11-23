@@ -1,44 +1,40 @@
 """
 This module handles the database session and engine creation.
-It reads the database URL from the environment variables and sets up the
-SQLAlchemy engine and session factory. It also provides a dependency
-for FastAPI to get a database session.
+It sets up the SQLAlchemy engine to use a shared In-Memory SQLite connection
+managed by DBSecurityManager, ensuring strict data security (decryption in RAM).
 """
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 import os
 from dotenv import load_dotenv
+from app.core.db_security import db_security
 
 load_dotenv()
 
-# Default URL (will be overwritten by DBSecurityManager in main.py)
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./database_documenti.db")
+# Database URL for In-Memory SQLite
+DATABASE_URL = "sqlite://"
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+# Create engine with StaticPool to share the same in-memory connection across threads
+# The connection is created/populated by db_security.get_connection
+engine = create_engine(
+    DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+    creator=db_security.get_connection
+)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def reconfigure_engine(new_url: str):
     """
-    Replaces the global engine with a new one pointing to the specific (temp) file.
-    Updates SessionLocal binding.
+    No-op: The engine is statically configured to use the memory connection from DBSecurityManager.
     """
-    global engine, SessionLocal, DATABASE_URL
-
-    # Dispose old engine connections
-    engine.dispose()
-
-    DATABASE_URL = new_url
-    # Create new engine
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-
-    # Update session factory
-    SessionLocal.configure(bind=engine)
+    pass
 
 def get_db():
     """
     FastAPI dependency that provides a database session for each request.
-    It ensures that the database session is always closed after the request
-    is finished.
     """
     db = SessionLocal()
     try:

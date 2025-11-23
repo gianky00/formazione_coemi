@@ -7,7 +7,6 @@ from app.core.db_security import DBSecurityManager
 
 @pytest.fixture
 def temp_workspace(tmp_path):
-    # Setup a clean workspace
     return tmp_path
 
 def create_dummy_db(path):
@@ -18,99 +17,106 @@ def create_dummy_db(path):
     conn.commit()
     conn.close()
 
-@patch("app.core.db_security.Path.home")
-def test_security_manager_lifecycle(mock_home, temp_workspace):
-    # Mock home to prevent pollution
-    mock_home.return_value = temp_workspace
-
+def test_in_memory_lifecycle(temp_workspace):
     db_path = temp_workspace / "database_documenti.db"
 
-    # 1. Create Plain DB
+    # 1. Create Plain DB on disk
     create_dummy_db(db_path)
 
-    # 2. Init Manager
     manager = DBSecurityManager(db_path=str(db_path))
 
-    # Check that temp path is correct relative to mocked home
-    assert manager.home_dir == temp_workspace / ".intelleo_data"
-
-    # 3. Test Initialize (Should detect plain and copy to temp)
-    temp_conn_str = manager.initialize_db()
-
-    # Auto-Lock logic sets this to True immediately
+    # 2. Load (Should Auto-Encrypt in RAM)
+    manager.load_memory_db()
     assert manager.is_locked_mode is True
-    assert manager.temp_path.exists()
+    assert manager.initial_bytes is not None
+
+    # Verify connection has data
+    conn = manager.get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT data FROM test")
+    assert cur.fetchone()[0] == 'secret_data'
+
+    # 3. Lock (Simulate Login)
+    manager.create_lock()
+    assert manager.has_lock is True
     assert manager.lock_path.exists()
 
-    # Verify we can read temp
-    temp_conn = sqlite3.connect(manager.temp_path)
-    cursor = temp_conn.cursor()
-    cursor.execute("SELECT data FROM test")
-    assert cursor.fetchone()[0] == 'secret_data'
-    temp_conn.close()
+    # 4. Modify in RAM
+    conn.execute("INSERT INTO test (data) VALUES ('new_ram_data')")
+    conn.commit()
 
-    # 4. Sync (Should encrypt because auto-lock is True)
-    sync_result = manager.sync_db()
-    assert sync_result is True
+    # 5. Save to Disk (Sync)
+    save_result = manager.save_to_disk()
+    assert save_result is True
 
-    # Verify Main file is now Encrypted (Header check)
+    # 6. Check Disk Content
+    # Disk should be encrypted (Header check)
     with open(db_path, "rb") as f:
         header = f.read(len(manager._HEADER))
         assert header == manager._HEADER
 
-    # Verify Main file is NOT valid sqlite
+    # Verify Disk is NOT valid sqlite
     try:
-        conn = sqlite3.connect(db_path)
-        c = conn.cursor()
-        c.execute("SELECT * FROM test")
-        assert False, "Should have raised DatabaseError"
-    except sqlite3.DatabaseError:
+        conn_disk = sqlite3.connect(db_path)
+        c_disk = conn_disk.cursor()
+        c_disk.execute("SELECT * FROM test")
+        assert False, "Should not be able to open encrypted DB"
+    except (sqlite3.DatabaseError, sqlite3.OperationalError):
         pass
     except Exception:
         pass
 
-    # 5. Modify Temp and Sync
-    temp_conn = sqlite3.connect(manager.temp_path)
-    temp_conn.execute("INSERT INTO test (data) VALUES ('new_data')")
-    temp_conn.commit()
-    temp_conn.close()
-
-    manager.sync_db()
-
-    # 6. Cleanup (Simulate Shutdown)
+    # 7. Unlock/Cleanup (Simulate Logout/Shutdown)
     manager.cleanup()
-    assert not manager.temp_path.exists()
     assert not manager.lock_path.exists()
 
-    # 7. Restart in Locked Mode
+    # 8. Reload (Simulate Restart)
     manager2 = DBSecurityManager(db_path=str(db_path))
-    assert manager2.is_encrypted() is True
+    manager2.load_memory_db()
+    conn2 = manager2.get_connection()
+    cur2 = conn2.cursor()
+    cur2.execute("SELECT data FROM test WHERE data='new_ram_data'")
+    assert cur2.fetchone()[0] == 'new_ram_data'
 
-    manager2.initialize_db()
-    assert manager2.is_locked_mode is True
-    assert manager2.temp_path.exists()
-
-    # Verify Data Persisted
-    temp_conn = sqlite3.connect(manager2.temp_path)
-    cursor = temp_conn.cursor()
-    cursor.execute("SELECT data FROM test WHERE data='new_data'")
-    assert cursor.fetchone()[0] == 'new_data'
-    temp_conn.close()
-
-    manager2.cleanup()
-
-@patch("app.core.db_security.Path.home")
-def test_locking_mechanism(mock_home, temp_workspace):
-    mock_home.return_value = temp_workspace
+def test_lock_prevents_access(temp_workspace):
     db_path = temp_workspace / "database_documenti.db"
     create_dummy_db(db_path)
 
+    # Instance 1: Running and Locked
     manager1 = DBSecurityManager(db_path=str(db_path))
-    manager1.initialize_db()
+    manager1.load_memory_db()
+    manager1.create_lock()
 
+    # Instance 2: Startup Check
     manager2 = DBSecurityManager(db_path=str(db_path))
 
+    # Should fail at startup if locked
     with pytest.raises(PermissionError):
-        manager2.initialize_db()
+        manager2.load_memory_db()
 
     manager1.cleanup()
+
+def test_pre_login_safety(temp_workspace):
+    """Verify that data is NOT saved if lock is not held (Pre-Login state)"""
+    db_path = temp_workspace / "database_documenti.db"
+    create_dummy_db(db_path)
+
+    manager = DBSecurityManager(db_path=str(db_path))
+    manager.load_memory_db()
+    # Note: No create_lock() called
+
+    conn = manager.get_connection()
+    conn.execute("INSERT INTO test (data) VALUES ('unsafe_data')")
+
+    # Try to save
+    result = manager.save_to_disk()
+    assert result is False # Should refuse to save
+
+    # Verify Disk still Plain (because it was plain initially, and save failed)
+    # Actually, if it was plain, load_memory_db sets is_locked_mode=True.
+    # But save_to_disk didn't write.
+    # So disk should still be the ORIGINAL plain file.
+    conn_disk = sqlite3.connect(db_path)
+    cur_disk = conn_disk.cursor()
+    cur_disk.execute("SELECT data FROM test WHERE data='unsafe_data'")
+    assert cur_disk.fetchone() is None # Data not written

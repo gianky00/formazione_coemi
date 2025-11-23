@@ -7,7 +7,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.api import main as api_router
 from app.api.routers import notifications as notifications_router
 from app.api.routers import auth, users, audit, config
-from app.db.session import engine, reconfigure_engine
+from app.db.session import engine
 from app.db.models import Base
 from app.core.config import settings
 from app.core.db_security import db_security
@@ -23,16 +23,13 @@ async def lifespan(app: FastAPI):
     """
     app.state.startup_error = None
 
-    # Initialize DB Security (Decrypt to Temp, Lock)
+    # Initialize DB Security (Load into RAM, Check Lock)
     try:
-        # Decrypts DB to temp file and returns the connection string
-        new_db_url = db_security.initialize_db()
-        # Point the SQLAlchemy engine to the temp file
-        reconfigure_engine(new_db_url)
+        db_security.load_memory_db()
+        # Note: engine is statically configured in session.py to use db_security.get_connection
     except PermissionError as e:
         print(f"CRITICAL: {e}")
         app.state.startup_error = str(e)
-        # We do NOT raise here, so the app can start and report the error via API
         yield
         return
     except Exception as e:
@@ -51,7 +48,7 @@ async def lifespan(app: FastAPI):
         # Schedule the daily alert job
         scheduler.add_job(check_and_send_alerts, 'cron', hour=8, minute=0)
 
-        # Schedule DB Sync (Every 5 minutes) to save data back to the encrypted file
+        # Schedule DB Sync (Every 5 minutes) to save RAM data back to disk (if locked)
         scheduler.add_job(db_security.sync_db, 'interval', minutes=5)
 
         scheduler.start()
@@ -66,7 +63,7 @@ async def lifespan(app: FastAPI):
         try:
             scheduler.shutdown()
         except: pass
-        # Encrypt/Save and remove temp file
+        # Save and Unlock
         db_security.cleanup()
 
 app = FastAPI(
@@ -79,7 +76,6 @@ app = FastAPI(
 @app.middleware("http")
 async def check_startup_error(request: Request, call_next):
     if hasattr(request.app.state, "startup_error") and request.app.state.startup_error:
-        # Allow OPTIONS for CORS preflight checks if needed, but blocking everything is safer
         return JSONResponse(
             status_code=503,
             content={"detail": request.app.state.startup_error}
