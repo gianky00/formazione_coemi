@@ -3,9 +3,9 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton,
     QMessageBox, QFrame, QFormLayout, QComboBox, QFileDialog, QHBoxLayout,
     QTableWidget, QTableWidgetItem, QDialog, QDialogButtonBox, QCheckBox,
-    QStackedWidget, QButtonGroup, QHeaderView
+    QStackedWidget, QButtonGroup, QHeaderView, QDateEdit
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QDate
 from dotenv import load_dotenv, set_key
 from desktop_app.api_client import APIClient
 
@@ -268,11 +268,39 @@ class AuditLogWidget(QFrame):
         header.addWidget(title)
         header.addStretch()
 
+        self.layout.addLayout(header)
+
+        # Filters
+        filter_layout = QHBoxLayout()
+
+        self.user_filter = QComboBox()
+        self.user_filter.addItem("Tutti gli utenti", None)
+        # We need to populate this. We can do it when refreshing or in showEvent.
+        # Since AuditLogWidget is initialized with api_client, we can try to fetch users if admin.
+
+        filter_layout.addWidget(QLabel("Utente:"))
+        filter_layout.addWidget(self.user_filter)
+
+        self.start_date = QDateEdit()
+        self.start_date.setCalendarPopup(True)
+        self.start_date.setDisplayFormat("dd/MM/yyyy")
+        self.start_date.setDate(QDate.currentDate().addDays(-30)) # Default last 30 days
+
+        self.end_date = QDateEdit()
+        self.end_date.setCalendarPopup(True)
+        self.end_date.setDisplayFormat("dd/MM/yyyy")
+        self.end_date.setDate(QDate.currentDate())
+
+        filter_layout.addWidget(QLabel("Dal:"))
+        filter_layout.addWidget(self.start_date)
+        filter_layout.addWidget(QLabel("Al:"))
+        filter_layout.addWidget(self.end_date)
+
         self.refresh_btn = QPushButton("Aggiorna")
         self.refresh_btn.clicked.connect(self.refresh_logs)
-        header.addWidget(self.refresh_btn)
+        filter_layout.addWidget(self.refresh_btn)
 
-        self.layout.addLayout(header)
+        self.layout.addLayout(filter_layout)
 
         self.table = QTableWidget()
         self.table.setColumnCount(4)
@@ -292,7 +320,30 @@ class AuditLogWidget(QFrame):
 
     def refresh_logs(self):
         try:
-            logs = self.api_client.get_audit_logs(limit=500)
+            # Update users list if empty (lazy load)
+            if self.user_filter.count() == 1:
+                try:
+                    users = self.api_client.get_users()
+                    for u in users:
+                        self.user_filter.addItem(u['username'], u['id'])
+                except: pass
+
+            user_id = self.user_filter.currentData()
+            start_date = self.start_date.date().toPyDate()
+            end_date = self.end_date.date().toPyDate()
+
+            # Adjust end_date to include the whole day (23:59:59) or just pass date and let backend handle?
+            # Backend compares timestamp. date >= start_date (00:00). date <= end_date (00:00).
+            # So if we want to include today events, we need to handle time.
+            # Let's just pass the date object, and backend should handle or we pass datetime.
+            # My backend implementation: query.filter(AuditLog.timestamp <= end_date)
+            # If I pass a date, sqlalchemy might cast?
+            # Better to pass datetime at end of day.
+            from datetime import datetime, time
+            start_dt = datetime.combine(start_date, time.min)
+            end_dt = datetime.combine(end_date, time.max)
+
+            logs = self.api_client.get_audit_logs(limit=500, user_id=user_id, start_date=start_dt, end_date=end_dt)
             self.table.setRowCount(len(logs))
             for i, log in enumerate(logs):
                 ts = log['timestamp']
@@ -306,6 +357,7 @@ class AuditLogWidget(QFrame):
                 self.table.setItem(i, 2, QTableWidgetItem(log['action']))
                 self.table.setItem(i, 3, QTableWidgetItem(str(log['details'] or "")))
         except Exception as e:
+            print(f"Error refreshing logs: {e}")
             pass
 
 class ConfigView(QWidget):
@@ -508,6 +560,11 @@ class ConfigView(QWidget):
             set_key(env_path, "EMAIL_RECIPIENTS_CC", gs.recipients_cc_input.text())
             set_key(env_path, "ALERT_THRESHOLD_DAYS", gs.alert_threshold_input.text())
             set_key(env_path, "ALERT_THRESHOLD_DAYS_VISITE", gs.alert_threshold_visite_input.text())
+
+            # Audit Log
+            try:
+                self.api_client.create_audit_log("CONFIG_UPDATE", "Updated application settings (SMTP/API Keys/Thresholds).")
+            except: pass
 
             QMessageBox.information(self, "Salvato", "Configurazione salvata. Riavviare per applicare.")
         except Exception as e:

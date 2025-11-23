@@ -93,9 +93,26 @@ class APIClient:
 
     # --- Audit Logs ---
 
-    def get_audit_logs(self, skip=0, limit=100):
+    def get_audit_logs(self, skip=0, limit=100, user_id=None, start_date=None, end_date=None):
         url = f"{self.base_url}/audit/"
         params = {"skip": skip, "limit": limit}
+        if user_id:
+            params["user_id"] = user_id
+        if start_date:
+            # Assuming start_date is a datetime or date object, or ISO string
+            params["start_date"] = start_date.isoformat() if hasattr(start_date, 'isoformat') else start_date
+        if end_date:
+            params["end_date"] = end_date.isoformat() if hasattr(end_date, 'isoformat') else end_date
+
         response = requests.get(url, params=params, headers=self._get_headers())
         response.raise_for_status()
         return response.json()
+
+    def create_audit_log(self, action, details=None):
+        url = f"{self.base_url}/audit/"
+        payload = {"action": action, "details": details}
+        response = requests.post(url, json=payload, headers=self._get_headers())
+        # We don't necessarily crash if audit fails, but logging it is good
+        # response.raise_for_status()
+        # Allow caller to handle or ignore
+        return response.json() if response.ok else None

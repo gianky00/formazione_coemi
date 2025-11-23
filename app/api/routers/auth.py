@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.schemas.schemas import Token, User
 from app.api import deps
 from app.db.models import BlacklistedToken
+from app.utils.audit import log_security_action
 
 router = APIRouter()
 
@@ -27,6 +28,7 @@ def logout(
             blacklist_entry = BlacklistedToken(token=token)
             db.add(blacklist_entry)
             db.commit()
+            log_security_action(db, current_user, "LOGOUT", "User logged out successfully")
         except Exception:
             db.rollback()
             # If it failed, it's likely already blacklisted or race condition.
@@ -44,6 +46,10 @@ def login_access_token(
     """
     user = db.query(deps.User).filter(deps.User.username == form_data.username).first()
     if not user or not security.verify_password(form_data.password, user.hashed_password):
+        # We could log failed attempts here if we wanted to be very strict,
+        # but usually we log successful logins in audit.
+        # Potentially log failed login to system?
+        # For now, sticking to auditing successful actions as per typical scope.
         raise HTTPException(status_code=400, detail="Incorrect email or password")
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -55,6 +61,8 @@ def login_access_token(
     user.previous_login = user.last_login
     user.last_login = datetime.utcnow()
     db.commit()
+
+    log_security_action(db, user, "LOGIN", "User logged in successfully")
 
     return {
         "access_token": access_token,
