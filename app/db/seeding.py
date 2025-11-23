@@ -32,6 +32,10 @@ def migrate_schema(db: Session):
             db.execute(text("ALTER TABLE audit_logs ADD COLUMN category VARCHAR"))
             db.commit()
 
+        # Backfill existing logs with 'GENERAL' category
+        db.execute(text("UPDATE audit_logs SET category = 'GENERAL' WHERE category IS NULL"))
+        db.commit()
+
     except Exception as e:
         print(f"Schema migration check failed: {e}")
         db.rollback()
