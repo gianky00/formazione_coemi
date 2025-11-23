@@ -278,6 +278,17 @@ def setup_styles(app: QApplication):
                 background-color: #F9FAFB;
                 border-bottom: 1px solid #E5E7EB;
             }
+            /* Override generic QTableView styles for Calendar to prevent squashing */
+            QCalendarWidget QTableView {
+                border: none;
+                background-color: #FFFFFF;
+                selection-background-color: #EFF6FF;
+            }
+            QCalendarWidget QTableView::item {
+                padding: 4px; /* Reset padding from 12px to 4px */
+                border: none;
+                color: #1F2937;
+            }
             QCalendarWidget QAbstractItemView:enabled {
                 color: #1F2937;
                 background-color: #FFFFFF;
