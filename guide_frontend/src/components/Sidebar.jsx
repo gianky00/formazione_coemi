@@ -10,7 +10,8 @@ import {
   ChevronRight,
   ChevronLeft,
   BookOpen,
-  X
+  X,
+  Shield
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
@@ -106,6 +107,7 @@ const Sidebar = () => {
         <SidebarItem icon={Database} label="Convalida Dati" to="/validation" collapsed={collapsed} />
         <SidebarItem icon={Calendar} label="Scadenzario" to="/calendar" collapsed={collapsed} />
         <SidebarItem icon={Users} label="Dipendenti" to="/employees" collapsed={collapsed} />
+        <SidebarItem icon={Shield} label="Sicurezza & Audit" to="/security" collapsed={collapsed} />
         <SidebarItem icon={Settings} label="Configurazione" to="/settings" collapsed={collapsed} />
 
         <div className="mt-4 border-t border-blue-800/50 mx-2 pt-2">
