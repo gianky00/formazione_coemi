@@ -64,3 +64,28 @@
     *   Uses stored `nome_dipendente_raw`.
     *   If a match is found in the updated registry -> Links `dipendente_id`.
 5.  **Result**: Certificates become "Assigned" and visible in the main Dashboard.
+
+## 5. Database Security Lifecycle
+**Goal**: Ensure encryption-at-rest and exclusive access without data loss.
+
+1.  **Architecture**: **Strict In-Memory**.
+    *   Disk File: `database_documenti.db` (Always Encrypted with Fernet).
+    *   Runtime: Decrypted into RAM (`sqlite3.deserialize`).
+    *   **No plain-text data is ever written to disk.**
+
+2.  **Startup Flow**:
+    *   Check for `.lock` file. If present -> **Halt** (Prevent Concurrency).
+    *   Load encrypted bytes -> Decrypt -> RAM.
+    *   If plain-text file detected -> Auto-upgrade (Load to RAM -> Encrypt on Save).
+
+3.  **Access Control**:
+    *   **Login**: Generates exclusive `.lock` file.
+    *   **Logout / Close Window**:
+        *   Trigger `db_security.cleanup()`.
+        *   Serialize RAM DB -> Encrypt -> Atomic Write to Disk.
+        *   Remove `.lock` file.
+
+4.  **Persistence**:
+    *   Periodic Sync (APScheduler, 5 min).
+    *   Explicit Sync on Logout.
+    *   **Constraint**: Sync only writes if the session holds the lock.
