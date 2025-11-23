@@ -70,9 +70,11 @@ const CalendarGuide = () => {
            La barra laterale sinistra organizza i certificati in un albero logico:
          </p>
          <ul className="mt-2 space-y-2 text-sm text-gray-600 font-mono bg-gray-50 p-4 rounded border border-gray-200">
-           <li>📁 Categoria (es. ANTINCENDIO)</li>
-           <li className="pl-4">📂 IN SCADENZA / SCADUTI</li>
-           <li className="pl-8">👤 Dipendente (es. Rossi Mario)</li>
+           <li>📂 DOCUMENTI DIPENDENTI</li>
+           <li className="pl-4">📁 Categoria (es. ANTINCENDIO)</li>
+           <li className="pl-8">📂 IN SCADENZA</li>
+           <li className="pl-8">📂 SCADUTI</li>
+           <li className="pl-12">👤 Dipendente (es. Rossi Mario)</li>
          </ul>
          <p className="mt-2 text-sm text-gray-500">
            Clicca su una categoria per filtrare il grafico e mostrare solo quel tipo di corso.

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, FileText, Database, Calendar, ArrowRight, LifeBuoy } from 'lucide-react';
+import { LayoutDashboard, FileText, Database, Calendar, ArrowRight, LifeBuoy, Shield } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const FeatureCard = ({ icon: Icon, title, desc, to, delay }) => (
@@ -82,11 +82,18 @@ const Home = () => {
             delay={0.4}
           />
           <FeatureCard
+            icon={Shield}
+            title="Sicurezza & Audit"
+            desc="Dettagli sulla crittografia del database, gestione degli accessi e log delle attività per la compliance."
+            to="/security"
+            delay={0.5}
+          />
+          <FeatureCard
             icon={LifeBuoy}
             title="Risoluzione Problemi"
             desc="Hai riscontrato un errore? Consulta le FAQ tecniche per risolvere rapidamente problemi di connessione o licenza."
             to="/troubleshooting"
-            delay={0.5}
+            delay={0.6}
           />
         </div>
       </section>

@@ -132,6 +132,21 @@ const TroubleshootingGuide = () => {
           </p>
         </>
       )
+    },
+    {
+      question: "Errore critico all'avvio: 'Database bloccato'",
+      icon: ShieldAlert,
+      answer: (
+        <>
+          <p className="mb-2">
+            Questo errore indica che il database è già in uso da un'altra istanza di Intelleo (o è rimasto bloccato dopo una chiusura anomala).
+          </p>
+          <ul className="list-disc list-inside space-y-1">
+            <li><strong>Causa:</strong> Il sistema di sicurezza impedisce l'accesso concorrente per proteggere i dati.</li>
+            <li><strong>Soluzione:</strong> Verifica che non ci siano altre finestre di Intelleo aperte sulla stessa macchina. Se il problema persiste, riavvia il PC o elimina manualmente il file <code>.database_documenti.db.lock</code> nella cartella del database.</li>
+          </ul>
+        </>
+      )
     }
   ];
 
@@ -171,12 +186,6 @@ const TroubleshootingGuide = () => {
           />
         ))}
       </motion.div>
-
-      <div className="mt-8 p-4 bg-blue-50 border border-blue-100 rounded-lg text-center">
-        <p className="text-blue-800 text-sm">
-          Non hai trovato la soluzione? Contatta il supporto tecnico all'indirizzo <a href="mailto:support@intelleo.it" className="font-bold underline">support@intelleo.it</a> includendo il file di Log.
-        </p>
-      </div>
     </div>
   );
 };
