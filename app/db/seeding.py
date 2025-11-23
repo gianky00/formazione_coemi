@@ -48,6 +48,16 @@ def migrate_schema(db: Session):
             db.execute(text("UPDATE audit_logs SET severity = 'LOW' WHERE severity IS NULL"))
             db.commit()
 
+        if audit_columns and 'device_id' not in audit_columns:
+            print("Migrating schema: Adding extended security columns (device_id, changes) to audit_logs table...")
+            try:
+                db.execute(text("ALTER TABLE audit_logs ADD COLUMN device_id VARCHAR"))
+                db.execute(text("ALTER TABLE audit_logs ADD COLUMN changes VARCHAR"))
+                db.commit()
+            except Exception as e:
+                print(f"Error adding extended security columns: {e}")
+                db.rollback()
+
         # Ensure indexes exist for performance (Brute force detection queries timestamp and ip_address)
         try:
             db.execute(text("CREATE INDEX IF NOT EXISTS ix_audit_logs_timestamp ON audit_logs (timestamp)"))

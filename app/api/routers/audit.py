@@ -1,6 +1,6 @@
 from typing import Any, List, Optional
 from datetime import datetime
-from fastapi import APIRouter, Depends, Body, HTTPException
+from fastapi import APIRouter, Depends, Body, HTTPException, Request
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.api import deps
@@ -44,24 +44,30 @@ def read_audit_logs(
 @router.post("/", response_model=AuditLogSchema)
 def create_audit_log(
     *,
+    request: Request,
     db: Session = Depends(get_db),
     action: str = Body(..., embed=True),
     category: Optional[str] = Body(None, embed=True),
     details: Optional[str] = Body(None, embed=True),
+    changes: Optional[str] = Body(None, embed=True),
+    severity: Optional[str] = Body("LOW", embed=True),
     current_user: UserModel = Depends(deps.get_current_user),
 ) -> Any:
     """
     Create an audit log entry (Authenticated users).
     Useful for logging client-side actions like configuration changes.
     """
-    log_entry = AuditLog(
-        user_id=current_user.id,
-        username=current_user.username,
-        action=action,
+    log_security_action(
+        db,
+        current_user,
+        action,
+        details=details,
         category=category,
-        details=details
+        request=request,
+        severity=severity,
+        changes=changes
     )
-    db.add(log_entry)
-    db.commit()
-    db.refresh(log_entry)
+
+    # Retrieve the created log to return it
+    log_entry = db.query(AuditLog).filter(AuditLog.user_id == current_user.id).order_by(AuditLog.id.desc()).first()
     return log_entry

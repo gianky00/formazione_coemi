@@ -55,6 +55,8 @@ class AuditLog(Base):
     user_agent = Column(String, nullable=True)
     geolocation = Column(String, nullable=True)
     severity = Column(String, default="LOW") # LOW, MEDIUM, CRITICAL
+    device_id = Column(String, nullable=True)
+    changes = Column(String, nullable=True) # JSON string
 
 class Dipendente(Base):
     """

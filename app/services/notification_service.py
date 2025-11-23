@@ -206,6 +206,36 @@ def send_email_notification(pdf_content_bytes, expiring_corsi_count, expiring_vi
         logging.error(f"An unexpected error occurred with {conn_method} while sending email: {e}", exc_info=True)
         raise ConnectionAbortedError(f"An unexpected error occurred: {e}")
 
+def send_security_alert_email(subject, body_html):
+    """Sends a critical security alert email."""
+    to_emails = [email.strip() for email in settings.EMAIL_RECIPIENTS_TO.split(',') if email.strip()]
+    cc_emails = [email.strip() for email in settings.EMAIL_RECIPIENTS_CC.split(',') if email.strip()]
+
+    if not to_emails:
+        return
+
+    msg = MIMEMultipart()
+    msg['From'] = settings.SMTP_USER
+    msg['To'] = ", ".join(to_emails)
+    if cc_emails:
+        msg['Cc'] = ", ".join(cc_emails)
+    msg['Subject'] = subject
+
+    msg.attach(MIMEText(body_html, 'html'))
+
+    try:
+        if settings.SMTP_PORT == 465:
+            with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                server.send_message(msg, from_addr=settings.SMTP_USER, to_addrs=to_emails + cc_emails)
+        else:
+            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+                server.starttls()
+                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                server.send_message(msg, from_addr=settings.SMTP_USER, to_addrs=to_emails + cc_emails)
+    except Exception as e:
+        logging.error(f"Failed to send security alert: {e}")
+
 def check_and_send_alerts():
     """
     Checks for certificates that are expiring soon or are overdue and sends

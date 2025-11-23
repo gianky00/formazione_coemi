@@ -1,7 +1,28 @@
 import os
 import sys
+import uuid
 from PyQt6.QtGui import QIcon, QPixmap
 from PyQt6.QtCore import QByteArray
+
+def get_device_id():
+    """
+    Retrieves the device fingerprint.
+    Tries to read 'Hardware ID' from 'dettagli_licenza.txt' (consistent with license).
+    Falls back to MAC address (uuid.getnode()) if file not found.
+    """
+    try:
+        # Try reading details file in root (cwd)
+        lic_path = "dettagli_licenza.txt"
+        if os.path.exists(lic_path):
+            with open(lic_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    if "Hardware ID:" in line:
+                        return line.split("Hardware ID:")[1].strip()
+    except Exception:
+        pass
+
+    # Fallback
+    return str(uuid.getnode())
 
 def get_asset_path(relative_path):
     """

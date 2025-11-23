@@ -126,5 +126,7 @@ class AuditLogSchema(BaseModel):
     user_agent: Optional[str] = None
     geolocation: Optional[str] = None
     severity: Optional[str] = "LOW"
+    device_id: Optional[str] = None
+    changes: Optional[str] = None # JSON string
 
     model_config = ConfigDict(from_attributes=True)
