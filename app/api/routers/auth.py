@@ -83,9 +83,13 @@ def login_access_token(
     )
 
     # Update last login
-    user.previous_login = user.last_login
+    old_last_login = user.last_login
+    user.previous_login = old_last_login
     user.last_login = datetime.utcnow()
     db.commit()
+    db.refresh(user)
+
+    print(f"[DEBUG] Login success. Username: {user.username}, Previous Login: {user.previous_login}, New Last Login: {user.last_login}")
 
     log_security_action(db, user, "LOGIN", "User logged in successfully", category="AUTH", request=request)
 

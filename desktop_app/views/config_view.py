@@ -332,8 +332,8 @@ class AuditLogWidget(QFrame):
         self.layout.addLayout(filter_layout)
 
         self.table = QTableWidget()
-        self.table.setColumnCount(8)
-        self.table.setHorizontalHeaderLabels(["Data/Ora", "Severità", "Utente", "IP", "Geo", "Azione", "Categoria", "Dettagli"])
+        self.table.setColumnCount(9)
+        self.table.setHorizontalHeaderLabels(["Data/Ora", "Severità", "Utente", "IP", "Geo", "Device ID", "Azione", "Categoria", "Dettagli"])
 
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -343,7 +343,8 @@ class AuditLogWidget(QFrame):
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(8, QHeaderView.ResizeMode.Stretch)
 
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
@@ -397,8 +398,9 @@ class AuditLogWidget(QFrame):
                 self.table.setItem(i, 2, QTableWidgetItem(log['username']))
                 self.table.setItem(i, 3, QTableWidgetItem(log.get('ip_address') or ""))
                 self.table.setItem(i, 4, QTableWidgetItem(log.get('geolocation') or ""))
-                self.table.setItem(i, 5, QTableWidgetItem(log['action']))
-                self.table.setItem(i, 6, QTableWidgetItem(log.get('category') or ""))
+                self.table.setItem(i, 5, QTableWidgetItem(log.get('device_id') or ""))
+                self.table.setItem(i, 6, QTableWidgetItem(log['action']))
+                self.table.setItem(i, 7, QTableWidgetItem(log.get('category') or ""))
 
                 details_text = str(log.get('details') or "")
                 changes_json = log.get('changes')
@@ -406,17 +408,26 @@ class AuditLogWidget(QFrame):
                     try:
                         changes_dict = json.loads(changes_json)
                         if changes_dict:
-                            details_text += f" [Modifiche: {list(changes_dict.keys())}]"
+                            # Format changes: "Key: Old->New"
+                            formatted_changes = []
+                            for k, v in changes_dict.items():
+                                if isinstance(v, dict) and 'old' in v and 'new' in v:
+                                    formatted_changes.append(f"{k}: {v['old']} -> {v['new']}")
+                                else:
+                                    formatted_changes.append(f"{k}: {v}")
+
+                            changes_str = ", ".join(formatted_changes)
+                            details_text += f" [Modifiche: {changes_str}]"
                     except: pass
 
                 item_details = QTableWidgetItem(details_text)
                 if changes_json:
                      item_details.setToolTip(changes_json)
 
-                self.table.setItem(i, 7, item_details)
+                self.table.setItem(i, 8, item_details)
 
                 if bg_color:
-                    for j in range(8):
+                    for j in range(9):
                         item = self.table.item(i, j)
                         if item:
                             item.setBackground(bg_color)

@@ -363,7 +363,7 @@ class ApplicationController:
         account_name = user_info.get("account_name") or user_info.get("username")
 
         prev_login_raw = user_info.get("previous_login")
-        if prev_login_raw:
+        if prev_login_raw and str(prev_login_raw).lower() != "none":
             try:
                 # Handle simplified ISO format (remove 'Z' if present)
                 if isinstance(prev_login_raw, str):
@@ -373,7 +373,8 @@ class ApplicationController:
                     display_str = dt.strftime("%d/%m/%Y %H:%M")
                 else:
                     display_str = str(prev_login_raw)
-            except Exception:
+            except Exception as e:
+                print(f"[DEBUG] Error parsing previous_login: {e}")
                 display_str = str(prev_login_raw)
         else:
             display_str = "Primo Accesso"
