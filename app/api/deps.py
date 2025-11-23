@@ -1,5 +1,5 @@
 from typing import Generator, Optional
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.db.models import User, BlacklistedToken
 from app.schemas.schemas import TokenData
+from app.utils.audit import log_security_action
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
 
@@ -39,7 +40,20 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         raise credentials_exception
     return user
 
-def get_current_active_admin(current_user: User = Depends(get_current_user)) -> User:
+def get_current_active_admin(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> User:
     if not current_user.is_admin:
+        log_security_action(
+            db,
+            current_user,
+            "UNAUTHORIZED_ACCESS",
+            details="User attempted to access admin endpoint without privileges.",
+            category="AUTH",
+            request=request,
+            severity="CRITICAL"
+        )
         raise HTTPException(status_code=400, detail="The user doesn't have enough privileges")
     return current_user

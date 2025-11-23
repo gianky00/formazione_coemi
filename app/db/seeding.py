@@ -32,6 +32,32 @@ def migrate_schema(db: Session):
             db.execute(text("ALTER TABLE audit_logs ADD COLUMN category VARCHAR"))
             db.commit()
 
+        if audit_columns and 'ip_address' not in audit_columns:
+            print("Migrating schema: Adding security columns to audit_logs table...")
+            try:
+                db.execute(text("ALTER TABLE audit_logs ADD COLUMN ip_address VARCHAR"))
+                db.execute(text("ALTER TABLE audit_logs ADD COLUMN user_agent VARCHAR"))
+                db.execute(text("ALTER TABLE audit_logs ADD COLUMN geolocation VARCHAR"))
+                db.execute(text("ALTER TABLE audit_logs ADD COLUMN severity VARCHAR DEFAULT 'LOW'"))
+                db.commit()
+            except Exception as e:
+                print(f"Error adding security columns: {e}")
+                db.rollback()
+
+            # Update existing rows to have LOW severity if needed (though DEFAULT handles new inserts, existing rows get NULL usually unless DEFAULT is supported in ALTER which varies by DB, SQLite supports it)
+            db.execute(text("UPDATE audit_logs SET severity = 'LOW' WHERE severity IS NULL"))
+            db.commit()
+
+        # Ensure indexes exist for performance (Brute force detection queries timestamp and ip_address)
+        try:
+            db.execute(text("CREATE INDEX IF NOT EXISTS ix_audit_logs_timestamp ON audit_logs (timestamp)"))
+            db.execute(text("CREATE INDEX IF NOT EXISTS ix_audit_logs_ip_address ON audit_logs (ip_address)"))
+            db.commit()
+        except Exception as e:
+            print(f"Error creating indexes: {e}")
+            # Non-fatal, might already exist or DB doesn't support IF NOT EXISTS (SQLite does)
+            db.rollback()
+
         # Backfill existing logs with 'GENERAL' category if null
         db.execute(text("UPDATE audit_logs SET category = 'GENERAL' WHERE category IS NULL"))
 

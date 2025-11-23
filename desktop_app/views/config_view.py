@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (
     QStackedWidget, QButtonGroup, QHeaderView, QDateEdit
 )
 from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtGui import QColor
 from dotenv import load_dotenv, set_key
 from desktop_app.api_client import APIClient
 
@@ -309,15 +310,18 @@ class AuditLogWidget(QFrame):
         self.layout.addLayout(filter_layout)
 
         self.table = QTableWidget()
-        self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels(["Data/Ora", "Utente", "Azione", "Categoria", "Dettagli"])
+        self.table.setColumnCount(8)
+        self.table.setHorizontalHeaderLabels(["Data/Ora", "Severità", "Utente", "IP", "Geo", "Azione", "Categoria", "Dettagli"])
 
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
 
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
@@ -359,11 +363,27 @@ class AuditLogWidget(QFrame):
                     ts = dt_ts.strftime("%d/%m/%Y %H:%M:%S")
                 except: pass
 
+                severity = log.get('severity', 'LOW')
+                bg_color = None
+                if severity == 'CRITICAL':
+                    bg_color = QColor("#FECACA") # Light Red
+                elif severity == 'MEDIUM':
+                    bg_color = QColor("#FFEDD5") # Light Orange
+
                 self.table.setItem(i, 0, QTableWidgetItem(ts))
-                self.table.setItem(i, 1, QTableWidgetItem(log['username']))
-                self.table.setItem(i, 2, QTableWidgetItem(log['action']))
-                self.table.setItem(i, 3, QTableWidgetItem(log.get('category') or ""))
-                self.table.setItem(i, 4, QTableWidgetItem(str(log['details'] or "")))
+                self.table.setItem(i, 1, QTableWidgetItem(severity))
+                self.table.setItem(i, 2, QTableWidgetItem(log['username']))
+                self.table.setItem(i, 3, QTableWidgetItem(log.get('ip_address') or ""))
+                self.table.setItem(i, 4, QTableWidgetItem(log.get('geolocation') or ""))
+                self.table.setItem(i, 5, QTableWidgetItem(log['action']))
+                self.table.setItem(i, 6, QTableWidgetItem(log.get('category') or ""))
+                self.table.setItem(i, 7, QTableWidgetItem(str(log['details'] or "")))
+
+                if bg_color:
+                    for j in range(8):
+                        item = self.table.item(i, j)
+                        if item:
+                            item.setBackground(bg_color)
         except Exception as e:
             print(f"Error refreshing logs: {e}")
             pass
