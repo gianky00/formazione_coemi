@@ -4,9 +4,11 @@ import hashlib
 import base64
 import time
 import logging
+import ctypes
 from pathlib import Path
 from cryptography.fernet import Fernet
 from app.core.config import settings
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +28,25 @@ class DBSecurityManager:
 
     def __init__(self, db_path: str = "database_documenti.db"):
         self.db_path = Path(db_path).resolve()
-        self.temp_path = self.db_path.with_name(f".temp_{self.db_path.name}")
+
+        # Use User Home for Temp File to isolate it
+        # Hidden folder in user's home directory
+        self.home_dir = Path.home() / ".intelleo_data"
+        self.home_dir.mkdir(parents=True, exist_ok=True)
+
+        # Hide the directory on Windows
+        if os.name == 'nt':
+            try:
+                # FILE_ATTRIBUTE_HIDDEN = 2
+                ctypes.windll.kernel32.SetFileAttributesW(str(self.home_dir), 2)
+            except Exception:
+                pass
+
+        self.temp_path = self.home_dir / f"temp_{self.db_path.name}"
+
+        # Lock file stays with the MAIN DB to ensure visibility for other instances accessing the same DB
         self.lock_path = self.db_path.with_name(f".{self.db_path.name}.lock")
+
         self.key = self._derive_key()
         self.fernet = Fernet(self.key)
         self.is_locked_mode = False # Tracks if we are operating in Encrypted mode
@@ -92,15 +111,31 @@ class DBSecurityManager:
         else:
             # New DB scenario
             logger.info("Database not found. A new one will be created in temporary workspace.")
-            self.is_locked_mode = False # Default new DBs are plain until explicitly locked?
-            # OR we respect the desired configuration?
-            # Let's assume default is Plain unless Admin toggles.
-            # But we must ensure Temp path is valid for SQLAlchemy to create it.
+            self.is_locked_mode = False # Default new DBs are plain until explicitly locked
             pass
 
         # Return the connection string for SQLAlchemy
-        # On Windows, 3 slashes /// is relative.
-        return f"sqlite:///{self.temp_path}"
+        # Use forward slashes for cross-platform compatibility
+        return f"sqlite:///{self.temp_path.as_posix()}"
+
+    @retry(stop=stop_after_attempt(5), wait=wait_fixed(1), retry=retry_if_exception_type(PermissionError))
+    def _safe_replace(self, src: Path, dst: Path):
+        """
+        Safely replaces the destination file with source, with retries for Windows file locking.
+        """
+        # On Windows, os.replace might fail if dst is open or has sharing violation
+        # We try to force it.
+        if os.name == 'nt' and dst.exists():
+            try:
+                os.replace(src, dst)
+            except PermissionError:
+                # Sometimes removing the destination first helps if replace fails
+                # But we must be careful not to lose data if move fails after remove.
+                # os.replace is supposed to be atomic.
+                # If it fails, we raise to trigger retry.
+                raise
+        else:
+            os.replace(src, dst)
 
     def sync_db(self):
         """
@@ -120,13 +155,16 @@ class DBSecurityManager:
             else:
                 shutil.copy2(self.temp_path, swp_path)
 
-            # Atomic rename (on POSIX, and decent on Windows)
-            swp_path.replace(self.db_path)
+            # Atomic rename (on POSIX, and decent on Windows with retry)
+            self._safe_replace(swp_path, self.db_path)
+
             logger.info("Database synchronized successfully.")
         except Exception as e:
             logger.error(f"Failed to sync database: {e}")
             if swp_path.exists():
-                os.remove(swp_path)
+                try:
+                    os.remove(swp_path)
+                except: pass
             raise
 
     def cleanup(self):

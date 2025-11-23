@@ -2,13 +2,13 @@ import pytest
 import os
 import sqlite3
 from pathlib import Path
+from unittest.mock import patch
 from app.core.db_security import DBSecurityManager
 
 @pytest.fixture
 def temp_workspace(tmp_path):
     # Setup a clean workspace
-    db_path = tmp_path / "test_db.db"
-    return db_path
+    return tmp_path
 
 def create_dummy_db(path):
     conn = sqlite3.connect(path)
@@ -18,14 +18,21 @@ def create_dummy_db(path):
     conn.commit()
     conn.close()
 
-def test_security_manager_lifecycle(temp_workspace):
-    db_path = temp_workspace
+@patch("app.core.db_security.Path.home")
+def test_security_manager_lifecycle(mock_home, temp_workspace):
+    # Mock home to prevent pollution
+    mock_home.return_value = temp_workspace
+
+    db_path = temp_workspace / "database_documenti.db"
 
     # 1. Create Plain DB
     create_dummy_db(db_path)
 
     # 2. Init Manager
     manager = DBSecurityManager(db_path=str(db_path))
+
+    # Check that temp path is correct relative to mocked home
+    assert manager.home_dir == temp_workspace / ".intelleo_data"
 
     # 3. Test Initialize (Should detect plain and copy to temp)
     temp_conn_str = manager.initialize_db()
@@ -91,8 +98,10 @@ def test_security_manager_lifecycle(temp_workspace):
 
     manager2.cleanup()
 
-def test_locking_mechanism(temp_workspace):
-    db_path = temp_workspace
+@patch("app.core.db_security.Path.home")
+def test_locking_mechanism(mock_home, temp_workspace):
+    mock_home.return_value = temp_workspace
+    db_path = temp_workspace / "database_documenti.db"
     create_dummy_db(db_path)
 
     manager1 = DBSecurityManager(db_path=str(db_path))
