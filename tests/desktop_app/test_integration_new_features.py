@@ -4,18 +4,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 from datetime import date
 
-# Apply mocks BEFORE importing any PyQt modules
-from tests.desktop_app.mock_qt import mock_qt_modules
-
-modules = mock_qt_modules()
-for name, mod in modules.items():
-    sys.modules[name] = mod
-
-# Now safe to import
-from desktop_app.main_window_ui import Sidebar
-from desktop_app.views.login_view import LoginView
-from desktop_app.views.config_view import AuditLogWidget
-
 @pytest.fixture
 def mock_api_client():
     client = MagicMock()
@@ -26,6 +14,7 @@ def mock_api_client():
 
 @patch('desktop_app.main_window_ui.load_colored_icon')
 def test_sidebar_license_logic(mock_load_icon):
+    from desktop_app.main_window_ui import Sidebar
     # Mock return value to avoid QPixmap usage
     mock_load_icon.return_value = MagicMock()
 
@@ -56,6 +45,7 @@ Generato il: 01/01/2023
 
 @patch('desktop_app.main_window_ui.load_colored_icon')
 def test_sidebar_license_legacy_format(mock_load_icon):
+    from desktop_app.main_window_ui import Sidebar
     mock_load_icon.return_value = MagicMock()
 
     # Mock detailed_licenza.txt with YYYY-MM-DD
@@ -84,6 +74,7 @@ Generato il: 2023-01-01
 
 @patch('desktop_app.utils.get_asset_path', return_value=None) # Avoid loading logo pixmap
 def test_login_view_instantiation(mock_get_asset, mock_api_client):
+    from desktop_app.views.login_view import LoginView
     # Just check if it crashes
     with open("dettagli_licenza.txt", "w") as f:
         f.write("Hardware ID: Test")
@@ -95,6 +86,7 @@ def test_login_view_instantiation(mock_get_asset, mock_api_client):
             os.remove("dettagli_licenza.txt")
 
 def test_audit_log_widget(mock_api_client):
+    from desktop_app.views.config_view import AuditLogWidget
     widget = AuditLogWidget(mock_api_client)
     widget.refresh_logs()
     mock_api_client.get_audit_logs.assert_called()

@@ -4,16 +4,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 from datetime import date, timedelta
 
-# Apply mocks
-from tests.desktop_app.mock_qt import mock_qt_modules
-modules = mock_qt_modules()
-for name, mod in modules.items():
-    sys.modules[name] = mod
+@patch('desktop_app.main_window_ui.load_colored_icon')
+def test_sidebar_license_expired(mock_load_icon):
+    from desktop_app.main_window_ui import Sidebar
+    mock_load_icon.return_value = MagicMock()
 
-from desktop_app.main_window_ui import Sidebar
-from desktop_app.views.import_view import PdfWorker
-
-def test_sidebar_license_expired():
     # Expiry date in past
     past_date = (date.today() - timedelta(days=5)).strftime("%d/%m/%Y")
     content = f"""Hardware ID: 12345
@@ -41,6 +36,7 @@ Generato il: 01/01/2023
 
 @patch('requests.post')
 def test_pdf_worker_headers(mock_post):
+    from desktop_app.views.import_view import PdfWorker
     mock_client = MagicMock()
     mock_client.base_url = "http://test"
     mock_client._get_headers.return_value = {"Authorization": "Bearer token"}

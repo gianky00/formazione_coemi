@@ -2,11 +2,11 @@ import unittest
 from unittest.mock import MagicMock, patch, mock_open
 import os
 from datetime import datetime, date
-from desktop_app.views.import_view import PdfWorker
 
 class TestPdfWorker(unittest.TestCase):
 
     def setUp(self):
+        from desktop_app.views.import_view import PdfWorker
         self.api_client = MagicMock()
         self.api_client.base_url = "http://test-api"
         self.worker = PdfWorker([], self.api_client)
