@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.core import security
 from app.core.config import settings
+from app.core.db_security import db_security
 from app.schemas.schemas import Token, User
 from app.api import deps
 from app.db.models import BlacklistedToken, AuditLog
@@ -35,6 +36,12 @@ def logout(
             # If it failed, it's likely already blacklisted or race condition.
             # We treat it as success (idempotent).
             pass
+
+    # Force DB Sync and Cleanup on logout to ensure data persistence and lock release
+    try:
+        db_security.cleanup()
+    except Exception as e:
+        print(f"Error cleaning up DB on logout: {e}")
 
     return {"message": "Successfully logged out"}
 
@@ -88,6 +95,14 @@ def login_access_token(
     user.last_login = datetime.utcnow()
     db.commit()
     db.refresh(user)
+
+    # Create Session Lock
+    # This enforces single-user access upon successful login
+    try:
+        db_security.create_lock()
+    except PermissionError as e:
+        # Deny login if database is locked by another session
+        raise HTTPException(status_code=409, detail=str(e))
 
     print(f"[DEBUG] Login success. Username: {user.username}, Previous Login: {user.previous_login}, New Last Login: {user.last_login}")
 

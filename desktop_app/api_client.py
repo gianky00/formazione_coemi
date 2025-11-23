@@ -131,3 +131,18 @@ class APIClient:
         # response.raise_for_status()
         # Allow caller to handle or ignore
         return response.json() if response.ok else None
+
+    # --- DB Security ---
+
+    def get_db_security_status(self):
+        url = f"{self.base_url}/config/db-security/status"
+        response = requests.get(url, headers=self._get_headers())
+        response.raise_for_status()
+        return response.json()
+
+    def toggle_db_security(self, locked: bool):
+        url = f"{self.base_url}/config/db-security/toggle"
+        payload = {"locked": locked}
+        response = requests.post(url, json=payload, headers=self._get_headers())
+        response.raise_for_status()
+        return response.json()

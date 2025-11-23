@@ -1,5 +1,6 @@
 import sys
-from PyQt6.QtWidgets import QApplication, QMainWindow
+import requests
+from PyQt6.QtWidgets import QApplication, QMainWindow, QMessageBox
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
 
@@ -342,6 +343,30 @@ class ApplicationController:
     def start(self):
         print("[DEBUG] ApplicationController.start called. Showing Max Window.")
         self.master_window.showMaximized()
+
+        # Check Backend Health to catch Startup Errors (e.g. DB Lock)
+        self.check_backend_health()
+
+    def check_backend_health(self):
+        try:
+            url = f"{self.api_client.base_url}/health"
+            # Short timeout check
+            response = requests.get(url, timeout=2)
+
+            # 503 Service Unavailable is used for Critical Startup Errors (like DB Lock)
+            if response.status_code == 503:
+                try:
+                    detail = response.json().get("detail", "Errore sconosciuto")
+                except:
+                    detail = response.text
+
+                QMessageBox.critical(self.master_window, "Errore Critico Database", f"Impossibile avviare l'applicazione:\n\n{detail}")
+                sys.exit(1)
+
+        except Exception as e:
+            print(f"[DEBUG] Health Check Warning: {e}")
+            # We proceed, as network errors might be temporary or handled by LoginView
+            pass
 
     def analyze_folder(self, folder_path):
         """
