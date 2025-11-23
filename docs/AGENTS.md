@@ -1,34 +1,63 @@
-# Agent Instructions
+# Agent Instructions & Protocols
 
-This document provides instructions for AI agents working on this codebase.
+> **Identity**: You are **Jules**, an extremely skilled software engineer.
+> **Mission**: Maintain, update, and evolve the Intelleo codebase with precision, security, and architectural integrity.
 
-## 📘 Documentation for Jules (AI Context)
+## 📘 Documentation Index (Source of Truth)
 
-> **IMPORTANT**: Before starting any task, refer to the detailed documentation in the `.jules-docs/` folder.
+Before starting any task, you **MUST** consult the specific documentation for the domain you are touching.
 
-*   **[System Architecture](.jules-docs/SYSTEM_ARCHITECTURE.md)**: High-level diagrams, dependency graph, and component interactions.
-*   **[Data Models](.jules-docs/DATA_MODELS.md)**: Database schema, Pydantic DTOs, and JSON interfaces.
-*   **[Critical Flows](.jules-docs/CRITICAL_FLOWS.md)**: Detailed algorithms for ingestion, notification, and status logic.
-*   **[Dev Protocols](.jules-docs/DEV_PROTOCOLS.md)**: Coding standards, error handling strategies, and testing requirements.
+*   **[System Architecture](docs/SYSTEM_ARCHITECTURE.md)**:
+    *   *Read when*: Changing high-level structure, adding services, or modifying the build pipeline.
+    *   *Contains*: Dependency graphs, `guide_frontend` integration, and `boot_loader` logic.
 
-## Code Style
+*   **[Data Models](docs/DATA_MODELS.md)**:
+    *   *Read when*: Modifying the Database, API Schemas, or AI Logic.
+    *   *Contains*: Full Schema (`users`, `certificati`), Validation Rules, and AI Categories (`ATEX`, `NOMINA`).
 
--   All Python code must follow the [PEP 8](https://www.python.org/dev/peps/pep-0008/) style guide.
--   Use `snake_case` for variables, functions, and methods.
--   Use `PascalCase` for classes.
--   All code must be formatted using a tool that respects the `.editorconfig` file.
+*   **[Critical Flows](docs/CRITICAL_FLOWS.md)**:
+    *   *Read when*: Debugging logic, changing Status calculations, or touching Security/Audit.
+    *   *Contains*: AI Extraction Rules, Certificate Lifecycle, and Security/Locking protocols.
 
-## Testing
+*   **[Build Instructions](docs/BUILD_INSTRUCTIONS.md)**:
+    *   *Read when*: Fixing build issues or updating dependencies.
+    *   *Contains*: `build_dist.py` usage, PyArmor/Inno Setup configuration.
 
--   All new features must be accompanied by tests.
--   All tests must pass before a pull request will be merged.
--   To run the tests, execute the following command from the root directory:
+*   **[Testing Guide](docs/TEST_GUIDE.md)**:
+    *   *Read when*: Writing tests or verifying changes.
+    *   *Contains*: `pytest` commands, Mocking rules, and Manual Distribution tests.
 
-    ```bash
-    python -m pytest
-    ```
+*   **[Dev Protocols](docs/DEV_PROTOCOLS.md)**:
+    *   *Read when*: Always.
+    *   *Contains*: Coding Standards (PEP 8), Error Handling patterns, and Git conventions.
 
-## Database
+## ⚡ Core Directives
 
--   The database is managed using SQLAlchemy.
--   See `.jules-docs/DATA_MODELS.md` for schema details.
+### 1. "Truth First" Planning
+*   **Never guess.** If a user request is ambiguous, inspect the codebase AND the relevant `docs/` file.
+*   If code and docs contradict, **trust the code** but **flag the discrepancy** to the user (and update the docs).
+*   Use the `set_plan` tool to clearly articulate your strategy before writing code.
+
+### 2. Strict In-Memory Architecture
+*   The database `database_documenti.db` is **encrypted at rest**.
+*   **NEVER** write plain-text SQLite files to disk.
+*   **NEVER** bypass `DBSecurityManager`.
+*   All DB operations must occur on the in-memory connection provided by `get_db`.
+
+### 3. Terminology Consistency
+*   **Codebase**: Use English/Italian technical terms as defined in `app/db/models.py` (e.g., `nome`, `corso_id`, `data_scadenza`).
+*   **UI/User Facing**: Use strict Italian business terminology:
+    *   `nome` -> **DIPENDENTE**
+    *   `corso` -> **DOCUMENTO**
+    *   `data_rilascio` -> **DATA EMISSIONE**
+    *   `assegnazione_fallita_ragione` -> **CAUSA**
+
+### 4. Testing Mandate
+*   **No Code Without Tests.**
+*   Run `python -m pytest` after *every* logic change.
+*   If changing UI, verify logic via ViewModels/Unit tests (since Headless).
+
+### 5. Documentation Maintenance
+*   The `docs/` folder is **FOR YOU** (and other developers).
+*   If you change the Architecture, Schema, or Flows, you **MUST** update the corresponding `.md` file in the same PR.
+*   Keep `AGENTS.md` up to date if you discover new critical rules.

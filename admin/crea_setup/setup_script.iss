@@ -73,7 +73,7 @@ Source: "..\..\desktop_app\icons\*"; DestDir: "{app}\desktop_app\icons"; Flags: 
 ; It will be created or migrated to AppData on first run by the application.
 
 ; === DOCUMENTAZIONE JULES ===
-; Copia l'intera cartella docs (rinominata da .jules-docs)
+; Copia l'intera cartella docs
 Source: "..\..\docs\*"; DestDir: "{app}\docs"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 [UninstallDelete]
