@@ -64,12 +64,13 @@ class LoginView(QWidget):
 
         if logo_path:
             pixmap = QPixmap(logo_path)
-            # Scale with better limits (e.g. 360x150) to avoid squashing
-            scaled = pixmap.scaled(QSize(360, 150), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            # Scale to maximize width within the 40% left panel (approx 380px width available)
+            # We leave slight padding. Target width ~340-350px.
+            scaled = pixmap.scaled(QSize(350, 160), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             logo_label.setPixmap(scaled)
         else:
             logo_label.setText("INTELLEO")
-            logo_label.setStyleSheet("font-size: 32px; font-weight: bold; color: #1E3A8A;")
+            logo_label.setStyleSheet("font-size: 36px; font-weight: bold; color: #1E3A8A;")
 
         left_layout.addStretch()
 
@@ -80,7 +81,8 @@ class LoginView(QWidget):
             border-radius: 16px;
         """)
         logo_container_layout = QVBoxLayout(logo_container)
-        logo_container_layout.setContentsMargins(40, 30, 40, 30) # More generous padding
+        # Reduced margins to eliminate empty space on sides
+        logo_container_layout.setContentsMargins(15, 20, 15, 20)
         logo_container_layout.addWidget(logo_label)
 
         # Removed setFixedSize to allow natural fit
