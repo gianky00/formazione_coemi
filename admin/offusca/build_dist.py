@@ -395,11 +395,23 @@ def build():
         output_folder = os.path.abspath(os.path.join(DIST_DIR, APP_NAME))
 
         if os.name == 'nt':
+            dll_dest_dir = os.path.join(output_folder, "dll")
+            os.makedirs(dll_dest_dir, exist_ok=True)
             for dll_name, dll_path in system_dlls.items():
-                dest = os.path.join(output_folder, dll_name)
+                dest = os.path.join(dll_dest_dir, dll_name)
                 if not os.path.exists(dest):
                     shutil.copy(dll_path, dest)
-                    log_and_print(f"Injected {dll_name} into build folder.")
+                    log_and_print(f"Injected {dll_name} into build/dll folder.")
+
+        # Move License files to Licenza folder
+        lic_dest_dir = os.path.join(output_folder, "Licenza")
+        os.makedirs(lic_dest_dir, exist_ok=True)
+
+        # Move pyarmor.rkey if exists
+        rkey_src = os.path.join(output_folder, "pyarmor.rkey")
+        if os.path.exists(rkey_src):
+            shutil.move(rkey_src, os.path.join(lic_dest_dir, "pyarmor.rkey"))
+            log_and_print("Moved pyarmor.rkey to Licenza folder.")
 
         log_and_print("\n--- Step 7/7: Compiling Installer with Inno Setup ---")
 
