@@ -52,6 +52,7 @@ def login_access_token(
     )
 
     # Update last login
+    user.previous_login = user.last_login
     user.last_login = datetime.utcnow()
     db.commit()
 
@@ -61,7 +62,8 @@ def login_access_token(
         "user_id": user.id,
         "username": user.username,
         "account_name": user.account_name,
-        "is_admin": user.is_admin
+        "is_admin": user.is_admin,
+        "previous_login": user.previous_login
     }
 
 @router.get("/me", response_model=User)
