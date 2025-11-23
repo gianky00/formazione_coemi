@@ -48,6 +48,7 @@ class AuditLog(Base):
     user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     username = Column(String, index=True) # Store snapshot of username in case user is deleted
     action = Column(String, index=True, nullable=False) # e.g. "PASSWORD_CHANGE", "USER_CREATE"
+    category = Column(String, index=True, nullable=True) # e.g. "LOGIN", "USER", "CERTIFICATE"
     details = Column(String, nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
 

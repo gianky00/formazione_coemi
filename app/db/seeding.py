@@ -23,6 +23,15 @@ def migrate_schema(db: Session):
             db.execute(text("ALTER TABLE users ADD COLUMN previous_login DATETIME"))
             db.commit()
 
+        # Check columns in audit_logs table
+        result = db.execute(text("PRAGMA table_info(audit_logs)"))
+        audit_columns = [row[1] for row in result.fetchall()]
+
+        if audit_columns and 'category' not in audit_columns:
+            print("Migrating schema: Adding category to audit_logs table...")
+            db.execute(text("ALTER TABLE audit_logs ADD COLUMN category VARCHAR"))
+            db.commit()
+
     except Exception as e:
         print(f"Schema migration check failed: {e}")
         db.rollback()

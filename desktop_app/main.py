@@ -257,6 +257,36 @@ def setup_styles(app: QApplication):
                 border: none;
                 background: none;
             }
+
+            /* Calendar Widget Styling Fix */
+            QCalendarWidget QToolButton {
+                color: #1F2937;
+                background-color: transparent;
+                icon-size: 16px;
+            }
+            QCalendarWidget QMenu {
+                background-color: #FFFFFF;
+                color: #1F2937;
+            }
+            QCalendarWidget QSpinBox {
+                color: #1F2937;
+                background-color: #FFFFFF;
+                selection-background-color: #1D4ED8;
+                selection-color: #FFFFFF;
+            }
+            QCalendarWidget QWidget#qt_calendar_navigationbar {
+                background-color: #F9FAFB;
+                border-bottom: 1px solid #E5E7EB;
+            }
+            QCalendarWidget QAbstractItemView:enabled {
+                color: #1F2937;
+                background-color: #FFFFFF;
+                selection-background-color: #1D4ED8;
+                selection-color: #FFFFFF;
+            }
+            QCalendarWidget QAbstractItemView:disabled {
+                color: #9CA3AF;
+            }
     """)
 
 class MasterWindow(QMainWindow):

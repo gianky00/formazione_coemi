@@ -12,16 +12,16 @@ def test_audit_log_filtering(test_client: TestClient, db_session: Session):
     db_session.add(user2)
     db_session.commit()
 
-    # Create logs with different dates
+    # Create logs with different dates and categories
     # User 1
-    log1 = AuditLog(user_id=user1.id, username=user1.username, action="ACT1", timestamp=datetime.utcnow() - timedelta(days=10))
-    log2 = AuditLog(user_id=user1.id, username=user1.username, action="ACT2", timestamp=datetime.utcnow())
+    log1 = AuditLog(user_id=user1.id, username=user1.username, action="ACT1", category="AUTH", timestamp=datetime.utcnow() - timedelta(days=10))
+    log2 = AuditLog(user_id=user1.id, username=user1.username, action="ACT2", category="USER_MGMT", timestamp=datetime.utcnow())
 
     # User 2
-    log3 = AuditLog(user_id=user2.id, username=user2.username, action="ACT3", timestamp=datetime.utcnow())
+    log3 = AuditLog(user_id=user2.id, username=user2.username, action="ACT3", category="AUTH", timestamp=datetime.utcnow())
 
     # System
-    log4 = AuditLog(user_id=None, username="SYSTEM", action="SYS1", timestamp=datetime.utcnow())
+    log4 = AuditLog(user_id=None, username="SYSTEM", action="SYS1", category="SYSTEM", timestamp=datetime.utcnow())
 
     db_session.add_all([log1, log2, log3, log4])
     db_session.commit()
@@ -40,14 +40,17 @@ def test_audit_log_filtering(test_client: TestClient, db_session: Session):
     assert len(data) == 1
     assert data[0]["action"] == "ACT2"
 
-    # 4. Filter by System (user_id=None is tricky in query param if not supported logic, usually we pass ID)
-    # If we want to filter system logs, we might need special handling or pass user_id=0?
-    # My implementation `if user_id:` skips if None. So we can't explicitly ask for NULL user_id via generic param.
-    # But the requirement was "Filter for Account (User ID)".
+    # 4. Filter by Category
+    resp = test_client.get(f"/audit/?category=AUTH")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 2
+    assert all(l["category"] == "AUTH" for l in data)
 
     # 5. Create Log via POST
-    resp = test_client.post("/audit/", json={"action": "TEST_CREATE", "details": "foo"})
+    resp = test_client.post("/audit/", json={"action": "TEST_CREATE", "details": "foo", "category": "CONFIG"})
     assert resp.status_code == 200
     data = resp.json()
     assert data["action"] == "TEST_CREATE"
+    assert data["category"] == "CONFIG"
     assert data["username"] == "admin" # Mocked current user

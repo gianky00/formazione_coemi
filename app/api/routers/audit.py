@@ -16,6 +16,7 @@ def read_audit_logs(
     skip: int = 0,
     limit: int = 100,
     user_id: Optional[int] = None,
+    category: Optional[str] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     current_user: UserModel = Depends(deps.get_current_active_admin),
@@ -27,6 +28,9 @@ def read_audit_logs(
 
     if user_id:
         query = query.filter(AuditLog.user_id == user_id)
+
+    if category:
+        query = query.filter(AuditLog.category == category)
 
     if start_date:
         query = query.filter(AuditLog.timestamp >= start_date)
@@ -42,6 +46,7 @@ def create_audit_log(
     *,
     db: Session = Depends(get_db),
     action: str = Body(..., embed=True),
+    category: Optional[str] = Body(None, embed=True),
     details: Optional[str] = Body(None, embed=True),
     current_user: UserModel = Depends(deps.get_current_user),
 ) -> Any:
@@ -53,6 +58,7 @@ def create_audit_log(
         user_id=current_user.id,
         username=current_user.username,
         action=action,
+        category=category,
         details=details
     )
     db.add(log_entry)

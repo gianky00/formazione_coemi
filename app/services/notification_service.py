@@ -265,7 +265,7 @@ def check_and_send_alerts():
                 corsi_threshold=settings.ALERT_THRESHOLD_DAYS,
                 visite_threshold=settings.ALERT_THRESHOLD_DAYS_VISITE
             )
-            log_security_action(db, None, "SYSTEM_ALERT", f"Sent alert for {total_expiring} expiring and {len(overdue_certificates)} overdue certificates.")
+            log_security_action(db, None, "SYSTEM_ALERT", f"Sent alert for {total_expiring} expiring and {len(overdue_certificates)} overdue certificates.", category="SYSTEM")
         else:
             logging.info("Nessuna notifica di scadenza da inviare oggi.")
 

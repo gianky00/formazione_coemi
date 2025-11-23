@@ -229,7 +229,7 @@ def create_certificato(
     if not dipendente_info:
         ragione_fallimento = "Non trovato in anagrafica (matricola mancante)."
 
-    log_security_action(db, current_user, "CERTIFICATE_CREATE", f"Created certificate for {certificato.nome} - {certificato.corso}")
+    log_security_action(db, current_user, "CERTIFICATE_CREATE", f"Created certificate for {certificato.nome} - {certificato.corso}", category="CERTIFICATE")
 
     return CertificatoSchema(
         id=new_cert.id,
@@ -258,7 +258,7 @@ def valida_certificato(
     db.refresh(db_cert)
     status = certificate_logic.get_certificate_status(db, db_cert)
 
-    log_security_action(db, current_user, "CERTIFICATE_VALIDATE", f"Validated certificate ID {certificato_id}")
+    log_security_action(db, current_user, "CERTIFICATE_VALIDATE", f"Validated certificate ID {certificato_id}", category="CERTIFICATE")
 
     if db_cert.dipendente:
         nome_completo = f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}"
@@ -346,7 +346,7 @@ def update_certificato(
     db.refresh(db_cert)
     status = certificate_logic.get_certificate_status(db, db_cert)
 
-    log_security_action(db, current_user, "CERTIFICATE_UPDATE", f"Updated certificate ID {certificato_id}. Fields: {', '.join(update_data.keys())}")
+    log_security_action(db, current_user, "CERTIFICATE_UPDATE", f"Updated certificate ID {certificato_id}. Fields: {', '.join(update_data.keys())}", category="CERTIFICATE")
 
     dipendente_info = db_cert.dipendente  # Reload the relationship
 
@@ -378,7 +378,7 @@ def delete_certificato(
     db.delete(db_cert)
     db.commit()
 
-    log_security_action(db, current_user, "CERTIFICATE_DELETE", log_details)
+    log_security_action(db, current_user, "CERTIFICATE_DELETE", log_details, category="CERTIFICATE")
 
     return {"message": "Certificato cancellato con successo"}
 
@@ -478,7 +478,7 @@ async def import_dipendenti_csv(
     if linked_count > 0:
         db.commit()
 
-    log_security_action(db, current_user, "DIPENDENTI_IMPORT", f"Imported CSV: {file.filename}. Orphans linked: {linked_count}")
+    log_security_action(db, current_user, "DIPENDENTI_IMPORT", f"Imported CSV: {file.filename}. Orphans linked: {linked_count}", category="DATA")
 
     return {"message": f"Importazione completata con successo. {linked_count} certificati orfani collegati."}
 
