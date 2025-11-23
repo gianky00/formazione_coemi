@@ -84,6 +84,11 @@ Type: files; Name: "{app}\pyarmor.rkey"
 Type: files; Name: "{app}\dettagli_licenza"
 Type: filesandordirs; Name: "{app}\_internal"
 Type: files; Name: "{app}\*.log"
+; Clean up User Data (Optional, but good for clean uninstall)
+Type: files; Name: "{localappdata}\Intelleo\.env"
+Type: files; Name: "{localappdata}\Intelleo\database_documenti.db"
+Type: files; Name: "{localappdata}\Intelleo\*.lock"
+Type: dirifempty; Name: "{localappdata}\Intelleo"
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -155,41 +160,40 @@ begin
     TipsLabel.Visible := False;
 end;
 
+// Helper function to safely update environment variables in the Lines array
+procedure UpdateEnvVar(var Lines: TArrayOfString; Key, Value: String);
+var
+  J: Integer;
+  Found: Boolean;
+begin
+  Found := False;
+  for J := 0 to GetArrayLength(Lines) - 1 do
+  begin
+    if Pos(Key + '=', Lines[J]) = 1 then
+    begin
+      Lines[J] := Key + '=' + Value;
+      Found := True;
+      Break;
+    end;
+  end;
+  if not Found then
+  begin
+    SetArrayLength(Lines, GetArrayLength(Lines) + 1);
+    Lines[GetArrayLength(Lines) - 1] := Key + '=' + Value;
+  end;
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   Lines: TArrayOfString;
   EnvPath: String;
   AppDataDir: String;
   Val: String;
-
-  // Helper to safe update env var
-  procedure SetEnvVar(Key, Value: String);
-  var
-    J: Integer;
-    Found: Boolean;
-  begin
-    Found := False;
-    for J := 0 to GetArrayLength(Lines) - 1 do
-    begin
-      if Pos(Key + '=', Lines[J]) = 1 then
-      begin
-        Lines[J] := Key + '=' + Value;
-        Found := True;
-        Break;
-      end;
-    end;
-    if not Found then
-    begin
-      SetArrayLength(Lines, GetArrayLength(Lines) + 1);
-      Lines[GetArrayLength(Lines) - 1] := Key + '=' + Value;
-    end;
-  end;
-
 begin
   if CurStep = ssPostInstall then
   begin
-    // Write configuration to User AppData, not Program Files
-    AppDataDir := ExpandConstant('{userappdata}\Intelleo');
+    // Write configuration to User Local AppData to match Python's LOCALAPPDATA
+    AppDataDir := ExpandConstant('{localappdata}\Intelleo');
     if not DirExists(AppDataDir) then ForceDirectories(AppDataDir);
 
     EnvPath := AppDataDir + '\.env';
@@ -200,32 +204,32 @@ begin
 
     // Page 1 Values
     Val := ConfigPage1.Values[0];
-    if Val <> '' then SetEnvVar('GEMINI_API_KEY', '"' + Val + '"');
+    if Val <> '' then UpdateEnvVar(Lines, 'GEMINI_API_KEY', '"' + Val + '"');
 
     Val := ConfigPage1.Values[1];
-    if Val <> '' then SetEnvVar('GOOGLE_CLOUD_PROJECT', '"' + Val + '"');
+    if Val <> '' then UpdateEnvVar(Lines, 'GOOGLE_CLOUD_PROJECT', '"' + Val + '"');
 
     Val := ConfigPage1.Values[2];
-    if Val <> '' then SetEnvVar('GCS_BUCKET_NAME', '"' + Val + '"');
+    if Val <> '' then UpdateEnvVar(Lines, 'GCS_BUCKET_NAME', '"' + Val + '"');
 
     // Page 2 Values
     Val := ConfigPage2.Values[0];
-    if Val <> '' then SetEnvVar('SMTP_HOST', '"' + Val + '"');
+    if Val <> '' then UpdateEnvVar(Lines, 'SMTP_HOST', '"' + Val + '"');
 
     Val := ConfigPage2.Values[1];
-    if Val <> '' then SetEnvVar('SMTP_PORT', Val);
+    if Val <> '' then UpdateEnvVar(Lines, 'SMTP_PORT', Val);
 
     Val := ConfigPage2.Values[2];
-    if Val <> '' then SetEnvVar('SMTP_USER', '"' + Val + '"');
+    if Val <> '' then UpdateEnvVar(Lines, 'SMTP_USER', '"' + Val + '"');
 
     Val := ConfigPage2.Values[3];
-    if Val <> '' then SetEnvVar('SMTP_PASSWORD', '"' + Val + '"');
+    if Val <> '' then UpdateEnvVar(Lines, 'SMTP_PASSWORD', '"' + Val + '"');
 
     Val := ConfigPage2.Values[4];
-    if Val <> '' then SetEnvVar('EMAIL_RECIPIENTS_TO', '"' + Val + '"');
+    if Val <> '' then UpdateEnvVar(Lines, 'EMAIL_RECIPIENTS_TO', '"' + Val + '"');
 
     Val := ConfigPage2.Values[5];
-    if Val <> '' then SetEnvVar('EMAIL_RECIPIENTS_CC', '"' + Val + '"');
+    if Val <> '' then UpdateEnvVar(Lines, 'EMAIL_RECIPIENTS_CC', '"' + Val + '"');
 
     // Only save if we have data (or file existed)
     // Actually, force save if we created the file
