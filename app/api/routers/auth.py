@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.core import security
 from app.core.config import settings
+from app.core.db_security import db_security
 from app.schemas.schemas import Token, User
 from app.api import deps
 from app.db.models import BlacklistedToken, AuditLog
@@ -35,6 +36,12 @@ def logout(
             # If it failed, it's likely already blacklisted or race condition.
             # We treat it as success (idempotent).
             pass
+
+    # Force DB Sync on logout to ensure data persistence
+    try:
+        db_security.sync_db()
+    except Exception as e:
+        print(f"Error syncing DB on logout: {e}")
 
     return {"message": "Successfully logged out"}
 

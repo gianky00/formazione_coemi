@@ -209,8 +209,9 @@ class UserManagementWidget(QFrame):
                 QMessageBox.critical(self, "Errore", str(e))
 
 class GeneralSettingsWidget(QFrame):
-    def __init__(self, parent=None):
+    def __init__(self, api_client, parent=None):
         super().__init__(parent)
+        self.api_client = api_client
         self.setObjectName("card")
         self.layout = QVBoxLayout(self)
         self.layout.setSpacing(15)
@@ -275,8 +276,81 @@ class GeneralSettingsWidget(QFrame):
         self.alert_threshold_visite_input.setPlaceholderText("Default: 30")
         self.form_layout.addRow(QLabel("Soglia Avviso Visite Mediche (giorni):"), self.alert_threshold_visite_input)
 
+        # Security Settings
+        security_separator = QFrame()
+        security_separator.setFrameShape(QFrame.Shape.HLine)
+        security_separator.setFrameShadow(QFrame.Shadow.Sunken)
+        self.form_layout.addRow(security_separator)
+
+        self.db_security_label = QLabel("Sicurezza Database:")
+        self.db_security_status = QLabel("Caricamento...")
+        self.db_security_btn = QPushButton("Attiva Protezione")
+        self.db_security_btn.clicked.connect(self.toggle_db_security)
+
+        security_layout = QHBoxLayout()
+        security_layout.addWidget(self.db_security_status)
+        security_layout.addWidget(self.db_security_btn)
+
+        self.form_layout.addRow(self.db_security_label, security_layout)
+
         self.layout.addLayout(self.form_layout)
         self.layout.addStretch()
+
+    def refresh_security_status(self):
+        # Only if admin
+        if not self.api_client.user_info or not self.api_client.user_info.get("is_admin"):
+            self.db_security_label.setVisible(False)
+            self.db_security_status.setVisible(False)
+            self.db_security_btn.setVisible(False)
+            return
+
+        self.db_security_label.setVisible(True)
+        self.db_security_status.setVisible(True)
+        self.db_security_btn.setVisible(True)
+
+        try:
+            status = self.api_client.get_db_security_status()
+            is_locked = status.get("locked", False)
+            if is_locked:
+                self.db_security_status.setText("🔒 BLINDATO (Crittografato)")
+                self.db_security_status.setStyleSheet("color: green; font-weight: bold;")
+                self.db_security_btn.setText("Sblocca (Rendi Leggibile)")
+                self.db_security_btn.setObjectName("destructive") # Red button for unlocking
+                self.db_security_btn.setStyleSheet("") # Reset if needed
+            else:
+                self.db_security_status.setText("🔓 APERTO (Non Protetto)")
+                self.db_security_status.setStyleSheet("color: red; font-weight: bold;")
+                self.db_security_btn.setText("Attiva Protezione (Blinda)")
+                self.db_security_btn.setObjectName("primary")
+        except Exception as e:
+            self.db_security_status.setText("Errore stato")
+            print(f"Error fetching security status: {e}")
+
+    def toggle_db_security(self):
+        current_text = self.db_security_status.text()
+        is_locked = "BLINDATO" in current_text
+
+        action = "SBLOCCARE" if is_locked else "BLINDARE"
+
+        confirm = QMessageBox.question(
+            self,
+            "Conferma Sicurezza",
+            f"Sei sicuro di voler {action} il database?\n\n"
+            "Questa operazione richiede accesso esclusivo e potrebbe richiedere alcuni secondi.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            # We want to toggle to the OPPOSITE state
+            new_state = not is_locked
+            self.api_client.toggle_db_security(new_state)
+            self.refresh_security_status()
+            QMessageBox.information(self, "Successo", "Stato sicurezza aggiornato.")
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile aggiornare sicurezza: {e}")
 
 class AuditLogWidget(QFrame):
     def __init__(self, api_client, parent=None):
@@ -502,7 +576,7 @@ class ConfigView(QWidget):
         self.stacked_widget = QStackedWidget()
 
         # Page 1: General Settings
-        self.general_settings = GeneralSettingsWidget()
+        self.general_settings = GeneralSettingsWidget(self.api_client)
         self.stacked_widget.addWidget(self.general_settings)
 
         # Page 2: User Management
@@ -563,6 +637,7 @@ class ConfigView(QWidget):
 
             if is_admin:
                 self.user_management_widget.refresh_users()
+                self.general_settings.refresh_security_status() # Refresh security status
                 if self.stacked_widget.currentIndex() == 2:
                     self.audit_widget.refresh_logs()
         else:

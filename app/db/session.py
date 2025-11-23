@@ -11,10 +11,28 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Default URL (will be overwritten by DBSecurityManager in main.py)
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./database_documenti.db")
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+def reconfigure_engine(new_url: str):
+    """
+    Replaces the global engine with a new one pointing to the specific (temp) file.
+    Updates SessionLocal binding.
+    """
+    global engine, SessionLocal, DATABASE_URL
+
+    # Dispose old engine connections
+    engine.dispose()
+
+    DATABASE_URL = new_url
+    # Create new engine
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+
+    # Update session factory
+    SessionLocal.configure(bind=engine)
 
 def get_db():
     """
