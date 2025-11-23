@@ -38,3 +38,41 @@ def test_migrate_schema_adds_column():
     assert 'previous_login' in columns
 
     db.close()
+
+def test_smart_backfill_categories():
+    # 1. Setup
+    engine = create_engine("sqlite:///:memory:")
+    Session = sessionmaker(bind=engine)
+    db = Session()
+
+    # Create audit_logs table OLD schema (no category)
+    db.execute(text("""
+        CREATE TABLE audit_logs (
+            id INTEGER PRIMARY KEY,
+            user_id INTEGER,
+            username VARCHAR,
+            action VARCHAR,
+            details VARCHAR,
+            timestamp DATETIME
+        )
+    """))
+
+    # Insert historical data
+    db.execute(text("INSERT INTO audit_logs (action, username) VALUES ('CERTIFICATE_CREATE', 'admin')"))
+    db.execute(text("INSERT INTO audit_logs (action, username) VALUES ('LOGIN', 'admin')"))
+    db.execute(text("INSERT INTO audit_logs (action, username) VALUES ('UNKNOWN_ACTION', 'admin')"))
+    db.commit()
+
+    # 2. Run Migration
+    migrate_schema(db)
+
+    # 3. Verify Backfill
+    rows = db.execute(text("SELECT action, category FROM audit_logs")).fetchall()
+    # Convert to dict for easy checking
+    data = {row[0]: row[1] for row in rows}
+
+    assert data['CERTIFICATE_CREATE'] == 'CERTIFICATE'
+    assert data['LOGIN'] == 'AUTH'
+    assert data['UNKNOWN_ACTION'] == 'GENERAL'
+
+    db.close()
