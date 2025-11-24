@@ -56,12 +56,15 @@ def verify_license():
     # A. Check Fisico: il file deve esistere
     if getattr(sys, 'frozen', False):
         base_dir = os.path.dirname(sys.executable)
-        # Production: Check in Licenza folder
-        lic_path = os.path.join(base_dir, "Licenza", "pyarmor.rkey")
     else:
-        # Dev: Check in root
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        lic_path = os.path.join(base_dir, "pyarmor.rkey")
+
+    # Priority 1: Licenza folder
+    lic_path_preferred = os.path.join(base_dir, "Licenza", "pyarmor.rkey")
+    # Priority 2: Root folder (legacy/dev)
+    lic_path_fallback = os.path.join(base_dir, "pyarmor.rkey")
+
+    lic_path = lic_path_preferred if os.path.exists(lic_path_preferred) else lic_path_fallback
     
     if not os.path.exists(lic_path):
         return False, f"File di licenza mancante.\nCercato in: {lic_path}"

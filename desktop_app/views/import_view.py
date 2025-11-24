@@ -238,6 +238,20 @@ class ImportView(QWidget):
         # Loading Overlay
         self.loading_overlay = LoadingOverlay(self)
 
+    def set_read_only(self, is_read_only: bool):
+        self.is_read_only = is_read_only
+        if is_read_only:
+            self.drop_zone.select_folder_button.setEnabled(False)
+            self.drop_zone.setAcceptDrops(False)
+            self.drop_zone.setStyleSheet("QFrame#drop_zone { background-color: #F3F4F6; border: 2px solid #D1D5DB; }")
+            self.results_display.setText("⚠️ Importazione disabilitata in modalità Sola Lettura.")
+        else:
+            self.drop_zone.select_folder_button.setEnabled(True)
+            self.drop_zone.setAcceptDrops(True)
+            self.drop_zone.update_style("#FFFFFF", "#E5E7EB", "solid")
+            if self.results_display.toPlainText() == "⚠️ Importazione disabilitata in modalità Sola Lettura.":
+                self.results_display.clear()
+
     def resizeEvent(self, event):
         # Resize overlay when view resizes
         if self.loading_overlay.isVisible():

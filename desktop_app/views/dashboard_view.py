@@ -290,9 +290,22 @@ class DashboardView(QWidget):
             self.status_filter.currentText()
         )
 
+    def set_read_only(self, is_read_only: bool):
+        self.is_read_only = is_read_only
+        self._update_button_states()
+
     def _update_button_states(self):
-        self.edit_button.setEnabled(True)
-        self.delete_button.setEnabled(True)
+        if getattr(self, 'is_read_only', False):
+            self.edit_button.setEnabled(False)
+            self.edit_button.setToolTip("Disabilitato in modalità Sola Lettura")
+            self.delete_button.setEnabled(False)
+            self.delete_button.setToolTip("Disabilitato in modalità Sola Lettura")
+        else:
+            self.edit_button.setEnabled(True)
+            self.edit_button.setToolTip("")
+            self.delete_button.setEnabled(True)
+            self.delete_button.setToolTip("")
+
         self.export_button.setEnabled(self.model is not None and self.model.rowCount() > 0)
 
     def _get_selection_info(self):
