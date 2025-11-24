@@ -179,6 +179,10 @@ class DropZone(QFrame):
         self.update_style(color.name(), "#3B82F6", "dashed")
 
     def dragEnterEvent(self, event):
+        if getattr(self.parent(), 'is_read_only', False):
+            event.ignore()
+            return
+
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
             self.pulse_anim.start()
@@ -239,6 +243,7 @@ class ImportView(QWidget):
         self.loading_overlay = LoadingOverlay(self)
 
     def set_read_only(self, is_read_only: bool):
+        print(f"[DEBUG] ImportView.set_read_only: {is_read_only}")
         self.is_read_only = is_read_only
         if is_read_only:
             self.drop_zone.select_folder_button.setEnabled(False)
@@ -267,6 +272,10 @@ class ImportView(QWidget):
         """
         Handles both single file path and directory path.
         """
+        if getattr(self, 'is_read_only', False):
+            QMessageBox.warning(self, "Sola Lettura", "Non puoi caricare file in modalità Sola Lettura.")
+            return
+
         files_to_process = []
         if os.path.isfile(path):
              if path.lower().endswith('.pdf'):

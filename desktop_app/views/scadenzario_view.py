@@ -278,6 +278,7 @@ class ScadenzarioView(QWidget):
             today_line.setLine(today_line.line().x1(), 0, today_line.line().x2(), total_height)
 
     def set_read_only(self, is_read_only: bool):
+        print(f"[DEBUG] ScadenzarioView.set_read_only: {is_read_only}")
         self.is_read_only = is_read_only
         if is_read_only:
             self.generate_email_button.setEnabled(False)
@@ -287,6 +288,8 @@ class ScadenzarioView(QWidget):
             self.generate_email_button.setToolTip("")
 
     def generate_email(self):
+        if getattr(self, 'is_read_only', False): return
+
         try:
             response = requests.post(f"{self.api_client.base_url}/notifications/send-manual-alert", headers=self.api_client._get_headers())
 

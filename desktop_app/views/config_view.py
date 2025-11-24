@@ -616,6 +616,7 @@ class ConfigView(QWidget):
         self.load_config()
 
     def set_read_only(self, is_read_only: bool):
+        print(f"[DEBUG] ConfigView.set_read_only: {is_read_only}")
         self.is_read_only = is_read_only
         self.save_button.setEnabled(not is_read_only)
         self.import_button.setEnabled(not is_read_only)
@@ -728,6 +729,8 @@ class ConfigView(QWidget):
                 QMessageBox.critical(self, "Errore", f"Impossibile importare: {e}")
 
     def save_config(self):
+        if getattr(self, 'is_read_only', False): return
+
         env_path = self.get_env_path()
         gs = self.general_settings
 
