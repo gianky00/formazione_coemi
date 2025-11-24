@@ -30,4 +30,3 @@ passlib[bcrypt]
 python-jose[cryptography]
 geoip2
 user-agents
-pywin32
