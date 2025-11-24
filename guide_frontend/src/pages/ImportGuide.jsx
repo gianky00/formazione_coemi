@@ -73,7 +73,7 @@ const ImportGuide = () => {
                <li><span className="font-bold">ATEX</span> (5 Anni)</li>
                <li><span className="font-bold">PREPOSTO</span> (2 Anni)</li>
                <li><span className="font-bold">BLSD</span> (1 Anno)</li>
-               <li className="pt-2 border-t border-purple-200 mt-2"><span className="font-bold text-purple-700">Validità Indefinita (o da Documento):</span></li>
+               <li className="pt-2 border-t border-purple-200 mt-2"><span className="font-bold text-purple-700">Nessuna scadenza.</span></li>
                <li>• NOMINA</li>
                <li>• MEDICO COMPETENTE</li>
                <li>• HLO / TESSERA HLO</li>
