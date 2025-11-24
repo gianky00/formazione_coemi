@@ -57,8 +57,7 @@ Root: HKCR; Subkey: "Directory\shell\IntelleoAnalyze\command"; ValueType: string
 Source: "{#BuildDir}\*"; DestDir: "{app}"; Excludes: "Intelleo_Setup_*.exe"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; === LICENZA ===
-; REMOVED from Files section to prevent it being visible in installation folder.
-; It is still embedded in the installer via LicenseFile directive.
+; Included via recursive copy of BuildDir. The Licenza folder is prepared by build_dist.py.
 
 ; === ASSET GRAFICI (Come da indicazioni di Jules) ===
 ; Mantiene la struttura delle cartelle 'desktop_app' necessaria per i path relativi Python
@@ -84,6 +83,9 @@ Type: files; Name: "{app}\database.db"
 Type: files; Name: "{app}\scadenzario.db"
 Type: files; Name: "{app}\pyarmor.rkey"
 Type: files; Name: "{app}\dettagli_licenza.txt"
+Type: files; Name: "{app}\Licenza\pyarmor.rkey"
+Type: files; Name: "{app}\Licenza\dettagli_licenza.txt"
+Type: dirifempty; Name: "{app}\Licenza"
 Type: filesandordirs; Name: "{app}\_internal"
 Type: dirifempty; Name: "{app}"
 Type: files; Name: "{app}\*.log"
