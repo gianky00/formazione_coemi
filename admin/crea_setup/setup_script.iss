@@ -105,7 +105,7 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 ; === COLLEGAMENTO DATI APPLICAZIONE FIXATO ===
 ; Apre esplora risorse nel percorso AppData. Parametri senza virgolette triple per evitare errori di parsing.
-Name: "{app}\AppDataIntelleo"; Filename: "explorer.exe"; Parameters: "{localappdata}\Intelleo"; IconFilename: "explorer.exe"
+Name: "{app}\AppDataIntelleo"; Filename: "{win}\explorer.exe"; Parameters: """{localappdata}\Intelleo"""; IconFilename: "{win}\explorer.exe"
 
 [Run]
 ; Avvia l'app dopo l'installazione
