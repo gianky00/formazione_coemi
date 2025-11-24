@@ -2,8 +2,9 @@ import pytest
 import os
 import time
 import sqlite3
+import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from app.core.db_security import DBSecurityManager
 
 @pytest.fixture
@@ -44,9 +45,9 @@ def test_in_memory_lifecycle(temp_workspace, mock_user_data_dir):
     assert cur.fetchone()[0] == 'secret_data'
 
     # 3. Lock (Simulate Login)
-    manager.create_lock()
-    assert manager.has_lock is True
-    assert manager.lock_path.exists()
+    success, _ = manager.acquire_session_lock({"user": "test_user"})
+    assert success is True
+    assert manager.is_read_only is False
 
     # 4. Modify in RAM
     conn.execute("INSERT INTO test (data) VALUES ('new_ram_data')")
@@ -75,7 +76,7 @@ def test_in_memory_lifecycle(temp_workspace, mock_user_data_dir):
 
     # 7. Unlock/Cleanup (Simulate Logout/Shutdown)
     manager.cleanup()
-    assert not manager.lock_path.exists()
+    # Note: Lock file might still exist, but lock is released.
 
     # 8. Reload (Simulate Restart)
     manager2 = DBSecurityManager(db_name=db_name)
@@ -85,7 +86,12 @@ def test_in_memory_lifecycle(temp_workspace, mock_user_data_dir):
     cur2.execute("SELECT data FROM test WHERE data='new_ram_data'")
     assert cur2.fetchone()[0] == 'new_ram_data'
 
-def test_lock_prevents_access(temp_workspace, mock_user_data_dir):
+def test_lock_enables_read_only(temp_workspace, mock_user_data_dir):
+    """
+    Simulate two instances.
+    Instance 1 holds the lock.
+    Instance 2 should start in Read-Only mode.
+    """
     db_name = "database_documenti.db"
     db_path = temp_workspace / db_name
     create_dummy_db(db_path)
@@ -93,60 +99,83 @@ def test_lock_prevents_access(temp_workspace, mock_user_data_dir):
     # Instance 1: Running and Locked
     manager1 = DBSecurityManager(db_name=db_name)
     manager1.load_memory_db()
-    manager1.create_lock()
+    success1, _ = manager1.acquire_session_lock({"user": "admin_1"})
+    assert success1 is True
 
-    # Instance 2: Startup Check
+    # Instance 2: Startup
     manager2 = DBSecurityManager(db_name=db_name)
+    manager2.load_memory_db() # Should succeed now
+    conn2 = manager2.get_connection() # Initialize connection
 
-    # Should fail at startup if locked
-    with pytest.raises(PermissionError):
-        manager2.load_memory_db()
+    # Try to acquire lock
+    success2, owner_info = manager2.acquire_session_lock({"user": "admin_2"})
+
+    # Should FAIL to acquire lock
+    assert success2 is False
+    assert manager2.is_read_only is True
+
+    # Should retrieve owner info
+    assert owner_info is not None
+    assert owner_info["user"] == "admin_1"
+
+    # Instance 2 tries to save -> Should Fail
+    assert manager2.save_to_disk() is False
 
     manager1.cleanup()
+    manager2.cleanup()
 
 def test_pre_login_safety(temp_workspace, mock_user_data_dir):
-    """Verify that data is NOT saved if lock is not held (Pre-Login state)"""
+    """Verify that data is NOT saved if lock is not acquired (Pre-Login state)"""
     db_name = "database_documenti.db"
     db_path = temp_workspace / db_name
     create_dummy_db(db_path)
 
     manager = DBSecurityManager(db_name=db_name)
     manager.load_memory_db()
-    # Note: No create_lock() called
+
+    # Default state must be Read Only
+    assert manager.is_read_only is True
 
     conn = manager.get_connection()
     conn.execute("INSERT INTO test (data) VALUES ('unsafe_data')")
 
-    # Try to save
+    # Try to save without lock
     result = manager.save_to_disk()
     assert result is False # Should refuse to save
 
-    # Verify Disk still Plain (because it was plain initially, and save failed)
-    # Actually, if it was plain, load_memory_db sets is_locked_mode=True.
-    # But save_to_disk didn't write.
-    # So disk should still be the ORIGINAL plain file.
+    # Check that disk file was not modified (timestamp or content)
+    # Since it failed, the original Plain DB should remain plain and not include unsafe_data.
     conn_disk = sqlite3.connect(db_path)
     cur_disk = conn_disk.cursor()
     cur_disk.execute("SELECT data FROM test WHERE data='unsafe_data'")
-    assert cur_disk.fetchone() is None # Data not written
+    assert cur_disk.fetchone() is None
 
-def test_stale_lock_removal(temp_workspace, mock_user_data_dir):
+def test_stale_lock_recovery(temp_workspace, mock_user_data_dir):
+    """
+    Verify that if a lock file exists but isn't locked by OS (Stale),
+    we can acquire it.
+    """
     db_name = "database_documenti.db"
     manager = DBSecurityManager(db_name=db_name)
 
-    # Create a stale lock file with a fake PID
-    fake_pid = 999999
-    lock_content = f"LOCKED_BY_PID_{fake_pid}_{time.time()}"
-    with open(manager.lock_path, "w") as f:
-        f.write(lock_content)
+    # Create a "stale" lock file (Just a file, no OS lock held)
+    stale_info = {"user": "zombie_process", "pid": 9999}
+    os.makedirs(os.path.dirname(manager.lock_path), exist_ok=True)
+    with open(manager.lock_path, "wb") as f:
+        f.write(b'\0')
+        f.write(json.dumps(stale_info).encode('utf-8'))
 
-    # Mock os.kill to simulate that process does not exist
-    with patch("os.kill", side_effect=OSError):
-        # Should detect stale lock, remove it, and create new one
-        manager.create_lock()
+    # Now try to acquire
+    success, _ = manager.acquire_session_lock({"user": "live_process"})
 
-    assert manager.has_lock is True
-    # Lock should be replaced with OUR pid
-    with open(manager.lock_path, "r") as f:
-        content = f.read()
-    assert f"LOCKED_BY_PID_{os.getpid()}" in content
+    assert success is True
+    assert manager.is_read_only is False
+
+    # Verify metadata was overwritten
+    manager.lock_manager.release()
+
+    # Read file content
+    with open(manager.lock_path, "rb") as f:
+        f.read(1) # Skip sentinel
+        data = json.loads(f.read().decode('utf-8'))
+        assert data["user"] == "live_process"

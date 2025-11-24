@@ -111,6 +111,8 @@ class Token(BaseModel):
     account_name: Optional[str] = None
     is_admin: bool
     previous_login: Optional[datetime] = None
+    read_only: bool = False
+    lock_owner: Optional[dict] = None
 
 class TokenData(BaseModel):
     username: Optional[str] = None

@@ -4,11 +4,13 @@ import hashlib
 import base64
 import time
 import logging
-import ctypes
 import sqlite3
+import socket
+from typing import Dict, Optional, Tuple
 from pathlib import Path
 from cryptography.fernet import Fernet
 from app.core.config import settings, get_user_data_dir
+from app.core.lock_manager import LockManager
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type, RetryError
 
 logger = logging.getLogger(__name__)
@@ -18,7 +20,7 @@ class DBSecurityManager:
     Manages the security of the SQLite database using strict In-Memory handling.
     - Loads encrypted DB into RAM (sqlite3 deserialize).
     - Saves RAM DB to encrypted disk file (sqlite3 serialize).
-    - Enforces single-user access via Lock File (created at Login).
+    - Enforces single-user access via Crash-Safe LockManager.
     """
 
     _STATIC_SECRET = "INTELLEO_DB_SECRET_KEY_V1_2024_SECURE_ACCESS"
@@ -45,84 +47,63 @@ class DBSecurityManager:
 
         self.active_connection = None
         self.initial_bytes = None
-        self.is_locked_mode = False
-        self.has_lock = False # Tracks if this session owns the lock
+        self.is_locked_mode = False # Controls encryption on save
+        self.is_read_only = True    # Controls permission to save (Default: Read-Only until lock acquired)
+        self.read_only_info: Optional[Dict] = None # Stores owner info if read-only
+
+        # Initialize LockManager
+        self.lock_manager = LockManager(str(self.lock_path))
 
     def _derive_key(self) -> bytes:
         digest = hashlib.sha256(self._STATIC_SECRET.encode()).digest()
         return base64.urlsafe_b64encode(digest)
 
-    def check_lock_exists(self) -> bool:
-        return self.lock_path.exists()
-
-    def create_lock(self):
+    def acquire_session_lock(self, user_info: Dict) -> Tuple[bool, Optional[Dict]]:
         """
-        Attempts to create the lock file. Checks for stale locks from crashed sessions.
-        Should be called upon successful login.
+        Attempts to acquire the session lock using LockManager.
+        If successful, this session becomes the Writer.
+        If failed, this session becomes Read-Only.
+
+        Args:
+            user_info: Dict containing context about the user (e.g., username).
+
+        Returns:
+            (success, owner_info)
         """
-        if self.check_lock_exists():
-            try:
-                with open(self.lock_path, "r") as f:
-                    content = f.read().strip()
+        # Add system info to user_info
+        metadata = {
+            "pid": os.getpid(),
+            "hostname": socket.gethostname(),
+            "timestamp": time.time(),
+            **user_info
+        }
 
-                if content.startswith("LOCKED_BY_PID_"):
-                    parts = content.split('_')
-                    if len(parts) >= 4:
-                        pid = int(parts[3])
-                        # Check if process exists
-                        try:
-                            if pid == os.getpid():
-                                self.has_lock = True
-                                logger.info("Re-acquired own lock.")
-                                return
+        success, owner_info = self.lock_manager.acquire(metadata)
 
-                            os.kill(pid, 0) # Check if PID is alive
-                            # If we get here, process exists.
-                            raise PermissionError(f"Database is currently locked by active process PID {pid}.")
-                        except OSError:
-                            # Process does not exist (or permission denied to check, but usually implies dead if we are owner/same user)
-                            # In Windows, permission error on os.kill(pid, 0) might happen if Admin vs User.
-                            # But usually app runs as same user.
-                            logger.warning(f"Found stale lock from dead process {pid}. Removing.")
-                            os.remove(self.lock_path)
-            except (ValueError, IndexError, OSError) as e:
-                logger.warning(f"Error investigating lock file: {e}. Assuming valid lock or race condition.")
-                if self.check_lock_exists(): # Double check if it's still there
-                     raise PermissionError("Database is currently locked by another active session.")
+        if success:
+            self.is_read_only = False
+            self.read_only_info = None
+            logger.info("Session lock acquired. Write access enabled.")
+        else:
+            self.is_read_only = True
+            self.read_only_info = owner_info
+            logger.warning(f"Session lock failed. Read-Only mode enabled. Owner: {owner_info}")
 
-        try:
-            # Use 'x' mode for atomic exclusive creation
-            with open(self.lock_path, "x") as f:
-                f.write(f"LOCKED_BY_PID_{os.getpid()}_{time.time()}")
-            self.has_lock = True
-            logger.info("Session lock acquired.")
-        except FileExistsError:
-             raise PermissionError("Database was locked by another session just now.")
+        return success, owner_info
 
-    def remove_lock(self):
+    def release_lock(self):
         """
-        Releases the lock if held by this session.
+        Releases the lock via LockManager.
         """
-        if self.has_lock:
-            if self.lock_path.exists():
-                try:
-                    os.remove(self.lock_path)
-                    logger.info("Session lock released.")
-                except Exception as e:
-                    logger.warning(f"Could not remove lock file: {e}")
-            self.has_lock = False
+        self.lock_manager.release()
+        self.is_read_only = False # Reset state, though usually app is closing.
 
     def load_memory_db(self):
         """
         Reads the DB from disk into memory.
-        - If Locked: Raises PermissionError (Stop Startup).
-        - If Missing: Initializes empty.
-        - If Encrypted: Decrypts.
-        - If Plain: Loads Plain (and marks for encryption).
+        Crucially, this NO LONGER fails if the lock exists.
+        It simply loads the current state of the disk file (Snapshot).
         """
-        if self.check_lock_exists():
-             raise PermissionError("Database is locked. Cannot start application.")
-
         if not self.db_path.exists():
             logger.info("Database missing. Initializing new in-memory DB.")
             self.is_locked_mode = True
@@ -185,13 +166,13 @@ class DBSecurityManager:
     def save_to_disk(self) -> bool:
         """
         Serializes the memory DB, Encrypts it, and writes to disk.
-        CRITICAL: Only executes if this session holds the lock.
+        CRITICAL: Only executes if this session holds the lock (is NOT Read-Only).
         """
         if not self.active_connection:
             return True
 
-        if not self.has_lock:
-            # We are in Read-Only / Pre-Login mode. Do not overwrite disk.
+        if self.is_read_only:
+            logger.warning("Attempted to save in READ-ONLY mode. Operation ignored.")
             return False
 
         try:
@@ -215,10 +196,10 @@ class DBSecurityManager:
 
     def cleanup(self):
         """
-        Shutdown handler. Saves state and releases lock.
+        Shutdown handler. Saves state (if writer) and releases lock.
         """
         self.save_to_disk()
-        self.remove_lock()
+        self.release_lock()
 
     def toggle_security_mode(self, enable_encryption: bool):
         self.is_locked_mode = enable_encryption
@@ -227,6 +208,21 @@ class DBSecurityManager:
     # Alias for backward compatibility if needed, or just for main.py
     def sync_db(self):
         return self.save_to_disk()
+
+    # Deprecated/Legacy method to satisfy old tests if any call it directly
+    # Can be removed if we update all callsites.
+    def create_lock(self):
+        # Fallback implementation
+        self.acquire_session_lock({"user": "system"})
+
+    def check_lock_exists(self) -> bool:
+        # Legacy compatibility
+        return os.path.exists(self.lock_path)
+
+    @property
+    def has_lock(self) -> bool:
+        # Compatibility property
+        return not self.is_read_only and self.lock_manager._is_locked
 
 # Singleton
 db_security = DBSecurityManager()
