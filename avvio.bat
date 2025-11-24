@@ -22,11 +22,8 @@ REM --- 4. Avvia le Applicazioni ---
 ECHO Avvio applicazioni...
 set PYTHONPATH=.
 
-ECHO Avvio backend (output in questa finestra)...
-start /b python app/main.py
-
-ECHO Avvio desktop app (output in questa finestra)...
-python -m desktop_app.main
+ECHO Avvio tramite Launcher (Supporto Concorrenza)...
+python launcher.py
 
 ECHO Script terminato.
 pause
