@@ -291,6 +291,7 @@ class DashboardView(QWidget):
         )
 
     def set_read_only(self, is_read_only: bool):
+        print(f"[DEBUG] DashboardView.set_read_only: {is_read_only}")
         self.is_read_only = is_read_only
         self._update_button_states()
 
@@ -351,6 +352,9 @@ class DashboardView(QWidget):
         QMessageBox.information(self, "Successo", message)
 
     def edit_data(self):
+        if getattr(self, 'is_read_only', False):
+            return
+
         selection_info = self._get_selection_info()
         if selection_info['mode'] == 'none' or len(self.table_view.selectionModel().selectedRows()) > 1:
             QMessageBox.warning(self, "Selezione Invalida", "Seleziona una singola riga da modificare.")
@@ -376,6 +380,9 @@ class DashboardView(QWidget):
             self._show_error_message(f"Impossibile recuperare i dati del certificato: {e}")
 
     def delete_data(self):
+        if getattr(self, 'is_read_only', False):
+            return
+
         if not self.table_view.selectionModel() or not self.table_view.selectionModel().hasSelection():
             return
 

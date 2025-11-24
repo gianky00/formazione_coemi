@@ -97,6 +97,7 @@ class ValidationView(QWidget):
         self.load_data()
 
     def set_read_only(self, is_read_only: bool):
+        print(f"[DEBUG] ValidationView.set_read_only: {is_read_only}")
         self.is_read_only = is_read_only
         self.update_button_states()
 
@@ -116,6 +117,8 @@ class ValidationView(QWidget):
         self.delete_button.setEnabled(has_selection)
 
     def edit_data(self):
+        if getattr(self, 'is_read_only', False): return
+
         selected_ids = self.get_selected_ids()
         if not selected_ids or len(selected_ids) > 1:
             QMessageBox.warning(self, "Selezione Invalida", "Seleziona una singola riga da modificare.")
@@ -217,6 +220,8 @@ class ValidationView(QWidget):
         return selected_ids
 
     def delete_selected(self):
+        if getattr(self, 'is_read_only', False): return
+
         selected_ids = self.get_selected_ids()
         if not selected_ids:
             return
@@ -232,6 +237,8 @@ class ValidationView(QWidget):
             self.perform_action("delete", selected_ids, first_row)
 
     def validate_selected(self):
+        if getattr(self, 'is_read_only', False): return
+
         selected_ids = self.get_selected_ids()
         if not selected_ids:
             return

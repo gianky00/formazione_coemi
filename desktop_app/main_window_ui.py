@@ -452,6 +452,7 @@ class MainDashboardWidget(QWidget):
         """
         Propagates Read-Only state to all views.
         """
+        print(f"[DEBUG] MainDashboardWidget.set_read_only_mode called with: {is_read_only}")
         self.is_read_only = is_read_only
 
         if is_read_only:
@@ -462,6 +463,9 @@ class MainDashboardWidget(QWidget):
             self.page_title.setStyleSheet("font-size: 20px; font-weight: 600; color: #DC2626; margin-left: 20px;")
 
         # Propagate to views
-        for view in self.views.values():
+        for key, view in self.views.items():
             if hasattr(view, 'set_read_only'):
+                print(f"[DEBUG] Setting read_only={is_read_only} for view: {key}")
                 view.set_read_only(is_read_only)
+            else:
+                print(f"[DEBUG] View {key} has no set_read_only method")
