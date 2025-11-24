@@ -372,6 +372,7 @@ def build():
             "desktop_app.views", "desktop_app.utils", "desktop_app.components",
             "sqlalchemy.sql.default_comparator", "sqlalchemy.dialects.sqlite",
             "pysqlite2", "MySQLdb", "psycopg2", "dotenv",
+            "win32com.client", "pythoncom", "win32api", "pywintypes", "win32timezone",
             "fastapi", "starlette",
             "uvicorn.logging", "uvicorn.loops", "uvicorn.loops.auto",
             "uvicorn.protocols", "uvicorn.protocols.http", "uvicorn.protocols.http.auto",

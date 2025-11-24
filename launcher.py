@@ -5,6 +5,8 @@ import socket
 import threading
 import uvicorn
 import importlib
+import argparse
+import requests
 
 # --- CRITICAL: IMPORT WEBENGINE & SET ATTRIBUTE BEFORE QAPPLICATION ---
 # This fixes "QtWebEngineWidgets must be imported or Qt.AA_ShareOpenGLContexts..."
@@ -83,9 +85,66 @@ def check_port(host, port):
         return s.connect_ex((host, port)) == 0
     except: return False
 
+def check_existing_instance(args):
+    """
+    Checks if an instance is already running on port 8000.
+    If so, sends the command via IPC and returns True (so we can exit).
+    """
+    try:
+        # 1. Check if port is open (fast check)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(0.5)
+        result = sock.connect_ex(('127.0.0.1', 8000))
+        sock.close()
+
+        if result != 0:
+            return False # Port closed, not running
+
+        # 2. Handshake / Health Check (Ensure it's Intelleo)
+        response = requests.get("http://127.0.0.1:8000/api/v1/health", timeout=1)
+        if response.status_code != 200:
+            return False # Not our app or broken
+
+        # 3. Construct Payload
+        action = "view" # Default action (bring to front)
+        payload = {}
+
+        if args.analyze:
+            action = "analyze"
+            payload["path"] = args.analyze
+        elif args.import_csv:
+            action = "import_csv"
+            payload["path"] = args.import_csv
+        elif args.view:
+            action = "view"
+            payload["view_name"] = args.view
+
+        # 4. Send Command
+        print(f"[LAUNCHER] Sending IPC command: {action} {payload}")
+        requests.post("http://127.0.0.1:8000/api/v1/system/open-action",
+                      json={"action": action, "payload": payload}, timeout=2)
+        return True
+
+    except Exception as e:
+        print(f"[LAUNCHER] Existing instance check failed (starting new): {e}")
+        return False
+
 # --- 4. MAIN ---
 def main():
     print("[DEBUG] Starting launcher.main() ...")
+
+    # Parse CLI Arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--analyze", help="Path to folder or file to analyze")
+    parser.add_argument("--import-csv", help="Path to CSV file to import")
+    parser.add_argument("--view", help="View to open")
+    args, unknown = parser.parse_known_args()
+
+    # CHECK EXISTING INSTANCE
+    if check_existing_instance(args):
+        print("[LAUNCHER] Command sent to existing instance. Exiting.")
+        sys.exit(0)
+
     # Check if QApplication already exists (unlikely but safe)
     if not QApplication.instance():
         print("[DEBUG] Creating QApplication...")
@@ -95,7 +154,6 @@ def main():
         qt_app = QApplication.instance()
 
     # Import ApplicationController from the CORRECT module
-    # FIX: Was importing 'MainWindow' which does not exist
     try:
         print("[DEBUG] Importing ApplicationController and setup_styles...")
         from desktop_app.main import ApplicationController, setup_styles
@@ -150,17 +208,13 @@ def main():
         print("[DEBUG] Instantiating ApplicationController...")
         controller = ApplicationController()
 
-        # CHECK CLI ARGS FOR ANALYSIS
-        args = sys.argv[1:]
-        if "--analyze" in args:
-            try:
-                idx = args.index("--analyze")
-                if idx + 1 < len(args):
-                    folder_path = args[idx + 1]
-                    if os.path.isdir(folder_path):
-                        controller.analyze_folder(folder_path)
-            except Exception as e:
-                print(f"Error in CLI analysis: {e}")
+        # APPLY CLI ARGS (First Run)
+        if args.analyze:
+             controller.analyze_path(args.analyze)
+        elif args.import_csv:
+             controller.import_dipendenti_csv(args.import_csv)
+        elif args.view and controller.dashboard:
+             controller.dashboard.switch_to(args.view)
 
         print("[DEBUG] Calling controller.start()...")
         controller.start() # Shows window

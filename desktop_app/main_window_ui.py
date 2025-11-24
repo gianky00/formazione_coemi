@@ -467,6 +467,6 @@ class MainDashboardWidget(QWidget):
         # ModernGuideDialog.exec() calls show() internally.
         dialog.exec()
 
-    def analyze_folder(self, folder_path):
+    def analyze_path(self, path):
         self.switch_to("import")
-        self.views["import"].upload_folder(folder_path)
+        self.views["import"].upload_path(path)

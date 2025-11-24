@@ -59,6 +59,9 @@ class APIClient:
         return response.json()
 
     def import_dipendenti_csv(self, file_path):
+        """
+        Uploads a CSV file to import employee data.
+        """
         url = f"{self.base_url}/dipendenti/import-csv"
         with open(file_path, 'rb') as f:
             files = {'file': (os.path.basename(file_path), f, 'text/csv')}
