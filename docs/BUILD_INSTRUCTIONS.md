@@ -46,10 +46,10 @@ python admin_license_gui.py
 2.  **Scadenza**: Imposta la data di scadenza.
 3.  Clicca su **Genera Licenza**.
 
-Il file `pyarmor.rkey` e `dettagli_licenza.txt` verranno salvati in una sottocartella di `admin/`. Invia questi file al cliente.
+Il file `pyarmor.rkey` e il file cifrato `config.dat` verranno salvati in una sottocartella `Licenza/` all'interno della cartella cliente. Invia l'intera cartella `Licenza` al cliente.
 
 ### Installazione Licenza (Lato Cliente)
-Il cliente deve posizionare i file `pyarmor.rkey` e `dettagli_licenza.txt` nella cartella `Licenza` all'interno della directory di installazione (es. `C:\Users\Nome\AppData\Local\Programs\Intelleo\Licenza`).
+Il cliente deve copiare la cartella `Licenza` (contenente `pyarmor.rkey` e `config.dat`) all'interno della directory di installazione (es. `C:\Users\Nome\AppData\Local\Programs\Intelleo`).
 
 *Nota: L'installer crea automaticamente questa struttura.*
 

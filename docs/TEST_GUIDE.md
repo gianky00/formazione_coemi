@@ -65,7 +65,7 @@ Intelleo.exe --hwid
 
 ### Test 2: License Validation
 1.  Generate a license using `admin_license_gui.py`.
-2.  Place `pyarmor.rkey` and `dettagli_licenza.txt` in the `Licenza` subfolder.
+2.  Place the `Licenza` folder (containing `pyarmor.rkey` and `config.dat`) in the application directory.
 3.  Launch `Intelleo.exe`.
 *Expected*: App launches, skips the "License Expired" warning, and shows the Dashboard.
 *Failure*: If app closes immediately or shows errors, check `debug_hwid.log` (if enabled) or run via console.

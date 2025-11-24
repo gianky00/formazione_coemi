@@ -5,34 +5,29 @@ import pytest
 from datetime import date, timedelta
 
 @patch('desktop_app.main_window_ui.load_colored_icon')
-def test_sidebar_license_expired(mock_load_icon):
+@patch('desktop_app.services.license_manager.LicenseManager.get_license_data')
+def test_sidebar_license_expired(mock_get_license, mock_load_icon):
     from desktop_app.main_window_ui import Sidebar
     mock_load_icon.return_value = MagicMock()
 
     # Expiry date in past
     past_date = (date.today() - timedelta(days=5)).strftime("%d/%m/%Y")
-    content = f"""Hardware ID: 12345
-Scadenza Licenza: {past_date}
-Generato il: 01/01/2023
-"""
-    with open("dettagli_licenza.txt", "w") as f:
-        f.write(content)
+    mock_get_license.return_value = {
+        "Hardware ID": "12345",
+        "Scadenza Licenza": past_date,
+        "Generato il": "01/01/2023"
+    }
 
-    try:
-        sidebar = Sidebar()
-        # Check labels for "Licenza SCADUTA"
-        labels = []
-        for i in range(sidebar.license_layout.count()):
-            item = sidebar.license_layout.itemAt(i)
-            if item.widget():
-                labels.append(item.widget().text())
+    sidebar = Sidebar()
+    # Check labels for "Licenza SCADUTA"
+    labels = []
+    for i in range(sidebar.license_layout.count()):
+        item = sidebar.license_layout.itemAt(i)
+        if item.widget():
+            labels.append(item.widget().text())
 
-        assert any("Licenza SCADUTA" in t for t in labels)
-        assert any("5 giorni" in t for t in labels)
-
-    finally:
-        if os.path.exists("dettagli_licenza.txt"):
-            os.remove("dettagli_licenza.txt")
+    assert any("Licenza SCADUTA" in t for t in labels)
+    assert any("5 giorni" in t for t in labels)
 
 @patch('requests.post')
 def test_pdf_worker_headers(mock_post):

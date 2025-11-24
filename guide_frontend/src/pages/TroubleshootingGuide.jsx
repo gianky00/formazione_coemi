@@ -98,7 +98,7 @@ const TroubleshootingGuide = () => {
           </p>
           <ul className="list-disc list-inside space-y-1">
             <li>Se vedi il messaggio <strong>"Licenza SCADUTA"</strong> nella schermata di login, contatta l'amministratore di sistema o il fornitore per il rinnovo.</li>
-            <li>Il file di licenza (<code>dettagli_licenza.txt</code>) deve essere presente nella cartella principale dell'applicazione. Non eliminarlo o modificarlo manualmente.</li>
+            <li>La cartella <code>Licenza</code> (contenente <code>config.dat</code>) deve essere presente nella directory di installazione. Non eliminare o modificare questi file.</li>
           </ul>
         </>
       )
