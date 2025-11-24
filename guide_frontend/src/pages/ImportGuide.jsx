@@ -48,7 +48,7 @@ const ImportGuide = () => {
             <li className="flex items-start gap-3">
               <Cpu size={20} className="text-purple-500 mt-1 shrink-0" />
               <span>
-                <strong>Analisi AI:</strong> Il sistema estrae automaticamente il <strong>DIPENDENTE</strong>, il <strong>DOCUMENTO</strong>, la <strong>DATA EMISSIONE</strong> e la scadenza.
+                <strong>Analisi AI:</strong> Il sistema estrae automaticamente il <strong>DIPENDENTE</strong>, il <strong>CORSO/VISITA MEDICA</strong>, la <strong>DATA EMISSIONE</strong> e la scadenza.
               </span>
             </li>
             <li className="flex items-start gap-3">
@@ -66,10 +66,13 @@ const ImportGuide = () => {
            </p>
            <div className="bg-purple-50 p-4 rounded-lg border border-purple-100 max-h-64 overflow-y-auto custom-scrollbar">
              <ul className="space-y-2 text-sm text-purple-900">
-               <li><span className="font-bold">ANTINCENDIO</span> (Scadenza standard)</li>
-               <li><span className="font-bold">PRIMO SOCCORSO</span> (Scadenza standard)</li>
-               <li><span className="font-bold">PLE</span> (Scadenza standard)</li>
-               <li><span className="font-bold">GRU</span> (Scadenza standard)</li>
+               <li><span className="font-bold">ANTINCENDIO</span> (5 Anni)</li>
+               <li><span className="font-bold">PRIMO SOCCORSO</span> (3 Anni)</li>
+               <li><span className="font-bold">PLE</span> (5 Anni)</li>
+               <li><span className="font-bold">GRU</span> (5 Anni)</li>
+               <li><span className="font-bold">ATEX</span> (5 Anni)</li>
+               <li><span className="font-bold">PREPOSTO</span> (2 Anni)</li>
+               <li><span className="font-bold">BLSD</span> (1 Anno)</li>
                <li className="pt-2 border-t border-purple-200 mt-2"><span className="font-bold text-purple-700">Validità Indefinita (o da Documento):</span></li>
                <li>• NOMINA</li>
                <li>• MEDICO COMPETENTE</li>
@@ -77,7 +80,6 @@ const ImportGuide = () => {
                <li>• UNILAV</li>
                <li>• PATENTE</li>
                <li>• MODULO RECESSO RAPPORTO DI LAVORO</li>
-               <li>• ATEX</li>
              </ul>
            </div>
            <p className="text-xs text-gray-500 mt-2 italic">
