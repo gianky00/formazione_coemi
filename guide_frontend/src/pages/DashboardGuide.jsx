@@ -57,13 +57,13 @@ const DashboardGuide = () => {
             <li className="flex items-start gap-3">
               <CheckCircle size={20} className="text-green-500 mt-1 shrink-0" />
               <span>
-                <strong>Filtri Avanzati:</strong> Cerca per nome, matricola o tipologia di corso utilizzando la barra di ricerca in alto.
+                <strong>Filtri Avanzati:</strong> Cerca per nome, matricola o tipologia di <strong>DOCUMENTO</strong> utilizzando la barra di ricerca in alto.
               </span>
             </li>
             <li className="flex items-start gap-3">
               <CheckCircle size={20} className="text-green-500 mt-1 shrink-0" />
               <span>
-                <strong>Validazione:</strong> Visualizza solo i certificati che hanno superato il processo di validazione manuale.
+                <strong>Validazione:</strong> Visualizza solo i documenti che hanno superato il processo di validazione manuale.
               </span>
             </li>
           </ul>

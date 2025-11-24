@@ -57,7 +57,7 @@ const TroubleshootingGuide = () => {
       answer: (
         <>
           <p className="mb-2">
-            Questo errore indica che hai raggiunto il limite di richieste del piano gratuito di Google Gemini.
+            Questo errore indica che hai raggiunto il limite di richieste del piano gratuito di Google Gemini (2.5 Pro).
           </p>
           <ul className="list-disc list-inside space-y-1 mb-2">
             <li><strong>Causa:</strong> Troppi documenti inviati in un breve lasso di tempo.</li>

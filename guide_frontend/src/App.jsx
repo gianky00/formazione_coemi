@@ -10,6 +10,9 @@ import EmployeesGuide from './pages/EmployeesGuide';
 import SettingsGuide from './pages/SettingsGuide';
 import SecurityGuide from './pages/SecurityGuide';
 import TroubleshootingGuide from './pages/TroubleshootingGuide';
+import MaintenanceGuide from './pages/MaintenanceGuide';
+import Glossary from './pages/Glossary';
+import ShortcutsGuide from './pages/ShortcutsGuide';
 
 function App() {
   return (
@@ -24,6 +27,9 @@ function App() {
         <Route path="security" element={<SecurityGuide />} />
         <Route path="settings" element={<SettingsGuide />} />
         <Route path="troubleshooting" element={<TroubleshootingGuide />} />
+        <Route path="maintenance" element={<MaintenanceGuide />} />
+        <Route path="glossary" element={<Glossary />} />
+        <Route path="shortcuts" element={<ShortcutsGuide />} />
       </Route>
     </Routes>
   );

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, ZoomIn, Download, Mail } from 'lucide-react';
+import { Calendar, ZoomIn, Download, Mail, Send } from 'lucide-react';
 
 const Section = ({ title, children }) => (
   <section className="mb-12">
@@ -67,17 +67,17 @@ const CalendarGuide = () => {
 
       <Section title="Struttura Gerarchica">
          <p>
-           La barra laterale sinistra organizza i certificati in un albero logico:
+           La barra laterale sinistra organizza i documenti in un albero logico:
          </p>
          <ul className="mt-2 space-y-2 text-sm text-gray-600 font-mono bg-gray-50 p-4 rounded border border-gray-200">
            <li>📂 DOCUMENTI DIPENDENTI</li>
            <li className="pl-4">📁 Categoria (es. ANTINCENDIO)</li>
            <li className="pl-8">📂 IN SCADENZA</li>
            <li className="pl-8">📂 SCADUTI</li>
-           <li className="pl-12">👤 Dipendente (es. Rossi Mario)</li>
+           <li className="pl-12">👤 DIPENDENTE (es. Rossi Mario)</li>
          </ul>
          <p className="mt-2 text-sm text-gray-500">
-           Clicca su una categoria per filtrare il grafico e mostrare solo quel tipo di corso.
+           Clicca su una categoria per filtrare il grafico e mostrare solo quel tipo di documento.
          </p>
       </Section>
 
@@ -89,7 +89,7 @@ const CalendarGuide = () => {
               <div>
                 <strong>Zoom Timeline:</strong>
                 <p className="text-sm text-gray-500 mt-1">
-                  Usa i pulsanti <strong>3M</strong> (3 Mesi), <strong>6M</strong> (6 Mesi) o <strong>1Y</strong> (1 Anno) per cambiare la scala temporale.
+                  Usa i pulsanti <strong>3M</strong> (3 Mesi), <strong>6M</strong> (6 Mesi) o <strong>1Y</strong> (1 Anno) per cambiare la scala temporale. (Default: 3 Mesi)
                 </p>
               </div>
             </li>
@@ -98,7 +98,7 @@ const CalendarGuide = () => {
               <div>
                 <strong>Filtro Automatico:</strong>
                 <p className="text-sm text-gray-500 mt-1">
-                  Di default, il grafico mostra solo i certificati scaduti o in scadenza nei prossimi 90 giorni, per focalizzare l'attenzione sulle urgenze.
+                  Di default, il grafico mostra solo i documenti scaduti o in scadenza nei prossimi 90 giorni, per focalizzare l'attenzione sulle urgenze.
                 </p>
               </div>
             </li>
@@ -117,10 +117,10 @@ const CalendarGuide = () => {
             </div>
             <div className="border-l-4 border-blue-500 pl-4 py-1">
               <div className="flex items-center gap-2 font-bold text-gray-800 mb-1">
-                <Mail size={18} /> Invia Email
+                <Send size={18} /> Genera Email
               </div>
               <p className="text-sm text-gray-600">
-                Invia manualmente un report via email ai destinatari configurati, contenente la lista delle scadenze imminenti.
+                Premendo il tasto <strong>"Genera Email"</strong>, il sistema invierà immediatamente un report PDF via email ai destinatari configurati, contenente la lista aggiornata delle scadenze.
               </p>
             </div>
           </div>
