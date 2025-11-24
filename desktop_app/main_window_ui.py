@@ -447,3 +447,21 @@ class MainDashboardWidget(QWidget):
     def analyze_path(self, path):
         self.switch_to("import")
         self.views["import"].upload_path(path)
+
+    def set_read_only_mode(self, is_read_only: bool):
+        """
+        Propagates Read-Only state to all views.
+        """
+        self.is_read_only = is_read_only
+
+        if is_read_only:
+            # Visually indicate Read-Only
+            current_title = self.page_title.text()
+            if "(SOLA LETTURA)" not in current_title:
+                self.page_title.setText(f"{current_title} (SOLA LETTURA)")
+            self.page_title.setStyleSheet("font-size: 20px; font-weight: 600; color: #DC2626; margin-left: 20px;")
+
+        # Propagate to views
+        for view in self.views.values():
+            if hasattr(view, 'set_read_only'):
+                view.set_read_only(is_read_only)

@@ -615,6 +615,24 @@ class ConfigView(QWidget):
 
         self.load_config()
 
+    def set_read_only(self, is_read_only: bool):
+        self.is_read_only = is_read_only
+        self.save_button.setEnabled(not is_read_only)
+        self.import_button.setEnabled(not is_read_only)
+
+        # User Management
+        self.user_management_widget.add_btn.setEnabled(not is_read_only)
+        self.user_management_widget.edit_btn.setEnabled(not is_read_only)
+        self.user_management_widget.delete_btn.setEnabled(not is_read_only)
+
+        # Security
+        self.general_settings.db_security_btn.setEnabled(not is_read_only)
+
+        if is_read_only:
+            self.save_button.setToolTip("Disabilitato in modalità Sola Lettura")
+        else:
+            self.save_button.setToolTip("")
+
     def switch_tab(self, index):
         self.stacked_widget.setCurrentIndex(index)
         self.btn_general.setChecked(index == 0)

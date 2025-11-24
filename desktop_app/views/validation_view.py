@@ -96,7 +96,17 @@ class ValidationView(QWidget):
         """Public slot to reload data from the API."""
         self.load_data()
 
+    def set_read_only(self, is_read_only: bool):
+        self.is_read_only = is_read_only
+        self.update_button_states()
+
     def update_button_states(self):
+        if getattr(self, 'is_read_only', False):
+            self.edit_button.setEnabled(False)
+            self.validate_button.setEnabled(False)
+            self.delete_button.setEnabled(False)
+            return
+
         selection_model = self.table_view.selectionModel()
         has_selection = selection_model is not None and selection_model.hasSelection()
         is_single_selection = len(selection_model.selectedRows()) == 1 if has_selection else False
