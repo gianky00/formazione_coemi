@@ -298,9 +298,9 @@ class DashboardView(QWidget):
     def _update_button_states(self):
         if getattr(self, 'is_read_only', False):
             self.edit_button.setEnabled(False)
-            self.edit_button.setToolTip("Disabilitato in modalità Sola Lettura")
+            self.edit_button.setToolTip("Database in sola lettura")
             self.delete_button.setEnabled(False)
-            self.delete_button.setToolTip("Disabilitato in modalità Sola Lettura")
+            self.delete_button.setToolTip("Database in sola lettura")
         else:
             self.edit_button.setEnabled(True)
             self.edit_button.setToolTip("")

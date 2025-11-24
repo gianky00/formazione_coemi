@@ -247,11 +247,15 @@ class ImportView(QWidget):
         self.is_read_only = is_read_only
         if is_read_only:
             self.drop_zone.select_folder_button.setEnabled(False)
+            self.drop_zone.select_folder_button.setToolTip("Database in sola lettura")
+            self.drop_zone.setToolTip("Database in sola lettura")
             self.drop_zone.setAcceptDrops(False)
             self.drop_zone.setStyleSheet("QFrame#drop_zone { background-color: #F3F4F6; border: 2px solid #D1D5DB; }")
             self.results_display.setText("⚠️ Importazione disabilitata in modalità Sola Lettura.")
         else:
             self.drop_zone.select_folder_button.setEnabled(True)
+            self.drop_zone.select_folder_button.setToolTip("")
+            self.drop_zone.setToolTip("")
             self.drop_zone.setAcceptDrops(True)
             self.drop_zone.update_style("#FFFFFF", "#E5E7EB", "solid")
             if self.results_display.toPlainText() == "⚠️ Importazione disabilitata in modalità Sola Lettura.":

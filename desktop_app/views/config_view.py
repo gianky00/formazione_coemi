@@ -630,7 +630,7 @@ class ConfigView(QWidget):
         self.general_settings.db_security_btn.setEnabled(not is_read_only)
 
         if is_read_only:
-            self.save_button.setToolTip("Disabilitato in modalità Sola Lettura")
+            self.save_button.setToolTip("Database in sola lettura")
         else:
             self.save_button.setToolTip("")
 

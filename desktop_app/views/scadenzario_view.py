@@ -282,7 +282,7 @@ class ScadenzarioView(QWidget):
         self.is_read_only = is_read_only
         if is_read_only:
             self.generate_email_button.setEnabled(False)
-            self.generate_email_button.setToolTip("Disabilitato in modalità Sola Lettura")
+            self.generate_email_button.setToolTip("Database in sola lettura")
         else:
             self.generate_email_button.setEnabled(True)
             self.generate_email_button.setToolTip("")

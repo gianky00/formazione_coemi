@@ -8,6 +8,7 @@ from app.db.session import get_db
 from app.db.models import User, BlacklistedToken
 from app.schemas.schemas import TokenData
 from app.utils.audit import log_security_action
+from app.core.db_security import db_security
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
 
@@ -57,3 +58,14 @@ def get_current_active_admin(
         )
         raise HTTPException(status_code=400, detail="The user doesn't have enough privileges")
     return current_user
+
+def check_write_permission():
+    """
+    Dependency that raises 503 if the database is in Read-Only mode.
+    Used to protect write operations.
+    """
+    if db_security.is_read_only:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database in sola lettura. Operazione non consentita."
+        )
