@@ -276,6 +276,17 @@ class LoginView(QWidget):
             response = self.api_client.login(username, password)
             self.api_client.set_token(response)
 
+            user_info = self.api_client.user_info
+            if user_info.get("read_only"):
+                owner = user_info.get("lock_owner") or {}
+                msg = "⚠️ DATABASE IN USO\n\n"
+                msg += f"Utente: {owner.get('username', 'N/A')}\n"
+                msg += f"Host: {owner.get('hostname', 'N/A')}\n"
+                msg += f"PID: {owner.get('pid', 'N/A')}\n\n"
+                msg += "L'applicazione si avvierà in modalità SOLA LETTURA.\n"
+                msg += "Non sarà possibile salvare nuove modifiche."
+                QMessageBox.warning(self, "Modalità Sola Lettura", msg)
+
             self.login_success.emit(self.api_client.user_info)
 
         except Exception as e:

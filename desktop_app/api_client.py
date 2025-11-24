@@ -18,7 +18,9 @@ class APIClient:
             "id": token_data.get("user_id"),
             "username": token_data.get("username"),
             "account_name": token_data.get("account_name"),
-            "is_admin": token_data.get("is_admin")
+            "is_admin": token_data.get("is_admin"),
+            "read_only": token_data.get("read_only", False),
+            "lock_owner": token_data.get("lock_owner")
         }
 
     def clear_token(self):

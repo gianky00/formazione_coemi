@@ -98,13 +98,15 @@ def login_access_token(
 
     # Create Session Lock
     # This enforces single-user access upon successful login
-    try:
-        db_security.create_lock()
-    except PermissionError as e:
-        # Deny login if database is locked by another session
-        raise HTTPException(status_code=409, detail=str(e))
+    # If locked, we proceed in Read-Only mode
+    user_info = {
+        "user_id": user.id,
+        "username": user.username,
+        "full_name": user.account_name or user.username
+    }
+    success, owner_info = db_security.acquire_session_lock(user_info)
 
-    print(f"[DEBUG] Login success. Username: {user.username}, Previous Login: {user.previous_login}, New Last Login: {user.last_login}")
+    print(f"[DEBUG] Login success. Username: {user.username}, Previous Login: {user.previous_login}, New Last Login: {user.last_login}, ReadOnly: {not success}")
 
     log_security_action(db, user, "LOGIN", "User logged in successfully", category="AUTH", request=request)
 
@@ -115,7 +117,9 @@ def login_access_token(
         "username": user.username,
         "account_name": user.account_name,
         "is_admin": user.is_admin,
-        "previous_login": user.previous_login
+        "previous_login": user.previous_login,
+        "read_only": not success,
+        "lock_owner": owner_info
     }
 
 @router.get("/me", response_model=User)
