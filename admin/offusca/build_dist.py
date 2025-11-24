@@ -9,11 +9,11 @@ import logging
 import platform
 
 # --- CONFIGURAZIONE ---
-# Forza la directory di lavoro alla cartella dove si trova questo script.
-# Questo garantisce la portabilità eliminando dipendenze da C:\Users...
+# 1. FIX PORTABILITÀ: Directory corrente = cartella dello script
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-# Calcola la ROOT del progetto risalendo di due livelli (assumendo script in tools/ o scripts/)
+# Calcola la ROOT del progetto (due livelli sopra scripts/tools)
+# Esempio: formazione_coemi/admin/tools -> formazione_coemi
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 ENTRY_SCRIPT = "boot_loader.py"
@@ -288,16 +288,14 @@ def build():
         copy_dir_if_exists("desktop_app/assets", "desktop_app/assets")
         copy_dir_if_exists("desktop_app/icons", "desktop_app/icons")
 
-        # COPY RUNTIME HOOK (FIX IMPORTANTE: Cerca rthook_pyqt6.py nella cartella corrente)
+        # COPY RUNTIME HOOK (CERCA NELLA CARTELLA CORRENTE)
         rthook_src = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rthook_pyqt6.py")
         rthook_dst = os.path.join(OBF_DIR, "rthook_pyqt6.py")
-        
-        # Se lo script rthook esiste nella cartella di build, lo usiamo
         if os.path.exists(rthook_src):
             shutil.copy(rthook_src, rthook_dst)
             log_and_print(f"Copied runtime hook: {rthook_src} -> {rthook_dst}")
         else:
-            log_and_print(f"WARNING: rthook_pyqt6.py not found in {os.path.dirname(rthook_src)}! Crash possible.", "WARNING")
+            log_and_print(f"WARNING: rthook_pyqt6.py not found in {os.path.dirname(rthook_src)}", "WARNING")
 
         if os.path.exists(os.path.join(ROOT_DIR, "requirements.txt")):
             shutil.copy(os.path.join(ROOT_DIR, "requirements.txt"), os.path.join(OBF_DIR, "requirements.txt"))
@@ -331,14 +329,13 @@ def build():
             "--distpath", DIST_DIR,
             "--workpath", os.path.join(DIST_DIR, "build"),
             f"--paths={OBF_DIR}",
-            # FIX: Usa il runtime hook copiato che forza gli import
             f"--runtime-hook={os.path.join(OBF_DIR, 'rthook_pyqt6.py')}", 
         ]
 
         for d in add_data:
             cmd_pyinstaller.extend(["--add-data", d])
 
-        # Explicitly collect packages that frequently have missing sub-dependencies or plugins
+        # Explicitly collect packages
         cmd_pyinstaller.extend(["--collect-all", "google.cloud"])
         cmd_pyinstaller.extend(["--collect-all", "google.cloud.aiplatform"])
         cmd_pyinstaller.extend(["--collect-all", "google.generativeai"])
@@ -367,11 +364,11 @@ def build():
         cmd_pyinstaller.extend(["--collect-all", "apscheduler"])
 
         manual_hidden_imports = [
-            "launcher", # The new logic imports this manually
+            "launcher", 
             "views", "utils", "components", "api_client",
             "main_window_ui", "edit_dialog", "gantt_item", "view_models",
-            "desktop_app.main", # EXPLICIT MAIN IMPORT
-            "desktop_app.components", # EXPLICIT COMPONENTS
+            "desktop_app.main", 
+            "desktop_app.components", 
             "desktop_app.views", "desktop_app.utils", "desktop_app.components",
             "sqlalchemy.sql.default_comparator", "sqlalchemy.dialects.sqlite",
             "pysqlite2", "MySQLdb", "psycopg2", "dotenv",
@@ -381,7 +378,7 @@ def build():
             "uvicorn.lifespan.on", "multipart", "python_multipart",
             "PyQt6.QtSvg", "PyQt6.QtNetwork", "PyQt6.QtPrintSupport",
             "PyQt6.QtWidgets", "PyQt6.QtCore", "PyQt6.QtGui",
-            # IMPORTANTE: Anche se rthook li chiama, li mettiamo hidden import per sicurezza
+            # FIX: Hidden imports vitali per prevenire il crash iniziale
             "PyQt6.QtWebEngineWidgets", "PyQt6.QtWebEngineCore", "PyQt6.QtWebChannel",
             "email.mime.text", "email.mime.multipart", "email.mime.application",
             "email.mime.base", "email.mime.image", "email.header", "email.utils",
@@ -410,7 +407,7 @@ def build():
 
         log_and_print("\n--- Step 6/7: Post-Build Cleanup & DLL Injection ---")
 
-        # FIX: Usa percorso assoluto per output folder (risolve problemi Inno Setup)
+        # FIX: Uso percorso assoluto per output folder
         output_folder = os.path.abspath(os.path.join(DIST_DIR, APP_NAME))
 
         if os.name == 'nt':
@@ -422,38 +419,41 @@ def build():
                     shutil.copy(dll_path, dest)
                     log_and_print(f"Injected {dll_name} into build/dll folder.")
 
-        # --- GESTIONE LICENZA (AGGIORNATA) ---
+        # --- GESTIONE LICENZA (UPDATE RICHIESTO) ---
+        # "il file pyarmor.rkey lo trovi in formazione_coemi\Licenza tu devi importare la cartella formazione_coemi\Licenza"
+        
         lic_dest_dir = os.path.join(output_folder, "Licenza")
-        os.makedirs(lic_dest_dir, exist_ok=True)
-
-        # 1. Copia pyarmor.rkey (generato da PyArmor in OBF_DIR)
-        rkey_src = os.path.join(OBF_DIR, "pyarmor.rkey")
-        if os.path.exists(rkey_src):
-            shutil.copy(rkey_src, os.path.join(lic_dest_dir, "pyarmor.rkey"))
-            log_and_print("Moved pyarmor.rkey to Licenza folder.")
+        # Rimuoviamo la cartella di destinazione se esiste per partire puliti
+        if os.path.exists(lic_dest_dir):
+            shutil.rmtree(lic_dest_dir)
+        
+        # Percorso sorgente: formazione_coemi/Licenza
+        lic_src_dir = os.path.join(ROOT_DIR, "Licenza")
+        
+        if os.path.exists(lic_src_dir):
+            log_and_print(f"Importing License folder from: {lic_src_dir}")
+            shutil.copytree(lic_src_dir, lic_dest_dir)
+            log_and_print("License folder successfully imported.")
         else:
-            log_and_print(f"WARNING: pyarmor.rkey not found at {rkey_src}", "WARNING")
+            log_and_print(f"CRITICAL WARNING: License folder not found at {lic_src_dir}", "WARNING")
+            # Fallback: crea la cartella vuota per evitare errori nel setup
+            os.makedirs(lic_dest_dir, exist_ok=True)
 
-        # 2. Copia dettagli_licenza.txt (dalla ROOT)
-        lic_txt_src = os.path.join(ROOT_DIR, "dettagli_licenza.txt")
-        if os.path.exists(lic_txt_src):
-            shutil.copy(lic_txt_src, os.path.join(lic_dest_dir, "dettagli_licenza.txt"))
-            log_and_print(f"Copied dettagli_licenza.txt from {lic_txt_src} to Licenza folder.")
-        else:
-            log_and_print(f"WARNING: dettagli_licenza.txt not found at {lic_txt_src}", "WARNING")
 
         log_and_print("\n--- Step 7/7: Compiling Installer with Inno Setup ---")
 
-        # Cerca lo script setup_script.iss nelle posizioni possibili
+        # FIX: Percorso relativo allo script per trovare il setup.iss
         iss_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "crea_setup", "setup_script.iss"))
+        
+        # Fallback se non trovato nel percorso standard
         if not os.path.exists(iss_path):
-            iss_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "setup_script.iss"))
+             iss_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "setup_script.iss"))
 
         if not os.path.exists(iss_path):
             log_and_print(f"Setup script not found at: {iss_path}", "ERROR")
             sys.exit(1)
 
-        # Passiamo il percorso ASSOLUTO della cartella build a Inno Setup
+        # FIX: Passiamo il path assoluto di output_folder a Inno Setup
         cmd_iscc = [
             iscc_exe,
             f"/DMyAppVersion=1.0.0",

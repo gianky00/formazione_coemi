@@ -10,7 +10,7 @@
   #define MyAppVersion "1.0"
 #endif
 #ifndef BuildDir
-  ; Fallback path relativo
+  ; Fallback relativo se non passato da riga di comando
   #define BuildDir "..\offusca\dist\Intelleo"
 #endif
 
@@ -23,18 +23,20 @@ AppPublisher={#MyAppPublisher}
 ; Installa in C:\Program Files\Intelleo
 DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
-; Crea il file di setup nella cartella superiore alla build dir (di solito dist)
-OutputDir={#BuildDir}\..
+
+; === OUTPUT DIRECTORY ===
+; Salva l'installer in formazione_coemi\admin\crea_setup\dist\Intelleo
+OutputDir=dist\Intelleo
 OutputBaseFilename=Intelleo_Setup_v{#MyAppVersion}
+
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 WizardSizePercent=120
 WizardResizable=yes
 UninstallFilesDir={app}\Disinstalla
-; Licenza EULA (RTF Professionale)
 LicenseFile=EULA.rtf
-; Immagini personalizzate per l'installer
+; Immagini personalizzate
 WizardImageFile=..\..\desktop_app\assets\installer_wizard.bmp
 WizardSmallImageFile=..\..\desktop_app\assets\installer_small.bmp
 ; Icona del setup
@@ -46,6 +48,11 @@ Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
+[Dirs]
+; === CREAZIONE FORZATA CARTELLE ===
+; Crea la cartella AppData durante l'installazione per evitare che il collegamento punti al nulla
+Name: "{localappdata}\Intelleo"
+
 [Registry]
 ; Menu contestuale "Analizza con Intelleo"
 Root: HKCR; Subkey: "Directory\shell\IntelleoAnalyze"; ValueType: string; ValueName: ""; ValueData: "Analizza con Intelleo"; Flags: uninsdeletekey
@@ -53,54 +60,52 @@ Root: HKCR; Subkey: "Directory\shell\IntelleoAnalyze"; ValueType: string; ValueN
 Root: HKCR; Subkey: "Directory\shell\IntelleoAnalyze\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" --analyze ""%1"""; Flags: uninsdeletekey
 
 [Files]
-; === ESEGUIBILE E DIPENDENZE PYTHON (Output di PyInstaller) ===
-; Copia tutto il contenuto della cartella compilata (escludendo i setup precedenti e la cartella Licenza per gestirla a parte)
+; === ESEGUIBILE E DIPENDENZE PYTHON ===
+; Escludiamo la cartella Licenza qui per gestirla esplicitamente sotto
 Source: "{#BuildDir}\*"; DestDir: "{app}"; Excludes: "Intelleo_Setup_*.exe,Licenza"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; === LICENZA ===
-; Copia esplicitamente la cartella Licenza preparata da Python
+; Copia la cartella Licenza preparata dallo script Python (che ora contiene la copia della cartella Licenza originale)
 Source: "{#BuildDir}\Licenza\*"; DestDir: "{app}\Licenza"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; === ASSET GRAFICI ===
-; Mantiene la struttura delle cartelle 'desktop_app' necessaria per i path relativi Python
 Source: "..\..\desktop_app\assets\*"; DestDir: "{app}\desktop_app\assets"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\..\desktop_app\icons\*"; DestDir: "{app}\desktop_app\icons"; Flags: ignoreversion recursesubdirs createallsubdirs
 
-; === CONFIGURAZIONE ===
-; .env handling moved to [Code] section to use User Data Directory (AppData)
-
-; === DATABASE ===
-; Database is no longer installed to Program Files.
-; It will be created or migrated to AppData on first run by the application.
-
 ; === DOCUMENTAZIONE JULES ===
-; Copia l'intera cartella docs
 Source: "..\..\docs\*"; DestDir: "{app}\docs"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 [UninstallDelete]
-; Forza la cancellazione di file generati dopo l'installazione per una pulizia completa
+; === PULIZIA AGGRESSIVA ===
+; Cancella file specifici
 Type: files; Name: "{app}\.env"
 Type: files; Name: "{app}\database_documenti.db"
 Type: files; Name: "{app}\database.db"
 Type: files; Name: "{app}\scadenzario.db"
 Type: files; Name: "{app}\pyarmor.rkey"
-Type: files; Name: "{app}\dettagli_licenza.txt"
-Type: files; Name: "{app}\Licenza\pyarmor.rkey"
-Type: files; Name: "{app}\Licenza\dettagli_licenza.txt"
-Type: dirifempty; Name: "{app}\Licenza"
-Type: filesandordirs; Name: "{app}\_internal"
-Type: dirifempty; Name: "{app}"
 Type: files; Name: "{app}\*.log"
-; Clean up User Data (Optional, but good for clean uninstall)
-Type: files; Name: "{localappdata}\Intelleo\.env"
-Type: files; Name: "{localappdata}\Intelleo\database_documenti.db"
+
+; Cancella cartella Licenza
+Type: filesandordirs; Name: "{app}\Licenza"
+
+; Cancella dati utente in AppData
+Type: files; Name: "{localappdata}\Intelleo\*.env"
+Type: files; Name: "{localappdata}\Intelleo\*.db"
 Type: files; Name: "{localappdata}\Intelleo\*.lock"
-Type: dirifempty; Name: "{localappdata}\Intelleo"
+Type: files; Name: "{localappdata}\Intelleo\*.log"
+; Rimuove intera cartella dati utente se vuoi pulizia totale (decommentare riga sotto se vuoi cancellare proprio tutto in appdata)
+Type: filesandordirs; Name: "{localappdata}\Intelleo"
+
+; Cancella l'intera cartella di installazione alla fine
+Type: filesandordirs; Name: "{app}"
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
-Name: "{app}\Dati Applicazione"; Filename: "{localappdata}\Intelleo"
+
+; === COLLEGAMENTO DATI APPLICAZIONE FIXATO ===
+; Apre esplora risorse nel percorso AppData. Parametri senza virgolette triple per evitare errori di parsing.
+Name: "{app}\Dati Applicazione"; Filename: "explorer.exe"; Parameters: "{localappdata}\Intelleo"; IconFilename: "explorer.exe"
 
 [Run]
 ; Avvia l'app dopo l'installazione
@@ -168,7 +173,6 @@ begin
   if CurPageID = wpInstalling then
   begin
     TipsLabel.Visible := True;
-    // Posizionato sotto la barra di progresso con margine aumentato
     TipsLabel.Top := WizardForm.ProgressGauge.Top + WizardForm.ProgressGauge.Height + ScaleY(40);
     TipsLabel.Left := 0;
     TipsLabel.Width := WizardForm.InstallingPage.ClientWidth;
@@ -215,42 +219,24 @@ begin
 
     EnvPath := AppDataDir + '\.env';
 
-    // Try to load existing file, otherwise start with empty array
     if not LoadStringsFromFile(EnvPath, Lines) then
       SetArrayLength(Lines, 0);
 
     // Page 1 Values
-    Val := ConfigPage1.Values[0];
-    if Val <> '' then UpdateEnvVar(Lines, 'GEMINI_API_KEY', '"' + Val + '"');
-
-    Val := ConfigPage1.Values[1];
-    if Val <> '' then UpdateEnvVar(Lines, 'GOOGLE_CLOUD_PROJECT', '"' + Val + '"');
-
-    Val := ConfigPage1.Values[2];
-    if Val <> '' then UpdateEnvVar(Lines, 'GCS_BUCKET_NAME', '"' + Val + '"');
+    Val := ConfigPage1.Values[0]; if Val <> '' then UpdateEnvVar(Lines, 'GEMINI_API_KEY', '"' + Val + '"');
+    Val := ConfigPage1.Values[1]; if Val <> '' then UpdateEnvVar(Lines, 'GOOGLE_CLOUD_PROJECT', '"' + Val + '"');
+    Val := ConfigPage1.Values[2]; if Val <> '' then UpdateEnvVar(Lines, 'GCS_BUCKET_NAME', '"' + Val + '"');
 
     // Page 2 Values (Server)
-    Val := ConfigPage2.Values[0];
-    if Val <> '' then UpdateEnvVar(Lines, 'SMTP_HOST', '"' + Val + '"');
-
-    Val := ConfigPage2.Values[1];
-    if Val <> '' then UpdateEnvVar(Lines, 'SMTP_PORT', Val);
-
-    Val := ConfigPage2.Values[2];
-    if Val <> '' then UpdateEnvVar(Lines, 'SMTP_USER', '"' + Val + '"');
-
-    Val := ConfigPage2.Values[3];
-    if Val <> '' then UpdateEnvVar(Lines, 'SMTP_PASSWORD', '"' + Val + '"');
+    Val := ConfigPage2.Values[0]; if Val <> '' then UpdateEnvVar(Lines, 'SMTP_HOST', '"' + Val + '"');
+    Val := ConfigPage2.Values[1]; if Val <> '' then UpdateEnvVar(Lines, 'SMTP_PORT', Val);
+    Val := ConfigPage2.Values[2]; if Val <> '' then UpdateEnvVar(Lines, 'SMTP_USER', '"' + Val + '"');
+    Val := ConfigPage2.Values[3]; if Val <> '' then UpdateEnvVar(Lines, 'SMTP_PASSWORD', '"' + Val + '"');
 
     // Page 3 Values (Recipients)
-    Val := ConfigPage3.Values[0];
-    if Val <> '' then UpdateEnvVar(Lines, 'EMAIL_RECIPIENTS_TO', '"' + Val + '"');
+    Val := ConfigPage3.Values[0]; if Val <> '' then UpdateEnvVar(Lines, 'EMAIL_RECIPIENTS_TO', '"' + Val + '"');
+    Val := ConfigPage3.Values[1]; if Val <> '' then UpdateEnvVar(Lines, 'EMAIL_RECIPIENTS_CC', '"' + Val + '"');
 
-    Val := ConfigPage3.Values[1];
-    if Val <> '' then UpdateEnvVar(Lines, 'EMAIL_RECIPIENTS_CC', '"' + Val + '"');
-
-    // Only save if we have data (or file existed)
-    // Actually, force save if we created the file
     SaveStringsToFile(EnvPath, Lines, False);
   end;
 end;
