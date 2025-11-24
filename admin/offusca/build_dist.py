@@ -341,6 +341,10 @@ def build():
         cmd_pyinstaller.extend(["--collect-all", "grpc"])
         cmd_pyinstaller.extend(["--collect-all", "google.protobuf"])
         cmd_pyinstaller.extend(["--collect-all", "desktop_app"])
+
+        # FIX: Collect specific WebEngine modules to prevent "ModuleNotFoundError"
+        cmd_pyinstaller.extend(["--collect-all", "PyQt6.QtWebEngineWidgets"])
+        cmd_pyinstaller.extend(["--collect-all", "PyQt6.QtWebEngineCore"])
         cmd_pyinstaller.extend(["--collect-all", "PyQt6-WebEngine"])
 
         # New: Collect Auth libraries explicitly
