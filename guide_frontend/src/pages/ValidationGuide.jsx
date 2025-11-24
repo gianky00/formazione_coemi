@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Database, CheckSquare, UserX, Edit3, Trash2 } from 'lucide-react';
+import { Database, CheckSquare, UserX, Edit3, Trash2, RefreshCw } from 'lucide-react';
 
 const Section = ({ title, children }) => (
   <section className="mb-12">
@@ -56,7 +56,7 @@ const ValidationGuide = () => {
           <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 font-mono text-sm text-slate-700">
             <div className="flex items-center gap-2 mb-2">
               <span className="bg-slate-200 px-2 py-0.5 rounded text-xs font-bold uppercase">Input</span>
-              <span>Dati Grezzi (JSON) da Analisi AI</span>
+              <span>File Analizzati (In attesa di convalida)</span>
             </div>
             <div className="flex justify-center my-1 text-slate-400">↓</div>
             <div className="flex items-center gap-2">
@@ -72,10 +72,20 @@ const ValidationGuide = () => {
             <div>
               <h3 className="font-bold text-red-800 mb-1">Dipendente Non Trovato</h3>
               <p className="text-sm text-red-700 mb-2">
-                Se l'AI non riesce ad associare un certificato, la colonna <strong>CAUSA</strong> mostrerà il motivo (es. "Non trovato in anagrafica").
+                Se l'AI non riesce ad associare un certificato (es. matricola assente), la colonna <strong>CAUSA</strong> mostrerà il motivo (es. "Non trovato in anagrafica").
               </p>
-              <p className="text-sm text-red-700 font-medium">
-                Usa il tasto "Modifica" per cercare e collegare manualmente il dipendente corretto.
+
+              <div className="mt-3 bg-white p-3 rounded border border-red-200">
+                  <h4 className="font-bold text-red-800 text-xs uppercase mb-1 flex items-center gap-2">
+                      <RefreshCw size={12} /> Soluzione Automatica
+                  </h4>
+                  <p className="text-xs text-red-700">
+                      Vai in <strong>Gestione Dipendenti</strong> e importa il file CSV aggiornato. Il sistema ri-scansionerà automaticamente tutti i certificati orfani cercando di collegarli ai nuovi dipendenti inseriti.
+                  </p>
+              </div>
+
+              <p className="text-sm text-red-700 font-medium mt-3">
+                Alternativamente, usa il tasto "Modifica" per cercare e collegare manualmente il dipendente.
               </p>
             </div>
           </div>

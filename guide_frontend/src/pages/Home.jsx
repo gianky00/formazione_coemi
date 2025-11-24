@@ -63,7 +63,7 @@ const Home = () => {
           <FeatureCard
             icon={FileText}
             title="Importazione AI"
-            desc="Carica i PDF trascinandoli. L'intelligenza artificiale estrarrà automaticamente date, dipendenti e corsi."
+            desc="Carica i PDF trascinandoli. L'intelligenza artificiale estrarrà automaticamente date, dipendenti e documenti."
             to="/import"
             delay={0.2}
           />

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Users, Upload, Link, Search } from 'lucide-react';
+import { Users, Upload, Link, Search, RefreshCw } from 'lucide-react';
 
 const Section = ({ title, children }) => (
   <section className="mb-12">
@@ -40,19 +40,19 @@ const EmployeesGuide = () => {
             <li className="flex items-start gap-3">
               <Search size={20} className="text-gray-400 mt-1 shrink-0" />
               <span>
-                <strong>Ricerca:</strong> Trova rapidamente un dipendente per Matricola o Nome.
+                <strong>Ricerca:</strong> Trova rapidamente un <strong>DIPENDENTE</strong> per Matricola o Nome.
               </span>
             </li>
             <li className="flex items-start gap-3">
               <Link size={20} className="text-gray-400 mt-1 shrink-0" />
               <span>
-                <strong>Associazione:</strong> I certificati vengono collegati ai dipendenti tramite la <strong>Matricola</strong>. È fondamentale che sia univoca.
+                <strong>Associazione:</strong> I documenti vengono collegati ai dipendenti tramite la <strong>Matricola</strong>. È fondamentale che sia univoca.
               </span>
             </li>
           </ul>
         </Section>
 
-        <Section title="Importazione Massiva">
+        <Section title="Importazione Massiva & Recupero Orfani">
           <div className="bg-indigo-50 p-5 rounded-lg border border-indigo-100">
             <div className="flex items-center gap-2 text-indigo-800 font-bold mb-3">
               <Upload size={20} /> Import CSV
@@ -67,6 +67,15 @@ const EmployeesGuide = () => {
             <p className="text-xs text-indigo-600 mt-2 italic">
               Nota: Il delimitatore deve essere il punto e virgola (;).
             </p>
+
+            <div className="mt-4 pt-4 border-t border-indigo-200">
+               <div className="flex items-center gap-2 text-indigo-800 font-bold mb-2">
+                 <RefreshCw size={16} /> Link Automatico
+               </div>
+               <p className="text-sm text-indigo-900">
+                 Al termine dell'importazione, il sistema scansiona automaticamente tutti i certificati "orfani" (non assegnati) nella vista <em>Convalida Dati</em> e tenta di collegarli ai nuovi dipendenti inseriti.
+               </p>
+            </div>
           </div>
         </Section>
       </div>
