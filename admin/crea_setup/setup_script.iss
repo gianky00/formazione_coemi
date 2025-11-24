@@ -10,11 +10,12 @@
   #define MyAppVersion "1.0"
 #endif
 #ifndef BuildDir
+  ; Fallback path relativo
   #define BuildDir "..\offusca\dist\Intelleo"
 #endif
 
 [Setup]
-; ID univoco per l'applicazione (generato casualmente, non cambiarlo per aggiornamenti futuri)
+; ID univoco per l'applicazione
 AppId={{A1B2C3D4-E5F6-7890-1234-567890ABCDEF}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
@@ -22,8 +23,8 @@ AppPublisher={#MyAppPublisher}
 ; Installa in C:\Program Files\Intelleo
 DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
-; Crea il file di setup nella cartella dist\Intelleo
-OutputDir=dist\Intelleo
+; Crea il file di setup nella cartella superiore alla build dir (di solito dist)
+OutputDir={#BuildDir}\..
 OutputBaseFilename=Intelleo_Setup_v{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
@@ -53,13 +54,14 @@ Root: HKCR; Subkey: "Directory\shell\IntelleoAnalyze\command"; ValueType: string
 
 [Files]
 ; === ESEGUIBILE E DIPENDENZE PYTHON (Output di PyInstaller) ===
-; Copia tutto il contenuto della cartella compilata (escludendo i setup precedenti)
-Source: "{#BuildDir}\*"; DestDir: "{app}"; Excludes: "Intelleo_Setup_*.exe"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Copia tutto il contenuto della cartella compilata (escludendo i setup precedenti e la cartella Licenza per gestirla a parte)
+Source: "{#BuildDir}\*"; DestDir: "{app}"; Excludes: "Intelleo_Setup_*.exe,Licenza"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; === LICENZA ===
-; Included via recursive copy of BuildDir. The Licenza folder is prepared by build_dist.py.
+; Copia esplicitamente la cartella Licenza preparata da Python
+Source: "{#BuildDir}\Licenza\*"; DestDir: "{app}\Licenza"; Flags: ignoreversion recursesubdirs createallsubdirs
 
-; === ASSET GRAFICI (Come da indicazioni di Jules) ===
+; === ASSET GRAFICI ===
 ; Mantiene la struttura delle cartelle 'desktop_app' necessaria per i path relativi Python
 Source: "..\..\desktop_app\assets\*"; DestDir: "{app}\desktop_app\assets"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\..\desktop_app\icons\*"; DestDir: "{app}\desktop_app\icons"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -144,7 +146,7 @@ begin
   WizardForm.WizardSmallBitmapImage.Width := ScaleX(110);
   WizardForm.WizardSmallBitmapImage.Left := WizardForm.ClientWidth - ScaleX(110);
 
-  // Suggerimenti Professionali (Creato nascosto, mostrato in CurPageChanged)
+  // Suggerimenti Professionali
   TipsLabel := TNewStaticText.Create(WizardForm);
   TipsLabel.Parent := WizardForm.InstallingPage;
   TipsLabel.Visible := False;

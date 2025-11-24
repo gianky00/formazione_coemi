@@ -10,10 +10,13 @@ import platform
 
 # --- CONFIGURAZIONE ---
 # Forza la directory di lavoro alla cartella dove si trova questo script.
+# Questo garantisce la portabilità eliminando dipendenze da C:\Users...
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
+# Calcola la ROOT del progetto risalendo di due livelli (assumendo script in tools/ o scripts/)
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-ENTRY_SCRIPT = "boot_loader.py"  # Changed from launcher.py
+
+ENTRY_SCRIPT = "boot_loader.py"
 APP_NAME = "Intelleo"
 DIST_DIR = "dist"
 OBF_DIR = os.path.join(DIST_DIR, "obfuscated")
@@ -74,7 +77,7 @@ def kill_existing_process():
     if os.name == 'nt':
         try:
             subprocess.run(["taskkill", "/F", "/IM", f"{APP_NAME}.exe"],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             log_and_print(f"Killed active {APP_NAME}.exe instances (if any).")
             time.sleep(1)
         except Exception:
@@ -285,19 +288,19 @@ def build():
         copy_dir_if_exists("desktop_app/assets", "desktop_app/assets")
         copy_dir_if_exists("desktop_app/icons", "desktop_app/icons")
 
-        # COPY RUNTIME HOOK
-        rthook_src = os.path.join(os.path.dirname(__file__), "rthook_pyqt6.py")
+        # COPY RUNTIME HOOK (FIX IMPORTANTE: Cerca rthook_pyqt6.py nella cartella corrente)
+        rthook_src = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rthook_pyqt6.py")
         rthook_dst = os.path.join(OBF_DIR, "rthook_pyqt6.py")
+        
+        # Se lo script rthook esiste nella cartella di build, lo usiamo
         if os.path.exists(rthook_src):
             shutil.copy(rthook_src, rthook_dst)
             log_and_print(f"Copied runtime hook: {rthook_src} -> {rthook_dst}")
+        else:
+            log_and_print(f"WARNING: rthook_pyqt6.py not found in {os.path.dirname(rthook_src)}! Crash possible.", "WARNING")
 
         if os.path.exists(os.path.join(ROOT_DIR, "requirements.txt")):
             shutil.copy(os.path.join(ROOT_DIR, "requirements.txt"), os.path.join(OBF_DIR, "requirements.txt"))
-
-        # NOTE: We intentionally DO NOT copy .env to the build folder anymore.
-        # User configuration is managed via AppData, and default Admin credentials
-        # are handled by app/core/config.py defaults if no .env is present in AppData.
 
         log_and_print("\n--- Step 5/7: Packaging with PyInstaller (This may take a while) ---")
         sep = ";" if os.name == 'nt' else ":"
@@ -328,7 +331,8 @@ def build():
             "--distpath", DIST_DIR,
             "--workpath", os.path.join(DIST_DIR, "build"),
             f"--paths={OBF_DIR}",
-            f"--runtime-hook={os.path.join(OBF_DIR, 'rthook_pyqt6.py')}", # ADD RUNTIME HOOK
+            # FIX: Usa il runtime hook copiato che forza gli import
+            f"--runtime-hook={os.path.join(OBF_DIR, 'rthook_pyqt6.py')}", 
         ]
 
         for d in add_data:
@@ -377,6 +381,7 @@ def build():
             "uvicorn.lifespan.on", "multipart", "python_multipart",
             "PyQt6.QtSvg", "PyQt6.QtNetwork", "PyQt6.QtPrintSupport",
             "PyQt6.QtWidgets", "PyQt6.QtCore", "PyQt6.QtGui",
+            # IMPORTANTE: Anche se rthook li chiama, li mettiamo hidden import per sicurezza
             "PyQt6.QtWebEngineWidgets", "PyQt6.QtWebEngineCore", "PyQt6.QtWebChannel",
             "email.mime.text", "email.mime.multipart", "email.mime.application",
             "email.mime.base", "email.mime.image", "email.header", "email.utils",
@@ -384,12 +389,10 @@ def build():
             "pydantic_settings", "httpx",
             "google.cloud.aiplatform", "google.cloud.aiplatform_v1",
             "google.api_core", "google.auth", "google.protobuf", "grpc",
-            # New: Auth and Crypto libs
             "passlib", "passlib.handlers.bcrypt",
             "bcrypt",
             "jose", "jose.backends.cryptography_backend",
             "cryptography", "cryptography.hazmat.backends.openssl",
-            # Additional dependencies
             "pandas", "tenacity", "fpdf", "ua_parser"
         ]
 
@@ -407,7 +410,7 @@ def build():
 
         log_and_print("\n--- Step 6/7: Post-Build Cleanup & DLL Injection ---")
 
-        # Use absolute path for output folder to fix Inno Setup resolution
+        # FIX: Usa percorso assoluto per output folder (risolve problemi Inno Setup)
         output_folder = os.path.abspath(os.path.join(DIST_DIR, APP_NAME))
 
         if os.name == 'nt':
@@ -419,17 +422,19 @@ def build():
                     shutil.copy(dll_path, dest)
                     log_and_print(f"Injected {dll_name} into build/dll folder.")
 
-        # Move License files to Licenza folder
+        # --- GESTIONE LICENZA (AGGIORNATA) ---
         lic_dest_dir = os.path.join(output_folder, "Licenza")
         os.makedirs(lic_dest_dir, exist_ok=True)
 
-        # 1. Move pyarmor.rkey (generated by PyArmor in output_folder)
-        rkey_src = os.path.join(output_folder, "pyarmor.rkey")
+        # 1. Copia pyarmor.rkey (generato da PyArmor in OBF_DIR)
+        rkey_src = os.path.join(OBF_DIR, "pyarmor.rkey")
         if os.path.exists(rkey_src):
-            shutil.move(rkey_src, os.path.join(lic_dest_dir, "pyarmor.rkey"))
+            shutil.copy(rkey_src, os.path.join(lic_dest_dir, "pyarmor.rkey"))
             log_and_print("Moved pyarmor.rkey to Licenza folder.")
+        else:
+            log_and_print(f"WARNING: pyarmor.rkey not found at {rkey_src}", "WARNING")
 
-        # 2. Copy dettagli_licenza.txt (from Source Root)
+        # 2. Copia dettagli_licenza.txt (dalla ROOT)
         lic_txt_src = os.path.join(ROOT_DIR, "dettagli_licenza.txt")
         if os.path.exists(lic_txt_src):
             shutil.copy(lic_txt_src, os.path.join(lic_dest_dir, "dettagli_licenza.txt"))
@@ -439,12 +444,16 @@ def build():
 
         log_and_print("\n--- Step 7/7: Compiling Installer with Inno Setup ---")
 
+        # Cerca lo script setup_script.iss nelle posizioni possibili
         iss_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "crea_setup", "setup_script.iss"))
+        if not os.path.exists(iss_path):
+            iss_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "setup_script.iss"))
 
         if not os.path.exists(iss_path):
             log_and_print(f"Setup script not found at: {iss_path}", "ERROR")
             sys.exit(1)
 
+        # Passiamo il percorso ASSOLUTO della cartella build a Inno Setup
         cmd_iscc = [
             iscc_exe,
             f"/DMyAppVersion=1.0.0",
