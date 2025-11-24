@@ -17,6 +17,7 @@ from .views.modern_guide_view import ModernGuideDialog
 
 # Import Utils
 from .utils import get_asset_path, load_colored_icon
+from .services.license_manager import LicenseManager
 
 class SidebarButton(QPushButton):
     def __init__(self, text, icon_name, parent=None):
@@ -209,7 +210,7 @@ class Sidebar(QFrame):
         license_data = self.read_license_info()
 
         if not license_data:
-             lbl = QLabel("import dettagli_licenza")
+             lbl = QLabel("Licenza non valida")
              lbl.setStyleSheet("color: #FF6B6B; font-size: 14px; font-weight: bold;")
              self.license_layout.addWidget(lbl)
         else:
@@ -277,31 +278,7 @@ class Sidebar(QFrame):
         self.animation.setDuration(300)
 
     def read_license_info(self):
-        path = "dettagli_licenza.txt"
-
-        # Define fallback paths
-        possible_paths = [
-            path,
-            os.path.join("Licenza", path),
-        ]
-
-        if getattr(sys, 'frozen', False):
-            exe_dir = os.path.dirname(sys.executable)
-            possible_paths.append(os.path.join(exe_dir, path))
-            possible_paths.append(os.path.join(exe_dir, "Licenza", path))
-
-        info = {}
-        for p in possible_paths:
-            if os.path.exists(p):
-                try:
-                    with open(p, "r", encoding="utf-8") as f:
-                        for line in f:
-                            if ":" in line:
-                                key, value = line.split(":", 1)
-                                info[key.strip()] = value.strip()
-                    if info: break
-                except: pass
-        return info
+        return LicenseManager.get_license_data() or {}
 
     def set_user_info(self, name, last_access):
         self.user_name_label.setText(f"Benvenuto, {name}!")

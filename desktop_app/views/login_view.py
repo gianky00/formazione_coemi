@@ -6,6 +6,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPropertyAnimation, QPoint, QEas
 from PyQt6.QtGui import QPixmap, QColor, QFont
 from desktop_app.utils import get_asset_path
 from desktop_app.components.animated_widgets import AnimatedButton, AnimatedInput
+from desktop_app.services.license_manager import LicenseManager
 
 class LoginView(QWidget):
     login_success = pyqtSignal(dict) # Emits user_info dict
@@ -229,27 +230,17 @@ class LoginView(QWidget):
         self.anim_opacity.start()
 
     def read_license_info(self):
-        path = "dettagli_licenza.txt"
+        data = LicenseManager.get_license_data()
+        if not data:
+            return "Licenza non trovata o non valida"
 
-        possible_paths = [
-            path,
-            os.path.join("Licenza", path),
-        ]
+        lines = []
+        if "Cliente" in data:
+            lines.append(f"Licenza: {data['Cliente']}")
+        if "Scadenza Licenza" in data:
+            lines.append(f"Scadenza: {data['Scadenza Licenza']}")
 
-        if getattr(sys, 'frozen', False):
-            exe_dir = os.path.dirname(sys.executable)
-            possible_paths.append(os.path.join(exe_dir, path))
-            possible_paths.append(os.path.join(exe_dir, "Licenza", path))
-
-        content = ""
-        for p in possible_paths:
-            if os.path.exists(p):
-                try:
-                    with open(p, "r", encoding="utf-8") as f:
-                        content = f.read()
-                    if content: break
-                except: pass
-        return content
+        return "\n".join(lines)
 
     def shake_window(self):
         animation = QPropertyAnimation(self.container, b"pos")

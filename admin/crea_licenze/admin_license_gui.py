@@ -5,6 +5,11 @@ import sys
 from datetime import date, timedelta
 import os
 import shutil
+import json
+from cryptography.fernet import Fernet
+
+# SECURITY WARNING: Keep this key secret!
+LICENSE_SECRET_KEY = b'8kHs_rmwqaRUk1AQLGX65g4AEkWUDapWVsMFUQpN9Ek='
 
 class LicenseAdminApp:
     def __init__(self, root):
@@ -71,7 +76,8 @@ class LicenseAdminApp:
         
         # Cartella di output organizzata
         base_output = os.path.dirname(os.path.abspath(__file__))
-        target_dir = os.path.join(base_output, folder_name)
+        client_dir = os.path.join(base_output, folder_name)
+        target_dir = os.path.join(client_dir, "Licenza")
 
         # Comando PyArmor (genera in cartella temporanea 'dist' locale allo script)
         cmd = [sys.executable, "-m", "pyarmor.cli", "gen", "key", 
@@ -100,9 +106,7 @@ class LicenseAdminApp:
                     if os.path.exists("dist"):
                         shutil.rmtree("dist", ignore_errors=True)
                     
-                    # 2. Crea file TXT con i dettagli ID
-                    txt_path = os.path.join(target_dir, "dettagli_licenza.txt")
-
+                    # 2. GENERAZIONE FILE CRITTOGRAFATO
                     # Format dates to DD/MM/YYYY
                     try:
                         expiry_obj = date.fromisoformat(expiry)
@@ -111,14 +115,22 @@ class LicenseAdminApp:
                         expiry_str = expiry # Fallback if invalid format
 
                     gen_date_str = date.today().strftime('%d/%m/%Y')
-
-                    # Clean Hardware ID
                     clean_disk_serial = disk_serial.rstrip('.')
 
-                    with open(txt_path, "w", encoding="utf-8") as f:
-                        f.write(f"Hardware ID: {clean_disk_serial}\n")
-                        f.write(f"Scadenza Licenza: {expiry_str}\n")
-                        f.write(f"Generato il: {gen_date_str}\n")
+                    payload = {
+                        "Hardware ID": clean_disk_serial,
+                        "Scadenza Licenza": expiry_str,
+                        "Generato il": gen_date_str,
+                        "Cliente": client_name
+                    }
+
+                    json_payload = json.dumps(payload).encode('utf-8')
+                    cipher = Fernet(LICENSE_SECRET_KEY)
+                    encrypted_data = cipher.encrypt(json_payload)
+
+                    config_path = os.path.join(target_dir, "config.dat")
+                    with open(config_path, "wb") as f:
+                        f.write(encrypted_data)
 
                     # Istruzioni per l'utente
                     msg = (f"Licenza GENERATA con successo!\n\n"
@@ -126,13 +138,14 @@ class LicenseAdminApp:
                            f"Scadenza: {expiry}\n"
                            f"Vincolo Hardware: {disk_serial}\n\n"
                            f"FILE SALVATI IN:\n{target_dir}\n"
-                           f"(Troverai 'pyarmor.rkey' e 'dettagli_licenza.txt')\n\n"
-                           f"ISTRUZIONI: Invia 'pyarmor.rkey' al cliente.")
+                           f"(Troverai 'pyarmor.rkey' e 'config.dat')\n\n"
+                           f"ISTRUZIONI: Copia l'intera cartella 'Licenza' nella directory di installazione del cliente.")
                     
                     messagebox.showinfo("Successo", msg)
                     
                     # Apre la cartella automaticamente
-                    os.startfile(target_dir)
+                    if os.name == 'nt':
+                        os.startfile(target_dir)
                 else:
                     messagebox.showerror("Errore", f"File generato non trovato in {src_default}")
             else:
