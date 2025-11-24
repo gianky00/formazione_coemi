@@ -1,27 +1,29 @@
-import os
+# rthook_pyqt6.py
+# Runtime hook per PyInstaller + PyArmor + PyQt6 WebEngine
+# Questo file forza il caricamento dei moduli prima che venga eseguito il codice offuscato.
+
 import sys
+import os
 
-# Fix for PyQt6 DLL search path on Windows (Python 3.8+)
-# This ensures that nested Qt binaries (like Qt6WebEngineCore.dll) can find their dependencies
-# (like Qt6Core.dll) which might be in a parent or sibling directory within the frozen bundle.
-
-if sys.platform == 'win32':
+def _force_load_qt_modules():
+    """
+    Forza l'importazione dei moduli QtWebEngine.
+    Questo è necessario perché PyArmor nasconde gli import a PyInstaller,
+    e senza questo pre-caricamento l'exe non trova la DLL/modulo.
+    """
     try:
-        # _MEIPASS is the temp directory where PyInstaller extracts files
-        base_path = sys._MEIPASS
-    except AttributeError:
-        base_path = os.path.dirname(os.path.abspath(__file__))
+        # Tenta di importare i moduli critici
+        import PyQt6.QtWebEngineWidgets
+        import PyQt6.QtWebEngineCore
+        import PyQt6.QtWebChannel
+        import PyQt6.QtNetwork
+        import PyQt6.QtPrintSupport
+        
+        # Opzionale: Log per debug (se lanciato con console)
+        # print("DEBUG: PyQt6 WebEngine modules pre-loaded successfully.")
+    except ImportError as e:
+        # Se fallisce qui, l'exe crasherà comunque, ma almeno abbiamo provato
+        print(f"DEBUG: Failed to pre-load PyQt6 modules: {e}")
 
-    # Common paths where PyQt6 binaries might reside in a PyInstaller bundle
-    qt6_paths = [
-        os.path.join(base_path, 'PyQt6'),
-        os.path.join(base_path, 'PyQt6', 'Qt6', 'bin'),
-        os.path.join(base_path, 'PyQt6', 'Qt', 'bin'),
-    ]
-
-    for path in qt6_paths:
-        if os.path.exists(path):
-            try:
-                os.add_dll_directory(path)
-            except Exception:
-                pass
+# Esegue il pre-caricamento immediatamente
+_force_load_qt_modules()
