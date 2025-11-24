@@ -21,7 +21,7 @@ def get_security_status(
     """
     return {"locked": db_security.is_locked_mode}
 
-@router.post("/db-security/toggle")
+@router.post("/db-security/toggle", dependencies=[Depends(deps.check_write_permission)])
 def toggle_security_mode(
     payload: SecurityModeSchema,
     db: Session = Depends(get_db),

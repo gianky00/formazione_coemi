@@ -46,12 +46,18 @@ class DummyQWidget:
         return MagicMock()
     def show(self):
         pass
+    def hide(self):
+        pass
     def setWindowTitle(self, title):
         pass
     def setWindowFlags(self, flags):
         pass
     def windowFlags(self):
         return 0
+    def setAttribute(self, attr, on):
+        pass
+    def raise_(self):
+        pass
     def resize(self, w, h):
         pass
     def setObjectName(self, name):

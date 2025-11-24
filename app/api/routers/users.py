@@ -24,7 +24,7 @@ def read_users(
     users = db.query(UserModel).offset(skip).limit(limit).all()
     return users
 
-@router.post("/", response_model=User)
+@router.post("/", response_model=User, dependencies=[Depends(deps.check_write_permission)])
 def create_user(
     *,
     db: Session = Depends(get_db),
@@ -55,7 +55,7 @@ def create_user(
 
     return user
 
-@router.put("/{user_id}", response_model=User)
+@router.put("/{user_id}", response_model=User, dependencies=[Depends(deps.check_write_permission)])
 def update_user(
     *,
     db: Session = Depends(get_db),
@@ -102,7 +102,7 @@ def update_user(
 
     return user
 
-@router.delete("/{user_id}", response_model=User)
+@router.delete("/{user_id}", response_model=User, dependencies=[Depends(deps.check_write_permission)])
 def delete_user(
     *,
     db: Session = Depends(get_db),

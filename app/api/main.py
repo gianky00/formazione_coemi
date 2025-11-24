@@ -30,7 +30,7 @@ def get_corsi(db: Session = Depends(get_db)):
 def health_check():
     return {"status": "ok"}
 
-@router.post("/upload-pdf/")
+@router.post("/upload-pdf/", dependencies=[Depends(deps.check_write_permission)])
 async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)):
     MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 
@@ -143,7 +143,7 @@ def get_certificato(certificato_id: int, db: Session = Depends(get_db)):
         stato_certificato=status
     )
 
-@router.post("/certificati/", response_model=CertificatoSchema)
+@router.post("/certificati/", response_model=CertificatoSchema, dependencies=[Depends(deps.check_write_permission)])
 def create_certificato(
     certificato: CertificatoCreazioneSchema,
     db: Session = Depends(get_db),
@@ -244,7 +244,7 @@ def create_certificato(
         assegnazione_fallita_ragione=ragione_fallimento
     )
 
-@router.put("/certificati/{certificato_id}/valida", response_model=CertificatoSchema)
+@router.put("/certificati/{certificato_id}/valida", response_model=CertificatoSchema, dependencies=[Depends(deps.check_write_permission)])
 def valida_certificato(
     certificato_id: int,
     db: Session = Depends(get_db),
@@ -281,7 +281,7 @@ def valida_certificato(
         stato_certificato=status
     )
 
-@router.put("/certificati/{certificato_id}", response_model=CertificatoSchema)
+@router.put("/certificati/{certificato_id}", response_model=CertificatoSchema, dependencies=[Depends(deps.check_write_permission)])
 def update_certificato(
     certificato_id: int,
     certificato: CertificatoAggiornamentoSchema,
@@ -371,7 +371,7 @@ def update_certificato(
         stato_certificato=status
     )
 
-@router.delete("/certificati/{certificato_id}")
+@router.delete("/certificati/{certificato_id}", dependencies=[Depends(deps.check_write_permission)])
 def delete_certificato(
     certificato_id: int,
     db: Session = Depends(get_db),
@@ -391,7 +391,7 @@ def delete_certificato(
 
     return {"message": "Certificato cancellato con successo"}
 
-@router.post("/dipendenti/import-csv")
+@router.post("/dipendenti/import-csv", dependencies=[Depends(deps.check_write_permission)])
 async def import_dipendenti_csv(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),

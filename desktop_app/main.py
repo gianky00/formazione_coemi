@@ -433,6 +433,10 @@ class ApplicationController:
         """
         Triggers analysis (file or folder).
         """
+        if self.dashboard and getattr(self.dashboard, 'is_read_only', False):
+            QMessageBox.warning(self.master_window, "Sola Lettura", "Impossibile avviare l'analisi in modalità Sola Lettura.")
+            return
+
         if self.dashboard:
             self.dashboard.analyze_path(path)
         else:
@@ -442,6 +446,10 @@ class ApplicationController:
         """
         Triggers CSV import logic.
         """
+        if self.dashboard and getattr(self.dashboard, 'is_read_only', False):
+            QMessageBox.warning(self.master_window, "Sola Lettura", "Impossibile importare CSV in modalità Sola Lettura.")
+            return
+
         if not self.dashboard:
              self.pending_action = {"action": "import_csv", "path": path}
              return
@@ -477,6 +485,10 @@ class ApplicationController:
             self.dashboard = MainDashboardWidget(self.api_client)
             self.dashboard.logout_requested.connect(self.on_logout)
 
+        # Propagate Read-Only State
+        is_read_only = user_info.get("read_only", False)
+        self.dashboard.set_read_only_mode(is_read_only)
+
         # Update User Info in Sidebar
         account_name = user_info.get("account_name") or user_info.get("username")
 
@@ -504,11 +516,15 @@ class ApplicationController:
 
         # Handle deferred action
         if self.pending_action:
-            action = self.pending_action.get("action")
-            if action == "analyze":
-                self.dashboard.analyze_path(self.pending_action.get("path"))
-            elif action == "import_csv":
-                self.import_dipendenti_csv(self.pending_action.get("path"))
+            if is_read_only:
+                QMessageBox.warning(self.master_window, "Sola Lettura",
+                                    "L'azione richiesta è stata annullata perché il database è in modalità Sola Lettura.")
+            else:
+                action = self.pending_action.get("action")
+                if action == "analyze":
+                    self.dashboard.analyze_path(self.pending_action.get("path"))
+                elif action == "import_csv":
+                    self.import_dipendenti_csv(self.pending_action.get("path"))
 
             self.pending_action = None
 

@@ -106,7 +106,14 @@ class ValidationView(QWidget):
             self.edit_button.setEnabled(False)
             self.validate_button.setEnabled(False)
             self.delete_button.setEnabled(False)
+            self.edit_button.setToolTip("Database in sola lettura")
+            self.validate_button.setToolTip("Database in sola lettura")
+            self.delete_button.setToolTip("Database in sola lettura")
             return
+        else:
+            self.edit_button.setToolTip("")
+            self.validate_button.setToolTip("")
+            self.delete_button.setToolTip("")
 
         selection_model = self.table_view.selectionModel()
         has_selection = selection_model is not None and selection_model.hasSelection()
