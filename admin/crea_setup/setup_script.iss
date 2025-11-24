@@ -54,10 +54,20 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "{localappdata}\Intelleo"
 
 [Registry]
-; Menu contestuale "Analizza con Intelleo"
+; Menu contestuale "Analizza con Intelleo" (Cartelle)
 Root: HKCR; Subkey: "Directory\shell\IntelleoAnalyze"; ValueType: string; ValueName: ""; ValueData: "Analizza con Intelleo"; Flags: uninsdeletekey
 Root: HKCR; Subkey: "Directory\shell\IntelleoAnalyze"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekey
 Root: HKCR; Subkey: "Directory\shell\IntelleoAnalyze\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" --analyze ""%1"""; Flags: uninsdeletekey
+
+; Menu contestuale "Analizza con Intelleo" (PDF Singolo)
+Root: HKCR; Subkey: "SystemFileAssociations\.pdf\shell\IntelleoAnalyze"; ValueType: string; ValueName: ""; ValueData: "Analizza con Intelleo"; Flags: uninsdeletekey
+Root: HKCR; Subkey: "SystemFileAssociations\.pdf\shell\IntelleoAnalyze"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekey
+Root: HKCR; Subkey: "SystemFileAssociations\.pdf\shell\IntelleoAnalyze\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" --analyze ""%1"""; Flags: uninsdeletekey
+
+; Menu contestuale "Importa Anagrafica" (CSV)
+Root: HKCR; Subkey: "SystemFileAssociations\.csv\shell\IntelleoImport"; ValueType: string; ValueName: ""; ValueData: "Importa Anagrafica Dipendenti da Intelleo"; Flags: uninsdeletekey
+Root: HKCR; Subkey: "SystemFileAssociations\.csv\shell\IntelleoImport"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekey
+Root: HKCR; Subkey: "SystemFileAssociations\.csv\shell\IntelleoImport\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" --import-csv ""%1"""; Flags: uninsdeletekey
 
 [Files]
 ; === ESEGUIBILE E DIPENDENZE PYTHON ===
@@ -102,6 +112,12 @@ Type: filesandordirs; Name: "{app}"
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+
+; === SCORCIATOIE VISTE (Jumplist-like) ===
+Name: "{autoprograms}\{#MyAppName} - Dashboard"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--view dashboard"; IconFilename: "{app}\{#MyAppExeName}"
+Name: "{autoprograms}\{#MyAppName} - Scadenzario"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--view scadenzario"; IconFilename: "{app}\{#MyAppExeName}"
+Name: "{autoprograms}\{#MyAppName} - Convalida Dati"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--view validation"; IconFilename: "{app}\{#MyAppExeName}"
+Name: "{autoprograms}\{#MyAppName} - Importa Documenti"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--view import"; IconFilename: "{app}\{#MyAppExeName}"
 
 ; === COLLEGAMENTO DATI APPLICAZIONE FIXATO ===
 ; Apre esplora risorse nel percorso AppData. Parametri senza virgolette triple per evitare errori di parsing.

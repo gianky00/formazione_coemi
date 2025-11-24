@@ -247,11 +247,25 @@ class ImportView(QWidget):
     def select_folder(self):
         folder_path = QFileDialog.getExistingDirectory(self, "Seleziona Cartella")
         if folder_path:
-            self.upload_folder(folder_path)
+            self.upload_path(folder_path)
 
-    def upload_folder(self, folder_path):
-        pdf_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith('.pdf')]
-        self.process_dropped_files(pdf_files)
+    def upload_path(self, path):
+        """
+        Handles both single file path and directory path.
+        """
+        files_to_process = []
+        if os.path.isfile(path):
+             if path.lower().endswith('.pdf'):
+                 files_to_process.append(path)
+        elif os.path.isdir(path):
+             for f in os.listdir(path):
+                 if f.lower().endswith('.pdf'):
+                     files_to_process.append(os.path.join(path, f))
+
+        if files_to_process:
+            self.process_dropped_files(files_to_process)
+        else:
+            self.results_display.setText("Nessun file PDF trovato nel percorso specificato.")
 
     def process_dropped_files(self, file_paths):
         self.results_display.clear()

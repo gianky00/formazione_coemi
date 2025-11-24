@@ -9,6 +9,8 @@ from .main_window_ui import MainDashboardWidget
 from .views.login_view import LoginView
 from .api_client import APIClient
 from .components.animated_stacked_widget import AnimatedStackedWidget
+from .ipc_bridge import IPCBridge
+import os
 
 def setup_styles(app: QApplication):
     """
@@ -351,15 +353,36 @@ class ApplicationController:
         print("[DEBUG] APIClient initialized. Creating MasterWindow...")
         self.master_window = MasterWindow(self)
         self.dashboard = None
-        self.pending_analysis_path = None
+        self.pending_action = None # Generalized from pending_analysis_path
+
+        # Connect IPC Bridge
+        self.ipc_bridge = IPCBridge.instance()
+        self.ipc_bridge.action_received.connect(self.handle_ipc_action)
+
         print("[DEBUG] ApplicationController initialized.")
 
     def start(self):
         print("[DEBUG] ApplicationController.start called. Showing Max Window.")
         self.master_window.showMaximized()
+        self.setup_jumplist()
 
         # Check Backend Health to catch Startup Errors (e.g. DB Lock)
         self.check_backend_health()
+
+    def setup_jumplist(self):
+        """
+        Attempts to create Windows Taskbar Jumplist shortcuts.
+        Protected against import errors on non-Windows platforms.
+        """
+        if os.name != 'nt':
+            return
+
+        # NOTE: Full Jumplist creation via ICustomDestinationList is complex in Python.
+        # However, we rely on the OS's native "Recent" file list which populates automatically
+        # for registered file types (.pdf, .csv).
+        # Static tasks are best handled by the Installer or simplified "Pin to Taskbar" actions.
+        # This method is a placeholder for future advanced implementation if pywin32 extensions are fully leveraged.
+        pass
 
     def check_backend_health(self):
         try:
@@ -382,15 +405,71 @@ class ApplicationController:
             # We proceed, as network errors might be temporary or handled by LoginView
             pass
 
-    def analyze_folder(self, folder_path):
+    def handle_ipc_action(self, action: str, payload: dict):
         """
-        Triggers folder analysis. If dashboard is ready, calls it directly.
-        Otherwise, stores the path to be triggered after login.
+        Handles actions received from external instances (IPC).
+        """
+        print(f"[CONTROLLER] IPC Action Received: {action} Data: {payload}")
+
+        # Bring window to front
+        self.master_window.showMaximized()
+        self.master_window.activateWindow()
+        self.master_window.raise_()
+
+        if action == "analyze":
+            path = payload.get("path")
+            if path:
+                self.analyze_path(path)
+        elif action == "import_csv":
+            path = payload.get("path")
+            if path:
+                self.import_dipendenti_csv(path)
+        elif action == "view":
+            view_name = payload.get("view_name")
+            if view_name and self.dashboard:
+                self.dashboard.switch_to(view_name)
+
+    def analyze_path(self, path):
+        """
+        Triggers analysis (file or folder).
         """
         if self.dashboard:
-            self.dashboard.analyze_folder(folder_path)
+            self.dashboard.analyze_path(path)
         else:
-            self.pending_analysis_path = folder_path
+            self.pending_action = {"action": "analyze", "path": path}
+
+    def import_dipendenti_csv(self, path):
+        """
+        Triggers CSV import logic.
+        """
+        if not self.dashboard:
+             self.pending_action = {"action": "import_csv", "path": path}
+             return
+
+        # Show notification that import is starting? Or just do it.
+        # It's blocking via API Client usually, better to run in thread?
+        # API Client calls are synchronous requests. UI might freeze for large files.
+        # But CSVs are small.
+        try:
+            response = self.api_client.import_dipendenti_csv(path)
+            message = response.get("message", "Importazione riuscita.")
+            warnings = response.get("warnings", [])
+
+            msg_text = message
+            if warnings:
+                msg_text += "\n\nAvvisi:\n" + "\n".join(warnings[:5])
+                if len(warnings) > 5:
+                    msg_text += f"\n...e altri {len(warnings)-5}"
+
+            QMessageBox.information(self.master_window, "Importazione Completata", msg_text)
+
+            # Refresh data if needed (Dashboard usually auto-refreshes on tab switch, but we can force it)
+            if self.dashboard:
+                # Trigger refresh on validation/dashboard if needed
+                pass
+
+        except Exception as e:
+            QMessageBox.critical(self.master_window, "Errore Importazione", f"Impossibile importare il file:\n{e}")
 
     def on_login_success(self, user_info):
         # Create Dashboard if not exists
@@ -423,10 +502,15 @@ class ApplicationController:
         # Transition
         self.master_window.show_dashboard(self.dashboard)
 
-        # Handle deferred analysis
-        if self.pending_analysis_path:
-            self.dashboard.analyze_folder(self.pending_analysis_path)
-            self.pending_analysis_path = None
+        # Handle deferred action
+        if self.pending_action:
+            action = self.pending_action.get("action")
+            if action == "analyze":
+                self.dashboard.analyze_path(self.pending_action.get("path"))
+            elif action == "import_csv":
+                self.import_dipendenti_csv(self.pending_action.get("path"))
+
+            self.pending_action = None
 
     def on_logout(self):
         self.api_client.logout()
