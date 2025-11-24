@@ -113,3 +113,6 @@ desktop_app/assets/installer_*.bmp
 admin/crea_licenze/seriale_disco.txt
 .database_documenti.db.lock
 admin/offusca/build_log.txt
+*.rkey
+/admin/crea_licenze/PC COEMI ALLEGRETTI
+dettagli_licenza.txt
