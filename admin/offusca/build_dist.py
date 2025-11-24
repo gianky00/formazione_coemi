@@ -230,6 +230,17 @@ def collect_submodules(base_dir):
 def build():
     try:
         log_and_print("Starting Build Process...")
+
+        log_and_print("\n--- Step 0/7: Generating Installer Assets ---")
+        try:
+            assets_script = os.path.join(ROOT_DIR, "tools", "prepare_installer_assets.py")
+            if os.path.exists(assets_script):
+                run_command([sys.executable, assets_script])
+            else:
+                log_and_print(f"WARNING: Assets script not found at {assets_script}", "WARNING")
+        except Exception as e:
+            log_and_print(f"Asset generation warning: {e}", "WARNING")
+
         kill_existing_process()
 
         iscc_exe, system_dlls = verify_environment()
