@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { FileText, UploadCloud, FolderOpen, Cpu, CheckCircle, AlertTriangle, List } from 'lucide-react';
+import { FileText, UploadCloud, FolderOpen, Cpu, CheckCircle, AlertTriangle, List, ScanText } from 'lucide-react';
 
 const Section = ({ title, children }) => (
   <section className="mb-12">
@@ -87,6 +87,42 @@ const ImportGuide = () => {
            </p>
         </Section>
       </div>
+
+      <Section title="Consigli per una Scansione Ottimale">
+        <div className="flex items-start gap-4 bg-gray-50 p-6 rounded-lg border border-gray-200">
+           <div className="p-3 bg-white rounded-full shadow-sm text-purple-600">
+             <ScanText size={24} />
+           </div>
+           <div>
+             <h3 className="font-bold text-gray-900 mb-2">Aiuta l'AI a leggere meglio</h3>
+             <p className="text-gray-600 mb-4 text-sm">
+               L'Intelligenza Artificiale è potente, ma la qualità del documento originale è fondamentale per evitare errori di lettura.
+             </p>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <ul className="space-y-2">
+                   <li className="flex items-center gap-2 text-gray-700">
+                     <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                     <span>Usa PDF originali (generati da PC) quando possibile.</span>
+                   </li>
+                   <li className="flex items-center gap-2 text-gray-700">
+                     <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                     <span>Per le scansioni, imposta almeno <strong>300 DPI</strong>.</span>
+                   </li>
+                </ul>
+                <ul className="space-y-2">
+                   <li className="flex items-center gap-2 text-gray-700">
+                     <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                     <span>Evita timbri sopra le date o i nomi.</span>
+                   </li>
+                   <li className="flex items-center gap-2 text-gray-700">
+                     <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                     <span>Evita scansioni storte o sfuocate (foto da cellulare).</span>
+                   </li>
+                </ul>
+             </div>
+           </div>
+        </div>
+      </Section>
 
       <Section title="Regole di Rinomina">
         <p className="mb-4">

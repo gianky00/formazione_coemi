@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, FileText, Database, Calendar, ArrowRight, LifeBuoy, Shield } from 'lucide-react';
+import { LayoutDashboard, FileText, Database, Calendar, ArrowRight, LifeBuoy, Shield, HardDrive, Book, Keyboard } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const FeatureCard = ({ icon: Icon, title, desc, to, delay }) => (
@@ -94,6 +94,29 @@ const Home = () => {
             desc="Hai riscontrato un errore? Consulta le FAQ tecniche per risolvere rapidamente problemi di connessione o licenza."
             to="/troubleshooting"
             delay={0.6}
+          />
+
+          {/* New Sections */}
+          <FeatureCard
+            icon={HardDrive}
+            title="Backup & Manutenzione"
+            desc="Come proteggere i tuoi dati, eseguire backup manuali e migrare l'installazione su nuovi PC."
+            to="/maintenance"
+            delay={0.7}
+          />
+          <FeatureCard
+            icon={Book}
+            title="Glossario"
+            desc="Dizionario dei termini tecnici: Matricola, Orfano, Audit Log e altre definizioni utili."
+            to="/glossary"
+            delay={0.8}
+          />
+          <FeatureCard
+            icon={Keyboard}
+            title="Scorciatoie & Comandi"
+            desc="Velocizza il lavoro con le combinazioni di tasti e le funzioni nascoste del mouse."
+            to="/shortcuts"
+            delay={0.9}
           />
         </div>
       </section>
