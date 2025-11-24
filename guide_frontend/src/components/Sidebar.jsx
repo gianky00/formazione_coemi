@@ -12,7 +12,10 @@ import {
   BookOpen,
   X,
   Shield,
-  LifeBuoy
+  LifeBuoy,
+  HardDrive,
+  Book,
+  Keyboard
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
@@ -100,16 +103,27 @@ const Sidebar = () => {
       </div>
 
       {/* Nav Items */}
-      <div className="flex-1 py-6 px-2 overflow-y-auto">
+      <div className="flex-1 py-6 px-2 overflow-y-auto custom-scrollbar">
         <SidebarItem icon={BookOpen} label="Panoramica" to="/" collapsed={collapsed} />
-        <div className="my-4 border-t border-blue-800/50 mx-2"></div>
+
+        <div className="my-2 border-t border-blue-800/50 mx-2"></div>
+
         <SidebarItem icon={LayoutDashboard} label="Dashboard" to="/dashboard" collapsed={collapsed} />
         <SidebarItem icon={FileText} label="Importazione & AI" to="/import" collapsed={collapsed} />
         <SidebarItem icon={Database} label="Convalida Dati" to="/validation" collapsed={collapsed} />
         <SidebarItem icon={Calendar} label="Scadenzario" to="/calendar" collapsed={collapsed} />
         <SidebarItem icon={Users} label="Dipendenti" to="/employees" collapsed={collapsed} />
+
+        <div className="my-2 border-t border-blue-800/50 mx-2"></div>
+
         <SidebarItem icon={Shield} label="Sicurezza & Audit" to="/security" collapsed={collapsed} />
         <SidebarItem icon={Settings} label="Configurazione" to="/settings" collapsed={collapsed} />
+        <SidebarItem icon={HardDrive} label="Backup & Manutenzione" to="/maintenance" collapsed={collapsed} />
+
+        <div className="my-2 border-t border-blue-800/50 mx-2"></div>
+
+        <SidebarItem icon={Book} label="Glossario" to="/glossary" collapsed={collapsed} />
+        <SidebarItem icon={Keyboard} label="Scorciatoie" to="/shortcuts" collapsed={collapsed} />
         <SidebarItem icon={LifeBuoy} label="Risoluzione Problemi" to="/troubleshooting" collapsed={collapsed} />
 
         <div className="mt-4 border-t border-blue-800/50 mx-2 pt-2">
