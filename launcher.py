@@ -74,9 +74,39 @@ def verify_license():
         return False, f"Licenza non valida o scaduta.\nErrore sistema: {str(e)}"
 
 # --- 3. UTILS ---
-def start_server():
+def find_free_port(start_port=8000, max_port=8010):
+    for port in range(start_port, max_port + 1):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                if s.connect_ex(('127.0.0.1', port)) != 0:
+                    return port
+        except:
+            continue
+    return None
+
+def start_server(port):
     from app.main import app
-    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="critical")
+    # Disable duplicate logs
+    logging_config = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "default": {
+                "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            },
+        },
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "formatter": "default",
+            },
+        },
+        "root": {
+            "level": "INFO",
+            "handlers": ["console"],
+        },
+    }
+    uvicorn.run(app, host="127.0.0.1", port=port, log_level="critical")
 
 def check_port(host, port):
     try:
@@ -84,50 +114,6 @@ def check_port(host, port):
         s.settimeout(0.1)
         return s.connect_ex((host, port)) == 0
     except: return False
-
-def check_existing_instance(args):
-    """
-    Checks if an instance is already running on port 8000.
-    If so, sends the command via IPC and returns True (so we can exit).
-    """
-    try:
-        # 1. Check if port is open (fast check)
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(0.5)
-        result = sock.connect_ex(('127.0.0.1', 8000))
-        sock.close()
-
-        if result != 0:
-            return False # Port closed, not running
-
-        # 2. Handshake / Health Check (Ensure it's Intelleo)
-        response = requests.get("http://127.0.0.1:8000/api/v1/health", timeout=1)
-        if response.status_code != 200:
-            return False # Not our app or broken
-
-        # 3. Construct Payload
-        action = "view" # Default action (bring to front)
-        payload = {}
-
-        if args.analyze:
-            action = "analyze"
-            payload["path"] = args.analyze
-        elif args.import_csv:
-            action = "import_csv"
-            payload["path"] = args.import_csv
-        elif args.view:
-            action = "view"
-            payload["view_name"] = args.view
-
-        # 4. Send Command
-        print(f"[LAUNCHER] Sending IPC command: {action} {payload}")
-        requests.post("http://127.0.0.1:8000/api/v1/system/open-action",
-                      json={"action": action, "payload": payload}, timeout=2)
-        return True
-
-    except Exception as e:
-        print(f"[LAUNCHER] Existing instance check failed (starting new): {e}")
-        return False
 
 # --- 4. MAIN ---
 def main():
@@ -140,10 +126,14 @@ def main():
     parser.add_argument("--view", help="View to open")
     args, unknown = parser.parse_known_args()
 
-    # CHECK EXISTING INSTANCE
-    if check_existing_instance(args):
-        print("[LAUNCHER] Command sent to existing instance. Exiting.")
-        sys.exit(0)
+    # Find free port for this instance
+    server_port = find_free_port()
+    if not server_port:
+        QMessageBox.critical(None, "Errore Avvio", "Nessuna porta libera trovata (8000-8010).")
+        sys.exit(1)
+
+    print(f"[DEBUG] Selected server port: {server_port}")
+    os.environ["API_URL"] = f"http://localhost:{server_port}/api/v1"
 
     # Check if QApplication already exists (unlikely but safe)
     if not QApplication.instance():
@@ -181,8 +171,8 @@ def main():
         sys.exit(1)
 
     # AVVIO SERVER
-    print("[DEBUG] Starting server thread...")
-    threading.Thread(target=start_server, daemon=True).start()
+    print(f"[DEBUG] Starting server thread on port {server_port}...")
+    threading.Thread(target=start_server, args=(server_port,), daemon=True).start()
 
     # SPLASH
     print("[DEBUG] Showing Splash Screen...")
@@ -194,10 +184,10 @@ def main():
 
     t0 = time.time()
     ready = False
-    print("[DEBUG] Waiting for server port 8000...")
+    print(f"[DEBUG] Waiting for server port {server_port}...")
     while time.time() - t0 < 20:
         qt_app.processEvents()
-        if check_port("127.0.0.1", 8000):
+        if check_port("127.0.0.1", server_port):
             ready = True
             print("[DEBUG] Server is ready!")
             break
