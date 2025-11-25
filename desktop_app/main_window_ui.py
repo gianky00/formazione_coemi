@@ -169,6 +169,7 @@ class Sidebar(QFrame):
 
         self.last_access_label = QLabel("Ultimo accesso: -")
         self.last_access_label.setStyleSheet("color: #93C5FD; font-size: 13px;")
+        self.last_access_label.setWordWrap(True)
         self.user_info_layout.addWidget(self.last_access_label)
 
         self.main_layout.addWidget(self.user_info_frame)
@@ -282,7 +283,7 @@ class Sidebar(QFrame):
 
     def set_user_info(self, name, last_access):
         self.user_name_label.setText(f"Benvenuto, {name}!")
-        self.last_access_label.setText(f"Ultimo accesso:\n{last_access}")
+        self.last_access_label.setText(f"Ultimo accesso: {last_access}")
 
     def add_button(self, key, text, icon_name):
         # Use SidebarButton
@@ -374,6 +375,13 @@ class MainDashboardWidget(QWidget):
         self.page_title.setStyleSheet("font-size: 20px; font-weight: 600; color: #1F2937; margin-left: 20px;")
         self.top_bar_layout.addWidget(self.page_title)
 
+        self.top_bar_layout.addStretch()
+
+        self.read_only_label = QLabel("(SOLA LETTURA)")
+        self.read_only_label.setStyleSheet("font-size: 16px; font-weight: 600; color: #DC2626; margin-right: 20px;")
+        self.read_only_label.setVisible(False)
+        self.top_bar_layout.addWidget(self.read_only_label)
+
         self.content_layout.addWidget(self.top_bar)
 
         # Stacked Widget
@@ -455,12 +463,7 @@ class MainDashboardWidget(QWidget):
         print(f"[DEBUG] MainDashboardWidget.set_read_only_mode called with: {is_read_only}")
         self.is_read_only = is_read_only
 
-        if is_read_only:
-            # Visually indicate Read-Only
-            current_title = self.page_title.text()
-            if "(SOLA LETTURA)" not in current_title:
-                self.page_title.setText(f"{current_title} (SOLA LETTURA)")
-            self.page_title.setStyleSheet("font-size: 20px; font-weight: 600; color: #DC2626; margin-left: 20px;")
+        self.read_only_label.setVisible(is_read_only)
 
         # Propagate to views
         for key, view in self.views.items():
