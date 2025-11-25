@@ -11,14 +11,11 @@ echo Questo script recupera l'ID hardware univoco necessario
 echo per generare la licenza del software.
 echo.
 
-REM Verifica se python e pyarmor sono installati
-python -m pyarmor.cli --version >nul 2>&1
+REM Assicurati che Python sia nel PATH
+python --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [ERRORE] Python o PyArmor non sembrano installati o
-    echo configurati correttamente nel PATH di sistema.
-    echo.
-    echo Assicurarsi di aver installato Python e poi eseguire:
-    echo pip install pyarmor
+    echo [ERRORE] Python non sembra installato o configurato
+    echo correttamente nel PATH di sistema.
     echo.
     pause
     exit /b
@@ -30,13 +27,18 @@ echo.
 REM File di output
 set OUTFILE=hardware_id.txt
 
-REM Comando PyArmor per ottenere l'harddisk serial number
-python -m pyarmor.cli hdinfo | findstr "Harddisk serial number" > %OUTFILE%
+REM Esegui lo script Python unificato per ottenere l'ID
+python "%~dp0\\..\\tools\\get_id_for_admin.py" > %OUTFILE% 2>nul
+if %errorlevel% neq 0 (
+    echo [ERRORE] Impossibile eseguire lo script per ottenere l'ID.
+    echo Assicurati che le dipendenze siano installate (pip install wmi).
+    echo.
+    pause
+    exit /b
+)
 
-REM Estrai solo l'ID dal file
-for /f "tokens=5" %%i in (%OUTFILE%) do set HWID=%%i
-
-echo %HWID% > %OUTFILE%
+REM Leggi l'ID dal file
+set /p HWID=<%OUTFILE%
 
 echo.
 echo ========================================================
@@ -44,7 +46,7 @@ echo    OPERAZIONE COMPLETATA!
 echo ========================================================
 echo.
 echo L'Hardware ID e' stato salvato nel file: %OUTFILE%
-echo Il valore e' stato copiato automaticamente negli appunti.
+echo Il valore (%HWID%) e' stato copiato automaticamente negli appunti.
 echo.
 echo Incolla (CTRL+V) questo ID quando richiesto dal gestore.
 echo.

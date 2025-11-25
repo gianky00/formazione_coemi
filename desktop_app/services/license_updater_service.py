@@ -26,49 +26,10 @@ class LicenseUpdaterService:
     @staticmethod
     def get_hardware_id():
         """
-        Executes the 'pyarmor hdinfo' command to get the definitive hardware ID.
-        This ensures the ID matches what the license generator expects.
+        Gets the definitive hardware ID from the centralized service.
         """
-        try:
-            # In a development environment, run as a module. In a frozen app,
-            # this will fail gracefully and move to the exception block.
-            cmd = [sys.executable, "-m", "pyarmor.cli", "hdinfo"]
-
-            # Set startup info for Windows to hide the console window
-            startupinfo = None
-            if os.name == 'nt':
-                startupinfo = subprocess.STARTUPINFO()
-                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                check=True,
-                startupinfo=startupinfo
-            )
-
-            # Parse the output to find the disk serial
-            for line in result.stdout.splitlines():
-                if "Harddisk serial number is" in line:
-                    hw_id = line.split()[-1]
-                    print(f"PyArmor hdinfo successful: {hw_id}")
-                    return hw_id
-
-            print("PyArmor hdinfo ran but did not find a harddisk serial.")
-            # If parsing fails, fall through to the exception block's fallback
-            raise RuntimeError("Could not parse hdinfo output.")
-
-        except (subprocess.CalledProcessError, FileNotFoundError, RuntimeError) as e:
-            print(f"Could not get hardware ID from pyarmor ({e}), falling back to MAC address.")
-            from desktop_app.utils import get_device_id
-            hw_id = get_device_id()
-            print(f"Fallback MAC address ID: {hw_id}")
-            return hw_id
-        except Exception as e:
-            print(f"An unexpected error occurred while getting hardware ID: {e}")
-            from desktop_app.utils import get_device_id
-            return get_device_id()
+        from .hardware_id_service import get_machine_id
+        return get_machine_id()
 
     @staticmethod
     def _calculate_sha256(filepath):

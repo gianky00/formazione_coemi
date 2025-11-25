@@ -8,6 +8,7 @@ from desktop_app.utils import get_asset_path
 from desktop_app.components.animated_widgets import AnimatedButton, AnimatedInput
 from desktop_app.services.license_manager import LicenseManager
 from desktop_app.services.license_updater_service import LicenseUpdaterService
+from desktop_app.services.hardware_id_service import get_machine_id
 
 class LicenseUpdateWorker(QObject):
     """Worker to run license update in a separate thread."""
@@ -18,7 +19,7 @@ class LicenseUpdateWorker(QObject):
         self.api_client = api_client
 
     def run(self):
-        hw_id = LicenseUpdaterService.get_hardware_id()
+        hw_id = get_machine_id()
         if not hw_id:
             self.finished.emit(False, "Impossibile recuperare l'Hardware ID della macchina.")
             return
@@ -218,7 +219,7 @@ class LoginView(QWidget):
         update_layout = QVBoxLayout()
         update_layout.setSpacing(10)
 
-        hw_id_label = QLabel(f"Hardware ID: {LicenseUpdaterService.get_hardware_id()}")
+        hw_id_label = QLabel(f"Hardware ID: {get_machine_id()}")
         hw_id_label.setStyleSheet("color: #6B7280; font-size: 11px;")
         hw_id_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         update_layout.addWidget(hw_id_label)
