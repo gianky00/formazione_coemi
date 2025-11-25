@@ -7,10 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 import os
-from dotenv import load_dotenv
 from app.core.db_security import db_security
-
-load_dotenv()
 
 # Database URL for In-Memory SQLite
 DATABASE_URL = "sqlite://"
