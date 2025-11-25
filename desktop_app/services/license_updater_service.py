@@ -15,7 +15,7 @@ class LicenseUpdaterService:
         """Fetches updater config from the backend."""
         if not self.config:
             try:
-                response = self.api_client.get("/config/updater")
+                response = self.api_client.get("/app_config/config/updater")
                 self.config = response
             except Exception as e:
                 print(f"Failed to load updater configuration: {e}")
