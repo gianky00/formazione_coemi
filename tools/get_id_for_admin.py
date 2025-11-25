@@ -13,10 +13,10 @@ def _get_windows_disk_serial():
         # Find the primary physical disk (usually DeviceID \\.\PHYSICALDRIVE0)
         for disk in c.Win32_DiskDrive():
             if "PHYSICALDRIVE0" in disk.DeviceID:
-                return disk.SerialNumber.strip()
+                return disk.SerialNumber.strip().rstrip('.')
 
         # Fallback if specific device not found, return the first one found
-        return c.Win32_DiskDrive()[0].SerialNumber.strip()
+        return c.Win32_DiskDrive()[0].SerialNumber.strip().rstrip('.')
     except ImportError:
         print("Error: The 'WMI' module is not installed. Please run 'pip install wmi'.", file=sys.stderr)
         return None

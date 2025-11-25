@@ -15,13 +15,13 @@ def _get_windows_disk_serial():
         # Find the primary physical disk (usually DeviceID \\.\PHYSICALDRIVE0)
         for disk in c.Win32_DiskDrive():
             if "PHYSICALDRIVE0" in disk.DeviceID:
-                serial = disk.SerialNumber.strip()
+                serial = disk.SerialNumber.strip().rstrip('.')
                 logger.info(f"Found disk serial for PHYSICALDRIVE0: {serial}")
                 return serial
 
         # Fallback if specific device not found, return the first one found
         first_disk = c.Win32_DiskDrive()[0]
-        serial = first_disk.SerialNumber.strip()
+        serial = first_disk.SerialNumber.strip().rstrip('.')
         logger.warning("PHYSICALDRIVE0 not found, using first disk serial as fallback.")
         return serial
     except ImportError:
