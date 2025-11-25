@@ -78,6 +78,8 @@ class DummyQWidget:
         pass
     def setCursor(self, cursor):
         pass
+    def setTextInteractionFlags(self, flags):
+        pass
     def setWordWrap(self, on):
         pass
     def setToolTip(self, text):
@@ -95,7 +97,7 @@ class DummyQWidget:
         self.widgets.append(widget)
     def addLayout(self, layout):
         pass
-    def addStretch(self):
+    def addStretch(self, stretch=0):
         pass
     def itemAt(self, index):
         if 0 <= index < len(self.widgets):

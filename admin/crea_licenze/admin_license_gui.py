@@ -6,10 +6,19 @@ from datetime import date, timedelta
 import os
 import shutil
 import json
+import hashlib
 from cryptography.fernet import Fernet
 
 # SECURITY WARNING: Keep this key secret!
 LICENSE_SECRET_KEY = b'8kHs_rmwqaRUk1AQLGX65g4AEkWUDapWVsMFUQpN9Ek='
+
+def _calculate_sha256(filepath):
+    """Calculates the SHA256 hash of a file."""
+    sha256_hash = hashlib.sha256()
+    with open(filepath, "rb") as f:
+        for byte_block in iter(lambda: f.read(4096), b""):
+            sha256_hash.update(byte_block)
+    return sha256_hash.hexdigest()
 
 class LicenseAdminApp:
     def __init__(self, root):
@@ -132,14 +141,25 @@ class LicenseAdminApp:
                     with open(config_path, "wb") as f:
                         f.write(encrypted_data)
 
+                    # 3. GENERAZIONE MANIFEST CON CHECKSUM
+                    manifest = {
+                        "pyarmor.rkey": _calculate_sha256(dst_lic),
+                        "config.dat": _calculate_sha256(config_path)
+                    }
+                    manifest_path = os.path.join(target_dir, "manifest.json")
+                    with open(manifest_path, "w") as f:
+                        json.dump(manifest, f, indent=4)
+
                     # Istruzioni per l'utente
                     msg = (f"Licenza GENERATA con successo!\n\n"
                            f"Cliente: {client_name}\n"
-                           f"Scadenza: {expiry}\n"
-                           f"Vincolo Hardware: {disk_serial}\n\n"
+                           f"Hardware ID: {disk_serial}\n\n"
                            f"FILE SALVATI IN:\n{target_dir}\n"
-                           f"(Troverai 'pyarmor.rkey' e 'config.dat')\n\n"
-                           f"ISTRUZIONI: Copia l'intera cartella 'Licenza' nella directory di installazione del cliente.")
+                           f"(Troverai 'pyarmor.rkey', 'config.dat' e 'manifest.json')\n\n"
+                           f"ISTRUZIONI PER L'AUTO-UPDATE:\n"
+                           f"1. Apri il repository GitHub privato delle licenze.\n"
+                           f"2. Crea una nuova cartella nominandola ESATTAMENTE come l'Hardware ID del cliente.\n"
+                           f"3. Carica i 3 file generati ('pyarmor.rkey', 'config.dat', 'manifest.json') in questa nuova cartella.")
                     
                     messagebox.showinfo("Successo", msg)
                     

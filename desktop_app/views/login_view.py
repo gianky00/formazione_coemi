@@ -1,12 +1,32 @@
 import os
 import sys
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QFrame, QMessageBox, QHBoxLayout,
-                             QGraphicsOpacityEffect, QGraphicsDropShadowEffect)
-from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPropertyAnimation, QPoint, QEasingCurve, QTimer
+                             QGraphicsOpacityEffect, QGraphicsDropShadowEffect, QApplication, QPushButton)
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPropertyAnimation, QPoint, QEasingCurve, QTimer, QObject, QThread
 from PyQt6.QtGui import QPixmap, QColor, QFont
 from desktop_app.utils import get_asset_path
 from desktop_app.components.animated_widgets import AnimatedButton, AnimatedInput
 from desktop_app.services.license_manager import LicenseManager
+from desktop_app.services.license_updater_service import LicenseUpdaterService
+
+class LicenseUpdateWorker(QObject):
+    """Worker to run license update in a separate thread."""
+    finished = pyqtSignal(bool, str)
+
+    def __init__(self, api_client):
+        super().__init__()
+        self.api_client = api_client
+
+    def run(self):
+        hw_id = LicenseUpdaterService.get_hardware_id()
+        if not hw_id:
+            self.finished.emit(False, "Impossibile recuperare l'Hardware ID della macchina.")
+            return
+
+        updater = LicenseUpdaterService(self.api_client)
+        success, message = updater.update_license(hw_id)
+        self.finished.emit(success, message)
+
 
 class LoginView(QWidget):
     login_success = pyqtSignal(dict) # Emits user_info dict
@@ -192,6 +212,34 @@ class LoginView(QWidget):
 
         right_layout.addStretch()
 
+        right_layout.addStretch(1)
+
+        # License Update Section
+        update_layout = QVBoxLayout()
+        update_layout.setSpacing(10)
+
+        hw_id_label = QLabel(f"Hardware ID: {LicenseUpdaterService.get_hardware_id()}")
+        hw_id_label.setStyleSheet("color: #6B7280; font-size: 11px;")
+        hw_id_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        update_layout.addWidget(hw_id_label)
+
+        self.update_btn = QPushButton("Aggiorna Licenza")
+        self.update_btn.setFixedHeight(35)
+        self.update_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.update_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #E5E7EB; color: #374151;
+                font-weight: 600; font-size: 12px;
+                border-radius: 6px; border: 1px solid #D1D5DB;
+            }
+            QPushButton:hover { background-color: #D1D5DB; }
+        """)
+        self.update_btn.clicked.connect(self.handle_update_license)
+        update_layout.addWidget(self.update_btn)
+
+        right_layout.addLayout(update_layout)
+        right_layout.addStretch(2)
+
         # Footer
         footer_text = "v1.0.0 • Intelleo Security"
 
@@ -212,6 +260,37 @@ class LoginView(QWidget):
 
         # Animation Setup
         self.setup_entrance_animation()
+
+    def handle_update_license(self):
+        self.update_btn.setText("Aggiornamento in corso...")
+        self.update_btn.setEnabled(False)
+
+        self.thread = QThread()
+        self.worker = LicenseUpdateWorker(self.api_client)
+        self.worker.moveToThread(self.thread)
+
+        self.thread.started.connect(self.worker.run)
+        self.worker.finished.connect(self.on_update_finished)
+
+        self.thread.start()
+
+    def on_update_finished(self, success, message):
+        self.update_btn.setText("Aggiorna Licenza")
+        self.update_btn.setEnabled(True)
+
+        if success:
+            reply = QMessageBox.information(self, "Successo",
+                                            f"{message}\n\nL'applicazione verrà riavviata per applicare le modifiche.",
+                                            QMessageBox.StandardButton.Ok)
+            if reply == QMessageBox.StandardButton.Ok:
+                # A simple way to restart is to quit and have a launcher script handle it.
+                # For now, we'll just quit. A more robust solution might use a watchdog.
+                QApplication.instance().quit()
+        else:
+            QMessageBox.critical(self, "Errore Aggiornamento", message)
+
+        self.thread.quit()
+        self.thread.wait()
 
     def setup_entrance_animation(self):
         # We animate the container
