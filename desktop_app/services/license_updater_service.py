@@ -48,22 +48,33 @@ class LicenseUpdaterService:
         if not all([config.get('repo_owner'), config.get('repo_name')]):
             return False, "La configurazione per l'aggiornamento ricevuta dal server è incompleta."
 
-        # Use the raw github content URL, which doesn't require auth for public repos.
-        base_url = f"https://raw.githubusercontent.com/{config['repo_owner']}/{config['repo_name']}/main/licenses/{hardware_id}"
+        # The API now requires a token for private repos.
+        if not all([config.get('repo_owner'), config.get('repo_name'), config.get('github_token')]):
+            return False, "La configurazione per l'aggiornamento ricevuta dal server è incompleta."
 
-        files_to_download = ["pyarmor.rkey", "config.dat", "manifest.json"]
+        api_url = f"https://api.github.com/repos/{config['repo_owner']}/{config['repo_name']}/contents/licenses/{hardware_id}"
+        headers = {'Authorization': f"token {config['github_token']}"}
+
+        files_to_process = ["pyarmor.rkey", "config.dat", "manifest.json"]
 
         with tempfile.TemporaryDirectory() as temp_dir:
             try:
-                # 1. Download files
-                for filename in files_to_download:
-                    url = f"{base_url}/{filename}"
-                    # Removed headers, not needed for raw content
-                    res = requests.get(url, timeout=15)
-                    res.raise_for_status()
+                # 1. Get file metadata (including download URLs) from GitHub API
+                for filename in files_to_process:
+                    file_api_url = f"{api_url}/{filename}"
+                    meta_res = requests.get(file_api_url, headers=headers, timeout=15)
+                    meta_res.raise_for_status()
+                    file_meta = meta_res.json()
+
+                    if 'download_url' not in file_meta:
+                        raise ValueError(f"URL di download non trovato per {filename}.")
+
+                    # 2. Download the actual file content from the download_url
+                    content_res = requests.get(file_meta['download_url'], timeout=30)
+                    content_res.raise_for_status()
 
                     with open(os.path.join(temp_dir, filename), "wb") as f:
-                        f.write(res.content)
+                        f.write(content_res.content)
 
                 # 2. Verify checksums
                 manifest_path = os.path.join(temp_dir, "manifest.json")

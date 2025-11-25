@@ -424,20 +424,23 @@ def build():
         # "il file pyarmor.rkey lo trovi in formazione_coemi\Licenza tu devi importare la cartella formazione_coemi\Licenza"
         
         lic_dest_dir = os.path.join(output_folder, "Licenza")
-        # Rimuoviamo la cartella di destinazione se esiste per partire puliti
         if os.path.exists(lic_dest_dir):
             shutil.rmtree(lic_dest_dir)
         
-        # Percorso sorgente: formazione_coemi/Licenza
         lic_src_dir = os.path.join(ROOT_DIR, "Licenza")
         
-        if os.path.exists(lic_src_dir):
+        # Controlla se la cartella sorgente esiste E non è vuota
+        if os.path.exists(lic_src_dir) and os.listdir(lic_src_dir):
             log_and_print(f"Importing License folder from: {lic_src_dir}")
             shutil.copytree(lic_src_dir, lic_dest_dir)
             log_and_print("License folder successfully imported.")
         else:
-            log_and_print(f"CRITICAL WARNING: License folder not found at {lic_src_dir}", "WARNING")
-            # Fallback: crea la cartella vuota per evitare errori nel setup
+            if not os.path.exists(lic_src_dir):
+                 log_and_print(f"WARNING: License source folder not found at {lic_src_dir}", "WARNING")
+            else:
+                 log_and_print(f"WARNING: License source folder at {lic_src_dir} is empty.", "WARNING")
+
+            log_and_print("Creating an empty 'Licenza' directory in the build output for compatibility.")
             os.makedirs(lic_dest_dir, exist_ok=True)
 
 
