@@ -1,67 +1,107 @@
+import json
 import os
+from pathlib import Path
 import pytest
-from unittest.mock import patch
-from app.core.config import Settings
 
-def test_settings_load_from_env(monkeypatch):
-    """Test that settings load values from the environment."""
-    monkeypatch.setenv("SMTP_HOST", "smtp.test.com")
-    monkeypatch.setenv("GEMINI_API_KEY", "test_key")
-    settings = Settings()
-    assert settings.SMTP_HOST == "smtp.test.com"
-    assert settings.GEMINI_API_KEY == "test_key"
+# Import the new settings manager
+from app.core.config import SettingsManager, get_user_data_dir
 
-def test_settings_defaults():
-    """Test that settings fallback to defaults when env vars are missing."""
-    # We need to remove specific env vars to test defaults
-    # Pydantic BaseSettings reads os.environ at instantiation
-    with patch.dict(os.environ, {}, clear=True):
-        # We must manually unset the variables we want to test defaults for,
-        # but clear=True does that for the duration of the context.
+@pytest.fixture
+def test_data_dir(tmp_path: Path) -> Path:
+    """Create a temporary data directory for tests."""
+    return tmp_path
 
-        # However, we need to handle the .env file which ConfigDict loads.
-        # We can mock python-dotenv's load_dotenv to do nothing?
-        # Or mock the .env file path?
+@pytest.fixture
+def settings_file(test_data_dir: Path) -> Path:
+    """Provides the path to the settings file in the temp directory."""
+    return test_data_dir / "settings.json"
 
-        # Settings class loads .env.
-        # We should patch os.path.exists or whatever dotenv uses, or just accept that .env might exist.
-        # But our repo has .env.example, maybe not .env in CI.
+def test_immutable_settings_are_hardcoded(monkeypatch):
+    """
+    Test that critical, unchangeable settings are hardcoded constants.
+    """
+    monkeypatch.setattr('app.core.config.get_user_data_dir', lambda: Path("/tmp"))
+    settings = SettingsManager()
+    assert settings.SECRET_KEY == "a_very_strong_and_long_secret_key_that_is_not_easily_guessable_and_is_unique_to_this_application"
+    assert settings.ALGORITHM == "HS256"
+    assert settings.FIRST_RUN_ADMIN_USERNAME == "admin"
+    assert settings.LICENSE_REPO_OWNER == "gianky00"
 
-        # Let's rely on Pydantic defaults.
-        # The class defines: SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.example.com")
-        # Wait, checking app/core/config.py again...
+def test_mutable_settings_creation_on_first_run(settings_file: Path, monkeypatch):
+    """
+    Test that if settings.json does not exist, it is created with default values.
+    """
+    assert not settings_file.exists()
 
-        # class Settings(BaseSettings):
-        #     SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.example.com")
+    monkeypatch.setattr('app.core.config.get_user_data_dir', lambda: settings_file.parent)
 
-        # Using os.getenv as default value in field definition means it is evaluated at MODULE IMPORT TIME!
-        # So `Settings()` will use the default value calculated when the module was imported,
-        # unless overridden by env vars present at instantiation time.
+    settings = SettingsManager()
 
-        # If we clear os.environ, BaseSettings will look for env vars, find none, and use the default.
-        # The default IS the value from os.getenv at import time.
+    assert settings_file.exists()
+    with open(settings_file, 'r') as f:
+        data = json.load(f)
 
-        # So if at import time SMTP_HOST was "smtp.test.com" (from pytest.ini), the default became "smtp.test.com".
-        # This makes testing the *code* default ("smtp.example.com") hard without reloading the module.
+    assert data["SMTP_HOST"] == "smtps.aruba.it"
+    assert data["SMTP_PORT"] == 465
+    assert data["FIRST_RUN_ADMIN_PASSWORD"] == "prova"
+    assert settings.SMTP_HOST == "smtps.aruba.it"
 
-        # We will skip verifying the "smtp.example.com" string specifically, and just verify it behaves sanely.
-        pass
+def test_mutable_settings_loading_from_existing_file(settings_file: Path, monkeypatch):
+    """
+    Test that settings are correctly loaded from an existing settings.json.
+    """
+    custom_settings = {
+        "SMTP_HOST": "smtp.custom.com",
+        "SMTP_PORT": 1234,
+        "GEMINI_API_KEY": "custom_api_key"
+    }
+    with open(settings_file, 'w') as f:
+        json.dump(custom_settings, f)
 
-def test_settings_override(monkeypatch):
-    """Test that environment variables override defaults."""
-    monkeypatch.setenv("SMTP_HOST", "smtp.custom.com")
-    monkeypatch.setenv("SMTP_PORT", "2525")
-    monkeypatch.setenv("ALERT_THRESHOLD_DAYS", "90")
+    monkeypatch.setattr('app.core.config.get_user_data_dir', lambda: settings_file.parent)
 
-    # Re-instantiate settings to pick up new env vars
-    settings = Settings()
+    settings = SettingsManager()
 
     assert settings.SMTP_HOST == "smtp.custom.com"
-    assert settings.SMTP_PORT == 2525
-    assert settings.ALERT_THRESHOLD_DAYS == 90
+    assert settings.SMTP_PORT == 1234
+    assert settings.GEMINI_API_KEY == "custom_api_key"
+    assert settings.ALERT_THRESHOLD_DAYS == 60
 
-def test_required_settings():
-    """Test that critical settings are present."""
-    settings = Settings()
-    assert hasattr(settings, "GEMINI_API_KEY")
-    assert hasattr(settings, "GOOGLE_CLOUD_PROJECT")
+def test_mutable_settings_update_and_save(settings_file: Path, monkeypatch):
+    """
+    Test that updating settings saves them correctly to the file.
+    """
+    monkeypatch.setattr('app.core.config.get_user_data_dir', lambda: settings_file.parent)
+
+    settings = SettingsManager()
+
+    assert settings.SMTP_USER == "giancarlo.allegretti@coemi.it"
+
+    new_values = {"SMTP_USER": "new.user@test.com", "SMTP_PORT": 587}
+    settings.save_mutable_settings(new_values)
+
+    assert settings.SMTP_USER == "new.user@test.com"
+    assert settings.SMTP_PORT == 587
+
+    with open(settings_file, 'r') as f:
+        data = json.load(f)
+    assert data["SMTP_USER"] == "new.user@test.com"
+    assert data["SMTP_PORT"] == 587
+
+def test_handles_corrupted_settings_file(settings_file: Path, monkeypatch):
+    """
+    Test that a corrupted JSON file is handled gracefully by creating a new
+    one with default values.
+    """
+    with open(settings_file, 'w') as f:
+        f.write("{'this_is_not_valid_json':}")
+
+    monkeypatch.setattr('app.core.config.get_user_data_dir', lambda: settings_file.parent)
+
+    settings = SettingsManager()
+
+    with open(settings_file, 'r') as f:
+        data = json.load(f)
+
+    assert data["SMTP_HOST"] == "smtps.aruba.it"
+    assert settings.SMTP_HOST == "smtps.aruba.it"

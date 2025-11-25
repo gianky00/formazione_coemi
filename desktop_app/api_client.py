@@ -107,6 +107,23 @@ class APIClient:
         response.raise_for_status()
         return response.json()
 
+    # --- App Configuration ---
+
+    def get_mutable_config(self):
+        """Retrieves user-configurable settings from the backend."""
+        url = f"{self.base_url}/app_config/config"
+        response = requests.get(url, headers=self._get_headers())
+        response.raise_for_status()
+        return response.json()
+
+    def update_mutable_config(self, settings_data: dict):
+        """Updates user-configurable settings on the backend."""
+        url = f"{self.base_url}/app_config/config"
+        response = requests.put(url, json=settings_data, headers=self._get_headers())
+        response.raise_for_status()
+        # This endpoint returns 204 No Content, so we don't expect a body
+        return True
+
     def update_user(self, user_id, data):
         url = f"{self.base_url}/users/{user_id}"
         response = requests.put(url, json=data, headers=self._get_headers())
