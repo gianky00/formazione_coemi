@@ -53,6 +53,21 @@ class APIClient:
 
         return headers
 
+    def get(self, endpoint, params=None):
+        """
+        Performs a generic GET request to a given endpoint.
+        """
+        # Ensure endpoint starts with a slash
+        if not endpoint.startswith('/'):
+            endpoint = f'/{endpoint}'
+
+        url = f"{self.base_url}{endpoint}"
+
+        # Note: For public endpoints, _get_headers might be empty, which is fine.
+        response = requests.get(url, params=params, headers=self._get_headers())
+        response.raise_for_status()
+        return response.json()
+
     def login(self, username, password):
         url = f"{self.base_url}/auth/login"
         data = {"username": username, "password": password}
