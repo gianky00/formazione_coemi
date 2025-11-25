@@ -31,7 +31,7 @@ class LicenseUpdateWorker(QObject):
 class LoginView(QWidget):
     login_success = pyqtSignal(dict) # Emits user_info dict
 
-    def __init__(self, api_client):
+    def __init__(self, api_client, license_ok=True, license_error=""):
         super().__init__()
         self.api_client = api_client
         self.setStyleSheet("background-color: #F0F8FF;") # Global background match
@@ -260,6 +260,18 @@ class LoginView(QWidget):
 
         # Animation Setup
         self.setup_entrance_animation()
+
+        # Handle invalid license state
+        if not license_ok:
+            self.username_input.setEnabled(False)
+            self.password_input.setEnabled(False)
+            self.login_btn.setEnabled(False)
+
+            # Add a clear error message
+            error_label = QLabel("Licenza non valida o scaduta. Aggiornala per continuare.")
+            error_label.setStyleSheet("color: #DC2626; font-size: 14px; font-weight: 500;")
+            error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            right_layout.insertWidget(5, error_label) # Insert after welcome_sub
 
     def handle_update_license(self):
         self.update_btn.setText("Aggiornamento in corso...")
