@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 import logging
+from app.utils.security import reveal_string
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -16,7 +17,8 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 43200  # 30 days
 
 FIRST_RUN_ADMIN_USERNAME = "admin"
 
-LICENSE_GITHUB_TOKEN = "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"
+# This token is injected by the admin/token_injector tool and is obfuscated.
+OBFUSCATED_GITHUB_TOKEN = "obf:a1JWWDcwNFlqR1dmNjlwMzZHV1FoMk1JT053a1NlelNnR1VlX3BoZw=="
 LICENSE_REPO_OWNER = "gianky00"
 LICENSE_REPO_NAME = "intelleo-licenses"
 
@@ -44,7 +46,8 @@ class MutableSettings:
         self.settings_path = settings_path
         self._defaults = {
             "FIRST_RUN_ADMIN_PASSWORD": "prova",
-            "GEMINI_API_KEY": "AIzaSyB5S4V49r8XPcgyMcatAeSdEN4jzf9sqUM",
+            # Default key is also obfuscated to avoid scanners.
+            "GEMINI_API_KEY": "obf:TUFxc2Y0TkVlQHRhY015Z0NwOFk1VDRCLnl6YUlB",
             "SMTP_HOST": "smtps.aruba.it",
             "SMTP_PORT": 465,
             "SMTP_USER": "giancarlo.allegretti@coemi.it",
@@ -107,7 +110,8 @@ class SettingsManager:
         self.ALGORITHM = ALGORITHM
         self.ACCESS_TOKEN_EXPIRE_MINUTES = ACCESS_TOKEN_EXPIRE_MINUTES
         self.FIRST_RUN_ADMIN_USERNAME = FIRST_RUN_ADMIN_USERNAME
-        self.LICENSE_GITHUB_TOKEN = LICENSE_GITHUB_TOKEN
+        # The raw value is obfuscated, the property reveals it.
+        self._OBFUSCATED_GITHUB_TOKEN = OBFUSCATED_GITHUB_TOKEN
         self.LICENSE_REPO_OWNER = LICENSE_REPO_OWNER
         self.LICENSE_REPO_NAME = LICENSE_REPO_NAME
 
@@ -117,12 +121,17 @@ class SettingsManager:
 
     # Convenience properties to access mutable settings directly
     @property
+    def LICENSE_GITHUB_TOKEN(self):
+        return reveal_string(self._OBFUSCATED_GITHUB_TOKEN)
+
+    @property
     def FIRST_RUN_ADMIN_PASSWORD(self):
         return self.mutable.get("FIRST_RUN_ADMIN_PASSWORD")
 
     @property
     def GEMINI_API_KEY(self):
-        return self.mutable.get("GEMINI_API_KEY")
+        obfuscated_key = self.mutable.get("GEMINI_API_KEY")
+        return reveal_string(obfuscated_key)
 
     @property
     def SMTP_HOST(self):

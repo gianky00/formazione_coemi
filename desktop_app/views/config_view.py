@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QColor
 from desktop_app.api_client import APIClient
+from app.utils.security import obfuscate_string, reveal_string
 
 class UserDialog(QDialog):
     def __init__(self, parent=None, user_data=None):
@@ -365,7 +366,12 @@ class ConfigView(QWidget):
         try:
             self.current_settings = self.api_client.get_mutable_config()
             gs = self.general_settings
-            gs.gemini_api_key_input.setText(self.current_settings.get("GEMINI_API_KEY", ""))
+
+            # Reveal the API key for editing
+            obfuscated_key = self.current_settings.get("GEMINI_API_KEY", "")
+            revealed_key = reveal_string(obfuscated_key)
+            gs.gemini_api_key_input.setText(revealed_key)
+
             gs.smtp_host_input.setText(self.current_settings.get("SMTP_HOST", ""))
             gs.smtp_port_input.setText(str(self.current_settings.get("SMTP_PORT", "")))
             gs.smtp_user_input.setText(self.current_settings.get("SMTP_USER", ""))
@@ -404,8 +410,12 @@ class ConfigView(QWidget):
             return
 
         gs = self.general_settings
+
+        # Get the plain text key from the input for comparison
+        plain_text_api_key = gs.gemini_api_key_input.text()
+
         new_settings = {
-            "GEMINI_API_KEY": gs.gemini_api_key_input.text(),
+            "GEMINI_API_KEY": obfuscate_string(plain_text_api_key),
             "SMTP_HOST": gs.smtp_host_input.text(),
             "SMTP_PORT": int(gs.smtp_port_input.text()) if gs.smtp_port_input.text().isdigit() else None,
             "SMTP_USER": gs.smtp_user_input.text(),
@@ -416,8 +426,21 @@ class ConfigView(QWidget):
             "ALERT_THRESHOLD_DAYS_VISITE": int(gs.alert_threshold_visite_input.text()) if gs.alert_threshold_visite_input.text().isdigit() else 30,
         }
 
-        # Filter out any keys that have not changed
-        update_payload = {k: v for k, v in new_settings.items() if self.current_settings.get(k) != v}
+        # --- Smart comparison for API Key ---
+        # Reveal the currently stored key to compare it with the new plain text key
+        current_obfuscated_key = self.current_settings.get("GEMINI_API_KEY", "")
+        current_revealed_key = reveal_string(current_obfuscated_key)
+
+        # Build the update payload, excluding unchanged values
+        update_payload = {}
+        for k, v in new_settings.items():
+            if k == "GEMINI_API_KEY":
+                # Only add the API key if the plain text version has actually changed
+                if plain_text_api_key != current_revealed_key:
+                    update_payload[k] = v
+            elif self.current_settings.get(k) != v:
+                update_payload[k] = v
+        # --- End of smart comparison ---
 
         if not update_payload:
             QMessageBox.information(self, "Nessuna Modifica", "Nessuna modifica da salvare.")
