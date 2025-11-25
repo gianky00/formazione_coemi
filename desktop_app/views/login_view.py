@@ -274,6 +274,18 @@ class LoginView(QWidget):
             error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             right_layout.insertWidget(5, error_label) # Insert after welcome_sub
 
+        # Auto-trigger license update if files are missing
+        self._auto_update_if_needed()
+
+    def _auto_update_if_needed(self):
+        from desktop_app.services.path_service import get_license_dir
+        license_dir = get_license_dir()
+        required_files = ["pyarmor.rkey", "config.dat", "manifest.json"]
+
+        # Check if any of the essential files are missing
+        if any(not os.path.exists(os.path.join(license_dir, f)) for f in required_files):
+            QTimer.singleShot(1000, self.handle_update_license) # Delay to allow UI to show
+
     def handle_update_license(self):
         self.update_btn.setText("Aggiornamento in corso...")
         self.update_btn.setEnabled(False)
