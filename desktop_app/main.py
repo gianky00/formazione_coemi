@@ -500,7 +500,8 @@ class ApplicationController:
                     ts = prev_login_raw.replace('Z', '')
                     from datetime import datetime
                     dt = datetime.fromisoformat(ts)
-                    display_str = dt.strftime("%d/%m/%Y %H:%M")
+                    # AGGIUNTO \n per forzare il ritorno a capo
+                    display_str = dt.strftime("%d/%m/%Y\n%H:%M")
                 else:
                     display_str = str(prev_login_raw)
             except Exception as e:
