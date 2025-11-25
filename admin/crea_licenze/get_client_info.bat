@@ -29,7 +29,7 @@ set OUTFILE=hardware_id.txt
 set ERRFILE=hw_error.log
 
 REM Esegui lo script Python unificato per ottenere l'ID, catturando l'output di errore
-python "%~dp0\\..\\tools\\get_id_for_admin.py" > %OUTFILE% 2> %ERRFILE%
+python "%~dp0\\..\\..\\tools\\get_id_for_admin.py" > %OUTFILE% 2> %ERRFILE%
 
 REM Controlla se lo script ha prodotto un errore
 if %errorlevel% neq 0 (
