@@ -53,23 +53,34 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # --- 2. VERIFICA LICENZA (Fisica + Logica Implicita) ---
 def verify_license():
-    # A. Check Fisico: il file deve esistere
-    if getattr(sys, 'frozen', False):
-        base_dir = os.path.dirname(sys.executable)
+    """
+    Verifica la presenza del file di runtime pyarmor.rkey.
+    Cerca prima nella nuova cartella dati utente, poi nella vecchia per retrocompatibilità.
+    """
+    from desktop_app.services.path_service import get_license_dir, get_app_install_dir
+
+    # 1. Percorso preferito (dati utente)
+    user_license_path = os.path.join(get_license_dir(), "pyarmor.rkey")
+
+    # 2. Percorsi di fallback (cartella di installazione)
+    install_dir = get_app_install_dir()
+    fallback_license_path_licenza = os.path.join(install_dir, "Licenza", "pyarmor.rkey")
+    fallback_license_path_root = os.path.join(install_dir, "pyarmor.rkey")
+
+    # Determina quale percorso usare
+    if os.path.exists(user_license_path):
+        lic_path = user_license_path
+        sys.path.insert(0, os.path.dirname(user_license_path))
+    elif os.path.exists(fallback_license_path_licenza):
+        lic_path = fallback_license_path_licenza
+        sys.path.insert(0, os.path.dirname(fallback_license_path_licenza))
+    elif os.path.exists(fallback_license_path_root):
+        lic_path = fallback_license_path_root
+        sys.path.insert(0, os.path.dirname(fallback_license_path_root))
     else:
-        base_dir = os.path.dirname(os.path.abspath(__file__))
+        return False, f"File di licenza (pyarmor.rkey) non trovato."
 
-    # Priority 1: Licenza folder
-    lic_path_preferred = os.path.join(base_dir, "Licenza", "pyarmor.rkey")
-    # Priority 2: Root folder (legacy/dev)
-    lic_path_fallback = os.path.join(base_dir, "pyarmor.rkey")
-
-    lic_path = lic_path_preferred if os.path.exists(lic_path_preferred) else lic_path_fallback
-    
-    if not os.path.exists(lic_path):
-        return False, f"File di licenza mancante.\nCercato in: {lic_path}"
-
-    # B. Check Logico Implicito:
+    # B. Check Logico Implicito: se il file è valido, l'import protetto funziona
     try:
         import app.core.config
         return True, "OK"

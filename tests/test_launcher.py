@@ -11,9 +11,14 @@ def test_verify_license_missing(mocker):
     mocker.patch.object(sys, 'executable', '/tmp/fake_exe')
     mocker.patch("os.path.exists", return_value=False)
 
+    # Since the new verify_license imports path_service, we need to mock the functions at their source
+    mocker.patch("desktop_app.services.path_service.get_license_dir", return_value="/tmp/user_license_dir")
+    mocker.patch("desktop_app.services.path_service.get_app_install_dir", return_value="/tmp/install_dir")
+
     ok, msg = launcher.verify_license()
     assert not ok
-    assert "File di licenza mancante" in msg
+    # The error message was updated, so we update the test assertion
+    assert "non trovato" in msg
 
 def test_verify_license_valid_dev_mode(mocker):
     """Test valid license (implicit check) in dev mode."""

@@ -18,29 +18,29 @@ def get_user_data_dir() -> Path:
     base_dir.mkdir(parents=True, exist_ok=True)
     return base_dir
 
-# Load environment variables from .env file
-# We now prioritize the user data directory .env, but load_dotenv() still checks cwd for dev
+# Load environment variables from .env file in CWD for development if it exists.
+# Pydantic will handle loading the one from the user data directory.
 load_dotenv()
 
 class Settings(BaseSettings):
-    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    GOOGLE_CLOUD_PROJECT: str = os.getenv("GOOGLE_CLOUD_PROJECT", "")
-    GCS_BUCKET_NAME: str = os.getenv("GCS_BUCKET_NAME", "")
+    GEMINI_API_KEY: str = ""
+    GOOGLE_CLOUD_PROJECT: str = ""
+    GCS_BUCKET_NAME: str = ""
 
     # SMTP Settings for email notifications
-    SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.example.com")
-    SMTP_PORT: int = int(os.getenv("SMTP_PORT", 587))
-    SMTP_USER: str = os.getenv("SMTP_USER", "user@example.com")
-    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "password")
-    EMAIL_RECIPIENTS_TO: str = os.getenv("EMAIL_RECIPIENTS_TO", "gianky.allegretti@gmail.com")
-    EMAIL_RECIPIENTS_CC: str = os.getenv("EMAIL_RECIPIENTS_CC", "")
+    SMTP_HOST: str = "smtp.example.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = "user@example.com"
+    SMTP_PASSWORD: str = "password"
+    EMAIL_RECIPIENTS_TO: str = "gianky.allegretti@gmail.com"
+    EMAIL_RECIPIENTS_CC: str = ""
 
     # Alert thresholds
-    ALERT_THRESHOLD_DAYS: int = int(os.getenv("ALERT_THRESHOLD_DAYS", 60))
-    ALERT_THRESHOLD_DAYS_VISITE: int = int(os.getenv("ALERT_THRESHOLD_DAYS_VISITE", 30))
+    ALERT_THRESHOLD_DAYS: int = 60
+    ALERT_THRESHOLD_DAYS_VISITE: int = 30
 
     # Security
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7")
+    SECRET_KEY: str = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 43200  # 30 days (60 * 24 * 30)
 
@@ -49,9 +49,9 @@ class Settings(BaseSettings):
     FIRST_RUN_ADMIN_PASSWORD: str = "allegretti@coemi"
 
     # License Auto-Update Settings
-    LICENSE_GITHUB_TOKEN: str = os.getenv("LICENSE_GITHUB_TOKEN", "")
-    LICENSE_REPO_OWNER: str = os.getenv("LICENSE_REPO_OWNER", "")
-    LICENSE_REPO_NAME: str = os.getenv("LICENSE_REPO_NAME", "")
+    LICENSE_GITHUB_TOKEN: str = ""
+    LICENSE_REPO_OWNER: str = ""
+    LICENSE_REPO_NAME: str = ""
 
     model_config = ConfigDict(
         env_file=get_user_data_dir() / ".env",

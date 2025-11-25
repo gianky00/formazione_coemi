@@ -1,11 +1,10 @@
-import subprocess
-import sys
 import os
 import requests
 import json
 import hashlib
 import shutil
 import tempfile
+from desktop_app.services.path_service import get_license_dir
 
 class LicenseUpdaterService:
     def __init__(self, api_client):
@@ -45,14 +44,12 @@ class LicenseUpdaterService:
         except RuntimeError as e:
             return False, str(e)
 
-        if not all([config.get('github_token'), config.get('repo_owner'), config.get('repo_name')]):
+        # The configuration might not need a token if the repo is public, but we check for structure.
+        if not all([config.get('repo_owner'), config.get('repo_name')]):
             return False, "La configurazione per l'aggiornamento ricevuta dal server è incompleta."
 
-        base_url = f"https://api.github.com/repos/{config['repo_owner']}/{config['repo_name']}/contents/licenses/{hardware_id}"
-        headers = {
-            "Authorization": f"token {config['github_token']}",
-            "Accept": "application/vnd.github.v3.raw"
-        }
+        # Use the raw github content URL, which doesn't require auth for public repos.
+        base_url = f"https://raw.githubusercontent.com/{config['repo_owner']}/{config['repo_name']}/main/licenses/{hardware_id}"
 
         files_to_download = ["pyarmor.rkey", "config.dat", "manifest.json"]
 
@@ -61,7 +58,8 @@ class LicenseUpdaterService:
                 # 1. Download files
                 for filename in files_to_download:
                     url = f"{base_url}/{filename}"
-                    res = requests.get(url, headers=headers, timeout=15)
+                    # Removed headers, not needed for raw content
+                    res = requests.get(url, timeout=15)
                     res.raise_for_status()
 
                     with open(os.path.join(temp_dir, filename), "wb") as f:
@@ -80,51 +78,21 @@ class LicenseUpdaterService:
                 if manifest["config.dat"] != LicenseUpdaterService._calculate_sha256(config_path):
                     raise ValueError("Checksum per 'config.dat' non valido.")
 
-                # 3. Atomic Update with Elevated Privileges (Windows)
-                if os.name != 'nt':
-                    return False, "L'aggiornamento automatico della licenza e' supportato solo su Windows."
+                # 3. Atomic Update to User Data Directory (No Elevation Needed)
+                target_license_dir = get_license_dir()
 
-                if getattr(sys, 'frozen', False):
-                    # In a frozen app, the executable is the base
-                    base_dir = os.path.dirname(sys.executable)
-                    python_exe = sys.executable # The frozen app itself
-                else:
-                    # In dev, we need to find the python interpreter
-                    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-                    python_exe = sys.executable
+                # Move the validated files into the target directory, overwriting existing ones.
+                # shutil.move is generally atomic on modern OSes.
+                shutil.move(rkey_path, os.path.join(target_license_dir, "pyarmor.rkey"))
+                shutil.move(config_path, os.path.join(target_license_dir, "config.dat"))
+                # We can also move the manifest for future reference if needed
+                shutil.move(manifest_path, os.path.join(target_license_dir, "manifest.json"))
 
-                target_dir = os.path.join(base_dir, "Licenza")
-
-                # The paths to our helper scripts
-                vbs_script = os.path.join(base_dir, "tools", "elevate.vbs")
-                copy_script = os.path.join(base_dir, "tools", "copy_license.py")
-
-                # The command to execute with elevation
-                command = [
-                    "cscript",
-                    f'"{vbs_script}"',
-                    f'"{python_exe}"',
-                    f'"{copy_script}"',
-                    f'"{temp_dir}"',
-                    f'"{target_dir}"'
-                ]
-
-                proc = subprocess.Popen(" ".join(command), shell=True)
-                proc.wait() # Wait for the elevated process to complete
-
-                # Check if the elevated script reported an error
-                error_log = os.path.join(temp_dir, "copy_error.log")
-                if os.path.exists(error_log):
-                    with open(error_log, "r") as f:
-                        error_details = f.read()
-                    raise RuntimeError(f"Errore durante la copia dei file con privilegi elevati: {error_details}")
-
-                # If we reach here, the copy was successful
                 return True, "Licenza aggiornata con successo. Riavvia l'applicazione."
 
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 404:
-                    return False, f"Nessuna licenza trovata per l'ID: {hardware_id}."
+                    return False, f"Nessuna licenza trovata per l'ID hardware: {hardware_id}."
                 return False, f"Errore di rete: {e}"
             except (ValueError, KeyError) as e:
                 return False, f"Errore di validazione: {e}"

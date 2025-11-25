@@ -1,9 +1,9 @@
 import os
-import sys
 import json
 import logging
 from cryptography.fernet import Fernet
 from app.core.license_security import LICENSE_SECRET_KEY
+from desktop_app.services.path_service import get_license_dir, get_app_install_dir
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -38,21 +38,31 @@ class LicenseManager:
 
     @staticmethod
     def _find_license_file():
+        """
+        Tries to find the license file in priority order:
+        1. New user data directory (writable).
+        2. Old application installation directory (for backward compatibility).
+        """
         filename = LicenseManager.LICENSE_FILENAME
 
-        # Priority locations
-        possible_paths = [
-             os.path.join("Licenza", filename),
-             filename
-        ]
+        # 1. New, preferred location in user data directory
+        user_license_path = os.path.join(get_license_dir(), filename)
+        if os.path.exists(user_license_path):
+            logger.info(f"License found in user data directory: {user_license_path}")
+            return user_license_path
 
-        if getattr(sys, 'frozen', False):
-             exe_dir = os.path.dirname(sys.executable)
-             possible_paths.insert(0, os.path.join(exe_dir, "Licenza", filename))
-             possible_paths.insert(1, os.path.join(exe_dir, filename))
+        # 2. Fallback to old location in installation directory
+        install_dir = get_app_install_dir()
+        old_license_path = os.path.join(install_dir, "Licenza", filename)
+        if os.path.exists(old_license_path):
+            logger.info(f"License found in fallback install directory: {old_license_path}")
+            return old_license_path
 
-        for p in possible_paths:
-            if os.path.exists(p):
-                return p
+        # Also check root of install dir, just in case
+        old_root_path = os.path.join(install_dir, filename)
+        if os.path.exists(old_root_path):
+            logger.info(f"License found in fallback install root: {old_root_path}")
+            return old_root_path
 
+        logger.warning("License file could not be found in any standard location.")
         return None
