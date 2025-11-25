@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     FIRST_RUN_ADMIN_USERNAME: str = "admin"
     FIRST_RUN_ADMIN_PASSWORD: str = "allegretti@coemi"
 
+    # License Auto-Update Settings
+    LICENSE_GITHUB_TOKEN: str = os.getenv("LICENSE_GITHUB_TOKEN", "")
+    LICENSE_REPO_OWNER: str = os.getenv("LICENSE_REPO_OWNER", "")
+    LICENSE_REPO_NAME: str = os.getenv("LICENSE_REPO_NAME", "")
+
     model_config = ConfigDict(
         env_file=get_user_data_dir() / ".env",
         env_file_encoding='utf-8',

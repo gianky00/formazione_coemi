@@ -1,33 +1,81 @@
 @echo off
-TITLE Recupero Seriale Disco - Coemi
-color 1F
+TITLE Recupero Hardware ID per Licenza Intelleo
+color 0F
 cls
 
 echo ========================================================
-echo    RECUPERO SERIALE FISICO DISCO (LICENZA)
+echo    RECUPERO HARDWARE ID (PER LICENZA INTELLEO)
 echo ========================================================
 echo.
-echo Attendi qualche secondo...
+echo Questo script recupera l'ID hardware univoco necessario
+echo per generare la licenza del software.
+echo.
+
+REM Assicurati che Python sia nel PATH
+python --version >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [ERRORE] Python non sembra installato o configurato
+    echo correttamente nel PATH di sistema.
+    echo.
+    pause
+    exit /b
+)
+
+echo Ottenimento dell'ID in corso...
 echo.
 
 REM File di output
-set OUTFILE=seriale_disco.txt
+set OUTFILE=hardware_id.txt
+set ERRFILE=hw_error.log
 
-REM Comando PowerShell robusto per prendere il seriale fisico
-powershell -Command "Get-CimInstance Win32_DiskDrive | Select-Object -First 1 -ExpandProperty SerialNumber" > %OUTFILE%
+REM Esegui lo script Python unificato per ottenere l'ID, catturando l'output di errore
+python "%~dp0\\..\\..\\tools\\get_id_for_admin.py" > %OUTFILE% 2> %ERRFILE%
+
+REM Controlla se lo script ha prodotto un errore
+if %errorlevel% neq 0 (
+    echo [ERRORE] Impossibile ottenere l'Hardware ID.
+    echo Dettagli dell'errore:
+    echo.
+    type %ERRFILE%
+    del %ERRFILE%
+    del %OUTFILE%
+    echo.
+    pause
+    exit /b
+)
+
+REM Controlla se il file di output e' vuoto
+if not exist %OUTFILE% (
+    echo [ERRORE] Il file di output non e' stato creato.
+    del %ERRFILE%
+    pause
+    exit /b
+)
+for %%A in (%OUTFILE%) do if %%~zA equ 0 (
+    echo [ERRORE] Lo script non ha prodotto un Hardware ID.
+    del %OUTFILE%
+    del %ERRFILE%
+    pause
+    exit /b
+)
+
+
+REM Leggi l'ID dal file
+set /p HWID=<%OUTFILE%
+del %ERRFILE%
 
 echo.
 echo ========================================================
 echo    OPERAZIONE COMPLETATA!
 echo ========================================================
 echo.
-echo Il seriale e' stato salvato nel file: %OUTFILE%
+echo L'Hardware ID e' stato salvato nel file: %OUTFILE%
+echo Il valore (%HWID%) e' stato copiato automaticamente negli appunti.
 echo.
-echo Il contenuto e' stato copiato negli appunti.
-echo Premi CTRL+V nella mail/chat per inviarlo.
+echo Incolla (CTRL+V) questo ID quando richiesto dal gestore.
 echo.
 
-REM Copia negli appunti pulendo gli spazi vuoti
-powershell -Command "(Get-Content %OUTFILE%).Trim()" | clip
+REM Copia l'ID pulito negli appunti
+clip < %OUTFILE%
 
 pause

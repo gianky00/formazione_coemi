@@ -304,7 +304,7 @@ def setup_styles(app: QApplication):
     """)
 
 class MasterWindow(QMainWindow):
-    def __init__(self, controller):
+    def __init__(self, controller, license_ok, license_error):
         super().__init__()
         self.controller = controller
         self.setWindowTitle("Intelleo - Predict. Validate. Automate")
@@ -314,7 +314,7 @@ class MasterWindow(QMainWindow):
         self.setCentralWidget(self.stack)
 
         # Initialize Views
-        self.login_view = LoginView(controller.api_client)
+        self.login_view = LoginView(controller.api_client, license_ok=license_ok, license_error=license_error)
         self.login_view.login_success.connect(controller.on_login_success)
 
         self.dashboard_view = None # Lazy init
@@ -347,11 +347,11 @@ class MasterWindow(QMainWindow):
         event.accept()
 
 class ApplicationController:
-    def __init__(self):
+    def __init__(self, license_ok=True, license_error=""):
         print("[DEBUG] ApplicationController.__init__ started")
         self.api_client = APIClient()
         print("[DEBUG] APIClient initialized. Creating MasterWindow...")
-        self.master_window = MasterWindow(self)
+        self.master_window = MasterWindow(self, license_ok, license_error)
         self.dashboard = None
         self.pending_action = None # Generalized from pending_analysis_path
 

@@ -163,15 +163,7 @@ def main():
         sys.exit(1)
 
     # CONTROLLO LICENZA
-    ok, err = verify_license()
-    if not ok:
-        mbox = QMessageBox()
-        mbox.setIcon(QMessageBox.Icon.Warning)
-        mbox.setWindowTitle("Licenza")
-        mbox.setText("Verifica licenza fallita.")
-        mbox.setDetailedText(err)
-        mbox.exec()
-        sys.exit(1)
+    license_ok, license_error = verify_license()
 
     # AVVIO SERVER
     print(f"[DEBUG] Starting server thread on port {server_port}...")
@@ -199,7 +191,7 @@ def main():
     if ready:
         # Instantiate Controller
         print("[DEBUG] Instantiating ApplicationController...")
-        controller = ApplicationController()
+        controller = ApplicationController(license_ok=license_ok, license_error=license_error)
 
         # APPLY CLI ARGS (First Run)
         if args.analyze:
