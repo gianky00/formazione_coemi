@@ -76,7 +76,7 @@ Source: "{#BuildDir}\*"; DestDir: "{app}"; Excludes: "Intelleo_Setup_*.exe,Licen
 
 ; === LICENZA ===
 ; Copia la cartella Licenza preparata dallo script Python (che ora contiene la copia della cartella Licenza originale)
-Source: "{#BuildDir}\Licenza\*"; DestDir: "{app}\Licenza"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#BuildDir}\Licenza\*"; DestDir: "{app}\Licenza"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 ; === ASSET GRAFICI ===
 Source: "..\..\desktop_app\assets\*"; DestDir: "{app}\desktop_app\assets"; Flags: ignoreversion recursesubdirs createallsubdirs
