@@ -18,7 +18,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 43200  # 30 days
 FIRST_RUN_ADMIN_USERNAME = "admin"
 
 # This token is injected by the admin/token_injector tool and is obfuscated.
-OBFUSCATED_GITHUB_TOKEN = "obf:a1JWWDcwNFlqR1dmNjlwMzZHV1FoMk1JT053a1NlelNnR1VlX3BoZw=="
+OBFUSCATED_GITHUB_TOKEN = "obf:WkZrMlIyVTBLRXJ4ZFlGeUtteTkzMFBSc0xJYkJjSUpLSDNZX3BoZw=="
 LICENSE_REPO_OWNER = "gianky00"
 LICENSE_REPO_NAME = "intelleo-licenses"
 
