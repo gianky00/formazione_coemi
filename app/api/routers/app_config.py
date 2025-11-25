@@ -11,10 +11,10 @@ class AppConfigSchema(BaseModel):
     repo_name: str
 
 @router.get("/config/updater", response_model=AppConfigSchema)
-async def get_updater_config(current_user: dict = Depends(get_current_user)):
+async def get_updater_config():
     """
     Provides the necessary configuration for the client-side license updater.
-    This endpoint requires authentication.
+    This endpoint is public as the contained token is read-only for a private repo.
     """
     return AppConfigSchema(
         github_token=settings.LICENSE_GITHUB_TOKEN,

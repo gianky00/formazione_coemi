@@ -1,33 +1,55 @@
 @echo off
-TITLE Recupero Seriale Disco - Coemi
-color 1F
+TITLE Recupero Hardware ID per Licenza Intelleo
+color 0F
 cls
 
 echo ========================================================
-echo    RECUPERO SERIALE FISICO DISCO (LICENZA)
+echo    RECUPERO HARDWARE ID (PER LICENZA INTELLEO)
 echo ========================================================
 echo.
-echo Attendi qualche secondo...
+echo Questo script recupera l'ID hardware univoco necessario
+echo per generare la licenza del software.
+echo.
+
+REM Verifica se python e pyarmor sono installati
+python -m pyarmor.cli --version >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [ERRORE] Python o PyArmor non sembrano installati o
+    echo configurati correttamente nel PATH di sistema.
+    echo.
+    echo Assicurarsi di aver installato Python e poi eseguire:
+    echo pip install pyarmor
+    echo.
+    pause
+    exit /b
+)
+
+echo Ottenimento dell'ID in corso...
 echo.
 
 REM File di output
-set OUTFILE=seriale_disco.txt
+set OUTFILE=hardware_id.txt
 
-REM Comando PowerShell robusto per prendere il seriale fisico
-powershell -Command "Get-CimInstance Win32_DiskDrive | Select-Object -First 1 -ExpandProperty SerialNumber" > %OUTFILE%
+REM Comando PyArmor per ottenere l'harddisk serial number
+python -m pyarmor.cli hdinfo | findstr "Harddisk serial number" > %OUTFILE%
+
+REM Estrai solo l'ID dal file
+for /f "tokens=5" %%i in (%OUTFILE%) do set HWID=%%i
+
+echo %HWID% > %OUTFILE%
 
 echo.
 echo ========================================================
 echo    OPERAZIONE COMPLETATA!
 echo ========================================================
 echo.
-echo Il seriale e' stato salvato nel file: %OUTFILE%
+echo L'Hardware ID e' stato salvato nel file: %OUTFILE%
+echo Il valore e' stato copiato automaticamente negli appunti.
 echo.
-echo Il contenuto e' stato copiato negli appunti.
-echo Premi CTRL+V nella mail/chat per inviarlo.
+echo Incolla (CTRL+V) questo ID quando richiesto dal gestore.
 echo.
 
-REM Copia negli appunti pulendo gli spazi vuoti
-powershell -Command "(Get-Content %OUTFILE%).Trim()" | clip
+REM Copia l'ID pulito negli appunti
+clip < %OUTFILE%
 
 pause
