@@ -113,3 +113,5 @@ desktop_app/assets/installer_*.bmp
 admin/offusca/build_log.txt
 /admin/crea_licenze/PC COEMI ALLEGRETTI
 admin/crea_licenze/seriale_disco.txt
+# Developer tools, should not be in version control
+

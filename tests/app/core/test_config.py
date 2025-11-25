@@ -105,3 +105,41 @@ def test_handles_corrupted_settings_file(settings_file: Path, monkeypatch):
 
     assert data["SMTP_HOST"] == "smtps.aruba.it"
     assert settings.SMTP_HOST == "smtps.aruba.it"
+
+
+# --- Tests for Security Obfuscation ---
+from app.utils.security import obfuscate_string
+
+def test_github_token_is_revealed_at_runtime(monkeypatch):
+    """
+    Tests that the hardcoded obfuscated GitHub token is correctly revealed.
+    """
+    monkeypatch.setattr('app.core.config.get_user_data_dir', lambda: Path("/tmp"))
+    settings = SettingsManager()
+
+    # The value is hardcoded in config.py
+    expected_token = "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"
+
+    assert settings.LICENSE_GITHUB_TOKEN == expected_token
+    # Verify the raw, internal value is still obfuscated
+    assert settings._OBFUSCATED_GITHUB_TOKEN != expected_token
+    assert settings._OBFUSCATED_GITHUB_TOKEN.startswith("obf:")
+
+def test_gemini_api_key_is_revealed_at_runtime(settings_file: Path, monkeypatch):
+    """
+    Tests that a user-saved, obfuscated Gemini API key is correctly revealed.
+    """
+    plain_key = "my_secret_user_api_key"
+    obfuscated_key = obfuscate_string(plain_key)
+
+    # Simulate a user saving the obfuscated key
+    with open(settings_file, 'w') as f:
+        json.dump({"GEMINI_API_KEY": obfuscated_key}, f)
+
+    monkeypatch.setattr('app.core.config.get_user_data_dir', lambda: settings_file.parent)
+    settings = SettingsManager()
+
+    # The property should automatically reveal the key
+    assert settings.GEMINI_API_KEY == plain_key
+    # The raw value fetched from the mutable settings should remain obfuscated
+    assert settings.mutable.get("GEMINI_API_KEY") == obfuscated_key
