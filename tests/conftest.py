@@ -50,14 +50,19 @@ app.router.lifespan_context = no_lifespan
 def override_get_current_user():
     return User(id=1, username="admin", is_admin=True)
 
+def override_check_write_permission():
+    """Disable write protection for tests."""
+    pass
+
 app.dependency_overrides[deps.get_current_user] = override_get_current_user
+app.dependency_overrides[deps.check_write_permission] = override_check_write_permission
 
 @pytest.fixture(scope="function")
-def test_client(db_session):
+def test_client(db_session, mock_mutable_settings):
     """
     Creates a TestClient for the FastAPI application with the correct base URL.
     """
-    with TestClient(app, base_url="http://test/api/v1") as client:
+    with TestClient(app, base_url="http://test") as client:
         yield client
 
 @pytest.fixture(scope="function")
@@ -79,3 +84,13 @@ def mock_ai_service(mocker):
     Mocks the AI service to return predictable data.
     """
     return mocker.patch("app.api.main.ai_extraction.extract_entities_with_ai")
+
+@pytest.fixture(scope="session")
+def admin_token_headers() -> dict:
+    """Provides authorization headers for an admin user."""
+    return {"Authorization": "Bearer admin-token"}
+
+@pytest.fixture(scope="session")
+def user_token_headers() -> dict:
+    """Provides authorization headers for a non-admin user."""
+    return {"Authorization": "Bearer user-token"}

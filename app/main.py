@@ -90,7 +90,7 @@ app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
 app.include_router(audit.router, prefix="/api/v1/audit", tags=["Audit"])
 app.include_router(config.router, prefix="/api/v1/config", tags=["Configuration"])
 app.include_router(system.router, prefix="/api/v1/system", tags=["System"])
-app.include_router(app_config.router, prefix="/api/v1", tags=["App Config"])
+app.include_router(app_config.router, prefix="/api/v1/app_config", tags=["App Config"])
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

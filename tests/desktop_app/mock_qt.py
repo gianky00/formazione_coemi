@@ -369,3 +369,8 @@ def mock_qt_modules():
         'PyQt6.QtPrintSupport': MagicMock(),
         'PyQt6.QtNetwork': MagicMock(),
     }
+
+# Create the mock modules
+mock_modules = mock_qt_modules()
+QtWidgets = mock_modules['PyQt6.QtWidgets']
+QtCore = mock_modules['PyQt6.QtCore']

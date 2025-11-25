@@ -1,62 +1,166 @@
-from pydantic_settings import BaseSettings
-from pydantic import ConfigDict
-from dotenv import load_dotenv
+import json
 import os
 from pathlib import Path
+import logging
 
-# Helper to determine user data directory
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# --- Immutable Internal Configuration ---
+# These values are hardcoded and cannot be changed by the user.
+# They are embedded in the application for security and consistency.
+
+SECRET_KEY = "a_very_strong_and_long_secret_key_that_is_not_easily_guessable_and_is_unique_to_this_application"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 43200  # 30 days
+
+FIRST_RUN_ADMIN_USERNAME = "admin"
+
+LICENSE_GITHUB_TOKEN = "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"
+LICENSE_REPO_OWNER = "gianky00"
+LICENSE_REPO_NAME = "intelleo-licenses"
+
+# --- Mutable User Configuration ---
+
 def get_user_data_dir() -> Path:
+    """Determines the appropriate user-specific data directory based on the OS."""
     if os.name == 'nt':
         app_data = os.getenv('LOCALAPPDATA')
         if not app_data:
-             app_data = os.path.expanduser("~\\AppData\\Local")
+            app_data = os.path.expanduser("~\\AppData\\Local")
         base_dir = Path(app_data) / "Intelleo"
     else:
-        # Fallback for Linux dev/test
+        # Fallback for Linux/macOS for development/testing
         base_dir = Path.home() / ".local" / "share" / "Intelleo"
 
     base_dir.mkdir(parents=True, exist_ok=True)
     return base_dir
 
-# Load environment variables from .env file in CWD for development if it exists.
-# Pydantic will handle loading the one from the user data directory.
-load_dotenv()
+class MutableSettings:
+    """
+    Manages user-configurable settings, persisting them to a JSON file.
+    """
+    def __init__(self, settings_path: Path):
+        self.settings_path = settings_path
+        self._defaults = {
+            "FIRST_RUN_ADMIN_PASSWORD": "prova",
+            "GEMINI_API_KEY": "AIzaSyB5S4V49r8XPcgyMcatAeSdEN4jzf9sqUM",
+            "SMTP_HOST": "smtps.aruba.it",
+            "SMTP_PORT": 465,
+            "SMTP_USER": "giancarlo.allegretti@coemi.it",
+            "SMTP_PASSWORD": "Coemi@2025!!@Gianca",
+            "EMAIL_RECIPIENTS_TO": "gianky.allegretti@gmail.com",
+            "EMAIL_RECIPIENTS_CC": "gianky.allegretti@gmail.com",
+            "ALERT_THRESHOLD_DAYS": 60,
+            "ALERT_THRESHOLD_DAYS_VISITE": 30,
+        }
+        self.load_settings()
 
-class Settings(BaseSettings):
-    GEMINI_API_KEY: str = ""
-    GOOGLE_CLOUD_PROJECT: str = ""
-    GCS_BUCKET_NAME: str = ""
+    def load_settings(self):
+        """
+        Loads settings from the JSON file. If the file doesn't exist or is
+        corrupt, it creates a new one with default values.
+        """
+        if not self.settings_path.exists():
+            logging.info(f"'{self.settings_path.name}' not found. Creating with default values.")
+            self._data = self._defaults.copy()
+            self.save()
+            return
 
-    # SMTP Settings for email notifications
-    SMTP_HOST: str = "smtp.example.com"
-    SMTP_PORT: int = 587
-    SMTP_USER: str = "user@example.com"
-    SMTP_PASSWORD: str = "password"
-    EMAIL_RECIPIENTS_TO: str = "gianky.allegretti@gmail.com"
-    EMAIL_RECIPIENTS_CC: str = ""
+        try:
+            with open(self.settings_path, 'r', encoding='utf-8') as f:
+                self._data = json.load(f)
+            # Ensure all keys from defaults are present
+            for key, value in self._defaults.items():
+                if key not in self._data:
+                    self._data[key] = value
+            self.save() # Save to add any missing keys
+        except (json.JSONDecodeError, TypeError):
+            logging.warning(f"'{self.settings_path.name}' is corrupted. Recreating with defaults.")
+            self._data = self._defaults.copy()
+            self.save()
 
-    # Alert thresholds
-    ALERT_THRESHOLD_DAYS: int = 60
-    ALERT_THRESHOLD_DAYS_VISITE: int = 30
+    def get(self, key: str, default=None):
+        """Retrieves a setting value by key."""
+        return self._data.get(key, default)
 
-    # Security
-    SECRET_KEY: str = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 43200  # 30 days (60 * 24 * 30)
+    def update(self, new_settings: dict):
+        """Updates the settings with new values and saves them to the file."""
+        self._data.update(new_settings)
+        self.save()
 
-    # First Run Admin Credentials (Secure Default)
-    FIRST_RUN_ADMIN_USERNAME: str = "admin"
-    FIRST_RUN_ADMIN_PASSWORD: str = "allegretti@coemi"
+    def save(self):
+        """Saves the current settings to the JSON file."""
+        with open(self.settings_path, 'w', encoding='utf-8') as f:
+            json.dump(self._data, f, indent=4)
 
-    # License Auto-Update Settings
-    LICENSE_GITHUB_TOKEN: str = ""
-    LICENSE_REPO_OWNER: str = ""
-    LICENSE_REPO_NAME: str = ""
+    def as_dict(self):
+        """Returns the current settings as a dictionary."""
+        return self._data.copy()
 
-    model_config = ConfigDict(
-        env_file=get_user_data_dir() / ".env",
-        env_file_encoding='utf-8',
-        extra='ignore'
-    )
+# --- Global Settings Manager ---
 
-settings = Settings()
+class SettingsManager:
+    def __init__(self):
+        # Immutable settings
+        self.SECRET_KEY = SECRET_KEY
+        self.ALGORITHM = ALGORITHM
+        self.ACCESS_TOKEN_EXPIRE_MINUTES = ACCESS_TOKEN_EXPIRE_MINUTES
+        self.FIRST_RUN_ADMIN_USERNAME = FIRST_RUN_ADMIN_USERNAME
+        self.LICENSE_GITHUB_TOKEN = LICENSE_GITHUB_TOKEN
+        self.LICENSE_REPO_OWNER = LICENSE_REPO_OWNER
+        self.LICENSE_REPO_NAME = LICENSE_REPO_NAME
+
+        # Mutable settings
+        settings_file_path = get_user_data_dir() / "settings.json"
+        self.mutable = MutableSettings(settings_file_path)
+
+    # Convenience properties to access mutable settings directly
+    @property
+    def FIRST_RUN_ADMIN_PASSWORD(self):
+        return self.mutable.get("FIRST_RUN_ADMIN_PASSWORD")
+
+    @property
+    def GEMINI_API_KEY(self):
+        return self.mutable.get("GEMINI_API_KEY")
+
+    @property
+    def SMTP_HOST(self):
+        return self.mutable.get("SMTP_HOST")
+
+    @property
+    def SMTP_PORT(self):
+        return self.mutable.get("SMTP_PORT")
+
+    @property
+    def SMTP_USER(self):
+        return self.mutable.get("SMTP_USER")
+
+    @property
+    def SMTP_PASSWORD(self):
+        return self.mutable.get("SMTP_PASSWORD")
+
+    @property
+    def EMAIL_RECIPIENTS_TO(self):
+        return self.mutable.get("EMAIL_RECIPIENTS_TO")
+
+    @property
+    def EMAIL_RECIPIENTS_CC(self):
+        return self.mutable.get("EMAIL_RECIPIENTS_CC")
+
+    @property
+    def ALERT_THRESHOLD_DAYS(self):
+        return self.mutable.get("ALERT_THRESHOLD_DAYS")
+
+    @property
+    def ALERT_THRESHOLD_DAYS_VISITE(self):
+        return self.mutable.get("ALERT_THRESHOLD_DAYS_VISITE")
+
+    def save_mutable_settings(self, new_settings: dict):
+        """Updates and saves the mutable settings."""
+        self.mutable.update(new_settings)
+        # In a real app, you might want to notify other parts of the system
+        # that the configuration has changed.
+
+# Instantiate a single settings object for the application to use
+settings = SettingsManager()

@@ -1,18 +1,16 @@
-
 import pytest
 from unittest.mock import MagicMock, patch
 from app.services.ai_extraction import extract_entities_with_ai
 from google.api_core import exceptions
-from app.core.config import settings
 
-# Mock settings
-settings.GEMINI_API_KEY = "fake_key"
-
-def test_ai_extraction_retry_logic():
+def test_ai_extraction_retry_logic(monkeypatch):
     """
     Test that the implementation retries on ResourceExhausted error
     and eventually returns a 429 status code structure.
     """
+    # Mock settings
+    monkeypatch.setattr('app.core.config.settings.mutable._data', {"GEMINI_API_KEY": "fake_key"})
+
     mock_model = MagicMock()
     # Configure the mock to raise ResourceExhausted every time
     mock_model.generate_content.side_effect = exceptions.ResourceExhausted("Quota exceeded")
@@ -29,10 +27,13 @@ def test_ai_extraction_retry_logic():
         # Verify it called generate_content 3 times (initial + 2 retries)
         assert mock_model.generate_content.call_count == 3
 
-def test_ai_extraction_success_after_retry():
+def test_ai_extraction_success_after_retry(monkeypatch):
     """
     Test that the implementation succeeds if a subsequent try works.
     """
+    # Mock settings
+    monkeypatch.setattr('app.core.config.settings.mutable._data', {"GEMINI_API_KEY": "fake_key"})
+
     mock_model = MagicMock()
     success_response = MagicMock()
     success_response.text = '```json\n{"nome": "Mario", "categoria": "ATEX"}\n```'
