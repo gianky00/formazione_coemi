@@ -80,39 +80,47 @@ class LicenseUpdaterService:
                 if manifest["config.dat"] != LicenseUpdaterService._calculate_sha256(config_path):
                     raise ValueError("Checksum per 'config.dat' non valido.")
 
-                # 3. Atomic Update
+                # 3. Atomic Update with Elevated Privileges (Windows)
+                if os.name != 'nt':
+                    return False, "L'aggiornamento automatico della licenza e' supportato solo su Windows."
+
                 if getattr(sys, 'frozen', False):
+                    # In a frozen app, the executable is the base
                     base_dir = os.path.dirname(sys.executable)
+                    python_exe = sys.executable # The frozen app itself
                 else:
-                    base_dir = os.path.dirname(os.path.abspath(__file__)) # This is not ideal for dev
+                    # In dev, we need to find the python interpreter
+                    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+                    python_exe = sys.executable
 
                 target_dir = os.path.join(base_dir, "Licenza")
-                if not os.path.exists(target_dir):
-                    os.makedirs(target_dir)
 
-                # Backup existing files
-                backup_dir = os.path.join(base_dir, "Licenza_backup")
-                if os.path.exists(target_dir):
-                    if os.path.exists(backup_dir): shutil.rmtree(backup_dir)
-                    shutil.move(target_dir, backup_dir)
-                    os.makedirs(target_dir) # Recreate empty target
+                # The paths to our helper scripts
+                vbs_script = os.path.join(base_dir, "tools", "elevate.vbs")
+                copy_script = os.path.join(base_dir, "tools", "copy_license.py")
 
-                try:
-                    shutil.move(rkey_path, os.path.join(target_dir, "pyarmor.rkey"))
-                    shutil.move(config_path, os.path.join(target_dir, "config.dat"))
+                # The command to execute with elevation
+                command = [
+                    "cscript",
+                    f'"{vbs_script}"',
+                    f'"{python_exe}"',
+                    f'"{copy_script}"',
+                    f'"{temp_dir}"',
+                    f'"{target_dir}"'
+                ]
 
-                    # Success, cleanup backup
-                    if os.path.exists(backup_dir):
-                        shutil.rmtree(backup_dir)
+                proc = subprocess.Popen(" ".join(command), shell=True)
+                proc.wait() # Wait for the elevated process to complete
 
-                    return True, "Licenza aggiornata con successo. Riavvia l'applicazione."
+                # Check if the elevated script reported an error
+                error_log = os.path.join(temp_dir, "copy_error.log")
+                if os.path.exists(error_log):
+                    with open(error_log, "r") as f:
+                        error_details = f.read()
+                    raise RuntimeError(f"Errore durante la copia dei file con privilegi elevati: {error_details}")
 
-                except Exception as move_err:
-                    # Restore from backup
-                    if os.path.exists(backup_dir):
-                        if os.path.exists(target_dir): shutil.rmtree(target_dir)
-                        shutil.move(backup_dir, target_dir)
-                    raise move_err # Re-raise
+                # If we reach here, the copy was successful
+                return True, "Licenza aggiornata con successo. Riavvia l'applicazione."
 
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 404:
