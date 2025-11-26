@@ -79,4 +79,5 @@ graph TD
 ### 4. Boot Process (Reliability)
 1.  **Executable**: Starts `boot_loader.py`.
 2.  **Safety Check**: Imports `launcher.py` inside a `try/except` block.
-3.  **Failure Handling**: If missing DLLs or imports cause a crash, `boot_loader` catches it and displays a native Windows Message Box with the error, preventing "silent crashes".
+3.  **Health Check**: The launcher calls the `/api/v1/health` endpoint on the backend. If the backend reports an error (e.g., inaccessible database), the launcher displays a critical error message and exits.
+4.  **Failure Handling**: If missing DLLs or imports cause a crash, `boot_loader` catches it and displays a native Windows Message Box with the error, preventing "silent crashes".

@@ -32,7 +32,7 @@ La validazione dei dati in entrata e in uscita è gestita tramite i modelli Pyda
 
 ### Processo di Avvio e Seeding
 
-All'avvio del server (`@router.on_event("startup")`), viene eseguita la funzione `seed_database`. Questa funzione popola la tabella `CorsiMaster` con un set predefinito di corsi e la loro validità in mesi. Questo assicura che il sistema abbia sempre i dati di base necessari per calcolare le scadenze, anche al primo avvio su un database vuoto.
+All'avvio del server (tramite il `lifespan` manager), viene eseguita la funzione `seed_database`. Questa funzione popola la tabella `CorsiMaster` con un set predefinito di corsi e la loro validità in mesi. Questo assicura che il sistema abbia sempre i dati di base necessari per calcolare le scadenze, anche al primo avvio su un database vuoto.
 
 ### Logica "Get or Create"
 
@@ -68,13 +68,12 @@ L'applicazione desktop è strutturata per essere modulare e reattiva.
 -   Ogni "schermata" dell'applicazione (`ImportView`, `DashboardView`, `ValidationView`) è un widget separato che viene aggiunto allo `QStackedWidget`.
 -   La navigazione tra le viste avviene cambiando il widget corrente dello stack (`self.stacked_widget.setCurrentWidget(...)`), mantenendo il codice pulito e disaccoppiato.
 
-### Meccanismo di Aggiornamento Dati `on_view_change`
+### Meccanismo di Aggiornamento Dati (Segnali e Slot)
 
 Per garantire che i dati visualizzati siano sempre aggiornati, è stato implementato un meccanismo basato su segnali e slot:
-1.  Il segnale `currentChanged` dello `QStackedWidget` viene emesso ogni volta che la vista cambia.
-2.  Questo segnale è collegato allo slot `on_view_change` della `MainWindow`.
-3.  Questo metodo, tramite introspezione (`hasattr(widget, 'load_data')`), verifica se la vista appena attivata possiede un metodo `load_data`.
-4.  Se il metodo esiste, viene invocato, forzando un refresh dei dati tramite una nuova chiamata API al backend.
+1.  Quando un'operazione in una vista modifica i dati (es. validazione di un certificato), la vista emette un segnale (es. `validation_completed`).
+2.  La `MainWindow` collega questi segnali ai metodi di aggiornamento delle altre viste (es. `database_view.load_data`).
+3.  Questo garantisce che le viste dipendenti vengano aggiornate automaticamente dopo ogni modifica.
 
 ---
 
@@ -83,7 +82,7 @@ Per garantire che i dati visualizzati siano sempre aggiornati, è stato implemen
 1.  **Caricamento e Analisi:** Un PDF viene caricato nella `ImportView`, analizzato dall'IA e i dati vengono mostrati all'utente.
 2.  **Salvataggio Iniziale:** Alla conferma dell'utente, viene inviata una `POST /certificati/`. Il backend salva il certificato con `stato_validazione = ValidationStatus.AUTOMATIC`.
 3.  **Validazione Manuale:** Il certificato appare nella `ValidationView`. L'utente lo controlla e clicca su "Convalida". Viene inviata una `PUT /certificati/{id}/valida`.
-4.  **Stato Finale:** Il backend aggiorna lo `stato_validazione` a `ValidationStatus.MANUAL`. Da questo momento, il certificato è visibile nel `DashboardView` principale.
+4.  **Stato Finale:** Il backend aggiorna lo `stato_validazione` a `ValidationStatus.MANUAL`. Da questo momento, il certificato è visibile nel `DatabaseView` principale.
 5.  **Stato Certificato (Attivo/Scaduto):** Questo stato non è persistito nel database. Viene calcolato **dinamicamente** dal backend a ogni richiesta `GET /certificati/`, confrontando la `data_scadenza_calcolata` con la data corrente.
 
 ---
@@ -111,11 +110,10 @@ Per garantire che i dati visualizzati siano sempre aggiornati, è stato implemen
 
 ### Avvio
 
-Fare doppio clic sul file `run.bat`. Lo script si occuperà di:
+Fare doppio clic sul file `avvio.bat`. Lo script si occuperà di:
 1.  Creare un ambiente virtuale Python (`.venv`) se non esiste.
 2.  Installare le dipendenze da `requirements.txt`.
-3.  Avviare il server backend FastAPI in una finestra di terminale separata.
-4.  Lanciare l'applicazione desktop PyQt6.
+3.  Avviare il server backend FastAPI e l'applicazione desktop PyQt6.
 
 ### Testing
 

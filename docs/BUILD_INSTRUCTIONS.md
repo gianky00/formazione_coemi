@@ -27,11 +27,11 @@ python admin/offusca/build_dist.py
 2.  **Offuscamento**: Esegue `pyarmor gen` su `app` e `desktop_app`.
 3.  **Packaging**: Esegue `PyInstaller` per creare la cartella di distribuzione.
 4.  **DLL Injection**: Copia le DLL di sistema (es. `vcruntime140.dll`) nella cartella `dll/` della distribuzione per massimizzare la portabilità.
-5.  **Installer**: Compila il setup finale (`MyshopSetup.exe` o simile) usando `ISCC.exe`.
+5.  **Installer**: Compila il setup finale (es. `Intelleo_Setup.exe`) usando `ISCC.exe`.
 
 **Output:**
 *   **Cartella Portable**: `dist/Intelleo/`
-*   **Installer**: `dist/Intelleo_Setup.exe` (o nome definito nello script Inno).
+*   **Installer**: `dist/Intelleo_Setup.exe`
 
 ## 2. Gestione delle Licenze
 
