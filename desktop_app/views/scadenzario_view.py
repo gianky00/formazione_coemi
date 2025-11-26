@@ -59,21 +59,10 @@ class ScadenzarioView(QWidget):
         self.export_pdf_button.clicked.connect(self.export_to_pdf)
         toolbar_layout.addWidget(self.export_pdf_button)
 
-        # Legend
-        legend_layout = QHBoxLayout()
-        legend_layout.addStretch()
-        self.legend_items = {
-            "Scaduto": "#EF4444",
-            "In scadenza (< 30 gg)": "#F97316",
-            "Avviso (30-90 gg)": "#FBBF24"
-        }
-        for text, color in self.legend_items.items():
-            color_box = QLabel()
-            color_box.setFixedSize(15, 15)
-            color_box.setStyleSheet(f"background-color: {color}; border-radius: 4px;")
-            legend_layout.addWidget(color_box)
-            legend_layout.addWidget(QLabel(text))
-        toolbar_layout.addLayout(legend_layout)
+        # Dynamic Legend
+        self.legend_layout = QHBoxLayout()
+        self.legend_layout.addStretch()
+        toolbar_layout.addLayout(self.legend_layout)
 
         self.layout.addLayout(toolbar_layout)
 
@@ -102,6 +91,9 @@ class ScadenzarioView(QWidget):
         self.zoom_months = 3.0 # Float for animation
         self.target_zoom_months = 3.0
         self.certificates = []
+        self.category_colors = {}
+        self.color_palette = [QColor(c) for c in ["#3b82f6", "#10b981", "#ef4444", "#f97316", "#8b5cf6", "#d946ef", "#14b8a6", "#64748b"]]
+
 
         # Zoom Animation
         self.zoom_anim = QVariantAnimation(self)
@@ -168,8 +160,16 @@ class ScadenzarioView(QWidget):
             ], key=lambda x: QDate.fromString(x['data_scadenza'], "dd/MM/yyyy"))
         except requests.exceptions.RequestException:
             self.certificates = []
+
+        self._assign_category_colors()
         self.populate_tree()
         self.redraw_gantt_scene()
+
+    def _assign_category_colors(self):
+        self.category_colors = {}
+        unique_categories = sorted(list(set(cert['categoria'] for cert in self.certificates)))
+        for i, category in enumerate(unique_categories):
+            self.category_colors[category] = self.color_palette[i % len(self.color_palette)]
 
     def populate_tree(self):
         self.employee_tree.clear()
@@ -209,6 +209,24 @@ class ScadenzarioView(QWidget):
         if scene_width <= 0: scene_width = 700 # Default backup
 
         col_width = scene_width / total_days
+
+        # --- Draw Zone Backgrounds ---
+        zone_definitions = {
+            "scaduto": (start_date, today.addDays(-1), QColor(239, 68, 68, 30)), # #EF4444 with alpha
+            "in_scadenza": (today, today.addDays(30), QColor(249, 115, 22, 30)), # #F97316 with alpha
+            "avviso": (today.addDays(31), today.addDays(90), QColor(251, 191, 36, 30)) # #FBBF24 with alpha
+        }
+
+        for name, (zone_start, zone_end, color) in zone_definitions.items():
+            start_x = max(0, start_date.daysTo(zone_start) * col_width)
+            end_x = min(scene_width, start_date.daysTo(zone_end) * col_width)
+
+            if end_x > start_x:
+                zone_rect = QGraphicsRectItem(start_x, 0, end_x - start_x, 2000) # Height will be adjusted later
+                zone_rect.setBrush(QBrush(color))
+                zone_rect.setPen(QPen(Qt.PenStyle.NoPen))
+                zone_rect.setZValue(-1) # Ensure it's in the background
+                self.gantt_scene.addItem(zone_rect)
 
         # Draw Header (Months)
         # Optimization: Draw only every N days or start of month
@@ -259,9 +277,7 @@ class ScadenzarioView(QWidget):
 
             bar_width = max(2, end_x - start_x)
 
-            color = QColor(self.legend_items["Avviso (30-90 gg)"])
-            if days_to_expiry < 30: color = QColor(self.legend_items["In scadenza (< 30 gg)"])
-            if days_to_expiry < 0: color = QColor(self.legend_items["Scaduto"])
+            color = self.category_colors.get(cert_data['categoria'], QColor("gray"))
 
             gradient = QLinearGradient(start_x, y_pos, start_x + bar_width, y_pos)
             gradient.setColorAt(0, color.lighter(120))
@@ -274,8 +290,33 @@ class ScadenzarioView(QWidget):
 
         total_height = y_pos
         self.gantt_scene.setSceneRect(0, 0, scene_width, total_height)
-        if 'today_line' in locals():
-            today_line.setLine(today_line.line().x1(), 0, today_line.line().x2(), total_height)
+
+        # Adjust background zones and today line to full height
+        for item in self.gantt_scene.items():
+            if isinstance(item, QGraphicsRectItem) and item.zValue() == -1:
+                item.setRect(item.rect().x(), 0, item.rect().width(), total_height)
+            elif isinstance(item, QGraphicsLineItem) and 'today_line' in locals() and item is today_line:
+                item.setLine(item.line().x1(), 0, item.line().x2(), total_height)
+
+        self._update_legend(visible_certs)
+
+    def _update_legend(self, visible_certs):
+        # Clear existing legend widgets except for the stretch
+        while self.legend_layout.count() > 1:
+            item = self.legend_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        visible_categories = sorted(list(set(cert['categoria'] for cert in visible_certs)))
+
+        for category in visible_categories:
+            color = self.category_colors.get(category)
+            if color:
+                color_box = QLabel()
+                color_box.setFixedSize(15, 15)
+                color_box.setStyleSheet(f"background-color: {color.name()}; border-radius: 4px;")
+                self.legend_layout.insertWidget(0, QLabel(category))
+                self.legend_layout.insertWidget(0, color_box)
 
     def set_read_only(self, is_read_only: bool):
         print(f"[DEBUG] ScadenzarioView.set_read_only: {is_read_only}")

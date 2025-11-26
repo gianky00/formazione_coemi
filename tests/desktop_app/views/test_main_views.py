@@ -36,11 +36,13 @@ def test_scadenzario_view_init():
 
     with patch("desktop_app.views.scadenzario_view.APIClient"), \
          patch("desktop_app.views.scadenzario_view.requests.get") as mock_get, \
-         patch("desktop_app.views.scadenzario_view.ScadenzarioView.gantt_view") as mock_gantt_view:
+         patch("desktop_app.views.scadenzario_view.QGraphicsView") as MockQGraphicsView:
+
+        mock_instance = MockQGraphicsView.return_value
+        mock_instance.viewport.return_value.width.return_value = 800
 
         mock_get.return_value.status_code = 200
         mock_get.return_value.json.return_value = []
-        mock_gantt_view.viewport.return_value.width.return_value = 800
 
         view = ScadenzarioView()
         assert view is not None
