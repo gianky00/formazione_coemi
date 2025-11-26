@@ -207,6 +207,18 @@ def main():
         time.sleep(0.2)
 
     if ready:
+        # Health check to ensure DB is accessible
+        try:
+            health_url = f"http://localhost:{server_port}/api/v1/health"
+            response = requests.get(health_url, timeout=5)
+            if response.status_code != 200:
+                error_detail = response.json().get("detail", "Errore sconosciuto.")
+                QMessageBox.critical(None, "Errore Critico", f"Il sistema non può avviarsi:\n{error_detail}")
+                sys.exit(1)
+        except requests.RequestException as e:
+            QMessageBox.critical(None, "Errore di Connessione", f"Impossibile connettersi al backend: {e}")
+            sys.exit(1)
+
         # Instantiate Controller
         print("[DEBUG] Instantiating ApplicationController...")
         controller = ApplicationController(license_ok=license_ok, license_error=license_error)

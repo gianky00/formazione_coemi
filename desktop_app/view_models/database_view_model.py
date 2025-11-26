@@ -4,7 +4,7 @@ import requests
 from PyQt6.QtCore import QObject, pyqtSignal
 from ..api_client import APIClient
 
-class DashboardViewModel(QObject):
+class DatabaseViewModel(QObject):
     data_changed = pyqtSignal()
     error_occurred = pyqtSignal(str)
     operation_completed = pyqtSignal(str)

@@ -8,8 +8,34 @@ from pydantic import BaseModel
 
 router = APIRouter()
 
+import shutil
+from pathlib import Path
+
 class SecurityModeSchema(BaseModel):
     locked: bool
+
+class MoveDatabaseSchema(BaseModel):
+    new_path: str
+
+@router.post("/config/move-database", dependencies=[Depends(deps.check_write_permission)])
+def move_database(
+    payload: MoveDatabaseSchema,
+    db: Session = Depends(get_db),
+    current_user: deps.User = Depends(deps.get_current_active_admin)
+):
+    """
+    Moves the database file to a new user-specified path.
+    """
+    new_path = Path(payload.new_path)
+    if not new_path.is_dir():
+        raise HTTPException(status_code=400, detail="Il percorso specificato non è una cartella valida.")
+
+    try:
+        db_security.move_database(new_path)
+        log_security_action(db, current_user, "MOVE_DATABASE", f"Database moved to: {new_path}", category="SYSTEM", severity="CRITICAL")
+        return {"message": "Database spostato con successo."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Impossibile spostare il database: {str(e)}")
 
 @router.get("/db-security/status")
 def get_security_status(

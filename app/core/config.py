@@ -4,9 +4,6 @@ from pathlib import Path
 import logging
 from app.utils.security import reveal_string
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
 # --- Immutable Internal Configuration ---
 # These values are hardcoded and cannot be changed by the user.
 # They are embedded in the application for security and consistency.

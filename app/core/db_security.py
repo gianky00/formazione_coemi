@@ -210,6 +210,37 @@ class DBSecurityManager:
         self.is_locked_mode = enable_encryption
         self.save_to_disk()
 
+    def move_database(self, new_dir: Path):
+        """
+        Moves the database file to a new directory, updates settings, and internal paths.
+        """
+        if self.is_read_only:
+            raise PermissionError("Cannot move database in read-only mode.")
+
+        current_path = self.db_path
+        new_path = new_dir / current_path.name
+
+        if current_path == new_path:
+            logger.info("New database path is the same as the current one. No action taken.")
+            return
+
+        # 1. Save current state to disk before moving
+        self.save_to_disk()
+
+        # 2. Move the file
+        try:
+            shutil.move(str(current_path), str(new_path))
+            logger.info(f"Successfully moved database from {current_path} to {new_path}")
+        except (IOError, OSError) as e:
+            logger.error(f"Failed to move database file: {e}")
+            raise
+
+        # 3. Update internal state and settings
+        self.data_dir = new_dir
+        self.db_path = new_path
+        settings.save_mutable_settings({"DATABASE_PATH": str(new_dir)})
+
+
     # Alias for backward compatibility if needed, or just for main.py
     def sync_db(self):
         return self.save_to_disk()

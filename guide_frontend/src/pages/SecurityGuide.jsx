@@ -132,6 +132,15 @@ const SecurityGuide = () => {
                     Il file viene rimosso automaticamente alla chiusura. Questo garantisce l'integrità dei dati in ambienti mono-utente.
                 </p>
             </div>
+             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-purple-500" /> Gestione Concorrenza (Multi-Utente)
+                </h3>
+                <p className="text-sm text-gray-600">
+                    Il sistema di blocco a livello di sistema operativo (OS-level lock) garantisce che solo un utente alla volta possa avere i permessi di scrittura sul database.
+                    Se un secondo utente apre l'applicazione mentre è già in uso, Intelleo si avvierà in modalità <strong>Sola Lettura</strong>, garantendo la consistenza dei dati.
+                </p>
+            </div>
           </div>
         </section>
 
