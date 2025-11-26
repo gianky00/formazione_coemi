@@ -45,6 +45,7 @@ class MutableSettings:
     def __init__(self, settings_path: Path):
         self.settings_path = settings_path
         self._defaults = {
+            "DATABASE_PATH": None,
             "FIRST_RUN_ADMIN_PASSWORD": "prova",
             # Default key is also obfuscated to avoid scanners.
             "GEMINI_API_KEY": "obf:TUFxc2Y0TkVlQHRhY015Z0NwOFk1VDRCLnl6YUlB",
@@ -164,6 +165,10 @@ class SettingsManager:
     @property
     def ALERT_THRESHOLD_DAYS_VISITE(self):
         return self.mutable.get("ALERT_THRESHOLD_DAYS_VISITE")
+
+    @property
+    def DATABASE_PATH(self):
+        return self.mutable.get("DATABASE_PATH")
 
     def save_mutable_settings(self, new_settings: dict):
         """Updates and saves the mutable settings."""

@@ -99,7 +99,7 @@ class LoginView(QWidget):
         # Container for logo to ensure visibility against blue
         logo_container = QFrame()
         logo_container.setStyleSheet("""
-            background-color: rgba(255, 255, 255, 0.95);
+            background-color: #FFFFFF;
             border-radius: 16px;
         """)
         logo_container_layout = QVBoxLayout(logo_container)
@@ -351,16 +351,25 @@ class LoginView(QWidget):
         self.update_btn.setEnabled(True)
 
         if success:
-            from desktop_app.main import restart_app
-            msg_box = QMessageBox(self)
-            msg_box.setIcon(QMessageBox.Icon.Information)
-            msg_box.setText(f"{message}\n\nÈ necessario riavviare l'applicazione per applicare le modifiche.")
-            msg_box.setWindowTitle("Successo")
-            restart_button = msg_box.addButton("Riavvia Ora", QMessageBox.ButtonRole.AcceptRole)
-            msg_box.exec()
+            # Specific check for the "already up to date" message
+            if "già aggiornata" in message:
+                msg_box = QMessageBox(self)
+                msg_box.setIcon(QMessageBox.Icon.Information)
+                msg_box.setText("La licenza risulta aggiornata.")
+                msg_box.setWindowTitle("Info Licenza")
+                msg_box.addButton("OK", QMessageBox.ButtonRole.AcceptRole)
+                msg_box.exec()
+            else:
+                from desktop_app.main import restart_app
+                msg_box = QMessageBox(self)
+                msg_box.setIcon(QMessageBox.Icon.Information)
+                msg_box.setText(f"{message}\n\nÈ necessario riavviare l'applicazione per applicare le modifiche.")
+                msg_box.setWindowTitle("Successo")
+                restart_button = msg_box.addButton("Riavvia Ora", QMessageBox.ButtonRole.AcceptRole)
+                msg_box.exec()
 
-            if msg_box.clickedButton() == restart_button:
-                restart_app()
+                if msg_box.clickedButton() == restart_button:
+                    restart_app()
         else:
             QMessageBox.critical(self, "Errore Aggiornamento", message)
 

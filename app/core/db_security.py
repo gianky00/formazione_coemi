@@ -27,8 +27,13 @@ class DBSecurityManager:
     _HEADER = b"INTELLEO_SEC_V1"
 
     def __init__(self, db_name: str = "database_documenti.db"):
-        # Resolve DB path to User Data Directory to ensure Write Permissions
-        self.data_dir = get_user_data_dir()
+        # Resolve DB path using the custom path from settings if available
+        custom_path_str = settings.DATABASE_PATH
+        if custom_path_str and Path(custom_path_str).is_dir():
+            self.data_dir = Path(custom_path_str)
+        else:
+            self.data_dir = get_user_data_dir()
+
         self.db_path = self.data_dir / db_name
         self.lock_path = self.data_dir / f".{db_name}.lock"
 

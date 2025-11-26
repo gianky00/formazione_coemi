@@ -415,8 +415,7 @@ class MainDashboardWidget(QWidget):
         self.views["scadenzario"] = ScadenzarioView()
         self.views["scadenzario"].api_client = self.api_client
 
-        self.views["config"] = ConfigView()
-        self.views["config"].api_client = self.api_client
+        self.views["config"] = ConfigView(self.api_client)
 
         for key in ["import", "validation", "dashboard", "scadenzario", "config"]:
             self.stacked_widget.addWidget(self.views[key])
