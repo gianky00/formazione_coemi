@@ -3,8 +3,8 @@ import sys
 from datetime import date, datetime
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
                              QPushButton, QStackedWidget, QLabel, QFrame, QSizePolicy,
-                             QScrollArea, QLayout, QApplication)
-from PyQt6.QtCore import Qt, QSize, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup, pyqtSignal, QPoint, pyqtProperty, QRect
+                             QScrollArea, QLayout, QApplication, QMessageBox)
+from PyQt6.QtCore import Qt, QSize, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup, pyqtSignal, QPoint, pyqtProperty, QRect, QTimer
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QBrush, QPen
 
 # Import views
@@ -398,6 +398,9 @@ class MainDashboardWidget(QWidget):
         # Default Page
         self.switch_to("dashboard")
 
+        # --- SECURITY FEATURE: Real-time Expiration Check ---
+        self._init_license_check_timer()
+
     def _init_views(self):
         self.views["import"] = ImportView()
         self.views["import"].api_client = self.api_client
@@ -455,6 +458,32 @@ class MainDashboardWidget(QWidget):
     def analyze_path(self, path):
         self.switch_to("import")
         self.views["import"].upload_path(path)
+
+    def _init_license_check_timer(self):
+        self.license_check_timer = QTimer(self)
+        # Check every hour (3600 * 1000 ms)
+        self.license_check_timer.setInterval(3600 * 1000)
+        self.license_check_timer.timeout.connect(self._check_license_status)
+        self.license_check_timer.start()
+        # Also run an initial check on startup
+        self._check_license_status()
+
+    def _check_license_status(self):
+        license_data = LicenseManager.get_license_data()
+        if not license_data or "Scadenza Licenza" not in license_data:
+            # If the license becomes invalid while running, force logout
+            QMessageBox.critical(self, "Errore Licenza", "La licenza non è più valida. L'applicazione verrà chiusa.")
+            self.logout_requested.emit()
+            return
+
+        try:
+            expiry_date = datetime.strptime(license_data["Scadenza Licenza"], "%d/%m/%Y").date()
+            if date.today() > expiry_date:
+                QMessageBox.warning(self, "Licenza Scaduta", "La licenza è scaduta. L'applicazione verrà chiusa.")
+                self.logout_requested.emit()
+        except (ValueError, TypeError):
+            QMessageBox.critical(self, "Errore Licenza", "Formato data licenza non valido. L'applicazione verrà chiusa.")
+            self.logout_requested.emit()
 
     def set_read_only_mode(self, is_read_only: bool):
         """

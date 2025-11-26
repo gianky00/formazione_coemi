@@ -537,6 +537,12 @@ class ApplicationController:
             self.dashboard.deleteLater()
             self.dashboard = None
 
+def restart_app():
+    """Restarts the current application."""
+    # Find the executable and start a new process
+    QApplication.instance().quit()
+    os.execv(sys.executable, [sys.executable] + sys.argv)
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     setup_styles(app)

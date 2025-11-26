@@ -55,12 +55,37 @@ class LicenseUpdaterService:
         api_url = f"https://api.github.com/repos/{config['repo_owner']}/{config['repo_name']}/contents/licenses/{hardware_id}"
         headers = {'Authorization': f"token {config['github_token']}"}
 
-        files_to_process = ["pyarmor.rkey", "config.dat", "manifest.json"]
+        try:
+            # --- OTTIMIZZAZIONE: Controlla prima solo il manifest ---
+            manifest_url = f"{api_url}/manifest.json"
+            meta_res = requests.get(manifest_url, headers=headers, timeout=15)
+            meta_res.raise_for_status()
+            remote_manifest_data = meta_res.json()
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            try:
-                # 1. Get file metadata (including download URLs) from GitHub API
-                for filename in files_to_process:
+            if 'download_url' not in remote_manifest_data:
+                raise ValueError("URL di download non trovato per manifest.json.")
+
+            content_res = requests.get(remote_manifest_data['download_url'], timeout=30)
+            content_res.raise_for_status()
+            remote_manifest = content_res.json()
+
+            # Confronta con il manifest locale, se esiste
+            local_manifest_path = os.path.join(get_license_dir(), "manifest.json")
+            if os.path.exists(local_manifest_path):
+                with open(local_manifest_path, 'r') as f:
+                    local_manifest = json.load(f)
+                if local_manifest == remote_manifest:
+                    return True, "La licenza è già aggiornata all'ultima versione."
+
+            # --- Se i manifest sono diversi, o quello locale non esiste, procedi con il download completo ---
+            with tempfile.TemporaryDirectory() as temp_dir:
+                # Salva il manifest remoto già scaricato
+                with open(os.path.join(temp_dir, "manifest.json"), 'w') as f:
+                    json.dump(remote_manifest, f)
+
+                # Scarica gli altri file
+                files_to_download = ["pyarmor.rkey", "config.dat"]
+                for filename in files_to_download:
                     file_api_url = f"{api_url}/{filename}"
                     meta_res = requests.get(file_api_url, headers=headers, timeout=15)
                     meta_res.raise_for_status()
@@ -69,14 +94,13 @@ class LicenseUpdaterService:
                     if 'download_url' not in file_meta:
                         raise ValueError(f"URL di download non trovato per {filename}.")
 
-                    # 2. Download the actual file content from the download_url
                     content_res = requests.get(file_meta['download_url'], timeout=30)
                     content_res.raise_for_status()
 
                     with open(os.path.join(temp_dir, filename), "wb") as f:
                         f.write(content_res.content)
 
-                # 2. Verify checksums
+                # Verifica i checksum usando il manifest scaricato
                 manifest_path = os.path.join(temp_dir, "manifest.json")
                 with open(manifest_path, 'r') as f:
                     manifest = json.load(f)
@@ -93,22 +117,22 @@ class LicenseUpdaterService:
                 target_license_dir = get_license_dir()
 
                 # Move the validated files into the target directory, overwriting existing ones.
-                # shutil.move is generally atomic on modern OSes.
                 shutil.move(rkey_path, os.path.join(target_license_dir, "pyarmor.rkey"))
                 shutil.move(config_path, os.path.join(target_license_dir, "config.dat"))
-                # We can also move the manifest for future reference if needed
                 shutil.move(manifest_path, os.path.join(target_license_dir, "manifest.json"))
 
-                return True, "Licenza aggiornata con successo. Riavvia l'applicazione."
+                return True, "Licenza aggiornata con successo. È necessario riavviare l'applicazione."
 
-            except requests.exceptions.HTTPError as e:
-                if e.response.status_code == 404:
-                    return False, f"Nessuna licenza trovata per l'ID hardware: {hardware_id}."
-                return False, f"Errore di rete: {e}"
-            except (ValueError, KeyError) as e:
-                return False, f"Errore di validazione: {e}"
-            except Exception as e:
-                return False, f"Errore imprevisto: {e}"
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                return False, f"Nessuna licenza trovata per questo ID hardware ({hardware_id})."
+            elif e.response.status_code == 401 or e.response.status_code == 403:
+                return False, "Errore di autenticazione: Accesso non autorizzato. Contattare il supporto."
+            return False, f"Errore di rete durante il download della licenza. Verificare la connessione."
+        except (ValueError, KeyError) as e:
+            return False, f"Errore di validazione: {e}"
+        except Exception as e:
+            return False, f"Errore imprevisto: {e}"
 
 
 if __name__ == '__main__':
