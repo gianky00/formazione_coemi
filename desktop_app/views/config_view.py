@@ -175,6 +175,14 @@ class GeneralSettingsWidget(QFrame):
         self.form_layout.setSpacing(15)
         self.form_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
 
+        self.db_path_input = QLineEdit()
+        self.db_path_input.setReadOnly(True)
+        self.browse_db_path_button = QPushButton("Sfoglia...")
+        db_path_layout = QHBoxLayout()
+        db_path_layout.addWidget(self.db_path_input)
+        db_path_layout.addWidget(self.browse_db_path_button)
+        self.form_layout.addRow(QLabel("Percorso Database:"), db_path_layout)
+
         self.gemini_api_key_input = QLineEdit()
         self.gemini_api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.form_layout.addRow(QLabel("Gemini API Key:"), self.gemini_api_key_input)
@@ -335,6 +343,12 @@ class ConfigView(QWidget):
         self.layout.addWidget(self.bottom_buttons_frame)
 
         self.general_settings.email_preset_combo.currentIndexChanged.connect(self.apply_email_preset)
+        self.general_settings.browse_db_path_button.clicked.connect(self.select_db_path)
+
+    def select_db_path(self):
+        folder_path = QFileDialog.getExistingDirectory(self, "Seleziona Cartella per il Database")
+        if folder_path:
+            self.general_settings.db_path_input.setText(folder_path)
 
     def set_read_only(self, is_read_only: bool):
         self.is_read_only = is_read_only
@@ -372,6 +386,7 @@ class ConfigView(QWidget):
             revealed_key = reveal_string(obfuscated_key)
             gs.gemini_api_key_input.setText(revealed_key)
 
+            gs.db_path_input.setText(self.current_settings.get("DATABASE_PATH", ""))
             gs.smtp_host_input.setText(self.current_settings.get("SMTP_HOST", ""))
             gs.smtp_port_input.setText(str(self.current_settings.get("SMTP_PORT", "")))
             gs.smtp_user_input.setText(self.current_settings.get("SMTP_USER", ""))
@@ -415,6 +430,7 @@ class ConfigView(QWidget):
         plain_text_api_key = gs.gemini_api_key_input.text()
 
         new_settings = {
+            "DATABASE_PATH": gs.db_path_input.text(),
             "GEMINI_API_KEY": obfuscate_string(plain_text_api_key),
             "SMTP_HOST": gs.smtp_host_input.text(),
             "SMTP_PORT": int(gs.smtp_port_input.text()) if gs.smtp_port_input.text().isdigit() else None,
@@ -447,6 +463,12 @@ class ConfigView(QWidget):
             return
 
         try:
+            # Check if database path has changed
+            new_db_path = gs.db_path_input.text()
+            current_db_path = self.current_settings.get("DATABASE_PATH", "")
+            if new_db_path and new_db_path != current_db_path:
+                self.api_client.move_database(new_db_path)
+
             self.api_client.update_mutable_config(update_payload)
             QMessageBox.information(self, "Salvato", "Configurazione salvata con successo. Le modifiche saranno attive al prossimo riavvio.")
             self.load_config() # Reload to update current_settings state

@@ -51,9 +51,9 @@ The application implements a **Full-Stack Error Handling** pattern.
 
 ## 4. Environment & Configuration
 
-*   **Management**: `pydantic.BaseSettings` in `app/core/config.py`.
-*   **Source**: `.env` file (ignored by Git).
-*   **Constraint**: `extra = "forbid"`. Unrecognized variables in `.env` will cause startup failure.
+*   **Management**: A custom `SettingsManager` in `app/core/config.py` separates immutable from mutable settings.
+*   **Source**: Mutable settings are stored in `settings.json` in the user's local application data directory.
+*   **Constraint**: Unrecognized settings are ignored.
 
 ## 5. Git & Contribution
 

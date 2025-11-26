@@ -124,6 +124,14 @@ class APIClient:
         # This endpoint returns 204 No Content, so we don't expect a body
         return True
 
+    def move_database(self, new_path: str):
+        """Moves the database file via the API."""
+        url = f"{self.base_url}/config/move-database"
+        payload = {"new_path": new_path}
+        response = requests.post(url, json=payload, headers=self._get_headers())
+        response.raise_for_status()
+        return response.json()
+
     def update_user(self, user_id, data):
         url = f"{self.base_url}/users/{user_id}"
         response = requests.put(url, json=data, headers=self._get_headers())

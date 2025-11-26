@@ -65,20 +65,35 @@ const CalendarGuide = () => {
           </div>
       </Section>
 
-      <Section title="Struttura Gerarchica">
-         <p>
-           La barra laterale sinistra organizza i documenti in un albero logico:
-         </p>
-         <ul className="mt-2 space-y-2 text-sm text-gray-600 font-mono bg-gray-50 p-4 rounded border border-gray-200">
-           <li>📂 DOCUMENTI DIPENDENTI</li>
-           <li className="pl-4">📁 Categoria (es. ANTINCENDIO)</li>
-           <li className="pl-8">📂 IN SCADENZA</li>
-           <li className="pl-8">📂 SCADUTI</li>
-           <li className="pl-12">👤 DIPENDENTE (es. Rossi Mario)</li>
-         </ul>
-         <p className="mt-2 text-sm text-gray-500">
-           Clicca su una categoria per filtrare il grafico e mostrare solo quel tipo di documento.
-         </p>
+      <Section title="Struttura Gerarchica File">
+          <p>
+              Dopo l'analisi, i file vengono riorganizzati in una struttura di cartelle standardizzata per garantire coerenza e facilità di ricerca.
+              Ecco la gerarchia creata:
+          </p>
+          <div className="mt-4 bg-gray-50 p-6 rounded-lg border border-gray-200 font-mono text-sm">
+              <div className="flex items-center gap-2">
+                  <span>📂</span>
+                  <span className="font-bold text-gray-700">CARTELLA ANALIZZATA</span>
+              </div>
+              <div className="ml-6 border-l border-gray-300 pl-4">
+                  <div className="flex items-center gap-2 mt-2">
+                      <span>L</span>
+                      <span className="font-semibold text-blue-700">📁 NOME COGNOME (MATRICOLA)</span>
+                  </div>
+                  <div className="ml-6 border-l border-gray-300 pl-4">
+                      <div className="flex items-center gap-2 mt-2">
+                          <span>L</span>
+                          <span className="text-purple-700">📁 CATEGORIA</span>
+                      </div>
+                       <div className="ml-6 border-l border-gray-300 pl-4">
+                          <div className="flex items-center gap-2 mt-2">
+                              <span>L</span>
+                              <span className="text-green-700">📄 file.pdf</span>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+          </div>
       </Section>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

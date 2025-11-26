@@ -2,7 +2,7 @@ import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import Home from './pages/Home';
-import DashboardGuide from './pages/DashboardGuide';
+import DatabaseGuide from './pages/DatabaseGuide';
 import ImportGuide from './pages/ImportGuide';
 import ValidationGuide from './pages/ValidationGuide';
 import CalendarGuide from './pages/CalendarGuide';
@@ -19,7 +19,7 @@ function App() {
     <Routes>
       <Route path="/" element={<Layout />}>
         <Route index element={<Home />} />
-        <Route path="dashboard" element={<DashboardGuide />} />
+        <Route path="database" element={<DatabaseGuide />} />
         <Route path="import" element={<ImportGuide />} />
         <Route path="validation" element={<ValidationGuide />} />
         <Route path="calendar" element={<CalendarGuide />} />

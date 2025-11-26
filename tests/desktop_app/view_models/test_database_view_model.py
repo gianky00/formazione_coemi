@@ -1,6 +1,6 @@
 
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock
 import pandas as pd
 import requests
 
@@ -13,15 +13,20 @@ def mock_api_data():
         {'id': 3, 'nome': 'ROSSI MARIO', 'categoria': 'Sicurezza', 'stato_certificato': 'attivo'},
     ]
 
+@pytest.fixture
+def view_model():
+    from desktop_app.view_models.database_view_model import DatabaseViewModel
+    return DatabaseViewModel()
+
 @patch('requests.get')
-def test_load_data_success(mock_get, mock_api_data):
-    from desktop_app.view_models.dashboard_view_model import DashboardViewModel
+def test_load_data_success(mock_get, mock_api_data, view_model):
     mock_response = Mock()
     mock_response.status_code = 200
     mock_response.json.return_value = mock_api_data
     mock_get.return_value = mock_response
 
-    vm = DashboardViewModel()
+    vm = view_model
+    vm.data_changed = MagicMock()
 
     vm.load_data()
 
@@ -33,14 +38,13 @@ def test_load_data_success(mock_get, mock_api_data):
     assert list(vm.filtered_data['Dipendente']) == ['ROSSI MARIO', 'BIANCHI LUIGI', 'ROSSI MARIO']
 
 @patch('requests.get')
-def test_filter_data(mock_get, mock_api_data):
-    from desktop_app.view_models.dashboard_view_model import DashboardViewModel
+def test_filter_data(mock_get, mock_api_data, view_model):
     mock_response = Mock()
     mock_response.status_code = 200
     mock_response.json.return_value = mock_api_data
     mock_get.return_value = mock_response
 
-    vm = DashboardViewModel()
+    vm = view_model
     vm.load_data()
 
     # Filter by employee
@@ -65,14 +69,13 @@ def test_filter_data(mock_get, mock_api_data):
     assert vm.filtered_data.iloc[0]['categoria'] == 'Sicurezza'
 
 @patch('requests.get')
-def test_get_filter_options(mock_get, mock_api_data):
-    from desktop_app.view_models.dashboard_view_model import DashboardViewModel
+def test_get_filter_options(mock_get, mock_api_data, view_model):
     mock_response = Mock()
     mock_response.status_code = 200
     mock_response.json.return_value = mock_api_data
     mock_get.return_value = mock_response
 
-    vm = DashboardViewModel()
+    vm = view_model
     vm.load_data()
 
     options = vm.get_filter_options()
@@ -82,11 +85,12 @@ def test_get_filter_options(mock_get, mock_api_data):
     assert options['stati'] == ['attivo', 'scaduto']
 
 @patch('requests.get')
-def test_load_data_failure(mock_get):
-    from desktop_app.view_models.dashboard_view_model import DashboardViewModel
+def test_load_data_failure(mock_get, view_model):
     mock_get.side_effect = requests.exceptions.RequestException("Connection error")
 
-    vm = DashboardViewModel()
+    vm = view_model
+    vm.error_occurred = MagicMock()
+    vm.data_changed = MagicMock()
 
     vm.load_data()
 
@@ -96,8 +100,7 @@ def test_load_data_failure(mock_get):
 
 @patch('requests.delete')
 @patch('requests.get')
-def test_delete_certificates_success(mock_get, mock_delete):
-    from desktop_app.view_models.dashboard_view_model import DashboardViewModel
+def test_delete_certificates_success(mock_get, mock_delete, view_model):
     # Setup load_data mock
     mock_get.return_value.status_code = 200
     mock_get.return_value.json.return_value = [] # Empty after delete for simplicity
@@ -105,7 +108,8 @@ def test_delete_certificates_success(mock_get, mock_delete):
     # Setup delete mock
     mock_delete.return_value.status_code = 204
 
-    vm = DashboardViewModel()
+    vm = view_model
+    vm.operation_completed = MagicMock()
 
     vm.delete_certificates([1, 2])
 
@@ -115,8 +119,7 @@ def test_delete_certificates_success(mock_get, mock_delete):
     assert mock_get.called
 
 @patch('requests.delete')
-def test_delete_certificates_partial_failure(mock_delete):
-    from desktop_app.view_models.dashboard_view_model import DashboardViewModel
+def test_delete_certificates_partial_failure(mock_delete, view_model):
     # Success for ID 1, Failure for ID 2
     def side_effect(url, **kwargs):
         if url.endswith("/1"):
@@ -128,8 +131,10 @@ def test_delete_certificates_partial_failure(mock_delete):
 
     mock_delete.side_effect = side_effect
 
-    vm = DashboardViewModel()
+    vm = view_model
     vm.load_data = Mock() # Mock load_data to avoid extra calls
+    vm.operation_completed = MagicMock()
+    vm.error_occurred = MagicMock()
 
     vm.delete_certificates([1, 2])
 
@@ -139,14 +144,14 @@ def test_delete_certificates_partial_failure(mock_delete):
 
 @patch('requests.put')
 @patch('requests.get')
-def test_update_certificate_success(mock_get, mock_put):
-    from desktop_app.view_models.dashboard_view_model import DashboardViewModel
+def test_update_certificate_success(mock_get, mock_put, view_model):
     mock_get.return_value.status_code = 200
     mock_get.return_value.json.return_value = []
 
     mock_put.return_value.status_code = 200
 
-    vm = DashboardViewModel()
+    vm = view_model
+    vm.operation_completed = MagicMock()
 
     result = vm.update_certificate(1, {"some": "data"})
 
@@ -155,26 +160,24 @@ def test_update_certificate_success(mock_get, mock_put):
     assert mock_get.called
 
 @patch('requests.put')
-def test_update_certificate_failure(mock_put):
-    from desktop_app.view_models.dashboard_view_model import DashboardViewModel
+def test_update_certificate_failure(mock_put, view_model):
     mock_put.side_effect = requests.exceptions.RequestException("Update failed")
 
-    vm = DashboardViewModel()
+    vm = view_model
+    vm.error_occurred = MagicMock()
 
     result = vm.update_certificate(1, {"some": "data"})
 
     assert result is False
     vm.error_occurred.emit.assert_called_once_with("Impossibile modificare il certificato: Update failed")
 
-def test_filter_data_empty():
-    from desktop_app.view_models.dashboard_view_model import DashboardViewModel
-    vm = DashboardViewModel()
+def test_filter_data_empty(view_model):
+    vm = view_model
     # _df_original is empty by default
     vm.filter_data("A", "B", "C")
     assert vm.filtered_data.empty
 
-def test_get_filter_options_empty():
-    from desktop_app.view_models.dashboard_view_model import DashboardViewModel
-    vm = DashboardViewModel()
+def test_get_filter_options_empty(view_model):
+    vm = view_model
     options = vm.get_filter_options()
     assert options == {"dipendenti": [], "categorie": [], "stati": []}

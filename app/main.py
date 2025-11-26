@@ -13,11 +13,13 @@ from app.core.config import settings
 from app.core.db_security import db_security
 from app.db.seeding import seed_database
 from app.services.notification_service import check_and_send_alerts
+from app.utils.logging import setup_logging
 
 scheduler = AsyncIOScheduler()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_logging()
     """
     Handle application startup and shutdown events.
     """
@@ -81,6 +83,20 @@ async def check_startup_error(request: Request, call_next):
             content={"detail": request.app.state.startup_error}
         )
     return await call_next(request)
+
+@app.get("/api/v1/health", tags=["Health"])
+async def health_check(request: Request):
+    """
+    Simple health check endpoint.
+    Crucially, it is NOT affected by the middleware, so it will respond even
+    if there's a startup error. We check the state directly.
+    """
+    if hasattr(request.app.state, "startup_error") and request.app.state.startup_error:
+         return JSONResponse(
+            status_code=503,
+            content={"status": "error", "detail": request.app.state.startup_error}
+        )
+    return {"status": "ok"}
 
 # Include API routers
 app.include_router(api_router.router, prefix="/api/v1")

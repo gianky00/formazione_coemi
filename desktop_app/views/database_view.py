@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import QAbstractTableModel, Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QColor, QPainter
 from .edit_dialog import EditCertificatoDialog
-from ..view_models.dashboard_view_model import DashboardViewModel
+from ..view_models.database_view_model import DatabaseViewModel
 from ..api_client import APIClient
 from ..components.animated_widgets import AnimatedButton, AnimatedInput, CardWidget
 from ..components.cascade_delegate import CascadeDelegate
@@ -74,13 +74,13 @@ class CertificatoTableModel(QAbstractTableModel):
                 return str(self._data.columns[section]).replace("_", " ")
         return None
 
-class DashboardView(QWidget):
+class DatabaseView(QWidget):
     database_changed = pyqtSignal()
 
     def __init__(self):
         super().__init__()
         self.model = None
-        self.view_model = DashboardViewModel()
+        self.view_model = DatabaseViewModel()
         self.api_client = APIClient()
 
         # Animation Timer

@@ -9,7 +9,7 @@ from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QBrush, QPen
 
 # Import views
 from .views.import_view import ImportView
-from .views.dashboard_view import DashboardView
+from .views.database_view import DatabaseView
 from .views.validation_view import ValidationView
 from .views.scadenzario_view import ScadenzarioView
 from .views.config_view import ConfigView
@@ -183,7 +183,7 @@ class Sidebar(QFrame):
 
         self.buttons = {}
         # Nav Icons are White
-        self.add_button("dashboard", "Dashboard", "layout-dashboard.svg")
+        self.add_button("database", "Database", "layout-dashboard.svg")
         self.add_button("import", "Analisi Documenti", "file-text.svg")
         self.add_button("validation", "Convalida Dati", "database.svg")
         self.add_button("scadenzario", "Scadenzario", "calendar.svg")
@@ -371,7 +371,7 @@ class MainDashboardWidget(QWidget):
         self.top_bar.setFixedHeight(60)
         self.top_bar.setStyleSheet("background-color: #FFFFFF; border-bottom: 1px solid #E5E7EB;")
         self.top_bar_layout = QHBoxLayout(self.top_bar)
-        self.page_title = QLabel("Dashboard")
+        self.page_title = QLabel("Database")
         self.page_title.setStyleSheet("font-size: 20px; font-weight: 600; color: #1F2937; margin-left: 20px;")
         self.top_bar_layout.addWidget(self.page_title)
 
@@ -396,7 +396,7 @@ class MainDashboardWidget(QWidget):
         self._connect_signals()
 
         # Default Page
-        self.switch_to("dashboard")
+        self.switch_to("database")
 
         # --- SECURITY FEATURE: Real-time Expiration Check ---
         self._init_license_check_timer()
@@ -408,30 +408,30 @@ class MainDashboardWidget(QWidget):
         self.views["validation"] = ValidationView()
         self.views["validation"].api_client = self.api_client
 
-        self.views["dashboard"] = DashboardView()
-        if hasattr(self.views["dashboard"], 'view_model'):
-             self.views["dashboard"].view_model.api_client = self.api_client
+        self.views["database"] = DatabaseView()
+        if hasattr(self.views["database"], 'view_model'):
+             self.views["database"].view_model.api_client = self.api_client
 
         self.views["scadenzario"] = ScadenzarioView()
         self.views["scadenzario"].api_client = self.api_client
 
         self.views["config"] = ConfigView(self.api_client)
 
-        for key in ["import", "validation", "dashboard", "scadenzario", "config"]:
+        for key in ["import", "validation", "database", "scadenzario", "config"]:
             self.stacked_widget.addWidget(self.views[key])
 
     def _connect_signals(self):
         self.sidebar.buttons["import"].clicked.connect(lambda: self.switch_to("import"))
         self.sidebar.buttons["validation"].clicked.connect(lambda: self.switch_to("validation"))
-        self.sidebar.buttons["dashboard"].clicked.connect(lambda: self.switch_to("dashboard"))
+        self.sidebar.buttons["database"].clicked.connect(lambda: self.switch_to("database"))
         self.sidebar.buttons["scadenzario"].clicked.connect(lambda: self.switch_to("scadenzario"))
         self.sidebar.buttons["config"].clicked.connect(lambda: self.switch_to("config"))
         self.sidebar.buttons["help"].clicked.connect(self.show_help)
 
         self.views["import"].import_completed.connect(self.views["validation"].refresh_data)
-        self.views["validation"].validation_completed.connect(self.views["dashboard"].load_data)
+        self.views["validation"].validation_completed.connect(self.views["database"].load_data)
         self.views["validation"].validation_completed.connect(self.views["scadenzario"].refresh_data)
-        self.views["dashboard"].database_changed.connect(self.views["scadenzario"].refresh_data)
+        self.views["database"].database_changed.connect(self.views["scadenzario"].refresh_data)
 
     def switch_to(self, key):
         if key not in self.views: return

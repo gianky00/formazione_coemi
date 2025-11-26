@@ -78,17 +78,17 @@
     *   **No plain-text data is ever written to disk** (unless explicitly unlocked by admin).
 
 2.  **Startup Flow**:
-    *   Check for `.lock` file. If present -> **Check Process Liveness**.
-        *   If process dead -> Remove Stale Lock -> Continue.
-        *   If process alive -> **Halt** (Prevent Concurrency).
+    *   **Lock Acquisition**: At login, the application attempts to acquire an OS-level lock on the `.lock` file.
+        *   **Success**: The user gains write access.
+        *   **Failure**: The application starts in "Read-Only" mode.
     *   Load encrypted bytes -> Decrypt -> RAM.
 
 3.  **Access Control**:
-    *   **Login**: Generates exclusive `.lock` file containing PID.
+    *   **Login**: Acquires an exclusive OS-level lock on the `.lock` file.
     *   **Logout / Close Window**:
         *   Trigger `db_security.cleanup()`.
         *   Serialize RAM DB -> Encrypt -> Atomic Write to Disk.
-        *   Remove `.lock` file.
+        *   Release the OS-level lock.
 
 4.  **Persistence**:
     *   Periodic Sync (APScheduler, 5 min).

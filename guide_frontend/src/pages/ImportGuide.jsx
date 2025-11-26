@@ -60,6 +60,26 @@ const ImportGuide = () => {
           </ul>
         </Section>
 
+        <Section title="Monitoraggio Avanzamento">
+          <p>
+            Durante l'analisi, una barra di avanzamento ti tiene aggiornato in tempo reale:
+          </p>
+          <div className="mt-4 bg-gray-100 p-4 rounded-lg border border-gray-200">
+              <img src="/assets/progress_bar.png" alt="Progress Bar" className="rounded-md shadow-md" />
+          </div>
+          <ul className="space-y-3 mt-4 text-sm">
+               <li className="flex items-center gap-2 text-gray-700">
+                 <span className="font-bold text-blue-600">Conteggio:</span> "File X di Y"
+               </li>
+               <li className="flex items-center gap-2 text-gray-700">
+                 <span className="font-bold text-blue-600">Tempo Rimanente:</span> Una stima (ETR) del tempo necessario per completare l'analisi.
+               </li>
+                <li className="flex items-center gap-2 text-gray-700">
+                    <span className="font-bold text-red-600">Stop Sicuro:</span> Interrompe l'analisi dopo aver completato il file corrente, per non lasciare operazioni a metà.
+                </li>
+          </ul>
+        </Section>
+
         <Section title="Categorie Supportate & Validità">
            <p className="mb-2 text-sm">
              Il sistema riconosce una vasta gamma di documenti. Alcuni hanno una scadenza fissa, altri sono considerati validi indefinitamente (salvo diversa indicazione nel documento).

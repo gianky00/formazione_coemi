@@ -2,14 +2,14 @@ import sys
 import pytest
 from unittest.mock import patch, MagicMock
 
-def test_dashboard_view_init():
-    from desktop_app.views.dashboard_view import DashboardView
+def test_database_view_init():
+    from desktop_app.views.database_view import DatabaseView
 
     # Mock internal dependencies
-    with patch("desktop_app.views.dashboard_view.DashboardViewModel") as MockVM, \
-         patch("desktop_app.views.dashboard_view.APIClient"):
+    with patch("desktop_app.views.database_view.DatabaseViewModel") as MockVM, \
+         patch("desktop_app.views.database_view.APIClient"):
 
-        view = DashboardView()
+        view = DatabaseView()
         # Verify it's our DummyQWidget
         assert view is not None
         MockVM.assert_called()
@@ -35,10 +35,12 @@ def test_scadenzario_view_init():
     from desktop_app.views.scadenzario_view import ScadenzarioView
 
     with patch("desktop_app.views.scadenzario_view.APIClient"), \
-         patch("desktop_app.views.scadenzario_view.requests.get") as mock_get:
+         patch("desktop_app.views.scadenzario_view.requests.get") as mock_get, \
+         patch("desktop_app.views.scadenzario_view.ScadenzarioView.gantt_view") as mock_gantt_view:
 
         mock_get.return_value.status_code = 200
         mock_get.return_value.json.return_value = []
+        mock_gantt_view.viewport.return_value.width.return_value = 800
 
         view = ScadenzarioView()
         assert view is not None
