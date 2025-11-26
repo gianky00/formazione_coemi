@@ -63,7 +63,7 @@ const MaintenanceGuide = () => {
                     <FileCode size={20} />
                   </div>
                   <div>
-                    <strong className="text-gray-800">.env</strong>
+                    <strong className="text-gray-800">settings.json</strong>
                     <p className="text-sm">Contiene la configurazione: parametri email, chiavi API e impostazioni personalizzate.</p>
                   </div>
                 </li>
@@ -79,7 +79,7 @@ const MaintenanceGuide = () => {
                   <li>Chiudi completamente Intelleo.</li>
                   <li>Apri <strong>Esplora Risorse</strong>.</li>
                   <li>Digita <code>%LOCALAPPDATA%\Intelleo</code> nella barra degli indirizzi e premi Invio.</li>
-                  <li>Copia i file <code>database_documenti.db</code> e <code>.env</code>.</li>
+                  <li>Copia i file <code>database_documenti.db</code> e <code>settings.json</code>.</li>
                   <li>Incollali in un luogo sicuro (es. Hard Disk esterno, Cloud aziendale).</li>
                 </ol>
               </div>

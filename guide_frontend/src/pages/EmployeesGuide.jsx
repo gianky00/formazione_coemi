@@ -34,19 +34,13 @@ const EmployeesGuide = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <Section title="Anagrafica">
           <p>
-            La sezione Dipendenti funge da "Master Data" per l'intera applicazione.
+            L'anagrafica dei dipendenti funge da "Master Data" (fonte di verità) per l'intera applicazione, garantendo che i certificati vengano associati alle persone corrette.
           </p>
           <ul className="space-y-3 mt-4">
             <li className="flex items-start gap-3">
-              <Search size={20} className="text-gray-400 mt-1 shrink-0" />
-              <span>
-                <strong>Ricerca:</strong> Trova rapidamente un <strong>DIPENDENTE</strong> per Matricola o Nome.
-              </span>
-            </li>
-            <li className="flex items-start gap-3">
               <Link size={20} className="text-gray-400 mt-1 shrink-0" />
               <span>
-                <strong>Associazione:</strong> I documenti vengono collegati ai dipendenti tramite la <strong>Matricola</strong>. È fondamentale che sia univoca.
+                <strong>Matricola Univoca:</strong> I documenti vengono collegati ai dipendenti tramite la <strong>Matricola</strong> (nel file CSV è la colonna `Badge`). È fondamentale che questo codice sia univoco per ogni dipendente.
               </span>
             </li>
           </ul>
@@ -58,14 +52,14 @@ const EmployeesGuide = () => {
               <Upload size={20} /> Import CSV
             </div>
             <p className="text-sm text-indigo-900 mb-3">
-              Puoi caricare o aggiornare l'intera lista dipendenti caricando un file CSV formattato correttamente.
+              Questa funzione esegue un <strong>"upsert"</strong>: aggiorna i dipendenti esistenti (in base alla matricola) e inserisce quelli nuovi, senza cancellare i dati non presenti nel file.
             </p>
             <div className="text-xs bg-white p-3 rounded border border-indigo-200 font-mono text-indigo-700">
               Cognome;Nome;Data_nascita;Badge<br/>
               ROSSI;MARIO;01/01/1980;12345
             </div>
             <p className="text-xs text-indigo-600 mt-2 italic">
-              Nota: Il delimitatore deve essere il punto e virgola (;).
+             Nota: Il delimitatore deve essere il punto e virgola (;) e la dimensione massima del file è 5MB.
             </p>
 
             <div className="mt-4 pt-4 border-t border-indigo-200">

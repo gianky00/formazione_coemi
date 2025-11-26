@@ -43,7 +43,7 @@ const ValidationGuide = () => {
             </li>
             <li className="flex items-start gap-3">
               <div className="bg-gray-100 p-1 rounded text-gray-600 font-bold text-xs mt-1">2</div>
-              <span>Verifica la colonna <strong>DIPENDENTE</strong>. Se vedi "DA ASSEGNARE", è necessaria un'azione manuale.</span>
+              <span>Verifica la colonna <strong>DIPENDENTE</strong>. Se è vuota, l'associazione è fallita e la colonna <strong>CAUSA</strong> ne spiega il motivo.</span>
             </li>
             <li className="flex items-start gap-3">
               <div className="bg-gray-100 p-1 rounded text-gray-600 font-bold text-xs mt-1">3</div>
@@ -99,7 +99,7 @@ const ValidationGuide = () => {
               <Edit3 size={18} /> Modifica
             </div>
             <p className="text-sm text-gray-500">
-              Doppio click su una riga o usa il tasto Modifica per correggere date o categorie errate.
+              Seleziona una singola riga e usa il tasto <strong>Modifica</strong> per correggere eventuali dati errati o per assegnare manualmente un dipendente.
             </p>
           </div>
           <div className="p-4 border border-gray-200 rounded hover:shadow-md transition-shadow">
