@@ -118,6 +118,11 @@ class LoginView(QWidget):
         license_info_layout.setContentsMargins(15, 15, 15, 15)
         license_info_layout.setSpacing(5)
 
+        title_label = QLabel("Dettagli Licenza")
+        title_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        title_label.setStyleSheet("color: #FFFFFF; font-size: 14px; font-weight: 600; border-bottom: 1px solid #60A5FA; padding-bottom: 5px;")
+        license_info_layout.addWidget(title_label)
+
         license_text, license_data = self.read_license_info()
 
         license_label = QLabel(license_text)
@@ -231,8 +236,8 @@ class LoginView(QWidget):
         update_layout = QVBoxLayout()
         update_layout.setSpacing(10)
 
-        hw_id_label = QLabel(f"Hardware ID: {get_machine_id()}")
-        hw_id_label.setStyleSheet("color: #6B7280; font-size: 11px;")
+        hw_id_label = QLabel(f"ID Hardware PC: {get_machine_id()}")
+        hw_id_label.setStyleSheet("color: #6B7280; font-size: 11px; font-weight: 500;")
         hw_id_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         update_layout.addWidget(hw_id_label)
 
