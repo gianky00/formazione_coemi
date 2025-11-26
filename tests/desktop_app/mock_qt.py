@@ -37,6 +37,7 @@ class DummyQWidget:
         self._rejected = DummySignal()
         self._currentIndexChanged = DummySignal()
         self._returnPressed = DummySignal()
+        self._linkActivated = DummySignal()
         self.widgets = []
         self._text = text if isinstance(text, str) else ""
 
@@ -60,8 +61,10 @@ class DummyQWidget:
         pass
     def resize(self, w, h):
         pass
-    def setObjectName(self, name):
+    def setVisible(self, visible):
         pass
+    def setObjectName(self, name):
+        self._object_name = name
     def setFixedWidth(self, width):
         pass
     def setFixedHeight(self, height):
@@ -214,6 +217,8 @@ class DummyQWidget:
         pass
     def reject(self):
         pass
+    def clear(self):
+        pass
 
     # Signals
     @builtins.property
@@ -239,6 +244,10 @@ class DummyQWidget:
     @builtins.property
     def returnPressed(self):
         return self._returnPressed
+
+    @builtins.property
+    def linkActivated(self):
+        return self._linkActivated
 
 class DummyQMainWindow(DummyQWidget):
     def setCentralWidget(self, widget):
@@ -302,6 +311,14 @@ class DummyQTableView(DummyQWidget):
     class SelectionMode:
         ExtendedSelection = 1
 
+class DummyQGraphicsView(DummyQWidget):
+    def viewport(self):
+        m = MagicMock()
+        m.width.return_value = 800
+        return m
+    def setScene(self, scene):
+        pass
+
 class DummyQHeaderView(DummyQWidget):
     class ResizeMode:
         ResizeToContents = 0
@@ -342,6 +359,9 @@ def mock_qt_modules():
     mock_widgets.QCheckBox = DummyQWidget
     mock_widgets.QDialogButtonBox = DummyQWidget
     mock_widgets.QListView = DummyQWidget
+    mock_widgets.QGraphicsView = DummyQGraphicsView
+    mock_widgets.QGraphicsScene = DummyQWidget
+
 
     mock_core = MagicMock()
     mock_core.Qt = MagicMock()

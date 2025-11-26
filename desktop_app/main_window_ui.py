@@ -183,7 +183,7 @@ class Sidebar(QFrame):
 
         self.buttons = {}
         # Nav Icons are White
-        self.add_button("dashboard", "Dashboard", "layout-dashboard.svg")
+        self.add_button("dashboard", "Database", "layout-dashboard.svg")
         self.add_button("import", "Analisi Documenti", "file-text.svg")
         self.add_button("validation", "Convalida Dati", "database.svg")
         self.add_button("scadenzario", "Scadenzario", "calendar.svg")
@@ -371,7 +371,7 @@ class MainDashboardWidget(QWidget):
         self.top_bar.setFixedHeight(60)
         self.top_bar.setStyleSheet("background-color: #FFFFFF; border-bottom: 1px solid #E5E7EB;")
         self.top_bar_layout = QHBoxLayout(self.top_bar)
-        self.page_title = QLabel("Dashboard")
+        self.page_title = QLabel("Database")
         self.page_title.setStyleSheet("font-size: 20px; font-weight: 600; color: #1F2937; margin-left: 20px;")
         self.top_bar_layout.addWidget(self.page_title)
 

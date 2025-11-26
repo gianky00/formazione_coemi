@@ -27,8 +27,19 @@ class DBSecurityManager:
     _HEADER = b"INTELLEO_SEC_V1"
 
     def __init__(self, db_name: str = "database_documenti.db"):
-        # Resolve DB path to User Data Directory to ensure Write Permissions
-        self.data_dir = get_user_data_dir()
+        # Resolve DB path from settings, falling back to user data dir
+        custom_path = settings.DATABASE_PATH
+        if custom_path and Path(custom_path).is_dir():
+            self.data_dir = Path(custom_path)
+            logger.info(f"Using custom database path: {self.data_dir}")
+        else:
+            self.data_dir = get_user_data_dir()
+            if custom_path:
+                logger.warning(f"Custom path '{custom_path}' is invalid. Falling back to default.")
+
+        if not os.access(self.data_dir, os.W_OK):
+            raise PermissionError(f"Database directory is not writable: {self.data_dir}")
+
         self.db_path = self.data_dir / db_name
         self.lock_path = self.data_dir / f".{db_name}.lock"
 
@@ -172,7 +183,7 @@ class DBSecurityManager:
             return True
 
         if self.is_read_only:
-            logger.warning("Attempted to save in READ-ONLY mode. Operation ignored.")
+            logger.debug("Attempted to save in READ-ONLY mode. Operation ignored.")
             return False
 
         try:
@@ -188,7 +199,7 @@ class DBSecurityManager:
                 final_data = serialized
 
             self._safe_write(final_data)
-            logger.info("Database state saved to disk.")
+            logger.debug("Database state saved to disk.")
             return True
         except Exception as e:
             logger.error(f"Failed to save database: {e}")

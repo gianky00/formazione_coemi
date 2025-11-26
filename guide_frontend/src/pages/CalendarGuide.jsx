@@ -65,20 +65,35 @@ const CalendarGuide = () => {
           </div>
       </Section>
 
-      <Section title="Struttura Gerarchica">
-         <p>
-           La barra laterale sinistra organizza i documenti in un albero logico:
-         </p>
-         <ul className="mt-2 space-y-2 text-sm text-gray-600 font-mono bg-gray-50 p-4 rounded border border-gray-200">
-           <li>📂 DOCUMENTI DIPENDENTI</li>
-           <li className="pl-4">📁 Categoria (es. ANTINCENDIO)</li>
-           <li className="pl-8">📂 IN SCADENZA</li>
-           <li className="pl-8">📂 SCADUTI</li>
-           <li className="pl-12">👤 DIPENDENTE (es. Rossi Mario)</li>
-         </ul>
-         <p className="mt-2 text-sm text-gray-500">
-           Clicca su una categoria per filtrare il grafico e mostrare solo quel tipo di documento.
-         </p>
+      <Section title="Struttura Gerarchica dei File">
+        <p>
+          Dopo l'analisi, i file PDF vengono rinominati e organizzati in una struttura di cartelle standardizzata per garantire coerenza e facilità di accesso.
+        </p>
+        <div className="mt-4 bg-gray-50 p-6 rounded-lg border border-gray-200">
+          <h4 className="font-semibold text-gray-700 mb-4">Esempio Struttura Cartelle:</h4>
+          {/* Visual Diagram */}
+          <div className="font-mono text-sm text-gray-600 space-y-2">
+            <div className="flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-500"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path></svg>
+              <span>DOCUMENTI DIPENDENTI</span>
+            </div>
+            <div className="flex items-center gap-2 pl-4">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-500"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path></svg>
+              <span className="font-semibold">ROSSI MARIO (1045)</span>
+            </div>
+            <div className="flex items-center gap-2 pl-8">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-500"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path></svg>
+              <span className="text-blue-600">PATENTI</span>
+            </div>
+             <div className="flex items-center gap-2 pl-12">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+              <span className="text-green-700">ROSSI MARIO (1045) - PATENTI - 15_07_2028.pdf</span>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 text-sm text-gray-500">
+          <p><span className="font-semibold">Nota:</span> Il nome del file segue la convenzione <strong>NOME COGNOME (MATRICOLA) - CATEGORIA - SCADENZA.pdf</strong> per una facile identificazione.</p>
+        </div>
       </Section>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

@@ -12,7 +12,7 @@ const Section = ({ title, children }) => (
   </section>
 );
 
-const DashboardGuide = () => {
+const DatabaseGuide = () => {
   return (
     <div className="max-w-4xl mx-auto">
       {/* Header */}
@@ -106,4 +106,4 @@ const DashboardGuide = () => {
   );
 };
 
-export default DashboardGuide;
+export default DatabaseGuide;

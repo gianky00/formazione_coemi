@@ -125,11 +125,11 @@ const SecurityGuide = () => {
             </div>
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                 <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-orange-500" /> Accesso Esclusivo (.lock)
+                    <Lock className="w-4 h-4 text-orange-500" /> Concorrenza Gestita (Single Writer)
                 </h3>
                 <p className="text-sm text-gray-600">
-                    Al login, viene generato un file <code>.lock</code> che impedisce l'apertura simultanea da parte di altri utenti.
-                    Il file viene rimosso automaticamente alla chiusura. Questo garantisce l'integrità dei dati in ambienti mono-utente.
+                    Il sistema utilizza un lock a livello di sistema operativo per garantire che solo <strong>una persona alla volta</strong> possa modificare il database.
+                    Se un secondo utente si connette, l'applicazione si avvierà in modalità <strong>Sola Lettura</strong>, garantendo l'integrità dei dati e prevenendo conflitti.
                 </p>
             </div>
           </div>

@@ -49,20 +49,20 @@ class LicenseManager:
         # 1. New, preferred location in user data directory
         user_license_path = os.path.join(get_license_dir(), filename)
         if os.path.exists(user_license_path):
-            logger.info(f"License found in user data directory: {user_license_path}")
+            logger.debug(f"License found in user data directory: {user_license_path}")
             return user_license_path
 
         # 2. Fallback to old location in installation directory
         install_dir = get_app_install_dir()
         old_license_path = os.path.join(install_dir, "Licenza", filename)
         if os.path.exists(old_license_path):
-            logger.info(f"License found in fallback install directory: {old_license_path}")
+            logger.debug(f"License found in fallback install directory: {old_license_path}")
             return old_license_path
 
         # Also check root of install dir, just in case
         old_root_path = os.path.join(install_dir, filename)
         if os.path.exists(old_root_path):
-            logger.info(f"License found in fallback install root: {old_root_path}")
+            logger.debug(f"License found in fallback install root: {old_root_path}")
             return old_root_path
 
         logger.warning("License file could not be found in any standard location.")

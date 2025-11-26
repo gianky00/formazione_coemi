@@ -56,9 +56,13 @@ def test_config_view_init():
     with patch("os.getenv", return_value="test_value"):
         view = ConfigView()
         assert view is not None
+        # Access the nested widget
+        assert hasattr(view, 'general_settings')
         # Check if it tried to set text
-        # Since DummyQWidget.setText updates _text, and ConfigView sets it from env
-        assert view.gemini_api_key_input.text() == "test_value"
+        # The mock APIClient needs to return a dict for load_config to run
+        with patch.object(view.api_client, 'get_mutable_config', return_value={"GEMINI_API_KEY": "obf:ZXVsdmFfdHNldA=="}):
+             view.load_config()
+             assert view.general_settings.gemini_api_key_input.text() == "test_value"
 
 def test_edit_dialog_init():
     from desktop_app.views.edit_dialog import EditCertificatoDialog

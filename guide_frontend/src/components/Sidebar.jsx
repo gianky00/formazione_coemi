@@ -108,7 +108,7 @@ const Sidebar = () => {
 
         <div className="my-2 border-t border-blue-800/50 mx-2"></div>
 
-        <SidebarItem icon={LayoutDashboard} label="Dashboard" to="/dashboard" collapsed={collapsed} />
+        <SidebarItem icon={LayoutDashboard} label="Database" to="/database" collapsed={collapsed} />
         <SidebarItem icon={FileText} label="Importazione & AI" to="/import" collapsed={collapsed} />
         <SidebarItem icon={Database} label="Convalida Dati" to="/validation" collapsed={collapsed} />
         <SidebarItem icon={Calendar} label="Scadenzario" to="/calendar" collapsed={collapsed} />

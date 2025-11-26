@@ -1,10 +1,56 @@
 
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QMessageBox, QStyledItemDelegate, QLineEdit, QLabel
-from PyQt6.QtCore import QAbstractTableModel, Qt, pyqtSignal
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QMessageBox, QStyledItemDelegate, QLineEdit, QLabel, QFrame, QProgressBar
+from PyQt6.QtCore import QAbstractTableModel, Qt, pyqtSignal, QObject
 import pandas as pd
 import requests
+from datetime import datetime
 from ..api_client import APIClient
 from .edit_dialog import EditCertificatoDialog
+
+class ValidationWorker(QObject):
+    finished = pyqtSignal(int, list)
+    progress = pyqtSignal(int)
+    status_update = pyqtSignal(str)
+
+    def __init__(self, action_type, ids, api_client):
+        super().__init__()
+        self.action_type = action_type
+        self.ids = ids
+        self.api_client = api_client
+
+    def run(self):
+        success_count = 0
+        error_messages = []
+        total_ids = len(self.ids)
+        start_time = datetime.now()
+
+        for i, cert_id in enumerate(self.ids):
+            elapsed_time = (datetime.now() - start_time).total_seconds()
+            avg_time_per_item = elapsed_time / (i + 1)
+            remaining_items = total_ids - (i + 1)
+            etr_seconds = avg_time_per_item * remaining_items
+
+            if etr_seconds > 60:
+                etr_str = f"Circa {int(etr_seconds / 60)} minuti rimanenti"
+            else:
+                etr_str = f"Circa {int(etr_seconds)} secondi rimanenti"
+
+            self.status_update.emit(f"Validazione record {i+1} di {total_ids} ({etr_str})")
+
+            try:
+                if self.action_type == "validate":
+                    response = requests.put(f"{self.api_client.base_url}/certificati/{cert_id}/valida", headers=self.api_client._get_headers())
+                else: # delete
+                    response = requests.delete(f"{self.api_client.base_url}/certificati/{cert_id}", headers=self.api_client._get_headers())
+
+                response.raise_for_status()
+                success_count += 1
+            except requests.exceptions.RequestException as e:
+                error_messages.append(f"ID {cert_id}: {e}")
+
+            self.progress.emit(i + 1)
+
+        self.finished.emit(success_count, error_messages)
 
 
 class SimpleTableModel(QAbstractTableModel):
@@ -50,6 +96,17 @@ class ValidationView(QWidget):
         description = QLabel("Verifica, modifica e approva i dati estratti prima dell'archiviazione.")
         description.setObjectName("viewDescription")
         self.layout.addWidget(description)
+
+        # Progress container
+        self.progress_container = QFrame()
+        self.progress_container.setObjectName("card")
+        progress_layout = QVBoxLayout(self.progress_container)
+        self.status_label = QLabel("Pronto per la validazione.")
+        progress_layout.addWidget(self.status_label)
+        self.progress_bar = QProgressBar()
+        progress_layout.addWidget(self.progress_bar)
+        self.progress_container.setVisible(False)
+        self.layout.addWidget(self.progress_container)
 
         main_card = QWidget()
         main_card.setObjectName("card")
@@ -261,20 +318,31 @@ class ValidationView(QWidget):
             self.perform_action("validate", selected_ids, first_row)
 
     def perform_action(self, action_type, ids, row_to_reselect=-1):
-        success_count = 0
-        error_messages = []
+        from PyQt6.QtCore import QThread
 
-        for cert_id in ids:
-            try:
-                if action_type == "validate":
-                    response = requests.put(f"{self.api_client.base_url}/certificati/{cert_id}/valida", headers=self.api_client._get_headers())
-                else: # delete
-                    response = requests.delete(f"{self.api_client.base_url}/certificati/{cert_id}", headers=self.api_client._get_headers())
+        self.progress_bar.setMaximum(len(ids))
+        self.progress_bar.setValue(0)
+        self.progress_container.setVisible(True)
+        self.set_controls_enabled(False)
 
-                response.raise_for_status()
-                success_count += 1
-            except requests.exceptions.RequestException as e:
-                error_messages.append(f"ID {cert_id}: {e}")
+        self.thread = QThread()
+        self.worker = ValidationWorker(action_type, ids, self.api_client)
+        self.worker.moveToThread(self.thread)
+
+        self.thread.started.connect(self.worker.run)
+        self.worker.finished.connect(self.on_validation_finished)
+        self.worker.finished.connect(self.thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.thread.finished.connect(self.thread.deleteLater)
+
+        self.worker.progress.connect(self.progress_bar.setValue)
+        self.worker.status_update.connect(self.status_label.setText)
+
+        self.thread.start()
+
+    def on_validation_finished(self, success_count, error_messages):
+        self.progress_container.setVisible(False)
+        self.set_controls_enabled(True)
 
         if error_messages:
             QMessageBox.warning(self, "Operazione Parzialmente Riuscita",
@@ -283,15 +351,13 @@ class ValidationView(QWidget):
         else:
             QMessageBox.information(self, "Successo", f"Operazione completata con successo su {success_count} elementi.")
 
-        if success_count > 0 and action_type == "validate":
+        if success_count > 0:
             self.validation_completed.emit()
 
         self.load_data()
 
-        # After reloading, try to re-select a row to keep the flow
-        if row_to_reselect != -1:
-            new_row_count = self.model.rowCount()
-            if new_row_count > 0:
-                # Select the same index, or the last item if the index is now out of bounds
-                final_row = min(row_to_reselect, new_row_count - 1)
-                self.table_view.selectRow(final_row)
+    def set_controls_enabled(self, enabled):
+        self.edit_button.setEnabled(enabled)
+        self.validate_button.setEnabled(enabled)
+        self.delete_button.setEnabled(enabled)
+        self.table_view.setEnabled(enabled)

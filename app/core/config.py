@@ -46,6 +46,7 @@ class MutableSettings:
         self.settings_path = settings_path
         self._defaults = {
             "FIRST_RUN_ADMIN_PASSWORD": "prova",
+            "DATABASE_PATH": "",  # An empty string signifies using the default user data directory
             # Default key is also obfuscated to avoid scanners.
             "GEMINI_API_KEY": "obf:TUFxc2Y0TkVlQHRhY015Z0NwOFk1VDRCLnl6YUlB",
             "SMTP_HOST": "smtps.aruba.it",
@@ -164,6 +165,10 @@ class SettingsManager:
     @property
     def ALERT_THRESHOLD_DAYS_VISITE(self):
         return self.mutable.get("ALERT_THRESHOLD_DAYS_VISITE")
+
+    @property
+    def DATABASE_PATH(self):
+        return self.mutable.get("DATABASE_PATH")
 
     def save_mutable_settings(self, new_settings: dict):
         """Updates and saves the mutable settings."""

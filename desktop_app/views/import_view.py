@@ -19,19 +19,40 @@ class PdfWorker(QObject):
         super().__init__()
         self.file_paths = file_paths
         self.api_client = api_client
+        self._is_stopped = False
+        self._start_time = 0
+
+    def stop(self):
+        self._is_stopped = True
 
     def run(self):
         total_files = len(self.file_paths)
+        self._start_time = datetime.now()
         for i, file_path in enumerate(self.file_paths):
-            self.status_update.emit(f"Elaborazione file {i+1} di {total_files}...")
+            if self._is_stopped:
+                self.log_message.emit("<font color='orange'>Analisi interrotta dall'utente.</font>")
+                break
+
+            # ETR Calculation
+            elapsed_time = (datetime.now() - self._start_time).total_seconds()
+            avg_time_per_file = elapsed_time / (i + 1)
+            remaining_files = total_files - (i + 1)
+            etr_seconds = avg_time_per_file * remaining_files
+
+            if etr_seconds > 60:
+                etr_str = f"Circa {int(etr_seconds / 60)} minuti rimanenti"
+            else:
+                etr_str = f"Circa {int(etr_seconds)} secondi rimanenti"
+
+            self.status_update.emit(f"Elaborazione {i+1} di {total_files} ({etr_str})")
             self.process_pdf(file_path)
             self.progress.emit(i + 1)
         self.finished.emit()
 
     def process_pdf(self, file_path):
         base_folder = os.path.dirname(file_path)
-        analyzed_folder = os.path.join(base_folder, "PDF ANALIZZATI")
-        unanalyzed_folder = os.path.join(base_folder, "NON ANALIZZATI")
+        analyzed_folder = os.path.join(base_folder, "DOCUMENTI ANALIZZATI ASSENZA MATRICOLE")
+        unanalyzed_folder = os.path.join(base_folder, "DOCUMENTI NON ANALIZZATI")
 
         os.makedirs(analyzed_folder, exist_ok=True)
         os.makedirs(unanalyzed_folder, exist_ok=True)
@@ -72,12 +93,12 @@ class PdfWorker(QObject):
                     ragione_fallimento = cert_data.get('assegnazione_fallita_ragione')
 
                     if ragione_fallimento:
-                        log_msg = f"File {original_filename} analizzato. Assegnazione manuale richiesta: {ragione_fallimento}"
+                        log_msg = f"<font color='blue'>File {original_filename} analizzato. Assegnazione manuale richiesta: {ragione_fallimento}</font>"
                         self.log_message.emit(log_msg)
                         shutil.move(file_path, os.path.join(analyzed_folder, original_filename))
                     else:
                         nome_completo = cert_data.get('nome', 'ERRORE')
-                        self.log_message.emit(f"File {original_filename} elaborato e salvato per {nome_completo}.")
+                        self.log_message.emit(f"<font color='green'>File {original_filename} elaborato e salvato per {nome_completo}.</font>")
                         try:
                             matricola = cert_data.get('matricola') if cert_data.get('matricola') else 'N-A'
                             categoria = cert_data.get('categoria', 'CATEGORIA_NON_TROVATA')
@@ -102,23 +123,26 @@ class PdfWorker(QObject):
 
                             shutil.move(file_path, os.path.join(dest_path, new_filename))
                         except Exception as e:
-                            self.log_message.emit(f"Errore durante lo spostamento del file {original_filename}: {e}")
+                            self.log_message.emit(f"<font color='red'>Errore durante lo spostamento del file {original_filename}: {e}</font>")
                             shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
                 elif save_response.status_code == 409:
-                    self.log_message.emit(f"{original_filename} - Documento risulta già in Database.")
+                    self.log_message.emit(f"<font color='orange'>{original_filename} - Documento risulta già in Database.</font>")
                     shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
                 else:
-                    self.log_message.emit(f"Errore durante il salvaggio di {original_filename}: {save_response.text}")
+                    self.log_message.emit(f"<font color='red'>Errore durante il salvaggio di {original_filename}: {save_response.text}</font>")
                     shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
+            elif response.status_code == 401:
+                self.log_message.emit(f"<font color='red'>Errore di autenticazione durante l'elaborazione di {original_filename}: API Key non valida o mancante.</font>")
+                shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
             else:
-                self.log_message.emit(f"Errore durante l'elaborazione di {original_filename}: {response.text}")
+                self.log_message.emit(f"<font color='red'>Errore durante l'elaborazione di {original_filename}: {response.text}</font>")
                 shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
         except (requests.exceptions.RequestException, IOError) as e:
-            self.log_message.emit(f"Errore critico durante l'elaborazione di {original_filename}: {e}")
+            self.log_message.emit(f"<font color='red'>Errore critico durante l'elaborazione di {original_filename}: {e}</font>")
             try:
                 shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
             except Exception as move_error:
-                self.log_message.emit(f"Impossibile spostare il file {original_filename}: {move_error}")
+                self.log_message.emit(f"<font color='red'>Impossibile spostare il file {original_filename}: {move_error}</font>")
 
 class DropZone(QFrame):
     def __init__(self, parent=None):
@@ -233,14 +257,27 @@ class ImportView(QWidget):
         self.drop_zone.select_folder_button.clicked.connect(self.select_folder)
         self.layout.addWidget(self.drop_zone, 1)
 
+        # New progress/control widgets
+        self.progress_container = QFrame()
+        self.progress_container.setObjectName("card")
+        progress_layout = QVBoxLayout(self.progress_container)
+        self.etr_label = QLabel("Pronto per l'analisi.")
+        progress_layout.addWidget(self.etr_label)
+        self.stop_button = QPushButton("Interrompi Analisi")
+        self.stop_button.setObjectName("destructive")
+        self.stop_button.clicked.connect(self.stop_processing)
+        progress_layout.addWidget(self.stop_button)
+        self.progress_container.setVisible(False)
+        self.layout.addWidget(self.progress_container)
+
         self.results_display = QTextEdit()
         self.results_display.setReadOnly(True)
         self.results_display.setObjectName("card")
         self.results_display.setStyleSheet("font-family: 'Consolas', 'Menlo', monospace; background-color: #FFFFFF; color: #4B5563; border-radius: 12px; font-size: 13px; padding: 10px; border: 1px solid #E5E7EB;")
         self.layout.addWidget(self.results_display, 1)
 
-        # Loading Overlay
-        self.loading_overlay = LoadingOverlay(self)
+        self.worker = None
+        self.thread = None
 
     def set_read_only(self, is_read_only: bool):
         print(f"[DEBUG] ImportView.set_read_only: {is_read_only}")
@@ -301,15 +338,9 @@ class ImportView(QWidget):
             return
 
         self.results_display.setText(f"Trovati {len(file_paths)} file PDF. Inizio elaborazione...")
-
-        # Start Loading Overlay
-        self.loading_overlay.start()
-
-        if self.progress_widget and self.progress_bar and self.progress_label:
-            self.progress_bar.setMaximum(len(file_paths))
-            self.progress_bar.setValue(0)
-            self.progress_label.setText("Inizio...")
-            self.progress_widget.setVisible(True)
+        self.progress_container.setVisible(True)
+        self.stop_button.setEnabled(True)
+        self.drop_zone.setEnabled(False)
 
         self.thread = QThread()
         self.worker = PdfWorker(file_paths, self.api_client)
@@ -321,17 +352,27 @@ class ImportView(QWidget):
         self.worker.finished.connect(self.worker.deleteLater)
         self.thread.finished.connect(self.thread.deleteLater)
         self.worker.log_message.connect(self.results_display.append)
+        self.worker.status_update.connect(self.etr_label.setText)
 
-        if self.progress_bar and self.progress_label:
-            self.worker.progress.connect(self.progress_bar.setValue)
-            self.worker.status_update.connect(self.progress_label.setText)
+        # Connect progress to a progress bar if you have one
+        # self.worker.progress.connect(self.progress_bar.setValue)
 
         self.thread.start()
 
-    def on_processing_finished(self):
-        # Stop Loading Overlay
-        self.loading_overlay.stop()
+    def stop_processing(self):
+        if self.worker:
+            self.worker.stop()
+            self.stop_button.setText("Interruzione in corso...")
+            self.stop_button.setEnabled(False)
 
-        if self.progress_label:
-            self.progress_label.setText("Elaborazione completata.")
+    def on_processing_finished(self):
+        self.etr_label.setText("Elaborazione completata.")
+        self.stop_button.setText("Interrompi Analisi")
+        self.stop_button.setEnabled(False)
+        self.progress_container.setVisible(False)
+        self.drop_zone.setEnabled(True)
+
+        self.worker = None
+        self.thread = None
+
         self.import_completed.emit()

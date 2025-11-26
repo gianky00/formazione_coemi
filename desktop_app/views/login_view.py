@@ -258,6 +258,13 @@ class LoginView(QWidget):
         self.login_btn.clicked.connect(self.handle_login)
         right_layout.addWidget(self.login_btn)
 
+        # First Run Setup
+        self.first_run_label = QLabel("È il tuo primo avvio? <a href='#'>Configura il database</a>")
+        self.first_run_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.first_run_label.linkActivated.connect(self.show_first_run_dialog)
+        self.first_run_label.setVisible(self.is_first_run())
+        right_layout.addWidget(self.first_run_label)
+
         right_layout.addStretch()
 
         right_layout.addStretch(1)
@@ -323,6 +330,61 @@ class LoginView(QWidget):
 
         # Auto-trigger license update if files are missing
         self._auto_update_if_needed()
+
+    def is_first_run(self):
+        """Checks if it's the first run by looking for settings.json."""
+        from app.core.config import get_user_data_dir
+        return not os.path.exists(get_user_data_dir() / "settings.json")
+
+    def show_first_run_dialog(self):
+        """Shows a dialog to configure the database path on first run."""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton, QFileDialog, QDialogButtonBox
+        from app.core.config import get_user_data_dir
+        import json
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Configurazione Iniziale")
+        layout = QVBoxLayout(dialog)
+
+        layout.addWidget(QLabel("Benvenuto in Intelleo!\n\nScegli dove salvare il database. Lascia vuoto per usare il percorso di default."))
+
+        path_layout = QHBoxLayout()
+        path_input = QLineEdit()
+        path_input.setPlaceholderText(str(get_user_data_dir()))
+        path_layout.addWidget(path_input)
+
+        browse_btn = QPushButton("Sfoglia...")
+        def select_path():
+            path = QFileDialog.getExistingDirectory(dialog, "Seleziona Cartella")
+            if path:
+                path_input.setText(path)
+        browse_btn.clicked.connect(select_path)
+        path_layout.addWidget(browse_btn)
+
+        layout.addLayout(path_layout)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+
+        if dialog.exec():
+            db_path = path_input.text()
+
+            # Manually create the settings file
+            settings_path = get_user_data_dir() / "settings.json"
+            default_settings = {
+                "DATABASE_PATH": db_path,
+                # Add other essential defaults if needed
+            }
+            with open(settings_path, 'w') as f:
+                json.dump(default_settings, f, indent=4)
+
+            QMessageBox.information(self, "Configurazione Salvata", "Il percorso del database è stato salvato. L'applicazione verrà riavviata.")
+
+            # Restart the app to apply the new settings
+            from desktop_app.main import restart_app
+            restart_app()
 
     def _auto_update_if_needed(self):
         from desktop_app.services.path_service import get_license_dir

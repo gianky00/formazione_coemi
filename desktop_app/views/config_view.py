@@ -175,6 +175,16 @@ class GeneralSettingsWidget(QFrame):
         self.form_layout.setSpacing(15)
         self.form_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
 
+        # Database Path
+        db_path_layout = QHBoxLayout()
+        self.db_path_input = QLineEdit()
+        self.db_path_input.setPlaceholderText("Default: %LOCALAPPDATA%/Intelleo")
+        db_path_layout.addWidget(self.db_path_input)
+        self.db_path_button = QPushButton("Sfoglia...")
+        self.db_path_button.clicked.connect(self.select_db_path)
+        db_path_layout.addWidget(self.db_path_button)
+        self.form_layout.addRow(QLabel("Percorso Database:"), db_path_layout)
+
         self.gemini_api_key_input = QLineEdit()
         self.gemini_api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.form_layout.addRow(QLabel("Gemini API Key:"), self.gemini_api_key_input)
@@ -217,6 +227,11 @@ class GeneralSettingsWidget(QFrame):
 
         self.layout.addLayout(self.form_layout)
         self.layout.addStretch()
+
+    def select_db_path(self):
+        path = QFileDialog.getExistingDirectory(self, "Seleziona Cartella Database")
+        if path:
+            self.db_path_input.setText(path)
 
 class AuditLogWidget(QFrame):
     def __init__(self, api_client, parent=None):
@@ -367,6 +382,7 @@ class ConfigView(QWidget):
             self.current_settings = self.api_client.get_mutable_config()
             gs = self.general_settings
 
+            gs.db_path_input.setText(self.current_settings.get("DATABASE_PATH", ""))
             # Reveal the API key for editing
             obfuscated_key = self.current_settings.get("GEMINI_API_KEY", "")
             revealed_key = reveal_string(obfuscated_key)
@@ -415,6 +431,7 @@ class ConfigView(QWidget):
         plain_text_api_key = gs.gemini_api_key_input.text()
 
         new_settings = {
+            "DATABASE_PATH": gs.db_path_input.text(),
             "GEMINI_API_KEY": obfuscate_string(plain_text_api_key),
             "SMTP_HOST": gs.smtp_host_input.text(),
             "SMTP_PORT": int(gs.smtp_port_input.text()) if gs.smtp_port_input.text().isdigit() else None,
