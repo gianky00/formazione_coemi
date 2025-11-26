@@ -263,7 +263,7 @@ class ImportView(QWidget):
 
     def resizeEvent(self, event):
         # Resize overlay when view resizes
-        if self.loading_overlay.isVisible():
+        if hasattr(self, 'loading_overlay') and self.loading_overlay.isVisible():
              self.loading_overlay.resize(self.size())
         super().resizeEvent(event)
 
