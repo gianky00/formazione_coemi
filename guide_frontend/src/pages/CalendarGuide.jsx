@@ -35,18 +35,18 @@ const CalendarGuide = () => {
         <p>
           Lo Scadenzario Grafico offre una vista temporale di tutte le scadenze. A differenza della tabella classica, qui puoi vedere a colpo d'occhio la distribuzione del lavoro nel tempo.
         </p>
-        <div className="flex flex-wrap gap-4 mt-4">
+        <div className="flex flex-wrap gap-4 mt-4 bg-gray-50 p-3 rounded-lg border">
           <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-red-500"></span>
+            <span className="w-4 h-4 rounded" style={{ backgroundColor: '#EF4444' }}></span>
             <span className="text-sm font-medium">Scaduto</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-orange-400"></span>
-            <span className="text-sm font-medium">In Scadenza (entro 60gg)</span>
+            <span className="w-4 h-4 rounded" style={{ backgroundColor: '#F97316' }}></span>
+            <span className="text-sm font-medium">In scadenza (&lt; 30 gg)</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-green-500"></span>
-            <span className="text-sm font-medium">Valido</span>
+            <span className="w-4 h-4 rounded" style={{ backgroundColor: '#FBBF24' }}></span>
+            <span className="text-sm font-medium">Avviso (30-90 gg)</span>
           </div>
         </div>
       </Section>
@@ -65,55 +65,24 @@ const CalendarGuide = () => {
           </div>
       </Section>
 
-      <Section title="Struttura Gerarchica File">
-          <p>
-              Dopo l'analisi, i file vengono riorganizzati in una struttura di cartelle standardizzata per garantire coerenza e facilità di ricerca.
-              Ecco la gerarchia creata:
-          </p>
-          <div className="mt-4 bg-gray-50 p-6 rounded-lg border border-gray-200 font-mono text-sm">
-              <div className="flex items-center gap-2">
-                  <span>📂</span>
-                  <span className="font-bold text-gray-700">CARTELLA ANALIZZATA</span>
-              </div>
-              <div className="ml-6 border-l border-gray-300 pl-4">
-                  <div className="flex items-center gap-2 mt-2">
-                      <span>L</span>
-                      <span className="font-semibold text-blue-700">📁 NOME COGNOME (MATRICOLA)</span>
-                  </div>
-                  <div className="ml-6 border-l border-gray-300 pl-4">
-                      <div className="flex items-center gap-2 mt-2">
-                          <span>L</span>
-                          <span className="text-purple-700">📁 CATEGORIA</span>
-                      </div>
-                       <div className="ml-6 border-l border-gray-300 pl-4">
-                          <div className="flex items-center gap-2 mt-2">
-                              <span>L</span>
-                              <span className="text-green-700">📄 file.pdf</span>
-                          </div>
-                      </div>
-                  </div>
-              </div>
-          </div>
-      </Section>
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <Section title="Navigazione Temporale">
+        <Section title="Navigazione e Interazione">
           <ul className="space-y-4">
             <li className="flex items-start gap-3">
               <ZoomIn size={20} className="text-blue-500 mt-1 shrink-0" />
               <div>
-                <strong>Zoom Timeline:</strong>
+                <strong>Controlli Timeline:</strong>
                 <p className="text-sm text-gray-500 mt-1">
-                  Usa i pulsanti <strong>3M</strong> (3 Mesi), <strong>6M</strong> (6 Mesi) o <strong>1Y</strong> (1 Anno) per cambiare la scala temporale. (Default: 3 Mesi)
+                  Usa i pulsanti <strong>&lt;</strong> e <strong>&gt;</strong> per scorrere la timeline un mese alla volta. Cambia il livello di zoom (3 Mesi, 6 Mesi, 1 Anno) usando il menu a tendina dedicato.
                 </p>
               </div>
             </li>
             <li className="flex items-start gap-3">
               <Calendar size={20} className="text-blue-500 mt-1 shrink-0" />
               <div>
-                <strong>Filtro Automatico:</strong>
+                <strong>Vista ad Albero:</strong>
                 <p className="text-sm text-gray-500 mt-1">
-                  Di default, il grafico mostra solo i documenti scaduti o in scadenza nei prossimi 90 giorni, per focalizzare l'attenzione sulle urgenze.
+                  Sulla sinistra, una vista ad albero raggruppa i certificati per <strong>Categoria</strong>, poi per <strong>Stato</strong> (In Scadenza / Scaduti) e infine per <strong>Dipendente</strong>. Clicca su un dipendente per evidenziare la sua barra corrispondente nel grafico.
                 </p>
               </div>
             </li>

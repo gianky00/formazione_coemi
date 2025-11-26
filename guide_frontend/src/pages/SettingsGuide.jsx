@@ -31,22 +31,52 @@ const SettingsGuide = () => {
         </p>
       </motion.div>
 
+      <Section title="Navigazione">
+        <p>
+          La sezione Configurazione è organizzata in tre schede principali, accessibili solo agli amministratori:
+        </p>
+        <ul className="list-disc list-inside mt-2 space-y-1">
+          <li><strong>Parametri Generali:</strong> Per impostazioni di base, API e percorsi.</li>
+          <li><strong>Account:</strong> Per la gestione degli utenti.</li>
+          <li><strong>Log Attività:</strong> Per il monitoraggio della sicurezza.</li>
+        </ul>
+      </Section>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <Section title="Gestione Utenti (Admin)">
+        <Section title="Gestione Account (Admin)">
            <div className="flex items-start gap-3 mb-4">
              <Users size={20} className="text-indigo-600 mt-1 shrink-0" />
              <p>
-               Gli amministratori possono creare nuovi account per i colleghi e gestire i permessi.
+               Da qui gli amministratori possono creare nuovi account per i colleghi e gestire i permessi.
              </p>
            </div>
            <div className="bg-indigo-50 p-4 rounded border border-indigo-100 text-sm">
              <p className="mb-2"><strong>Funzionalità disponibili:</strong></p>
              <ul className="list-disc list-inside space-y-1 text-indigo-900">
                <li>Creazione nuovi utenti.</li>
-               <li>Reset password (lasciando vuoto il campo per mantenere l'attuale).</li>
+               <li><strong>Reset password:</strong> Il campo password mostrerà "Lascia vuoto per mantenere la password attuale".</li>
                <li>Assegnazione ruolo Amministratore.</li>
-               <li>Eliminazione account obsoleti.</li>
+               <li>Eliminazione account (non è possibile eliminare il proprio).</li>
              </ul>
+           </div>
+        </Section>
+
+        <Section title="Parametri Generali">
+           <div className="space-y-4">
+             <div className="p-4 border rounded-lg bg-gray-50">
+               <h3 className="font-bold text-gray-800 mb-2">Percorso Database</h3>
+               <p className="text-sm text-gray-600">
+                 Da qui puoi visualizzare e modificare la cartella in cui è salvato il file del database.
+                 <br />
+                 <span className="font-medium text-red-600">Attenzione:</span> la modifica è consigliata solo a utenti esperti.
+               </p>
+             </div>
+             <div className="p-4 border rounded-lg bg-gray-50">
+               <h3 className="font-bold text-gray-800 mb-2">Destinatari Notifiche</h3>
+               <p className="text-sm text-gray-600">
+                 Inserisci gli indirizzi email che riceveranno i report automatici delle scadenze. Puoi specificare destinatari principali (To) e in copia conoscenza (CC), separandoli con una virgola.
+               </p>
+             </div>
            </div>
         </Section>
 
@@ -54,7 +84,7 @@ const SettingsGuide = () => {
           <div className="flex items-start gap-3 mb-4">
             <Mail size={20} className="text-blue-500 mt-1 shrink-0" />
             <p>
-              Configura il server di posta in uscita per l'invio delle notifiche automatiche.
+              Configura il server di posta in uscita per l'invio delle notifiche.
             </p>
           </div>
           <div className="bg-blue-50 p-4 rounded border border-blue-100 mb-4">

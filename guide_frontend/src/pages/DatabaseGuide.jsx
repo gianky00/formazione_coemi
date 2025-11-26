@@ -51,13 +51,13 @@ const DatabaseGuide = () => {
             <li className="flex items-start gap-3">
               <CheckCircle size={20} className="text-green-500 mt-1 shrink-0" />
               <span>
-                <strong>Monitoraggio Scadenze:</strong> Le date sono colorate automaticamente (Verde=OK, Giallo=In Scadenza, Rosso=Scaduto).
+                <strong>Monitoraggio Scadenze:</strong> La colonna <strong>Stato</strong> usa delle "pillole" colorate per mostrare a colpo d'occhio la situazione (Attivo, In Scadenza, Scaduto).
               </span>
             </li>
             <li className="flex items-start gap-3">
               <CheckCircle size={20} className="text-green-500 mt-1 shrink-0" />
               <span>
-                <strong>Filtri Avanzati:</strong> Cerca per nome, matricola o tipologia di <strong>DOCUMENTO</strong> utilizzando la barra di ricerca in alto.
+                <strong>Filtri Avanzati:</strong> Utilizza i menu a tendina sopra la tabella per filtrare rapidamente per <strong>Dipendente</strong>, <strong>Categoria</strong>, o <strong>Stato</strong>.
               </span>
             </li>
             <li className="flex items-start gap-3">
@@ -89,13 +89,24 @@ const DatabaseGuide = () => {
         </Section>
 
         <Section title="Suggerimenti">
-          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg">
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg mb-4">
             <div className="flex items-start gap-3">
               <AlertCircle size={20} className="text-yellow-600 mt-1" />
               <div>
-                <h4 className="font-bold text-yellow-800">Lo sapevi?</h4>
+                <h4 className="font-bold text-yellow-800">Esportazione Dati</h4>
                 <p className="text-sm text-yellow-700 mt-1">
-                  Puoi esportare l'intera vista in Excel cliccando sul pulsante "Esporta" nella toolbar principale dell'applicazione desktop.
+                  Puoi esportare la vista corrente in formato CSV cliccando sul pulsante <strong>Esporta</strong>, posizionato accanto ai filtri.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg">
+            <div className="flex items-start gap-3">
+              <Info size={20} className="text-blue-600 mt-1" />
+              <div>
+                <h4 className="font-bold text-blue-800">Selezione Multipla</h4>
+                <p className="text-sm text-blue-700 mt-1">
+                  Tieni premuto <code>CTRL</code> o <code>SHIFT</code> per selezionare più righe e cancellarle in un'unica operazione con il pulsante <strong>Cancella</strong>.
                 </p>
               </div>
             </div>

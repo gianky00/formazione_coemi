@@ -54,10 +54,42 @@ const ImportGuide = () => {
             <li className="flex items-start gap-3">
               <FolderOpen size={20} className="text-orange-500 mt-1 shrink-0" />
               <span>
-                <strong>Organizzazione Automatica:</strong> I file vengono rinominati e spostati nella cartella <code>DOCUMENTI DIPENDENTI</code>.
+                <strong>Organizzazione Automatica:</strong> I file vengono rinominati e spostati in una struttura di cartelle creata automaticamente.
               </span>
             </li>
           </ul>
+        </Section>
+
+        <Section title="Struttura Gerarchica File">
+            <p>
+                Dopo l'analisi, i file vengono riorganizzati in una struttura di cartelle standardizzata all'interno della cartella di origine:
+            </p>
+            <div className="mt-4 bg-gray-50 p-6 rounded-lg border border-gray-200 font-mono text-sm">
+                <div className="flex items-center gap-2">
+                    <span>-</span>
+                    <span className="font-semibold text-blue-700">📁 DOCUMENTI DIPENDENTI</span>
+                </div>
+                <div className="ml-6 border-l border-gray-300 pl-4">
+                  <div className="flex items-center gap-2 mt-2">
+                      <span>L</span>
+                      <span className="text-purple-700">📁 NOME COGNOME (MATRICOLA)</span>
+                  </div>
+                   <div className="ml-6 border-l border-gray-300 pl-4">
+                      <div className="flex items-center gap-2 mt-2">
+                          <span>L</span>
+                          <span className="text-green-700">📁 CATEGORIA</span>
+                      </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 mt-4">
+                    <span>-</span>
+                    <span className="font-semibold text-orange-700">📁 DOCUMENTI ANALIZZATI ASSENZA MATRICOLE</span>
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                    <span>-</span>
+                    <span className="font-semibold text-red-700">📁 DOCUMENTI NON ANALIZZATI</span>
+                </div>
+            </div>
         </Section>
 
         <Section title="Monitoraggio Avanzamento">
@@ -144,29 +176,33 @@ const ImportGuide = () => {
         </div>
       </Section>
 
-      <Section title="Regole di Rinomina">
+      <Section title="Gestione dei File Analizzati">
         <p className="mb-4">
-          Per garantire un archivio ordinato, Intelleo rinomina i file analizzati seguendo uno standard rigoroso:
-        </p>
-        <div className="bg-slate-800 text-slate-200 p-4 rounded-md font-mono text-sm overflow-x-auto shadow-sm">
-          COGNOME NOME (MATRICOLA) - CATEGORIA - DD_MM_YYYY.pdf
-        </div>
-        <p className="mt-4 text-sm text-gray-500">
-          <em>Esempio:</em> <code>ROSSI MARIO (12345) - ANTINCENDIO - 15_06_2026.pdf</code>
+          I file vengono gestiti e rinominati in modo diverso a seconda dell'esito dell'analisi AI:
         </p>
 
-        <div className="mt-4 space-y-3">
-            <div className="flex items-start gap-3 bg-blue-50 p-3 rounded text-sm text-blue-800 border border-blue-100">
-              <CheckCircle size={16} className="mt-1 shrink-0" />
-              <p>
-                <strong>Importante:</strong> La data riportata nel nome del file (<code>DD_MM_YYYY</code>) corrisponde sempre alla <strong>DATA DI SCADENZA</strong> del certificato, non alla data di emissione.
+        <div className="mt-4 space-y-4">
+            <div className="p-4 rounded-lg border bg-green-50 border-green-200">
+              <h4 className="font-bold text-green-800 mb-2">Caso 1: Successo Completo</h4>
+              <p className="text-sm text-green-700 mb-3">
+                Se il file viene analizzato e associato correttamente a un dipendente, viene rinominato e spostato in <code>DOCUMENTI DIPENDENTI</code>.
+              </p>
+              <div className="bg-white text-gray-700 p-3 rounded-md font-mono text-xs shadow-sm border">
+                COGNOME NOME (MATRICOLA) - CATEGORIA - SCADENZA.pdf
+              </div>
+            </div>
+
+            <div className="p-4 rounded-lg border bg-orange-50 border-orange-200">
+              <h4 className="font-bold text-orange-800 mb-2">Caso 2: Analizzato ma Non Associato (Orfano)</h4>
+              <p className="text-sm text-orange-700">
+                Se l'AI estrae i dati ma non trova un dipendente corrispondente (es. matricola assente), il file originale viene spostato in <code>DOCUMENTI ANALIZZATI ASSENZA MATRICOLE</code>. Potrai assegnarlo manualmente dalla sezione <strong>Convalida Dati</strong>.
               </p>
             </div>
 
-            <div className="flex items-start gap-3 bg-amber-50 p-3 rounded text-sm text-amber-800 border border-amber-100">
-              <AlertTriangle size={16} className="mt-1 shrink-0" />
-              <p>
-                Se la matricola non viene trovata, verrà usato "N-A". Se la data di scadenza non è presente (o il documento non scade), verrà usato "no scadenza".
+            <div className="p-4 rounded-lg border bg-red-50 border-red-200">
+              <h4 className="font-bold text-red-800 mb-2">Caso 3: Errore di Analisi</h4>
+              <p className="text-sm text-red-700">
+                Se si verifica un errore (es. PDF corrotto, illeggibile), il file originale viene spostato in <code>DOCUMENTI NON ANALIZZATI</code> per una verifica manuale.
               </p>
             </div>
         </div>

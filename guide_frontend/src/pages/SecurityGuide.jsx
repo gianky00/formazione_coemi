@@ -72,12 +72,16 @@ const SecurityGuide = () => {
                     <td className="px-4 py-2">Identificativo hardware univoco della macchina.</td>
                   </tr>
                   <tr className="bg-white border-b">
-                    <td className="px-4 py-2 font-medium text-gray-900">Azione & Categoria</td>
-                    <td className="px-4 py-2">Tipo di operazione (es. LOGIN, UPDATE) e modulo coinvolto.</td>
+                    <td className="px-4 py-2 font-medium text-gray-900">Azione</td>
+                    <td className="px-4 py-2">Il tipo di operazione eseguita (es. `USER_LOGIN`, `CERTIFICATE_UPDATE`).</td>
                   </tr>
                   <tr className="bg-white border-b">
-                    <td className="px-4 py-2 font-medium text-gray-900">Dettagli & Modifiche</td>
-                    <td className="px-4 py-2">Descrizione estesa. Passa il mouse su [Modifiche] per vedere il JSON dei campi cambiati (Vecchio {'->'} Nuovo).</td>
+                    <td className="px-4 py-2 font-medium text-gray-900">Categoria</td>
+                    <td className="px-4 py-2">Il modulo dell'applicazione interessato (es. `AUTH`, `USER_MGMT`).</td>
+                  </tr>
+                  <tr className="bg-white border-b">
+                    <td className="px-4 py-2 font-medium text-gray-900">Dettagli</td>
+                    <td className="px-4 py-2">Descrizione estesa dell'evento. Per le modifiche, mostra i campi cambiati (Vecchio {'->'} Nuovo).</td>
                   </tr>
                 </tbody>
               </table>
