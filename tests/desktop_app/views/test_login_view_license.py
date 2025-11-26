@@ -27,7 +27,7 @@ class TestLoginViewLicense(unittest.TestCase):
             text, data = view.read_license_info()
             self.assertIn("Cliente: Test Corp", text)
             self.assertIn("Scadenza: 01/01/2030", text)
-            self.assertIn("Hardware ID: HWID-123", text)
+            self.assertIn("ID Licenza: HWID-123", text)
             self.assertEqual(data, mock_data)
 
     def test_login_view_missing_license(self):

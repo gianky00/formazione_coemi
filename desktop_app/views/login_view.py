@@ -136,6 +136,36 @@ class LoginView(QWidget):
         license_label.setWordWrap(True)
         license_info_layout.addWidget(license_label)
 
+        # --- PC DETAILS SECTION ---
+        pc_details_layout = QVBoxLayout()
+        pc_details_layout.setContentsMargins(15, 15, 15, 15)
+        pc_details_layout.setSpacing(5)
+
+        pc_title_label = QLabel("Dettagli PC")
+        pc_title_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        pc_title_label.setStyleSheet("color: #FFFFFF; font-size: 14px; font-weight: 600; border-bottom: 1px solid #60A5FA; padding-bottom: 5px;")
+        pc_details_layout.addWidget(pc_title_label)
+
+        current_hw_id = get_machine_id()
+        pc_hw_id_label = QLabel(f"ID Hardware PC: {current_hw_id}")
+        pc_hw_id_label.setStyleSheet("color: #93C5FD; font-size: 13px; font-weight: 500;")
+        pc_details_layout.addWidget(pc_hw_id_label)
+
+        # --- COHERENCE CHECK ---
+        coherence_label = QLabel("")
+        coherence_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        if license_data and "Hardware ID" in license_data:
+            stored_hw_id = license_data["Hardware ID"]
+            if stored_hw_id == current_hw_id:
+                coherence_label.setText("Coerenza: Matched")
+                coherence_label.setStyleSheet("color: #22C55E; font-size: 13px; font-weight: 600;") # Green
+            else:
+                coherence_label.setText("Coerenza: Mismatch")
+                coherence_label.setStyleSheet("color: #EF4444; font-size: 13px; font-weight: 600;") # Red
+        pc_details_layout.addWidget(coherence_label)
+
+        license_info_layout.addLayout(pc_details_layout)
+
         left_layout.addWidget(license_info_container)
 
         # --- RIGHT PANEL (Form) ---
@@ -365,8 +395,8 @@ class LoginView(QWidget):
             lines.append(f"Cliente: {data['Cliente']}")
         if "Scadenza Licenza" in data:
             lines.append(f"Scadenza: {data['Scadenza Licenza']}")
-        if hw_id:
-            lines.append(f"Hardware ID: {hw_id}")
+        if "Hardware ID" in data:
+            lines.append(f"ID Licenza: {data['Hardware ID']}")
 
         return "\n".join(lines), data
 
