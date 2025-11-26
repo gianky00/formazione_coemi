@@ -275,12 +275,12 @@ class AuditLogWidget(QFrame):
         pass
 
 class ConfigView(QWidget):
-    def __init__(self):
+    def __init__(self, api_client: APIClient):
         super().__init__()
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(20, 20, 20, 20)
         self.layout.setSpacing(15)
-        self.api_client = APIClient()
+        self.api_client = api_client
         self.current_settings = {}
 
         description = QLabel("Gestisci le impostazioni e le chiavi API dell'applicazione.")
