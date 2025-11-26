@@ -176,6 +176,13 @@ def main():
     # CONTROLLO LICENZA
     license_ok, license_error = verify_license()
 
+    # CONTROLLO OROLOGIO DI SISTEMA
+    from desktop_app.services.time_service import check_system_clock
+    clock_ok, clock_error = check_system_clock()
+    if not clock_ok:
+        QMessageBox.critical(None, "Errore di Sincronizzazione Ora", clock_error)
+        sys.exit(1)
+
     # AVVIO SERVER
     print(f"[DEBUG] Starting server thread on port {server_port}...")
     threading.Thread(target=start_server, args=(server_port,), daemon=True).start()

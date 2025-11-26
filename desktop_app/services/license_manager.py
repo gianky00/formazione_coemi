@@ -4,6 +4,7 @@ import logging
 from cryptography.fernet import Fernet
 from app.core.license_security import LICENSE_SECRET_KEY
 from desktop_app.services.path_service import get_license_dir, get_app_install_dir
+from datetime import datetime, timedelta
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -66,3 +67,18 @@ class LicenseManager:
 
         logger.warning("License file could not be found in any standard location.")
         return None
+
+    @staticmethod
+    def is_license_expiring_soon(license_data, days=7):
+        """
+        Checks if the license is expiring within the given number of days.
+        """
+        if not license_data or "Scadenza Licenza" not in license_data:
+            return False
+
+        try:
+            expiry_date = datetime.strptime(license_data["Scadenza Licenza"], "%d/%m/%Y")
+            now = datetime.now()
+            return now < expiry_date < now + timedelta(days=days)
+        except (ValueError, TypeError):
+            return False

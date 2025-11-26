@@ -110,16 +110,28 @@ class LoginView(QWidget):
         # Removed setFixedSize to allow natural fit
         left_layout.addWidget(logo_container, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        left_layout.addSpacing(40)
-
-        license_text = self.read_license_info()
-        if license_text:
-            license_label = QLabel(license_text)
-            license_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            license_label.setStyleSheet("color: #93C5FD; font-size: 14px; font-weight: 500;")
-            left_layout.addWidget(license_label)
-
         left_layout.addStretch()
+
+        # Container for license info at the bottom-left
+        license_info_container = QFrame()
+        license_info_layout = QVBoxLayout(license_info_container)
+        license_info_layout.setContentsMargins(15, 15, 15, 15)
+        license_info_layout.setSpacing(5)
+
+        license_text, license_data = self.read_license_info()
+
+        license_label = QLabel(license_text)
+        license_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        # --- SECURITY FEATURE: Grace Period Warning ---
+        if LicenseManager.is_license_expiring_soon(license_data):
+            license_label.setStyleSheet("color: #FBBF24; font-size: 13px; font-weight: 600;") # Yellow color for warning
+        else:
+            license_label.setStyleSheet("color: #93C5FD; font-size: 13px; font-weight: 500;")
+        license_label.setWordWrap(True)
+        license_info_layout.addWidget(license_label)
+
+        left_layout.addWidget(license_info_container)
 
         # --- RIGHT PANEL (Form) ---
         self.right_panel = QFrame()
@@ -304,13 +316,16 @@ class LoginView(QWidget):
         self.update_btn.setEnabled(True)
 
         if success:
-            reply = QMessageBox.information(self, "Successo",
-                                            f"{message}\n\nL'applicazione verrà riavviata per applicare le modifiche.",
-                                            QMessageBox.StandardButton.Ok)
-            if reply == QMessageBox.StandardButton.Ok:
-                # A simple way to restart is to quit and have a launcher script handle it.
-                # For now, we'll just quit. A more robust solution might use a watchdog.
-                QApplication.instance().quit()
+            from desktop_app.main import restart_app
+            msg_box = QMessageBox(self)
+            msg_box.setIcon(QMessageBox.Icon.Information)
+            msg_box.setText(f"{message}\n\nÈ necessario riavviare l'applicazione per applicare le modifiche.")
+            msg_box.setWindowTitle("Successo")
+            restart_button = msg_box.addButton("Riavvia Ora", QMessageBox.ButtonRole.AcceptRole)
+            msg_box.exec()
+
+            if msg_box.clickedButton() == restart_button:
+                restart_app()
         else:
             QMessageBox.critical(self, "Errore Aggiornamento", message)
 
@@ -335,16 +350,20 @@ class LoginView(QWidget):
 
     def read_license_info(self):
         data = LicenseManager.get_license_data()
+        hw_id = get_machine_id()
+
         if not data:
-            return "Licenza non trovata o non valida"
+            return "Dettagli licenza non disponibili. Procedere con l'aggiornamento.", None
 
         lines = []
         if "Cliente" in data:
-            lines.append(f"Licenza: {data['Cliente']}")
+            lines.append(f"Cliente: {data['Cliente']}")
         if "Scadenza Licenza" in data:
             lines.append(f"Scadenza: {data['Scadenza Licenza']}")
+        if hw_id:
+            lines.append(f"Hardware ID: {hw_id}")
 
-        return "\n".join(lines)
+        return "\n".join(lines), data
 
     def shake_window(self):
         animation = QPropertyAnimation(self.container, b"pos")
@@ -371,6 +390,17 @@ class LoginView(QWidget):
             self.shake_window()
             QMessageBox.warning(self, "Errore", "Inserisci nome utente e password.")
             return
+
+        # --- SECURITY CHECK: Hardware ID Mismatch ---
+        _, license_data = self.read_license_info()
+        if license_data and "Hardware ID" in license_data:
+            stored_hw_id = license_data["Hardware ID"]
+            current_hw_id = get_machine_id()
+            if stored_hw_id != current_hw_id:
+                QMessageBox.critical(self, "Errore di Licenza",
+                                     "L'Hardware ID della licenza non corrisponde a quello di questa macchina.\n"
+                                     "Contattare il supporto per una nuova licenza.")
+                return
 
         try:
             self.login_btn.setText("Accesso in corso...")

@@ -103,8 +103,10 @@ class LicenseUpdaterService:
 
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 404:
-                    return False, f"Nessuna licenza trovata per l'ID hardware: {hardware_id}."
-                return False, f"Errore di rete: {e}"
+                    return False, f"Nessuna licenza trovata per questo ID hardware ({hardware_id})."
+                elif e.response.status_code == 401 or e.response.status_code == 403:
+                    return False, "Errore di autenticazione: Accesso non autorizzato. Contattare il supporto."
+                return False, f"Errore di rete durante il download della licenza. Verificare la connessione."
             except (ValueError, KeyError) as e:
                 return False, f"Errore di validazione: {e}"
             except Exception as e:
