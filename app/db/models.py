@@ -104,12 +104,13 @@ class Certificato(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     dipendente_id = Column(Integer, ForeignKey('dipendenti.id'), nullable=True)
-    nome_dipendente_raw = Column(String, nullable=True)  # Store the raw name from AI
-    data_nascita_raw = Column(String, nullable=True)  # Store the raw birth date from AI
+    nome_dipendente_raw = Column(String, nullable=True)
+    data_nascita_raw = Column(Date, nullable=True)
     corso_id = Column(Integer, ForeignKey('corsi.id'))
     data_rilascio = Column(Date)
     data_scadenza_calcolata = Column(Date)
     file_path = Column(String)
-    stato_validazione = Column(Enum(ValidationStatus))
+    validated = Column(Boolean, default=False)
+    assegnazione_fallita_ragione = Column(String, nullable=True)
     dipendente = relationship("Dipendente", back_populates="certificati")
     corso = relationship("Corso", back_populates="certificati")

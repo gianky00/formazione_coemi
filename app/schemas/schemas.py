@@ -14,14 +14,17 @@ class DipendenteSchema(BaseModel):
 class CertificatoSchema(BaseModel):
     id: int
     nome: str
-    data_nascita: Optional[str] = None
+    data_nascita: Optional[date] = None
     matricola: Optional[str] = None
     corso: str
-    categoria: str
-    data_rilascio: str
-    data_scadenza: Optional[str] = None
+    categoria_corso: str
+    data_rilascio: Optional[date] = None
+    data_scadenza_calcolata: Optional[date] = None
     stato_certificato: str
+    validated: bool
     assegnazione_fallita_ragione: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
 
 class CertificatoCreazioneSchema(BaseModel):
     nome: str = Field(..., min_length=1, description="Nome e cognome del dipendente")

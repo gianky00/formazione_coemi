@@ -1,15 +1,32 @@
 import google.generativeai as genai
 import logging
 import json
+from typing import Dict, Any, Optional
 from google.api_core import exceptions
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from app.core.config import settings
 from app.core.constants import CATEGORIE_STATICHE
 
+# Define custom exceptions for clear error handling
+class AIExtractionError(Exception):
+    """Base exception for AI extraction errors."""
+    pass
+
+class AIInvalidJSONError(AIExtractionError):
+    """Raised when the AI returns a malformed JSON response."""
+    def __init__(self, message, raw_response=None):
+        super().__init__(message)
+        self.raw_response = raw_response
+
+class AIModelInitializationError(AIExtractionError):
+    """Raised when the Gemini model fails to initialize."""
+    pass
+
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class GeminiClient:
-    _instance = None
+    _instance: Optional['GeminiClient'] = None
     _model = None
 
     def __new__(cls):
@@ -110,19 +127,34 @@ def _generate_content_with_retry(model, pdf_file_part, prompt):
     logging.info("Calling AI for entity extraction...")
     return model.generate_content([pdf_file_part, prompt])
 
-def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
+def extract_entities_with_ai(pdf_bytes: bytes) -> Dict[str, Any]:
+    """
+    Extracts entities from a PDF using the Gemini AI model.
+
+    Args:
+        pdf_bytes: The byte content of the PDF file.
+
+    Returns:
+        A dictionary containing the extracted entities.
+
+    Raises:
+        AIModelInitializationError: If the Gemini model is not available.
+        AIExtractionError: For general AI call failures or resource exhaustion.
+        AIInvalidJSONError: If the AI returns a malformed JSON response.
+    """
     model = get_gemini_model()
     if model is None:
-        return {"error": "Modello Gemini non inizializzato."}
+        raise AIModelInitializationError("Gemini model is not initialized or available.")
 
     prompt = _generate_prompt()
     pdf_file_part = {"mime_type": "application/pdf", "data": pdf_bytes}
 
+    raw_response_text = ""
     try:
-        # Call the decorated function
         response = _generate_content_with_retry(model, pdf_file_part, prompt)
+        raw_response_text = response.text
 
-        json_text = response.text.strip().replace("```json", "").replace("```", "")
+        json_text = raw_response_text.strip().replace("```json", "").replace("```", "")
         data = json.loads(json_text)
 
         if isinstance(data, list):
@@ -132,13 +164,11 @@ def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
 
         data.setdefault("categoria", "ALTRO")
 
-        # Aggiungiamo ATEX alle categorie valide consentite
-        valid_categories = list(CATEGORIE_STATICHE)
-        if "ATEX" not in valid_categories:
-            valid_categories.append("ATEX")
-
-        if data["categoria"] not in valid_categories:
-            logging.warning(f"Invalid category '{data['categoria']}'. Defaulting to 'ALTRO'.")
+        valid_categories = list(CATEGORIE_STATICHE) + ["ATEX"]
+        if data.get("categoria") not in valid_categories:
+            logging.warning(
+                f"AI returned an invalid category '{data.get('categoria')}'. Defaulting to 'ALTRO'."
+            )
             data["categoria"] = "ALTRO"
 
         logging.info(f"Successfully extracted data: {data}")
@@ -146,10 +176,18 @@ def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
 
     except exceptions.ResourceExhausted as e:
         logging.error(f"Max retries reached for ResourceExhausted. Error: {e}")
-        return {"error": f"AI call failed: {e}", "status_code": 429}
+        raise AIExtractionError(f"AI call failed due to resource exhaustion: {e}") from e
+
     except json.JSONDecodeError as e:
-        logging.error(f"Error parsing JSON from AI response: {e}. AI response: {response.text}")
-        return {"error": f"Invalid JSON from AI: {e}"}
+        logging.error(
+            f"CRITICAL: Failed to parse JSON from AI. Raw response:\n---\n{raw_response_text}\n---",
+            exc_info=True
+        )
+        raise AIInvalidJSONError(
+            f"Invalid JSON received from AI: {e}",
+            raw_response=raw_response_text
+        ) from e
+
     except Exception as e:
-        logging.error(f"Error during AI call: {e}")
-        return {"error": f"AI call failed: {e}"}
+        logging.error(f"An unexpected error occurred during AI extraction: {e}", exc_info=True)
+        raise AIExtractionError(f"An unexpected AI call failed: {e}") from e

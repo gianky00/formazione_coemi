@@ -194,17 +194,14 @@ def send_email_notification(pdf_content_bytes, expiring_corsi_count, expiring_vi
         logging.info(f"Email notification sent successfully to: {', '.join(to_emails)} using {conn_method}.")
 
     except smtplib.SMTPAuthenticationError as e:
-        logging.error(f"SMTP Authentication Error with {conn_method}: {e}. Check SMTP_USER and SMTP_PASSWORD.")
-        raise ConnectionAbortedError(f"SMTP Authentication Error: {e}")
+        logging.error(f"CRITICAL: SMTP Authentication Error with {conn_method}: {e}. Verify SMTP_USER and SMTP_PASSWORD.")
+        # Do not re-raise, to prevent crashing the scheduler.
     except smtplib.SMTPConnectError as e:
-        logging.error(f"SMTP Connection Error with {conn_method}: {e}. Check SMTP_HOST and SMTP_PORT.")
-        raise ConnectionAbortedError(f"SMTP Connection Error: {e}")
+        logging.error(f"CRITICAL: SMTP Connection Error with {conn_method}: {e}. Verify SMTP_HOST and SMTP_PORT.")
     except smtplib.SMTPException as e:
-        logging.error(f"Generic SMTP Error with {conn_method} while sending email: {e}")
-        raise ConnectionAbortedError(f"Generic SMTP Error: {e}")
+        logging.error(f"CRITICAL: Generic SMTP Error with {conn_method} while sending email: {e}")
     except Exception as e:
-        logging.error(f"An unexpected error occurred with {conn_method} while sending email: {e}", exc_info=True)
-        raise ConnectionAbortedError(f"An unexpected error occurred: {e}")
+        logging.error(f"CRITICAL: An unexpected error occurred with {conn_method} while sending email: {e}", exc_info=True)
 
 def send_security_alert_email(subject, body_html):
     """Sends a critical security alert email."""
@@ -238,11 +235,14 @@ def send_security_alert_email(subject, body_html):
 
 def check_and_send_alerts():
     """
-    Checks for certificates that are expiring soon or are overdue and sends
-    a single summary email with a PDF report if any are found.
+    Main scheduled task. Checks for expiring certificates and sends a single
+    summary email. This function is designed to be resilient and will not crash
+    the scheduler if an error occurs (e.g., PDF generation or SMTP failure).
     """
     db = SessionLocal()
     try:
+        logging.info("Scheduler starting: Checking for certificate alerts...")
+
         today = date.today()
         expiring_visite = []
         expiring_corsi = []
@@ -257,7 +257,6 @@ def check_and_send_alerts():
             if not cert.data_scadenza_calcolata or not cert.corso:
                 continue
 
-            # Check for expiring certificates and separate them
             if cert.corso.categoria_corso == "VISITA MEDICA":
                 if today < cert.data_scadenza_calcolata <= expiring_limit_visite:
                     expiring_visite.append(cert)
@@ -265,7 +264,6 @@ def check_and_send_alerts():
                 if today < cert.data_scadenza_calcolata <= expiring_limit_attestati:
                     expiring_corsi.append(cert)
 
-            # Check for overdue and un-renewed certificates
             if cert.data_scadenza_calcolata < today:
                 status = certificate_logic.get_certificate_status(db, cert)
                 if status == "scaduto":
@@ -273,7 +271,7 @@ def check_and_send_alerts():
 
         total_expiring = len(expiring_visite) + len(expiring_corsi)
         if total_expiring > 0 or overdue_certificates:
-            logging.info(f"Trovati {total_expiring} certificati in scadenza ({len(expiring_visite)} visite, {len(expiring_corsi)} corsi) e {len(overdue_certificates)} scaduti.")
+            logging.info(f"Found {total_expiring} expiring certificates and {len(overdue_certificates)} overdue ones. Preparing report.")
 
             pdf_content_bytes = generate_pdf_report_in_memory(
                 expiring_visite=expiring_visite,
@@ -283,10 +281,6 @@ def check_and_send_alerts():
                 corsi_threshold=settings.ALERT_THRESHOLD_DAYS
             )
 
-            if not pdf_content_bytes:
-                logging.error("La generazione del PDF è fallita e ha restituito un contenuto vuoto.")
-                raise ValueError("La generazione del PDF è fallita.")
-
             send_email_notification(
                 pdf_content_bytes=pdf_content_bytes,
                 expiring_corsi_count=len(expiring_corsi),
@@ -295,9 +289,14 @@ def check_and_send_alerts():
                 corsi_threshold=settings.ALERT_THRESHOLD_DAYS,
                 visite_threshold=settings.ALERT_THRESHOLD_DAYS_VISITE
             )
-            log_security_action(db, None, "SYSTEM_ALERT", f"Sent alert for {total_expiring} expiring and {len(overdue_certificates)} overdue certificates.", category="SYSTEM")
+            # Log only after successful email attempt
+            log_security_action(db, None, "SYSTEM_ALERT", f"Alert triggered for {total_expiring} expiring and {len(overdue_certificates)} overdue certificates.", category="SYSTEM")
         else:
-            logging.info("Nessuna notifica di scadenza da inviare oggi.")
+            logging.info("Scheduler finished: No alerts to send today.")
+
+    except Exception as e:
+        # Catch-all to ensure the scheduler job NEVER crashes.
+        logging.error(f"CRITICAL: The 'check_and_send_alerts' job failed unexpectedly: {e}", exc_info=True)
 
     finally:
         db.close()
