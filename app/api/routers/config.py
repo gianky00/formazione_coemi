@@ -17,7 +17,7 @@ class SecurityModeSchema(BaseModel):
 class MoveDatabaseSchema(BaseModel):
     new_path: str
 
-@router.post("/config/move-database", dependencies=[Depends(deps.check_write_permission)])
+@router.post("/move-database", dependencies=[Depends(deps.check_write_permission)])
 def move_database(
     payload: MoveDatabaseSchema,
     db: Session = Depends(get_db),
