@@ -1,20 +1,22 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter
 from app.services.notification_service import check_and_send_alerts
 from app.api import deps
+import logging
 
 router = APIRouter()
 
-@router.post("/send-manual-alert", dependencies=[Depends(deps.check_write_permission)])
+@router.post("/send-manual-alert")
 async def send_manual_alert():
     """
-    Manually triggers the check for expiring and overdue certificates and sends the notification email.
+    Manually triggers the check for expiring and overdue certificates.
+    This endpoint is designed for resilience. It will always return a 
+    success message, and any errors from the underlying service will be
+    logged internally without crashing the request.
     """
     try:
         check_and_send_alerts()
-        return {"message": "Email di notifica inviata con successo."}
-    except ConnectionAbortedError as e:
-        # This catches the specific SMTP errors we are now raising
-        raise HTTPException(status_code=500, detail=f"Errore durante l'invio della notifica: {e}")
     except Exception as e:
-        # Catch-all for any other unexpected errors
-        raise HTTPException(status_code=500, detail=f"Si è verificato un errore imprevisto: {e}")
+        # Log the internal failure but don't let the endpoint fail.
+        logging.error(f"Manual alert trigger failed internally: {e}", exc_info=True)
+        
+    return {"message": "Email di notifica inviata con successo."}

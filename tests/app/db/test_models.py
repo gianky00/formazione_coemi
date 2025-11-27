@@ -1,7 +1,7 @@
 import pytest
 from datetime import date
 from sqlalchemy.exc import IntegrityError
-from app.db.models import Dipendente, Corso, Certificato, ValidationStatus
+from app.db.models import Dipendente, Corso, Certificato
 
 def test_create_dipendente(db_session):
     dip = Dipendente(
@@ -62,7 +62,7 @@ def test_create_certificato(db_session):
         corso_id=corso.id,
         data_rilascio=date(2023, 1, 1),
         data_scadenza_calcolata=date(2024, 1, 1),
-        stato_validazione=ValidationStatus.AUTOMATIC
+        validated=False
     )
     db_session.add(cert)
     db_session.commit()
@@ -81,7 +81,7 @@ def test_orphan_certificato(db_session):
         nome_dipendente_raw="John Doe",
         corso_id=corso.id,
         data_rilascio=date(2023, 1, 1),
-        stato_validazione=ValidationStatus.MANUAL
+        validated=True
     )
     db_session.add(cert)
     db_session.commit()

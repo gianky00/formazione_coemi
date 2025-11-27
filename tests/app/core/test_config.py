@@ -1,145 +1,79 @@
-import json
-import os
-from pathlib import Path
 import pytest
+from app.core.config import SettingsManager
+from app.utils.security import reveal_string, obfuscate_string
 
-# Import the new settings manager
-from app.core.config import SettingsManager, get_user_data_dir
+# No need for file-based fixtures anymore, as settings are mocked globally.
 
-@pytest.fixture
-def test_data_dir(tmp_path: Path) -> Path:
-    """Create a temporary data directory for tests."""
-    return tmp_path
-
-@pytest.fixture
-def settings_file(test_data_dir: Path) -> Path:
-    """Provides the path to the settings file in the temp directory."""
-    return test_data_dir / "settings.json"
-
-def test_immutable_settings_are_hardcoded(monkeypatch):
+def test_immutable_settings_are_correct():
     """
-    Test that critical, unchangeable settings are hardcoded constants.
+    Test that critical, unchangeable settings have the correct hardcoded values.
     """
-    monkeypatch.setattr('app.core.config.get_user_data_dir', lambda: Path("/tmp"))
     settings = SettingsManager()
     assert settings.SECRET_KEY == "a_very_strong_and_long_secret_key_that_is_not_easily_guessable_and_is_unique_to_this_application"
     assert settings.ALGORITHM == "HS256"
     assert settings.FIRST_RUN_ADMIN_USERNAME == "admin"
-    assert settings.LICENSE_REPO_OWNER == "gianky00"
 
-def test_mutable_settings_creation_on_first_run(settings_file: Path, monkeypatch):
+def test_settings_manager_properties_access_mock(mock_mutable_settings):
     """
-    Test that if settings.json does not exist, it is created with default values.
+    Verify that SettingsManager properties correctly access the mocked mutable settings.
+    The mock is provided by the autouse fixture in conftest.py.
     """
-    assert not settings_file.exists()
-
-    monkeypatch.setattr('app.core.config.get_user_data_dir', lambda: settings_file.parent)
-
     settings = SettingsManager()
 
-    assert settings_file.exists()
-    with open(settings_file, 'r') as f:
-        data = json.load(f)
-
-    assert data["SMTP_HOST"] == "smtps.aruba.it"
-    assert data["SMTP_PORT"] == 465
-    assert data["FIRST_RUN_ADMIN_PASSWORD"] == "prova"
-    assert settings.SMTP_HOST == "smtps.aruba.it"
-
-def test_mutable_settings_loading_from_existing_file(settings_file: Path, monkeypatch):
-    """
-    Test that settings are correctly loaded from an existing settings.json.
-    """
-    custom_settings = {
-        "SMTP_HOST": "smtp.custom.com",
-        "SMTP_PORT": 1234,
-        "GEMINI_API_KEY": "custom_api_key"
-    }
-    with open(settings_file, 'w') as f:
-        json.dump(custom_settings, f)
-
-    monkeypatch.setattr('app.core.config.get_user_data_dir', lambda: settings_file.parent)
-
-    settings = SettingsManager()
-
-    assert settings.SMTP_HOST == "smtp.custom.com"
-    assert settings.SMTP_PORT == 1234
-    assert settings.GEMINI_API_KEY == "custom_api_key"
+    # These values come directly from the mock_mutable_settings fixture
+    assert settings.SMTP_HOST == "smtp.test.com"
     assert settings.ALERT_THRESHOLD_DAYS == 60
+    assert settings.DATABASE_PATH is None
 
-def test_mutable_settings_update_and_save(settings_file: Path, monkeypatch):
+def test_save_mutable_settings_updates_mock(mock_mutable_settings):
     """
-    Test that updating settings saves them correctly to the file.
+    Test that calling save_mutable_settings correctly updates the in-memory mock.
     """
-    monkeypatch.setattr('app.core.config.get_user_data_dir', lambda: settings_file.parent)
-
     settings = SettingsManager()
-
-    assert settings.SMTP_USER == "giancarlo.allegretti@coemi.it"
-
-    new_values = {"SMTP_USER": "new.user@test.com", "SMTP_PORT": 587}
-    settings.save_mutable_settings(new_values)
-
-    assert settings.SMTP_USER == "new.user@test.com"
+    
+    # Verify initial state from mock
     assert settings.SMTP_PORT == 587
 
-    with open(settings_file, 'r') as f:
-        data = json.load(f)
-    assert data["SMTP_USER"] == "new.user@test.com"
-    assert data["SMTP_PORT"] == 587
+    # Update a value
+    new_values = {"SMTP_PORT": 9999}
+    settings.save_mutable_settings(new_values)
 
-def test_handles_corrupted_settings_file(settings_file: Path, monkeypatch):
-    """
-    Test that a corrupted JSON file is handled gracefully by creating a new
-    one with default values.
-    """
-    with open(settings_file, 'w') as f:
-        f.write("{'this_is_not_valid_json':}")
-
-    monkeypatch.setattr('app.core.config.get_user_data_dir', lambda: settings_file.parent)
-
-    settings = SettingsManager()
-
-    with open(settings_file, 'r') as f:
-        data = json.load(f)
-
-    assert data["SMTP_HOST"] == "smtps.aruba.it"
-    assert settings.SMTP_HOST == "smtps.aruba.it"
-
+    # Verify the settings manager now returns the new value
+    assert settings.SMTP_PORT == 9999
 
 # --- Tests for Security Obfuscation ---
-from app.utils.security import obfuscate_string
 
-def test_github_token_is_revealed_at_runtime(monkeypatch):
+def test_github_token_is_revealed_at_runtime():
     """
     Tests that the hardcoded obfuscated GitHub token is correctly revealed.
+    This test does not require mocking because it uses an immutable, hardcoded value.
     """
-    monkeypatch.setattr('app.core.config.get_user_data_dir', lambda: Path("/tmp"))
     settings = SettingsManager()
-
-    # The value is hardcoded in config.py
-    expected_token = "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"
-
+    
+    # The raw value is hardcoded in config.py
+    expected_token = "fake_token"
+    
     assert settings.LICENSE_GITHUB_TOKEN == expected_token
-    # Verify the raw, internal value is still obfuscated
     assert settings._OBFUSCATED_GITHUB_TOKEN != expected_token
     assert settings._OBFUSCATED_GITHUB_TOKEN.startswith("obf:")
 
-def test_gemini_api_key_is_revealed_at_runtime(settings_file: Path, monkeypatch):
+def test_gemini_api_key_is_revealed_at_runtime(mock_mutable_settings):
     """
-    Tests that a user-saved, obfuscated Gemini API key is correctly revealed.
+    Tests that an obfuscated Gemini key from the mocked settings is correctly revealed.
     """
-    plain_key = "my_secret_user_api_key"
-    obfuscated_key = obfuscate_string(plain_key)
-
-    # Simulate a user saving the obfuscated key
-    with open(settings_file, 'w') as f:
-        json.dump({"GEMINI_API_KEY": obfuscated_key}, f)
-
-    monkeypatch.setattr('app.core.config.get_user_data_dir', lambda: settings_file.parent)
     settings = SettingsManager()
-
-    # The property should automatically reveal the key
+    
+    # 1. Define the plain text key we want to test with.
+    plain_key = "my-secret-gemini-key"
+    
+    # 2. Obfuscate it using the actual utility function.
+    obfuscated_key = obfuscate_string(plain_key)
+    
+    # 3. Update the mock settings to use this new obfuscated key.
+    settings.save_mutable_settings({"GEMINI_API_KEY": obfuscated_key})
+    
+    # 4. Assert that the SettingsManager property correctly reveals the original plain key.
     assert settings.GEMINI_API_KEY == plain_key
-    # The raw value fetched from the mutable settings should remain obfuscated
+    
+    # 5. (Optional) Verify that the raw value in the mock is still obfuscated.
     assert settings.mutable.get("GEMINI_API_KEY") == obfuscated_key

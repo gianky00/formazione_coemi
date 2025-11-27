@@ -17,7 +17,7 @@ def test_login_updates_previous_access(test_client: TestClient, db_session: Sess
     db_session.commit()
 
     # 2. Login First Time
-    response = test_client.post("/auth/login", data={"username": "testuser", "password": password})
+    response = test_client.post("/api/v1/auth/login", data={"username": "testuser", "password": password})
     assert response.status_code == 200
     data = response.json()
     assert data["previous_login"] is None
@@ -29,7 +29,7 @@ def test_login_updates_previous_access(test_client: TestClient, db_session: Sess
     assert user.previous_login is None
 
     # 3. Login Second Time
-    response = test_client.post("/auth/login", data={"username": "testuser", "password": password})
+    response = test_client.post("/api/v1/auth/login", data={"username": "testuser", "password": password})
     assert response.status_code == 200
     data = response.json()
 

@@ -2,9 +2,11 @@ from datetime import datetime, date
 from typing import Optional
 import re
 
-def parse_date_flexible(date_str: str) -> Optional[date]:
+from typing import Union
+
+def parse_date_flexible(date_input: Union[str, date]) -> Optional[date]:
     """
-    Tries to parse a date string from various formats.
+    Robustly parses a date from a string or returns it if already a date object.
     Supported formats:
     - DD/MM/YYYY
     - DD-MM-YYYY
@@ -12,10 +14,13 @@ def parse_date_flexible(date_str: str) -> Optional[date]:
     - DD/MM/YY
     - DD.MM.YYYY
     """
-    if not date_str:
+    if not date_input:
         return None
+        
+    if isinstance(date_input, date):
+        return date_input
 
-    date_str = date_str.strip()
+    date_str = str(date_input).strip()
 
     # Remove text like "nato il " if present, though unlikely in raw date fields
     # simple cleanup

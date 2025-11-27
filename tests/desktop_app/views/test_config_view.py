@@ -37,7 +37,7 @@ def test_config_view_loads_settings_from_api(MockAPIClient, mock_api_client):
 
     from desktop_app.views.config_view import ConfigView
 
-    view = ConfigView()
+    view = ConfigView(mock_api_client)
 
     # Trigger the load_config method
     view.load_config()
@@ -46,11 +46,9 @@ def test_config_view_loads_settings_from_api(MockAPIClient, mock_api_client):
     mock_api_client.get_mutable_config.assert_called_once()
 
     # Assert that UI fields are populated with the mock data
-    gs = view.general_settings
-    assert gs.gemini_api_key_input.text() == "test_api_key"
-    assert gs.smtp_host_input.text() == "smtp.test.com"
-    assert gs.smtp_port_input.text() == "587"
-    assert gs.alert_threshold_input.text() == "45"
+    assert view.general_settings.smtp_host_input.text() == "smtp.test.com"
+    assert view.general_settings.smtp_port_input.value() == 587
+    assert view.general_settings.alert_threshold_input.value() == 45
 
 @patch('desktop_app.views.config_view.APIClient')
 def test_config_view_saves_settings_via_api(MockAPIClient, mock_api_client):
@@ -61,12 +59,12 @@ def test_config_view_saves_settings_via_api(MockAPIClient, mock_api_client):
 
     from desktop_app.views.config_view import ConfigView
 
-    view = ConfigView()
+    view = ConfigView(mock_api_client)
     view.load_config() # Load initial state
 
     # Simulate user changing a value
     view.general_settings.smtp_host_input.setText("smtp.new.com")
-    view.general_settings.alert_threshold_input.setText("90")
+    view.general_settings.alert_threshold_input.setValue(90)
 
     # Simulate clicking the save button
     view.save_config()

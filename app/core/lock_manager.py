@@ -37,13 +37,17 @@ class LockManager:
             # Ensure directory exists
             os.makedirs(os.path.dirname(self.lock_file_path), exist_ok=True)
 
-            # Open file in Read/Write mode. Create if not exists.
-            # We use 'r+b' if exists, 'w+b' if not.
-            if not os.path.exists(self.lock_file_path):
-                with open(self.lock_file_path, 'wb') as f:
-                    f.write(b'\0') # Initialize with at least one byte
-
-            self._lock_handle = open(self.lock_file_path, 'r+b')
+            # Open file in Read/Write mode. Create if not exists, but do not truncate.
+            try:
+                # Open existing file for read/write. This fails if it does not exist.
+                self._lock_handle = open(self.lock_file_path, 'r+b')
+            except FileNotFoundError:
+                # If it doesn't exist, create it ('w+b'), write the initial byte,
+                # and then reset the cursor to the beginning.
+                self._lock_handle = open(self.lock_file_path, 'w+b')
+                self._lock_handle.write(b'\0')
+                self._lock_handle.flush() # Ensure byte is written to disk
+                self._lock_handle.seek(0) # IMPORTANT: Move cursor back to start
 
             # Try to lock the first byte
             self._lock_byte_0()

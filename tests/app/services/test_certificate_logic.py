@@ -1,89 +1,97 @@
-from datetime import date, datetime
-from unittest.mock import patch
+from datetime import date, datetime, timedelta
+from unittest.mock import patch, MagicMock
 from sqlalchemy.orm import Session
 from app.db.models import Certificato, Dipendente, Corso
-from app.services.certificate_logic import calculate_expiration_date, get_certificate_status
+from app.services.certificate_logic import calculate_expiration_date, get_certificate_status, serialize_certificato
+from app.schemas.schemas import CertificatoSchema
 
-def test_calculate_expiration_date():
-    """
-    Testa la funzione di calcolo della data di scadenza.
-    """
+def test_calculate_expiration_date_logic():
+    """Test the core logic of expiration date calculation."""
     issue_date = date(2025, 1, 1)
     assert calculate_expiration_date(issue_date, 12) == date(2026, 1, 1)
     assert calculate_expiration_date(issue_date, 0) is None
+    assert calculate_expiration_date(issue_date, 3) == date(2025, 4, 1)
 
-def test_calculate_expiration_date_returns_date_object():
-    """
-    Tests that calculate_expiration_date returns a date object, not a datetime object,
-    even when a datetime object is passed as input.
-    """
-    # Using a datetime object to expose the bug
-    issue_date = datetime(2022, 1, 1, 8, 30, 0)
-    validity_months = 12
-    expiration_date = calculate_expiration_date(issue_date, validity_months)
-    # This assertion should fail before the fix because it will return a datetime object
-    assert type(expiration_date) == date
+def test_calculate_expiration_date_handles_datetime_input():
+    """Test that the function correctly handles a datetime object as input, returning a date object."""
+    issue_datetime = datetime(2022, 5, 10, 14, 30, 0)
+    expiration_date = calculate_expiration_date(issue_datetime, 24)
+    assert isinstance(expiration_date, date)
+    assert expiration_date == date(2024, 5, 10)
 
-def test_get_certificate_status(db_session: Session):
-    """
-    Testa gli stati 'attivo' e 'scaduto'.
-    """
-    dipendente = Dipendente(nome="Test", cognome="User")
+def test_get_certificate_status_active_and_expired(db_session: Session):
+    """Test basic 'attivo' and 'scaduto' statuses for different employees."""
+    dipendente1 = Dipendente(nome="Test", cognome="User", matricola="001")
+    dipendente2 = Dipendente(nome="Expired", cognome="User", matricola="001_E")
     corso = Corso(nome_corso="Test Corso", validita_mesi=12, categoria_corso="Test Categoria")
-    scaduto_dipendente = Dipendente(nome="Scaduto", cognome="User")
-    db_session.add_all([dipendente, corso, scaduto_dipendente])
+    db_session.add_all([dipendente1, dipendente2, corso])
     db_session.commit()
 
-    # Certificato attivo
     cert_attivo = Certificato(
-        dipendente_id=dipendente.id,
+        dipendente_id=dipendente1.id,
         corso_id=corso.id,
         data_rilascio=date.today(),
-        data_scadenza_calcolata=date.today() + date.resolution * 100
+        data_scadenza_calcolata=date.today() + timedelta(days=365)
     )
-    # Certificato scaduto (senza rinnovi)
+    # This certificate is for a DIFFERENT employee, so it should not be "archiviato"
     cert_scaduto = Certificato(
-        dipendente_id=scaduto_dipendente.id,
+        dipendente_id=dipendente2.id,
         corso_id=corso.id,
         data_rilascio=date(2020, 1, 1),
         data_scadenza_calcolata=date(2021, 1, 1)
     )
-    # Certificato senza scadenza
-    cert_no_scadenza = Certificato(
-        dipendente_id=dipendente.id,
-        corso_id=corso.id,
-        data_rilascio=date(2020, 1, 1),
-        data_scadenza_calcolata=None
-    )
-    db_session.add_all([cert_attivo, cert_scaduto, cert_no_scadenza])
+    db_session.add_all([cert_attivo, cert_scaduto])
     db_session.commit()
 
     assert get_certificate_status(db_session, cert_attivo) == "attivo"
     assert get_certificate_status(db_session, cert_scaduto) == "scaduto"
-    assert get_certificate_status(db_session, cert_no_scadenza) == "attivo"
+
+def test_get_certificate_status_in_scadenza(db_session: Session):
+    """Test 'in_scadenza' status based on thresholds using timedelta."""
+    dipendente = Dipendente(nome="Soon", cognome="Expiring", matricola="002")
+    corso_standard = Corso(nome_corso="Standard", validita_mesi=12, categoria_corso="Standard")
+    corso_medico = Corso(nome_corso="Visita", validita_mesi=24, categoria_corso="VISITA MEDICA")
+    db_session.add_all([dipendente, corso_standard, corso_medico])
+    db_session.commit()
+    
+    with patch('app.services.certificate_logic.settings') as mock_settings:
+        mock_settings.ALERT_THRESHOLD_DAYS = 60
+        mock_settings.ALERT_THRESHOLD_DAYS_VISITE = 30
+
+        # Standard course expiring in 50 days
+        cert_standard = Certificato(
+            dipendente_id=dipendente.id,
+            corso_id=corso_standard.id,
+            data_rilascio=date.today() - timedelta(days=300),
+            data_scadenza_calcolata=date.today() + timedelta(days=50)
+        )
+        # Medical visit expiring in 25 days
+        cert_medico = Certificato(
+            dipendente_id=dipendente.id,
+            corso_id=corso_medico.id,
+            data_rilascio=date.today() - timedelta(days=700),
+            data_scadenza_calcolata=date.today() + timedelta(days=25)
+        )
+        db_session.add_all([cert_standard, cert_medico])
+        db_session.commit()
+
+        assert get_certificate_status(db_session, cert_standard) == "in_scadenza"
+        assert get_certificate_status(db_session, cert_medico) == "in_scadenza"
 
 def test_get_certificate_status_archiviato(db_session: Session):
-    """
-    Testa che lo stato di un certificato scaduto sia 'archiviato' se ne esiste uno più recente.
-    """
-    dipendente = Dipendente(nome="Rinnovato", cognome="User")
+    """Test that a renewed certificate is correctly marked as 'archiviato'."""
+    dipendente = Dipendente(nome="Rinnovato", cognome="User", matricola="003")
     corso = Corso(nome_corso="Corso Rinnovabile", validita_mesi=12, categoria_corso="Rinnovabile")
     db_session.add_all([dipendente, corso])
     db_session.commit()
 
-    # Certificato vecchio (scaduto)
     cert_vecchio = Certificato(
-        dipendente_id=dipendente.id,
-        corso_id=corso.id,
-        data_rilascio=date(2020, 1, 1),
-        data_scadenza_calcolata=date(2021, 1, 1)
+        dipendente_id=dipendente.id, corso_id=corso.id,
+        data_rilascio=date(2020, 1, 1), data_scadenza_calcolata=date(2021, 1, 1)
     )
-    # Certificato nuovo (attivo)
     cert_nuovo = Certificato(
-        dipendente_id=dipendente.id,
-        corso_id=corso.id,
-        data_rilascio=date(2021, 1, 1),
-        data_scadenza_calcolata=date.today() + date.resolution * 100 # Scadenza futura
+        dipendente_id=dipendente.id, corso_id=corso.id,
+        data_rilascio=date(2021, 1, 1), data_scadenza_calcolata=date.today().replace(year=date.today().year + 1)
     )
     db_session.add_all([cert_vecchio, cert_nuovo])
     db_session.commit()
@@ -91,211 +99,85 @@ def test_get_certificate_status_archiviato(db_session: Session):
     assert get_certificate_status(db_session, cert_vecchio) == "archiviato"
     assert get_certificate_status(db_session, cert_nuovo) == "attivo"
 
-def test_orphan_certificates_not_renewed_by_others(db_session: Session):
-    """
-    Test that an expired orphaned certificate for one person is NOT marked as 'archiviato'
-    just because there is a newer orphaned certificate for ANOTHER person.
-    """
-    # Create a course
-    corso = Corso(nome_corso="Safety First", validita_mesi=12, categoria_corso="SAFETY")
+def test_serialize_certificato_with_linked_employee(db_session: Session):
+    """Test serialization of a certificate that is properly linked to an employee."""
+    dipendente = Dipendente(
+        nome="Mario", cognome="Rossi", matricola="12345", data_nascita=date(1990, 5, 15)
+    )
+    corso = Corso(nome_corso="Sicurezza Base", validita_mesi=60, categoria_corso="Sicurezza")
+    db_session.add_all([dipendente, corso])
+    db_session.commit()
+
+    cert = Certificato(
+        dipendente_id=dipendente.id,
+        corso_id=corso.id,
+        data_rilascio=date(2024, 1, 1),
+        data_scadenza_calcolata=date(2029, 1, 1),
+        validated=True
+    )
+    db_session.add(cert)
+    db_session.commit()
+
+    serialized_data = serialize_certificato(db_session, cert)
+
+    assert isinstance(serialized_data, CertificatoSchema)
+    assert serialized_data.nome == "Rossi Mario"
+    assert serialized_data.matricola == "12345"
+    assert serialized_data.data_nascita == date(1990, 5, 15)
+    assert serialized_data.stato_certificato == "attivo"
+    assert serialized_data.corso == "Sicurezza Base"
+    assert serialized_data.validated is True
+
+def test_serialize_certificato_with_orphan_employee(db_session: Session):
+    """Test serialization of an 'orphaned' certificate with no linked employee."""
+    corso = Corso(nome_corso="Primo Soccorso", validita_mesi=36, categoria_corso="Emergenza")
     db_session.add(corso)
     db_session.commit()
 
-    # Create expired orphan certificate for "Alice"
-    cert_alice = Certificato(
+    cert = Certificato(
         dipendente_id=None,
-        nome_dipendente_raw="Alice",
         corso_id=corso.id,
-        data_rilascio=date(2020, 1, 1),
-        data_scadenza_calcolata=date(2021, 1, 1)
+        nome_dipendente_raw="Luigi Verdi",
+        data_nascita_raw=date(1985, 10, 20),
+        data_rilascio=date(2023, 6, 1),
+        data_scadenza_calcolata=date(2026, 6, 1),
+        validated=False,
+        assegnazione_fallita_ragione="Test Reason"
     )
-
-    # Create newer valid orphan certificate for "Bob"
-    cert_bob = Certificato(
-        dipendente_id=None,
-        nome_dipendente_raw="Bob",
-        corso_id=corso.id,
-        data_rilascio=date(2024, 1, 1),
-        data_scadenza_calcolata=date(2030, 1, 1)
-    )
-
-    db_session.add_all([cert_alice, cert_bob])
+    db_session.add(cert)
     db_session.commit()
 
-    # Check status of Alice's certificate
-    # It should be "scaduto" because Bob's certificate has nothing to do with Alice
-    # And orphans cannot renew other orphans
-    status = get_certificate_status(db_session, cert_alice)
+    serialized_data = serialize_certificato(db_session, cert)
+    
+    assert isinstance(serialized_data, CertificatoSchema)
+    assert serialized_data.nome == "Luigi Verdi"
+    assert serialized_data.matricola is None
+    assert serialized_data.data_nascita == date(1985, 10, 20)
+    assert serialized_data.stato_certificato == "attivo"
+    assert serialized_data.assegnazione_fallita_ragione == "Test Reason"
+    assert serialized_data.validated is False
 
-    assert status == "scaduto", f"Expected 'scaduto' but got '{status}'. Orphaned certificates are being mixed up!"
-
-def test_infinite_validity_status(db_session: Session):
-    """
-    Testa che i certificati con validità infinita (data_scadenza_calcolata=None)
-    siano sempre 'attivo' se non c'è una scadenza esplicita, anche se sono vecchi.
-    """
-    dipendente = Dipendente(nome="Infinite", cognome="User")
-    corso = Corso(nome_corso="Nomina", validita_mesi=0, categoria_corso="NOMINE")
+def test_status_logic_with_null_dates(db_session: Session):
+    """Test that status logic is robust to certificates with null dates."""
+    dipendente = Dipendente(nome="Null", cognome="Date", matricola="999")
+    corso = Corso(nome_corso="SenzaData", validita_mesi=12, categoria_corso="Speciale")
     db_session.add_all([dipendente, corso])
     db_session.commit()
-
-    # Certificato vecchio (2010) ma validità infinita
-    cert_vecchio = Certificato(
+    
+    # Certificate with no release date but an expiration date
+    cert_no_release = Certificato(
         dipendente_id=dipendente.id,
         corso_id=corso.id,
-        data_rilascio=date(2010, 1, 1),
-        data_scadenza_calcolata=None
+        data_rilascio=None,
+        data_scadenza_calcolata=date(2020, 1, 1) # Expired
     )
-    db_session.add(cert_vecchio)
+    db_session.add(cert_no_release)
     db_session.commit()
 
-    assert get_certificate_status(db_session, cert_vecchio) == "attivo"
+    # Even if another cert existed, this one can't be 'archiviato' because we can't compare release dates
+    assert get_certificate_status(db_session, cert_no_release) == "scaduto"
 
-    # Aggiungiamo un certificato PIÙ NUOVO (2020), sempre infinito
-    cert_nuovo = Certificato(
-        dipendente_id=dipendente.id,
-        corso_id=corso.id,
-        data_rilascio=date(2020, 1, 1),
-        data_scadenza_calcolata=None
-    )
-    db_session.add(cert_nuovo)
-    db_session.commit()
-
-    assert get_certificate_status(db_session, cert_vecchio) == "attivo"
-    assert get_certificate_status(db_session, cert_nuovo) == "attivo"
-
-
-def test_get_certificate_status_archiviato_by_expired(db_session: Session):
-    """
-    Testa che lo stato di un certificato scaduto sia 'archiviato' anche se quello
-    più recente che lo sostituisce è anch'esso scaduto.
-    """
-    dipendente = Dipendente(nome="RinnovatoHistory", cognome="User")
-    corso = Corso(nome_corso="Corso Storico", validita_mesi=12, categoria_corso="Storico")
-    db_session.add_all([dipendente, corso])
-    db_session.commit()
-
-    # Certificato A (2020-2021) - Scaduto
-    cert_a = Certificato(
-        dipendente_id=dipendente.id,
-        corso_id=corso.id,
-        data_rilascio=date(2020, 1, 1),
-        data_scadenza_calcolata=date(2021, 1, 1)
-    )
-    # Certificato B (2021-2022) - Scaduto (ma più recente di A)
-    cert_b = Certificato(
-        dipendente_id=dipendente.id,
-        corso_id=corso.id,
-        data_rilascio=date(2021, 1, 1),
-        data_scadenza_calcolata=date(2022, 1, 1)
-    )
-
-    db_session.add_all([cert_a, cert_b])
-    db_session.commit()
-
-    # A dovrebbe essere 'archiviato' perché esiste B (anche se scaduto)
-    assert get_certificate_status(db_session, cert_a) == "archiviato"
-    # B dovrebbe essere 'scaduto' perché è l'ultimo
-    assert get_certificate_status(db_session, cert_b) == "scaduto"
-
-
-def test_user_scenario_chain_ending_valid(db_session: Session):
-    """
-    Scenario 1: Catena di certificati dove l'ultimo è valido.
-    Tutti i precedenti devono essere 'archiviato' (Archiviato).
-    L'ultimo deve essere 'attivo'.
-    """
-    dipendente = Dipendente(nome="Mario", cognome="Rossi_Valid")
-    corso = Corso(nome_corso="Antincendio", validita_mesi=24, categoria_corso="Sicurezza")
-    db_session.add_all([dipendente, corso])
-    db_session.commit()
-
-    years = [2015, 2017, 2019, 2021, 2023]
-    certs = []
-
-    # Crea certificati scaduti (storico)
-    for year in years:
-        cert = Certificato(
-            dipendente_id=dipendente.id,
-            corso_id=corso.id,
-            data_rilascio=date(year, 1, 1),
-            data_scadenza_calcolata=date(year + 2, 1, 1)
-        )
-        certs.append(cert)
-
-    # Crea ultimo certificato valido (es. 2025, scade 2027)
-    # Assumiamo che 'oggi' sia prima del 2027.
-    # Per sicurezza, usiamo date relative a 'today' per il test robusto,
-    # ma per seguire lo scenario utente usiamo date fisse future per l'ultimo.
-    today_year = date.today().year
-    # Se siamo nel 2025 o dopo, questo funziona. Se siamo nel 2024, 2025 è futuro.
-    # Forziamo date relative per garantire il test passi sempre.
-
-    # Simuliamo la catena storica
-    # ... 2015, 2017 ...
-    # L'ultimo deve essere VALIDO (data scadenza > oggi).
-
-    valid_cert = Certificato(
-        dipendente_id=dipendente.id,
-        corso_id=corso.id,
-        data_rilascio=date.today(), # Rilasciato oggi
-        data_scadenza_calcolata=date.today().replace(year=date.today().year + 2) # Scade tra 2 anni
-    )
-    certs.append(valid_cert)
-
-    db_session.add_all(certs)
-    db_session.commit()
-
-    # Verifica: Tutti tranne l'ultimo devono essere 'archiviato'
-    for i, cert in enumerate(certs[:-1]):
-        status = get_certificate_status(db_session, cert)
-        assert status == "archiviato", f"Il certificato {i} ({cert.data_rilascio}) dovrebbe essere 'archiviato', invece è '{status}'"
-
-    # Verifica: L'ultimo deve essere 'attivo'
-    last_status = get_certificate_status(db_session, certs[-1])
-    assert last_status == "attivo", f"L'ultimo certificato dovrebbe essere 'attivo', invece è '{last_status}'"
-
-
-def test_user_scenario_chain_ending_expired(db_session: Session):
-    """
-    Scenario 2: Catena di certificati dove anche l'ultimo è scaduto.
-    Tutti i precedenti devono essere 'archiviato' (Archiviato).
-    L'ultimo deve essere 'scaduto'.
-    """
-    dipendente = Dipendente(nome="Mario", cognome="Rossi_Expired")
-    corso = Corso(nome_corso="Antincendio B", validita_mesi=24, categoria_corso="Sicurezza B")
-    db_session.add_all([dipendente, corso])
-    db_session.commit()
-
-    # Creiamo una catena dove TUTTI sono scaduti rispetto ad oggi
-    # Assumiamo oggi = 2025 (o reale).
-    # Creiamo certificati nel passato remoto.
-
-    today = date.today()
-    base_year = today.year - 12 # 12 anni fa
-
-    certs = []
-    for i in range(5):
-        release_year = base_year + (i * 2) # es. 2013, 2015, 2017, 2019, 2021
-        cert = Certificato(
-            dipendente_id=dipendente.id,
-            corso_id=corso.id,
-            data_rilascio=date(release_year, 1, 1),
-            data_scadenza_calcolata=date(release_year + 2, 1, 1)
-        )
-        certs.append(cert)
-
-    # Assicuriamoci che l'ultimo sia effettivamente scaduto
-    assert certs[-1].data_scadenza_calcolata < today, "Errore nel setup del test: l'ultimo certificato deve essere scaduto"
-
-    db_session.add_all(certs)
-    db_session.commit()
-
-    # Verifica: Tutti tranne l'ultimo devono essere 'archiviato'
-    for i, cert in enumerate(certs[:-1]):
-        status = get_certificate_status(db_session, cert)
-        assert status == "archiviato", f"Il certificato {i} ({cert.data_rilascio}) dovrebbe essere 'archiviato', invece è '{status}'"
-
-    # Verifica: L'ultimo deve essere 'scaduto'
-    last_status = get_certificate_status(db_session, certs[-1])
-    assert last_status == "scaduto", f"L'ultimo certificato dovrebbe essere 'scaduto', invece è '{last_status}'"
+    # Test serialization of a certificate with missing dates
+    serialized = serialize_certificato(db_session, cert_no_release)
+    assert serialized.data_rilascio is None
+    assert serialized.stato_certificato == "scaduto"

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 from app.api.main import router
 from app.db.session import get_db
-from app.db.models import Certificato, ValidationStatus, Corso, Dipendente, Base, User
+from app.db.models import Certificato, Corso, Dipendente, Base, User
 from app.api import deps
 from app.schemas.schemas import CertificatoSchema
 from sqlalchemy import create_engine
@@ -37,10 +37,13 @@ def test_client():
     app.include_router(router, prefix="/api/v1")
     app.dependency_overrides[get_db] = override_get_db
 
-    # Override auth
+    # Override auth and write protection for this app instance
     def override_get_current_user():
         return User(id=1, username="admin", is_admin=True)
+    def override_check_write_permission():
+        pass
     app.dependency_overrides[deps.get_current_user] = override_get_current_user
+    app.dependency_overrides[deps.check_write_permission] = override_check_write_permission
 
     return TestClient(app)
 
@@ -73,10 +76,11 @@ def test_orphans_visibility(test_client, db_session):
     orphan_cert = Certificato(
         dipendente_id=None,
         nome_dipendente_raw="GIUSEPPE ROSSI",
-        data_nascita_raw="01/01/1980",
+        data_nascita_raw=datetime.date(1980, 1, 1),
         corso_id=course.id,
         data_rilascio=datetime.date(2023, 1, 1),
-        stato_validazione=ValidationStatus.AUTOMATIC
+        validated=False,
+        assegnazione_fallita_ragione="Non trovato in anagrafica (matricola mancante)."
     )
     db_session.add(orphan_cert)
     db_session.commit()
@@ -93,7 +97,7 @@ def test_orphans_visibility(test_client, db_session):
         if cert["nome"] == "GIUSEPPE ROSSI" and cert["matricola"] is None:
             found = True
             assert cert["assegnazione_fallita_ragione"] == "Non trovato in anagrafica (matricola mancante)."
-            assert cert["categoria"] == "ATEX"
+            assert cert["categoria_corso"] == "ATEX"
 
     assert found, "Orphan certificate not found in validated=false list"
 
@@ -110,10 +114,10 @@ def test_csv_import_links_orphans(test_client, db_session):
     orphan = Certificato(
         dipendente_id=None,
         nome_dipendente_raw="BIANCHI PAOLO",
-        data_nascita_raw="15/05/1985",
+        data_nascita_raw=datetime.date(1985, 5, 15),
         corso_id=course.id,
         data_rilascio=datetime.date(2022, 5, 15),
-        stato_validazione=ValidationStatus.AUTOMATIC
+        validated=False
     )
     db_session.add(orphan)
     db_session.commit()

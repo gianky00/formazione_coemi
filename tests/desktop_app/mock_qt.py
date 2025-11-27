@@ -78,6 +78,8 @@ class DummyQWidget:
         pass
     def setCursor(self, cursor):
         pass
+    def setReadOnly(self, readonly):
+        pass
     def setTextInteractionFlags(self, flags):
         pass
     def setWordWrap(self, on):
@@ -214,6 +216,13 @@ class DummyQWidget:
         pass
     def reject(self):
         pass
+    def value(self):
+        try:
+            return int(self._text)
+        except (ValueError, TypeError):
+            return 0
+    def setValue(self, value):
+        self._text = str(value)
 
     # Signals
     @builtins.property
