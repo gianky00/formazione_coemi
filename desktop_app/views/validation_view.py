@@ -6,7 +6,7 @@ import pandas as pd
 import requests
 from ..api_client import APIClient
 from .edit_dialog import EditCertificatoDialog
-from ..services.document_locator import find_document
+from app.services.document_locator import find_document
 import subprocess
 import os
 

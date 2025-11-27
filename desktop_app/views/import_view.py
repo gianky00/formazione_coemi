@@ -68,7 +68,9 @@ class PdfWorker(QObject):
         original_filename = os.path.basename(file_path)
 
         # Helper for moving to error folder
-        def move_to_error(reason="Errore Generico", data=None):
+        def move_to_error(reason="Errore Generico", data=None, source_path=None):
+            if source_path is None: source_path = file_path
+
             error_category = "ALTRI ERRORI"
             if reason and "matricola" in reason.lower():
                 error_category = "ASSENZA MATRICOLE"
@@ -105,7 +107,7 @@ class PdfWorker(QObject):
 
                     target_dir = os.path.join(self.output_folder, "ERRORI ANALISI", error_category, employee_folder_name, categoria, stato)
                     os.makedirs(target_dir, exist_ok=True)
-                    shutil.move(file_path, os.path.join(target_dir, new_filename))
+                    shutil.move(source_path, os.path.join(target_dir, new_filename))
                     return
                 except Exception as e:
                     self.log_message.emit(f"Errore nella creazione struttura standard per errore: {e}. Fallback...", "red")
@@ -117,7 +119,7 @@ class PdfWorker(QObject):
             os.makedirs(target_dir, exist_ok=True)
 
             try:
-                shutil.move(file_path, os.path.join(target_dir, original_filename))
+                shutil.move(source_path, os.path.join(target_dir, original_filename))
             except Exception as e:
                 self.log_message.emit(f"Impossibile spostare il file {original_filename}: {e}", "red")
 
@@ -140,7 +142,7 @@ class PdfWorker(QObject):
                 data_nascita_raw = entities.get('data_nascita', '')
                 data_nascita_norm = data_nascita_raw.replace('-', '/') if data_nascita_raw else ''
 
-                certificato = {
+                base_cert = {
                     "nome": entities.get('nome', ''),
                     "corso": entities.get('corso', ''),
                     "categoria": entities.get('categoria', 'ALTRO'),
@@ -148,51 +150,77 @@ class PdfWorker(QObject):
                     "data_scadenza": data_scadenza_norm,
                     "data_nascita": data_nascita_norm
                 }
-                save_response = requests.post(f"{self.api_client.base_url}/certificati/", json=certificato, headers=self.api_client._get_headers())
 
-                if save_response.status_code == 200:
-                    cert_data = save_response.json()
-                    ragione_fallimento = cert_data.get('assegnazione_fallita_ragione')
+                certs_to_process = []
+                corso_raw = entities.get('corso', '')
+                categoria_raw = entities.get('categoria', 'ALTRO')
 
-                    if ragione_fallimento:
-                        log_msg = f"File {original_filename} analizzato. Assegnazione manuale richiesta: {ragione_fallimento}"
-                        self.log_message.emit(log_msg, "orange")
-                        move_to_error(ragione_fallimento, cert_data)
-                    else:
-                        nome_completo = cert_data.get('nome', 'ERRORE')
-                        self.log_message.emit(f"File {original_filename} elaborato e salvato per {nome_completo}.", "default")
-                        try:
-                            matricola = cert_data.get('matricola') if cert_data.get('matricola') else 'N-A'
-                            categoria = cert_data.get('categoria', 'CATEGORIA_NON_TROVATA')
+                # Bivalent Logic: Nomina Antincendio + Primo Soccorso
+                if categoria_raw == "NOMINA" and corso_raw and \
+                   "antincendio" in corso_raw.lower() and "primo soccorso" in corso_raw.lower():
+                    c1 = base_cert.copy()
+                    c1["categoria"] = "ANTINCENDIO"
+                    certs_to_process.append(c1)
 
-                            data_scadenza_str = cert_data.get('data_scadenza')
-                            stato = 'STORICO'
-                            if not data_scadenza_str:
-                                stato = 'ATTIVO'
-                                file_scadenza = "no scadenza"
-                            else:
-                                scadenza_date = datetime.strptime(data_scadenza_str, '%d/%m/%Y').date()
-                                if scadenza_date >= datetime.now().date():
-                                    stato = 'ATTIVO'
-                                file_scadenza = scadenza_date.strftime('%d_%m_%Y')
-
-                            employee_folder_name = f"{nome_completo} ({matricola})"
-                            new_filename = f"{nome_completo} ({matricola}) - {categoria} - {file_scadenza}.pdf"
-
-                            documenti_folder = os.path.join(self.output_folder, "DOCUMENTI DIPENDENTI")
-                            dest_path = os.path.join(documenti_folder, employee_folder_name, categoria, stato)
-                            os.makedirs(dest_path, exist_ok=True)
-
-                            shutil.move(file_path, os.path.join(dest_path, new_filename))
-                        except Exception as e:
-                            self.log_message.emit(f"Errore durante lo spostamento del file {original_filename}: {e}", "red")
-                            move_to_error(f"Errore Spostamento: {e}", cert_data)
-                elif save_response.status_code == 409:
-                    self.log_message.emit(f"{original_filename} - Documento risulta già in Database.", "orange")
-                    move_to_error("Già in Database", certificato)
+                    c2 = base_cert.copy()
+                    c2["categoria"] = "PRIMO SOCCORSO"
+                    certs_to_process.append(c2)
                 else:
-                    self.log_message.emit(f"Errore durante il salvaggio di {original_filename}: {save_response.text}", "red")
-                    move_to_error(f"Errore Salvaggio: {save_response.text}", certificato)
+                    certs_to_process.append(base_cert)
+
+                for idx, certificato in enumerate(certs_to_process):
+                    # Manage file copy for multiple operations
+                    current_op_path = file_path
+                    if idx < len(certs_to_process) - 1:
+                        # Create temp copy for non-final operations
+                        current_op_path = f"{file_path}_copy_{idx}.pdf"
+                        shutil.copy2(file_path, current_op_path)
+
+                    save_response = requests.post(f"{self.api_client.base_url}/certificati/", json=certificato, headers=self.api_client._get_headers())
+
+                    if save_response.status_code == 200:
+                        cert_data = save_response.json()
+                        ragione_fallimento = cert_data.get('assegnazione_fallita_ragione')
+
+                        if ragione_fallimento:
+                            log_msg = f"File {original_filename} ({certificato['categoria']}). Assegnazione manuale richiesta: {ragione_fallimento}"
+                            self.log_message.emit(log_msg, "orange")
+                            move_to_error(ragione_fallimento, cert_data, source_path=current_op_path)
+                        else:
+                            nome_completo = cert_data.get('nome', 'ERRORE')
+                            self.log_message.emit(f"File {original_filename} ({certificato['categoria']}) salvato per {nome_completo}.", "default")
+                            try:
+                                matricola = cert_data.get('matricola') if cert_data.get('matricola') else 'N-A'
+                                categoria = cert_data.get('categoria', 'CATEGORIA_NON_TROVATA')
+
+                                data_scadenza_str = cert_data.get('data_scadenza')
+                                stato = 'STORICO'
+                                if not data_scadenza_str:
+                                    stato = 'ATTIVO'
+                                    file_scadenza = "no scadenza"
+                                else:
+                                    scadenza_date = datetime.strptime(data_scadenza_str, '%d/%m/%Y').date()
+                                    if scadenza_date >= datetime.now().date():
+                                        stato = 'ATTIVO'
+                                    file_scadenza = scadenza_date.strftime('%d_%m_%Y')
+
+                                employee_folder_name = f"{nome_completo} ({matricola})"
+                                new_filename = f"{nome_completo} ({matricola}) - {categoria} - {file_scadenza}.pdf"
+
+                                documenti_folder = os.path.join(self.output_folder, "DOCUMENTI DIPENDENTI")
+                                dest_path = os.path.join(documenti_folder, employee_folder_name, categoria, stato)
+                                os.makedirs(dest_path, exist_ok=True)
+
+                                shutil.move(current_op_path, os.path.join(dest_path, new_filename))
+                            except Exception as e:
+                                self.log_message.emit(f"Errore durante lo spostamento del file {original_filename}: {e}", "red")
+                                move_to_error(f"Errore Spostamento: {e}", cert_data, source_path=current_op_path)
+                    elif save_response.status_code == 409:
+                        self.log_message.emit(f"{original_filename} ({certificato['categoria']}) - Già in Database.", "orange")
+                        move_to_error("Già in Database", certificato, source_path=current_op_path)
+                    else:
+                        self.log_message.emit(f"Errore durante il salvaggio di {original_filename}: {save_response.text}", "red")
+                        move_to_error(f"Errore Salvaggio: {save_response.text}", certificato, source_path=current_op_path)
             else:
                 self.log_message.emit(f"Errore durante l'elaborazione di {original_filename}: {response.text}", "red")
                 move_to_error(f"Errore Analisi: {response.text}")

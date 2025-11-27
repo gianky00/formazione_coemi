@@ -151,11 +151,16 @@ class ScadenzarioView(QWidget):
         try:
             response = requests.get(f"{self.api_client.base_url}/certificati/?validated=true", headers=self.api_client._get_headers())
             all_data = response.json() if response.status_code == 200 else []
-            for item in all_data:
+
+            # Exclude specific categories
+            excluded_categories = ['ATEX', 'BLSD', 'DIRETTIVA SEVESO', 'DIRIGENTI E FORMATORI', 'H2S', 'MEDICO COMPETENTE', 'HLO']
+            filtered_data = [item for item in all_data if item.get('categoria') not in excluded_categories]
+
+            for item in filtered_data:
                 item['Dipendente'] = item['nome']
             today = QDate.currentDate()
             self.certificates = sorted([
-                item for item in all_data
+                item for item in filtered_data
                 if 'data_scadenza' in item and item.get('data_scadenza') and today.daysTo(QDate.fromString(item['data_scadenza'], "dd/MM/yyyy")) <= 90
             ], key=lambda x: QDate.fromString(x['data_scadenza'], "dd/MM/yyyy"))
         except requests.exceptions.RequestException:
@@ -352,141 +357,13 @@ class ScadenzarioView(QWidget):
         if not path:
             return
 
-        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-        printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
-        printer.setOutputFileName(path)
-        printer.setPageSize(QPageSize(QPageSize.PageSizeId.A3))
-        printer.setPageOrientation(QPageLayout.Orientation.Landscape)
-
-        painter = QPainter(printer)
-
-        # --- Layout Constants ---
-        margin = 50
-        header_height = 80
-        footer_height = 50
-        row_height = 25
-        label_area_width_ratio = 0.35
-
-        page_rect = printer.pageRect(QPrinter.Unit.Point)
-        content_rect = QRectF(
-            page_rect.left() + margin,
-            page_rect.top() + margin + header_height,
-            page_rect.width() - 2 * margin,
-            page_rect.height() - 2 * margin - header_height - footer_height
-        )
-
-        # --- Fonts and Pens ---
-        font_title = QFont("Arial", 18, QFont.Weight.Bold)
-        font_header = QFont("Arial", 10, QFont.Weight.Bold)
-        font_body = QFont("Arial", 9)
-        font_footer = QFont("Arial", 8)
-        pen_default = QPen(Qt.GlobalColor.black)
-        pen_light = QPen(QColor("#D3D3D3"))
-
-        # --- Logo ---
-        logo_image = QImage("desktop_app/assets/logo.png")
-
-        # --- Data ---
-        sorted_certs = sorted(self.certificates, key=lambda x: QDate.fromString(x['data_scadenza'], "dd/MM/yyyy"))
-        items_per_page = int(content_rect.height() / row_height)
-        if items_per_page <= 0:
-            QMessageBox.critical(self, "Errore", "Impossibile calcolare il layout della pagina, l'altezza è troppo piccola.")
-            return
-
-        total_pages = max(1, (len(sorted_certs) + items_per_page - 1) // items_per_page)
-
-        # --- Date Range for Gantt ---
-        gantt_start_date = self.current_date.addDays(-self.current_date.day() + 1)
-        gantt_end_date = gantt_start_date.addDays(int(30.44 * self.zoom_months)) # Use zoom_months
-        total_days = max(1, gantt_start_date.daysTo(gantt_end_date))
-
-        # --- Drawing Loop ---
-        for page_num in range(total_pages):
-            if page_num > 0:
-                printer.newPage()
-
-            # --- Header ---
-            painter.setFont(font_title)
-            painter.drawText(QRectF(page_rect.left(), page_rect.top() + margin, page_rect.width(), 40), Qt.AlignmentFlag.AlignCenter, "Report Scadenzario Certificati")
-            if not logo_image.isNull():
-                logo_target_rect = QRectF(page_rect.left() + margin, page_rect.top() + margin, 150, 60)
-                painter.drawImage(logo_target_rect, logo_image)
-
-            # --- Footer ---
-            painter.setFont(font_footer)
-            painter.setPen(pen_default)
-            footer_text = "Restricted | Internal Use Only"
-            painter.drawText(QRectF(page_rect.left(), page_rect.bottom() - margin, page_rect.width(), footer_height), Qt.AlignmentFlag.AlignCenter, footer_text)
-            page_text = f"Pagina {page_num + 1} di {total_pages}"
-            painter.drawText(QRectF(page_rect.right() - margin - 100, page_rect.bottom() - margin, 100, footer_height), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, page_text)
-
-            # --- Gantt Area ---
-            label_area_width = content_rect.width() * label_area_width_ratio
-            gantt_area_width = content_rect.width() * (1 - label_area_width_ratio)
-            gantt_area_x_start = content_rect.left() + label_area_width
-            col_width = gantt_area_width / total_days
-
-            # Draw Month Headers and Grid
-            # Note: For PDF we might want fixed months instead of floating zoom.
-            # Using floating zoom logic is fine as long as we calculate consistently.
-
-            current_draw_date = gantt_start_date
-            while current_draw_date <= gantt_end_date:
-                if current_draw_date.day() != 1:
-                     # Snap to next month
-                     next_month = current_draw_date.addMonths(1)
-                     next_month.setDate(next_month.year(), next_month.month(), 1)
-                     current_draw_date = next_month
-                     continue
-
-                days_from_start = gantt_start_date.daysTo(current_draw_date)
-                if days_from_start <= total_days:
-                    x_pos = gantt_area_x_start + days_from_start * col_width
-                    painter.setPen(pen_light)
-                    painter.drawLine(int(x_pos), int(content_rect.top()), int(x_pos), int(content_rect.bottom()))
-                    painter.setPen(pen_default)
-                    painter.setFont(font_header)
-                    painter.drawText(int(x_pos + 3), int(content_rect.top() - 5), current_draw_date.toString("MMM yyyy"))
-
-                current_draw_date = current_draw_date.addMonths(1)
-
-            # --- Draw Certificate Rows for the current page ---
-            start_item_index = page_num * items_per_page
-            end_item_index = min(start_item_index + items_per_page, len(sorted_certs))
-
-            for i in range(start_item_index, end_item_index):
-                cert_data = sorted_certs[i]
-                row_index_on_page = i - start_item_index
-                current_y = content_rect.top() + (row_index_on_page * row_height)
-
-                # Draw Text Label
-                painter.setFont(font_body)
-                painter.setPen(pen_default)
-                label = f"{cert_data['Dipendente']} ({cert_data.get('matricola', 'N/A')}) - {cert_data['categoria']}"
-                label_rect = QRectF(content_rect.left(), current_y, label_area_width - 10, row_height)
-
-                font_metrics = painter.fontMetrics()
-                elided_label = font_metrics.elidedText(label, Qt.TextElideMode.ElideRight, int(label_rect.width()))
-                painter.drawText(label_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, elided_label)
-
-                # Draw Gantt Bar
-                today = QDate.currentDate()
-                expiry_date = QDate.fromString(cert_data['data_scadenza'], "dd/MM/yyyy")
-                days_to_expiry = today.daysTo(expiry_date)
-                bar_start_date = expiry_date.addDays(-30)
-
-                start_x_offset = gantt_start_date.daysTo(bar_start_date) * col_width
-                end_x_offset = gantt_start_date.daysTo(expiry_date) * col_width
-                bar_width = max(2, end_x_offset - start_x_offset)
-
-                color = QColor(self.legend_items["Avviso (30-90 gg)"])
-                if days_to_expiry < 30: color = QColor(self.legend_items["In scadenza (< 30 gg)"])
-                if days_to_expiry < 0: color = QColor(self.legend_items["Scaduto"])
-
-                painter.setBrush(QBrush(color))
-                painter.setPen(Qt.PenStyle.NoPen)
-                bar_rect = QRectF(gantt_area_x_start + start_x_offset, current_y + 4, bar_width, row_height - 8)
-                painter.drawRoundedRect(bar_rect, 4, 4)
-
-        painter.end()
-        QMessageBox.information(self, "Esportazione Riuscita", f"Gantt esportato con successo in {path}")
+        try:
+            response = requests.get(f"{self.api_client.base_url}/notifications/export-report", headers=self.api_client._get_headers())
+            if response.status_code == 200:
+                with open(path, 'wb') as f:
+                    f.write(response.content)
+                QMessageBox.information(self, "Esportazione Riuscita", f"Report esportato con successo in {path}")
+            else:
+                QMessageBox.critical(self, "Errore", f"Errore durante l'esportazione: {response.text}")
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile esportare il PDF: {e}")
