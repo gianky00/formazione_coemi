@@ -64,7 +64,18 @@ def _generate_prompt() -> str:
 Sei un assistente AI specializzato nell'analisi di documenti sulla sicurezza sul lavoro per l'azienda COEMI.
 Analizza il certificato o documento PDF che ti fornisco.
 
-Estrai le seguenti informazioni e classificalo. Restituisci ESCLUSIVAMENTE un oggetto JSON valido.
+Restituisci ESCLUSIVAMENTE un oggetto JSON valido.
+
+Prima di tutto, applica questo CONTROLLO BINARIO:
+
+1. **SCARTO (REJECT):** SE il documento è un programma generico di un corso, un indice di argomenti (syllabus), o una lista di contenuti formativi **SENZA il nome di uno specifico partecipante**:
+   Restituisci: {{"status": "REJECT", "reason": "Syllabus/Generic"}}
+
+2. **VALIDO (PROCESSO NORMALE):** SE il documento si riferisce a una **persona specifica** (ha un nome e/o data di nascita), procedi con l'estrazione.
+   - SE non rientra in nessuna categoria nota, usa "ALTRO".
+   - NON confondere "Categoria Sconosciuta" con "Documento Generico". Se c'è un nome di persona, è SEMPRE "ALTRO", MAI "REJECT".
+
+Se il documento è VALIDO, estrai le seguenti informazioni:
 
 1.  "nome": Il nome completo del partecipante (es. "MARIO ROSSI"). Se non c'è, restituisci null.
 2.  "data_nascita": La data di nascita del partecipante (formato DD-MM-AAAA). Se non la trovi, restituisci null.
@@ -129,6 +140,12 @@ def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
             if not data:
                 raise ValueError("AI returned an empty list.")
             data = data[0]
+
+        # Handle Rejection
+        if data.get("status") == "REJECT":
+            reason = data.get("reason", "Generic/Syllabus")
+            logging.warning(f"Document rejected by AI: {reason}")
+            return {"error": f"REJECTED: {reason}", "is_rejected": True}
 
         data.setdefault("categoria", "ALTRO")
 
