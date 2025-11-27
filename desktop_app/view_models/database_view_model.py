@@ -31,8 +31,16 @@ class DatabaseViewModel(QObject):
                     'nome': 'Dipendente',
                     'data_rilascio': 'DATA_EMISSIONE',
                     'corso': 'DOCUMENTO',
-                    'categoria_corso': 'categoria'
+                    'categoria_corso': 'categoria',
+                    'data_scadenza_calcolata': 'data_scadenza'
                 }, inplace=True)
+
+                # Date Formatting
+                date_cols = ['DATA_EMISSIONE', 'data_scadenza', 'data_nascita']
+                for col in date_cols:
+                    if col in self._df_original.columns:
+                        self._df_original[col] = pd.to_datetime(self._df_original[col], errors='coerce').dt.strftime('%d/%m/%Y')
+                        self._df_original[col] = self._df_original[col].fillna("")
             else:
                 self._df_original = pd.DataFrame()
 

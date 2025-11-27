@@ -163,8 +163,17 @@ class ValidationView(QWidget):
                     'nome': 'DIPENDENTE',
                     'data_rilascio': 'DATA_EMISSIONE',
                     'corso': 'DOCUMENTO',
-                    'assegnazione_fallita_ragione': 'CAUSA'
+                    'assegnazione_fallita_ragione': 'CAUSA',
+                    'categoria_corso': 'categoria',
+                    'data_scadenza_calcolata': 'data_scadenza'
                 }, inplace=True)
+
+                # Date Formatting
+                date_cols = ['DATA_EMISSIONE', 'data_scadenza', 'data_nascita']
+                for col in date_cols:
+                    if col in self.df.columns:
+                        self.df[col] = pd.to_datetime(self.df[col], errors='coerce').dt.strftime('%d/%m/%Y')
+                        self.df[col] = self.df[col].fillna("")
 
             self.model = SimpleTableModel(self.df, self)
             self.table_view.setModel(self.model)
