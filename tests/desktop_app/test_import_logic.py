@@ -15,6 +15,7 @@ class TestPdfWorker(unittest.TestCase):
         self.worker.status_update = MagicMock()
         self.worker.progress = MagicMock()
         self.worker.finished = MagicMock()
+        self.worker.etr_update = MagicMock() # Added mock for etr_update
 
     @patch('desktop_app.views.import_view.requests.post')
     @patch('desktop_app.views.import_view.shutil.move')
@@ -46,7 +47,8 @@ class TestPdfWorker(unittest.TestCase):
             "id": 1,
             "nome": "Mario Rossi",
             "matricola": "12345",
-            "categoria": "ANTINCENDIO",
+            "categoria": "ANTINCENDIO", # Note: code uses categoria_corso if available
+            "categoria_corso": "ANTINCENDIO",
             "data_scadenza": "01/01/2030",
             "assegnazione_fallita_ragione": None
         }
@@ -87,6 +89,7 @@ class TestPdfWorker(unittest.TestCase):
             "nome": "Luigi Verdi",
             "matricola": "67890",
             "categoria": "PRIMO SOCCORSO",
+            "categoria_corso": "PRIMO SOCCORSO",
             "data_scadenza": "01/01/2020", # Expired
             "assegnazione_fallita_ragione": None
         }
@@ -126,6 +129,7 @@ class TestPdfWorker(unittest.TestCase):
             "nome": "Anna Bianchi",
             "matricola": "11223",
             "categoria": "NOMINA",
+            "categoria_corso": "NOMINA",
             "data_scadenza": None, # No expiration
             "assegnazione_fallita_ragione": None
         }
@@ -174,12 +178,11 @@ class TestPdfWorker(unittest.TestCase):
         # Assertions
         expected_base = os.path.dirname(file_path)
 
-        # UPDATED: Should be moved to PDF ANALIZZATI, NOT NON ANALIZZATI
-        # Because the data was successfully saved to the DB (even if orphaned)
-        expected_folder = os.path.join(expected_base, "PDF ANALIZZATI")
+        # UPDATED: Should be moved to DOCUMENTI ANALIZZATI ASSENZA MATRICOLE
+        expected_folder = os.path.join(expected_base, "DOCUMENTI ANALIZZATI ASSENZA MATRICOLE")
         expected_dest = os.path.join(expected_folder, "orphan.pdf")
 
-        # We need to verify that "PDF ANALIZZATI" was created
+        # We need to verify that folder was created
         mock_makedirs.assert_any_call(expected_folder, exist_ok=True)
         mock_move.assert_called_with(file_path, expected_dest)
 
@@ -204,9 +207,48 @@ class TestPdfWorker(unittest.TestCase):
         # Assertions
         expected_base = os.path.dirname(file_path)
 
-        # Should be moved to NON ANALIZZATI
-        expected_folder = os.path.join(expected_base, "NON ANALIZZATI")
+        # Should be moved to DOCUMENTI NON ANALIZZATI
+        expected_folder = os.path.join(expected_base, "DOCUMENTI NON ANALIZZATI")
         expected_dest = os.path.join(expected_folder, "error.pdf")
+
+        mock_makedirs.assert_any_call(expected_folder, exist_ok=True)
+        mock_move.assert_called_with(file_path, expected_dest)
+
+    @patch('desktop_app.views.import_view.requests.post')
+    @patch('desktop_app.views.import_view.shutil.move')
+    @patch('desktop_app.views.import_view.os.makedirs')
+    @patch('builtins.open', new_callable=mock_open, read_data=b"pdf_content")
+    def test_process_pdf_missing_category(self, mock_file, mock_makedirs, mock_move, mock_post):
+        # Setup
+        file_path = "/tmp/test_folder/missing_cat.pdf"
+
+        # Mock API responses
+        mock_upload_resp = MagicMock()
+        mock_upload_resp.status_code = 200
+        mock_upload_resp.json.return_value = {"entities": {}}
+
+        mock_save_resp = MagicMock()
+        mock_save_resp.status_code = 200
+        mock_save_resp.json.return_value = {
+            "id": 1,
+            "nome": "Mario Rossi",
+            "matricola": "12345",
+            "categoria_corso": "ASSENZA CATEGORIA", # Server returns this
+            "data_scadenza": "01/01/2030",
+            "assegnazione_fallita_ragione": None
+        }
+
+        mock_post.side_effect = [mock_upload_resp, mock_save_resp]
+
+        # Execute
+        self.worker.process_pdf(file_path)
+
+        # Assertions
+        expected_base = os.path.dirname(file_path)
+
+        # UPDATED: Should be moved to DOCUMENTI ANALIZZATI ASSENZA CATEGORIE
+        expected_folder = os.path.join(expected_base, "DOCUMENTI ANALIZZATI ASSENZA CATEGORIE")
+        expected_dest = os.path.join(expected_folder, "missing_cat.pdf")
 
         mock_makedirs.assert_any_call(expected_folder, exist_ok=True)
         mock_move.assert_called_with(file_path, expected_dest)

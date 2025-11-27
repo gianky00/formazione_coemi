@@ -30,7 +30,8 @@ class DatabaseViewModel(QObject):
                 self._df_original.rename(columns={
                     'nome': 'Dipendente',
                     'data_rilascio': 'DATA_EMISSIONE',
-                    'corso': 'DOCUMENTO'
+                    'corso': 'DOCUMENTO',
+                    'categoria_corso': 'categoria'
                 }, inplace=True)
             else:
                 self._df_original = pd.DataFrame()

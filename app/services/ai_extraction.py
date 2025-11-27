@@ -65,6 +65,7 @@ def _generate_prompt() -> str:
     
     esempi_categorie = """
 - ANTINCENDIO: "Addetto Antincendio Rischio Basso", "Corso Antincendio Rischio Medio"
+- PRIMO SOCCORSO: "Addetto Primo Soccorso", "Aggiornamento Primo Soccorso"
 - PREPOSTO: [USA QUESTA SOLO PER CORSI/ATTESTATI] "Corso per Preposti alla Sicurezza", "Aggiornamento Preposto".
 - NOMINA: [USA QUESTA PER LETTERE DI INCARICO/ATTRIBUZIONE] "NOMINA CAPO CANTIERE", "NOMINA PREPOSTO", "Attribuzione e competenze del ruolo di Preposto"
 - VISITA MEDICA: [USA QUESTA PER GIUDIZI DI IDONEITÀ] "Giudizio di idoneità alla Mansione Specifica", "Visita medica periodica"
@@ -75,7 +76,7 @@ def _generate_prompt() -> str:
 - HLO: [USA QUESTA PER ATTESTATI HLO] "Attestato HLO", "Certificato HLO"
 - TESSERA HLO: [USA QUESTA PER TESSERE HLO] "Tessera HLO", "Badge HLO"
 - ATEX: [USA QUESTA PER CORSI ATEX] "Formazione su Protezione da Atmosfere Esplosive", "ATEX", "Addetti verifiche impianti elettrici ATEX"
-- ALTRO: (qualsiasi altro documento non classificabile)
+- ASSENZA CATEGORIA: (qualsiasi altro documento non classificabile)
 """
     return f"""
 Sei un assistente AI specializzato nell'analisi di documenti sulla sicurezza sul lavoro per l'azienda COEMI.
@@ -109,7 +110,7 @@ Estrai le seguenti informazioni e classificalo. Restituisci ESCLUSIVAMENTE un og
     - NON classificare "NOMINA... Preposto" come "PREPOSTO". Quella è una "NOMINA".
     - NON classificare un "Giudizio di idoneità" in base alla mansione. La categoria è "VISITA MEDICA".
 
-    Se non riesci a classificare, usa "ALTRO".
+    Se non riesci a classificare, usa "ASSENZA CATEGORIA".
 
 JSON:
 """
@@ -162,14 +163,14 @@ def extract_entities_with_ai(pdf_bytes: bytes) -> Dict[str, Any]:
                 raise ValueError("AI returned an empty list.")
             data = data[0]
 
-        data.setdefault("categoria", "ALTRO")
+        data.setdefault("categoria", "ASSENZA CATEGORIA")
 
         valid_categories = list(CATEGORIE_STATICHE) + ["ATEX"]
         if data.get("categoria") not in valid_categories:
             logging.warning(
-                f"AI returned an invalid category '{data.get('categoria')}'. Defaulting to 'ALTRO'."
+                f"AI returned an invalid category '{data.get('categoria')}'. Defaulting to 'ASSENZA CATEGORIA'."
             )
-            data["categoria"] = "ALTRO"
+            data["categoria"] = "ASSENZA CATEGORIA"
 
         logging.info(f"Successfully extracted data: {data}")
         return data

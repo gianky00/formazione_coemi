@@ -59,12 +59,6 @@ class PdfWorker(QObject):
 
     def process_pdf(self, file_path):
         base_folder = os.path.dirname(file_path)
-        analyzed_folder = os.path.join(base_folder, "DOCUMENTI ANALIZZATI ASSENZA MATRICOLE")
-        unanalyzed_folder = os.path.join(base_folder, "DOCUMENTI NON ANALIZZATI")
-
-        os.makedirs(analyzed_folder, exist_ok=True)
-        os.makedirs(unanalyzed_folder, exist_ok=True)
-
         original_filename = os.path.basename(file_path)
 
         try:
@@ -103,48 +97,73 @@ class PdfWorker(QObject):
                     if ragione_fallimento:
                         log_msg = f"File {original_filename} analizzato. Assegnazione manuale richiesta: {ragione_fallimento}"
                         self.log_message.emit(log_msg, "orange")
-                        shutil.move(file_path, os.path.join(analyzed_folder, original_filename))
+                        target_folder = os.path.join(base_folder, "DOCUMENTI ANALIZZATI ASSENZA MATRICOLE")
+                        os.makedirs(target_folder, exist_ok=True)
+                        shutil.move(file_path, os.path.join(target_folder, original_filename))
                     else:
                         nome_completo = cert_data.get('nome', 'ERRORE')
                         self.log_message.emit(f"File {original_filename} elaborato e salvato per {nome_completo}.", "default")
                         try:
                             matricola = cert_data.get('matricola') if cert_data.get('matricola') else 'N-A'
-                            categoria = cert_data.get('categoria', 'CATEGORIA_NON_TROVATA')
+                            # Use categoria_corso from response, or fallback to request data if needed
+                            categoria = cert_data.get('categoria_corso') or cert_data.get('categoria') or 'ASSENZA CATEGORIA'
 
-                            data_scadenza_str = cert_data.get('data_scadenza')
-                            stato = 'STORICO'
-                            if not data_scadenza_str:
-                                stato = 'ATTIVO'
-                                file_scadenza = "no scadenza"
+                            if categoria == "ASSENZA CATEGORIA":
+                                target_folder = os.path.join(base_folder, "DOCUMENTI ANALIZZATI ASSENZA CATEGORIE")
+                                os.makedirs(target_folder, exist_ok=True)
+                                shutil.move(file_path, os.path.join(target_folder, original_filename))
                             else:
-                                scadenza_date = datetime.strptime(data_scadenza_str, '%d/%m/%Y').date()
-                                if scadenza_date >= datetime.now().date():
+                                data_scadenza_str = cert_data.get('data_scadenza') or cert_data.get('data_scadenza_calcolata')
+                                stato = 'STORICO'
+                                if not data_scadenza_str:
                                     stato = 'ATTIVO'
-                                file_scadenza = scadenza_date.strftime('%d_%m_%Y')
+                                    file_scadenza = "no scadenza"
+                                else:
+                                    try:
+                                        scadenza_date = datetime.strptime(data_scadenza_str, '%d/%m/%Y').date()
+                                    except ValueError:
+                                        try:
+                                            scadenza_date = datetime.strptime(data_scadenza_str, '%Y-%m-%d').date()
+                                        except:
+                                            scadenza_date = datetime.now().date()
 
-                            employee_folder_name = f"{nome_completo} ({matricola})"
-                            new_filename = f"{nome_completo} ({matricola}) - {categoria} - {file_scadenza}.pdf"
+                                    if scadenza_date >= datetime.now().date():
+                                        stato = 'ATTIVO'
+                                    file_scadenza = scadenza_date.strftime('%d_%m_%Y')
 
-                            documenti_folder = os.path.join(base_folder, "DOCUMENTI DIPENDENTI")
-                            dest_path = os.path.join(documenti_folder, employee_folder_name, categoria, stato)
-                            os.makedirs(dest_path, exist_ok=True)
+                                employee_folder_name = f"{nome_completo} ({matricola})"
+                                new_filename = f"{nome_completo} ({matricola}) - {categoria} - {file_scadenza}.pdf"
 
-                            shutil.move(file_path, os.path.join(dest_path, new_filename))
+                                documenti_folder = os.path.join(base_folder, "DOCUMENTI DIPENDENTI")
+                                dest_path = os.path.join(documenti_folder, employee_folder_name, categoria, stato)
+                                os.makedirs(dest_path, exist_ok=True)
+
+                                shutil.move(file_path, os.path.join(dest_path, new_filename))
                         except Exception as e:
                             self.log_message.emit(f"Errore durante lo spostamento del file {original_filename}: {e}", "red")
+                            unanalyzed_folder = os.path.join(base_folder, "DOCUMENTI NON ANALIZZATI")
+                            os.makedirs(unanalyzed_folder, exist_ok=True)
                             shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
                 elif save_response.status_code == 409:
                     self.log_message.emit(f"{original_filename} - Documento risulta già in Database.", "orange")
+                    unanalyzed_folder = os.path.join(base_folder, "DOCUMENTI NON ANALIZZATI")
+                    os.makedirs(unanalyzed_folder, exist_ok=True)
                     shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
                 else:
                     self.log_message.emit(f"Errore durante il salvaggio di {original_filename}: {save_response.text}", "red")
+                    unanalyzed_folder = os.path.join(base_folder, "DOCUMENTI NON ANALIZZATI")
+                    os.makedirs(unanalyzed_folder, exist_ok=True)
                     shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
             else:
                 self.log_message.emit(f"Errore durante l'elaborazione di {original_filename}: {response.text}", "red")
+                unanalyzed_folder = os.path.join(base_folder, "DOCUMENTI NON ANALIZZATI")
+                os.makedirs(unanalyzed_folder, exist_ok=True)
                 shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
         except (requests.exceptions.RequestException, IOError) as e:
             self.log_message.emit(f"Errore critico durante l'elaborazione di {original_filename}: {e}", "red")
             try:
+                unanalyzed_folder = os.path.join(base_folder, "DOCUMENTI NON ANALIZZATI")
+                os.makedirs(unanalyzed_folder, exist_ok=True)
                 shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
             except Exception as move_error:
                 self.log_message.emit(f"Impossibile spostare il file {original_filename}: {move_error}", "red")
