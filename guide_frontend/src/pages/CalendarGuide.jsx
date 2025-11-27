@@ -38,11 +38,11 @@ const CalendarGuide = () => {
         <div className="flex flex-wrap gap-4 mt-4 bg-gray-50 p-3 rounded-lg border">
           <div className="flex items-center gap-2">
             <span className="w-4 h-4 rounded" style={{ backgroundColor: '#EF4444' }}></span>
-            <span className="text-sm font-medium">Scaduto</span>
+            <span className="text-sm font-medium">scaduto</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-4 h-4 rounded" style={{ backgroundColor: '#F97316' }}></span>
-            <span className="text-sm font-medium">In scadenza (&lt; 30 gg)</span>
+            <span className="text-sm font-medium">in scadenza (&lt; 30 gg)</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-4 h-4 rounded" style={{ backgroundColor: '#FBBF24' }}></span>
@@ -82,7 +82,7 @@ const CalendarGuide = () => {
               <div>
                 <strong>Vista ad Albero:</strong>
                 <p className="text-sm text-gray-500 mt-1">
-                  Sulla sinistra, una vista ad albero raggruppa i certificati per <strong>Categoria</strong>, poi per <strong>Stato</strong> (In Scadenza / Scaduti) e infine per <strong>Dipendente</strong>. Clicca su un dipendente per evidenziare la sua barra corrispondente nel grafico.
+                  Sulla sinistra, una vista ad albero raggruppa i certificati per <strong>Categoria</strong>, poi per <strong>Stato</strong> (in scadenza / scaduti) e infine per <strong>Dipendente</strong>. Clicca su un dipendente per evidenziare la sua barra corrispondente nel grafico.
                 </p>
               </div>
             </li>

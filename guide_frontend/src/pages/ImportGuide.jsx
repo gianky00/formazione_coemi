@@ -48,7 +48,7 @@ const ImportGuide = () => {
             <li className="flex items-start gap-3">
               <Cpu size={20} className="text-purple-500 mt-1 shrink-0" />
               <span>
-                <strong>Analisi AI:</strong> Il sistema estrae automaticamente il <strong>DIPENDENTE</strong>, il <strong>CORSO/VISITA MEDICA</strong>, la <strong>DATA EMISSIONE</strong> e la scadenza.
+                <strong>Analisi AI:</strong> Il sistema estrae automaticamente il <strong>DIPENDENTE</strong>, il <strong>DOCUMENTO/VISITA MEDICA</strong>, la <strong>DATA EMISSIONE</strong> e la scadenza.
               </span>
             </li>
             <li className="flex items-start gap-3">
@@ -78,6 +78,16 @@ const ImportGuide = () => {
                       <div className="flex items-center gap-2 mt-2">
                           <span>L</span>
                           <span className="text-green-700">📁 CATEGORIA</span>
+                      </div>
+                      <div className="ml-6 border-l border-gray-300 pl-4">
+                        <div className="flex items-center gap-2 mt-2">
+                            <span>L</span>
+                            <span className="text-teal-700">📁 ATTIVO</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                            <span>L</span>
+                            <span className="text-gray-500">📁 STORICO</span>
+                        </div>
                       </div>
                   </div>
                 </div>

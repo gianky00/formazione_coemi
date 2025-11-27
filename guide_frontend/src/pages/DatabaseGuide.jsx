@@ -51,7 +51,7 @@ const DatabaseGuide = () => {
             <li className="flex items-start gap-3">
               <CheckCircle size={20} className="text-green-500 mt-1 shrink-0" />
               <span>
-                <strong>Monitoraggio Scadenze:</strong> La colonna <strong>Stato</strong> usa delle "pillole" colorate per mostrare a colpo d'occhio la situazione (Attivo, In Scadenza, Scaduto).
+                <strong>Monitoraggio Scadenze:</strong> La colonna <strong>Stato</strong> usa delle "pillole" colorate per mostrare a colpo d'occhio la situazione (attivo, in scadenza, scaduto).
               </span>
             </li>
             <li className="flex items-start gap-3">
