@@ -115,16 +115,19 @@ class DatabaseView(QWidget):
 
         self.dipendente_filter = QComboBox()
         self.dipendente_filter.setMinimumWidth(200)
+        self.dipendente_filter.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         filter_layout.addWidget(QLabel("Dipendente:"))
         filter_layout.addWidget(self.dipendente_filter)
 
         self.categoria_filter = QComboBox()
         self.categoria_filter.setMinimumWidth(200)
+        self.categoria_filter.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         filter_layout.addWidget(QLabel("Categoria:"))
         filter_layout.addWidget(self.categoria_filter)
 
         self.status_filter = QComboBox()
         self.status_filter.setMinimumWidth(150)
+        self.status_filter.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         filter_layout.addWidget(QLabel("Stato:"))
         filter_layout.addWidget(self.status_filter)
 

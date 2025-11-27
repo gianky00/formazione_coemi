@@ -109,6 +109,13 @@ class APIClient:
 
     # --- App Configuration ---
 
+    def get_paths(self):
+        """Retrieves the configured database path."""
+        url = f"{self.base_url}/app_config/config/paths"
+        response = requests.get(url, headers=self._get_headers())
+        response.raise_for_status()
+        return response.json()
+
     def get_mutable_config(self):
         """Retrieves user-configurable settings from the backend."""
         url = f"{self.base_url}/app_config/config"
