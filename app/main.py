@@ -16,8 +16,24 @@ from app.services.notification_service import check_and_send_alerts
 from app.services.file_maintenance import organize_expired_files
 from app.db.session import SessionLocal
 from app.utils.logging import setup_logging
+from datetime import datetime, timedelta
 
 scheduler = AsyncIOScheduler()
+
+def run_maintenance_task():
+    """Background task for file maintenance."""
+    try:
+        # We don't acquire the global session lock because this task is read-only on DB
+        # and filesystem operations are safe enough.
+        print("Starting background file maintenance...")
+        db = SessionLocal()
+        try:
+            organize_expired_files(db)
+        finally:
+            db.close()
+        print("Background file maintenance completed.")
+    except Exception as e:
+        print(f"Error during background file maintenance: {e}")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
