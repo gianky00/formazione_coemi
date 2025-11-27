@@ -29,7 +29,7 @@ class SimpleTableModel(QAbstractTableModel):
             val = self._data.iloc[index.row(), index.column()]
             if pd.isna(val) or val == "None" or val is None:
                 return ""
-            return str(val)
+            return str(val).upper()
         return None
 
     def flags(self, index):

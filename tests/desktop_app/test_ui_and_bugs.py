@@ -36,7 +36,7 @@ def test_pdf_worker_headers(mock_post):
     mock_client.base_url = "http://test"
     mock_client._get_headers.return_value = {"Authorization": "Bearer token"}
 
-    worker = PdfWorker(["/tmp/test.pdf"], mock_client)
+    worker = PdfWorker(["/tmp/test.pdf"], mock_client, "/tmp/dummy_output")
 
     # Mock logging
     mock_log = MagicMock()

@@ -69,8 +69,8 @@ class CertificatoTableModel(QAbstractTableModel):
         val = self._data.iloc[index.row(), index.column()]
         if pd.isna(val) or val == "None" or val is None:
             return ""
-        # XSS Protection: Escape HTML characters to prevent rendering malicious code
-        return html.escape(str(val))
+        # Return uppercase string without HTML escaping to display correct characters like '
+        return str(val).upper()
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
