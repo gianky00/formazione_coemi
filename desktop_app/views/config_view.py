@@ -218,11 +218,6 @@ class UserManagementWidget(QFrame):
         if not user_id: return
         current_user_id = self.api_client.user_info.get("id")
 
-        # Prevent editing own user via this admin table (use personal section)
-        if current_user_id == user_id:
-             QMessageBox.information(self, "Info", "Usa il pulsante 'Modifica Password Personale' in basso per gestire il tuo account.")
-             return
-
         user_data = {
             "username": self.table.item(self.table.currentRow(), 1).text(),
             "account_name": self.table.item(self.table.currentRow(), 2).text(),

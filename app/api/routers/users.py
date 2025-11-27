@@ -76,13 +76,6 @@ def update_user(
             detail="The user with this id does not exist in the system",
         )
 
-    # Prevent admin from changing their own password via this endpoint if required
-    if user.id == current_user.id and user_in.password:
-         raise HTTPException(
-            status_code=400,
-            detail="You cannot modify your own password via the User Management interface.",
-        )
-
     update_data = user_in.model_dump(exclude_unset=True)
     password_changed = False
     if update_data.get("password"):
