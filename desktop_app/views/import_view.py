@@ -61,14 +61,51 @@ class PdfWorker(QObject):
     def process_pdf(self, file_path):
         original_filename = os.path.basename(file_path)
 
-        # Helper for moving to error folder with specific structure
-        def move_to_error(reason="Errore Generico"):
+        # Helper for moving to error folder
+        def move_to_error(reason="Errore Generico", data=None):
             error_category = "ALTRI ERRORI"
-            if "matricola" in reason.lower():
+            if reason and "matricola" in reason.lower():
                 error_category = "ASSENZA MATRICOLE"
-            elif "categoria" in reason.lower():
+            elif reason and "categoria" in reason.lower():
                 error_category = "CATEGORIA NON TROVATA"
+            elif reason and "database" in reason.lower():
+                 error_category = "DUPLICATI"
 
+            # Case 1: Data Available -> Standard Structure
+            if data:
+                try:
+                    nome_completo = data.get('nome') or 'SCONOSCIUTO'
+                    matricola = data.get('matricola') or 'N-A'
+                    categoria = data.get('categoria') or 'ALTRO'
+
+                    # Normalize dates for filename
+                    data_scadenza_str = data.get('data_scadenza')
+                    stato = 'STORICO'
+                    file_scadenza = "no scadenza"
+
+                    if not data_scadenza_str:
+                         stato = 'ATTIVO'
+                    else:
+                        try:
+                            scadenza_date = datetime.strptime(data_scadenza_str, '%d/%m/%Y').date()
+                            file_scadenza = scadenza_date.strftime('%d_%m_%Y')
+                            if scadenza_date >= datetime.now().date():
+                                stato = 'ATTIVO'
+                        except ValueError:
+                             pass
+
+                    employee_folder_name = f"{nome_completo} ({matricola})"
+                    new_filename = f"{nome_completo} ({matricola}) - {categoria} - {file_scadenza}.pdf"
+
+                    target_dir = os.path.join(self.output_folder, "ERRORI ANALISI", error_category, employee_folder_name, categoria, stato)
+                    os.makedirs(target_dir, exist_ok=True)
+                    shutil.move(file_path, os.path.join(target_dir, new_filename))
+                    return
+                except Exception as e:
+                    self.log_message.emit(f"Errore nella creazione struttura standard per errore: {e}. Fallback...", "red")
+                    # Fallback to Case 2 if renaming fails
+
+            # Case 2: No Data (or Fallback) -> Folder per File
             filename_no_ext = os.path.splitext(original_filename)[0]
             target_dir = os.path.join(self.output_folder, "ERRORI ANALISI", error_category, filename_no_ext)
             os.makedirs(target_dir, exist_ok=True)
@@ -114,7 +151,7 @@ class PdfWorker(QObject):
                     if ragione_fallimento:
                         log_msg = f"File {original_filename} analizzato. Assegnazione manuale richiesta: {ragione_fallimento}"
                         self.log_message.emit(log_msg, "orange")
-                        move_to_error(ragione_fallimento)
+                        move_to_error(ragione_fallimento, cert_data)
                     else:
                         nome_completo = cert_data.get('nome', 'ERRORE')
                         self.log_message.emit(f"File {original_filename} elaborato e salvato per {nome_completo}.", "default")
@@ -143,13 +180,13 @@ class PdfWorker(QObject):
                             shutil.move(file_path, os.path.join(dest_path, new_filename))
                         except Exception as e:
                             self.log_message.emit(f"Errore durante lo spostamento del file {original_filename}: {e}", "red")
-                            move_to_error(f"Errore Spostamento: {e}")
+                            move_to_error(f"Errore Spostamento: {e}", cert_data)
                 elif save_response.status_code == 409:
                     self.log_message.emit(f"{original_filename} - Documento risulta già in Database.", "orange")
-                    move_to_error("Già in Database")
+                    move_to_error("Già in Database", certificato)
                 else:
                     self.log_message.emit(f"Errore durante il salvaggio di {original_filename}: {save_response.text}", "red")
-                    move_to_error(f"Errore Salvaggio: {save_response.text}")
+                    move_to_error(f"Errore Salvaggio: {save_response.text}", certificato)
             else:
                 self.log_message.emit(f"Errore durante l'elaborazione di {original_filename}: {response.text}", "red")
                 move_to_error(f"Errore Analisi: {response.text}")
