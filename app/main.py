@@ -16,8 +16,24 @@ from app.services.notification_service import check_and_send_alerts
 from app.services.file_maintenance import organize_expired_files
 from app.db.session import SessionLocal
 from app.utils.logging import setup_logging
+from datetime import datetime, timedelta
 
 scheduler = AsyncIOScheduler()
+
+def run_maintenance_task():
+    """Background task for file maintenance."""
+    try:
+        # We don't acquire the global session lock because this task is read-only on DB
+        # and filesystem operations are safe enough.
+        print("Starting background file maintenance...")
+        db = SessionLocal()
+        try:
+            organize_expired_files(db)
+        finally:
+            db.close()
+        print("Background file maintenance completed.")
+    except Exception as e:
+        print(f"Error during background file maintenance: {e}")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -47,24 +63,9 @@ async def lifespan(app: FastAPI):
         Base.metadata.create_all(bind=engine)
         seed_database()
 
-        # Run File Maintenance (if we can acquire the lock)
-        success, owner = db_security.acquire_session_lock({"username": "SYSTEM_MAINTENANCE"})
-        if success:
-            try:
-                print("Acquired lock for system maintenance...")
-                db = SessionLocal()
-                try:
-                    organize_expired_files(db)
-                finally:
-                    db.close()
-                db_security.save_to_disk()
-            except Exception as e:
-                print(f"Error during file maintenance: {e}")
-            finally:
-                db_security.release_lock()
-                print("Released system maintenance lock.")
-        else:
-            print(f"Skipping file maintenance (Read-Only Mode). Locked by: {owner}")
+        # Schedule startup maintenance (delayed by 10s to allow server startup)
+        # This prevents blocking the main thread if maintenance takes a long time (e.g. slow network share)
+        scheduler.add_job(run_maintenance_task, 'date', run_date=datetime.now() + timedelta(seconds=10))
 
         if settings.GEMINI_API_KEY:
             genai.configure(api_key=settings.GEMINI_API_KEY)
