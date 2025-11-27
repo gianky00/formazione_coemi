@@ -94,3 +94,28 @@ def admin_token_headers() -> dict:
 def user_token_headers() -> dict:
     """Provides authorization headers for a non-admin user."""
     return {"Authorization": "Bearer user-token"}
+
+@pytest.fixture
+def mock_mutable_settings(monkeypatch):
+    """
+    Mocks the internal data of the global settings object to prevent file I/O during tests.
+    """
+    from app.core.config import settings
+
+    mock_settings = {
+        "DATABASE_PATH": "test_db.sqlite",
+        "GEMINI_API_KEY": "obf:test",
+        "SMTP_HOST": "localhost",
+        "SMTP_PORT": 1025,
+        "SMTP_USER": "test@example.com",
+        "SMTP_PASSWORD": "test",
+        "EMAIL_RECIPIENTS_TO": "test@example.com",
+        "EMAIL_RECIPIENTS_CC": "",
+        "ALERT_THRESHOLD_DAYS": 60,
+        "ALERT_THRESHOLD_DAYS_VISITE": 30,
+        "FIRST_RUN_ADMIN_USERNAME": "admin",
+        "FIRST_RUN_ADMIN_PASSWORD": "prova"
+    }
+
+    monkeypatch.setattr(settings.mutable, "_data", mock_settings)
+    return mock_settings

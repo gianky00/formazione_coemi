@@ -168,9 +168,11 @@ def send_email_notification(pdf_content_bytes, expiring_corsi_count, expiring_vi
     part = MIMEBase("application", "octet-stream")
     part.set_payload(pdf_content_bytes)
     encoders.encode_base64(part)
+
+    filename_date = date.today().strftime('%d_%m_%Y')
     part.add_header(
         "Content-Disposition",
-        f"attachment; filename=Report_Scadenze_{date.today().strftime('%Y-%m-%d')}.pdf",
+        f"attachment; filename=Report scadenze del {filename_date}.pdf",
     )
     msg.attach(part)
 

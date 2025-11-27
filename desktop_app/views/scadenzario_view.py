@@ -353,7 +353,8 @@ class ScadenzarioView(QWidget):
         self.load_data()
 
     def export_to_pdf(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Salva PDF", "scadenzario.pdf", "PDF Files (*.pdf)")
+        default_filename = f"Report scadenze del {QDate.currentDate().toString('dd_MM_yyyy')}.pdf"
+        path, _ = QFileDialog.getSaveFileName(self, "Salva PDF", default_filename, "PDF Files (*.pdf)")
         if not path:
             return
 

@@ -398,8 +398,11 @@ class MainDashboardWidget(QWidget):
         # Default Page
         self.switch_to("database")
 
-        # --- SECURITY FEATURE: Real-time Expiration Check ---
-        self._init_license_check_timer()
+        # --- SECURITY FEATURE: Real-time Expiration & Lock Check ---
+        self._init_system_checks()
+
+        # Trigger background maintenance after UI is loaded (5 seconds delay)
+        QTimer.singleShot(5000, self.trigger_background_maintenance)
 
     def _init_views(self):
         self.views["import"] = ImportView()
@@ -459,14 +462,37 @@ class MainDashboardWidget(QWidget):
         self.switch_to("import")
         self.views["import"].upload_path(path)
 
-    def _init_license_check_timer(self):
-        self.license_check_timer = QTimer(self)
-        # Check every hour (3600 * 1000 ms)
-        self.license_check_timer.setInterval(3600 * 1000)
-        self.license_check_timer.timeout.connect(self._check_license_status)
-        self.license_check_timer.start()
-        # Also run an initial check on startup
-        self._check_license_status()
+    def _init_system_checks(self):
+        self.system_check_timer = QTimer(self)
+        # Check every 10 seconds for Lock Status, every hour for License (logic inside)
+        self.system_check_timer.setInterval(10000)
+        self.system_check_timer.timeout.connect(self._perform_system_checks)
+        self.system_check_timer.start()
+
+        self._last_license_check = 0
+        self._perform_system_checks() # Initial check
+
+    def _perform_system_checks(self):
+        # 1. Lock Status Check (Fast, frequent)
+        try:
+            status = self.api_client.get_lock_status()
+            is_read_only = status.get("read_only", False)
+
+            # If state changed to Read-Only unexpectedly
+            if is_read_only and not self.is_read_only:
+                QMessageBox.warning(self, "Connessione Persa",
+                                    "Il sistema ha rilevato una perdita del Lock (problema di rete?).\n"
+                                    "L'applicazione è passata in modalità Sola Lettura per proteggere i dati.")
+                self.set_read_only_mode(True)
+
+        except Exception as e:
+            print(f"System check failed: {e}")
+
+        # 2. License Check (Every hour)
+        import time
+        if time.time() - self._last_license_check > 3600:
+            self._check_license_status()
+            self._last_license_check = time.time()
 
     def _check_license_status(self):
         license_data = LicenseManager.get_license_data()
@@ -501,3 +527,17 @@ class MainDashboardWidget(QWidget):
                 view.set_read_only(is_read_only)
             else:
                 print(f"[DEBUG] View {key} has no set_read_only method")
+
+    def trigger_background_maintenance(self):
+        """
+        Triggers the background file maintenance task via API.
+        This is done asynchronously to avoid blocking the UI startup.
+        """
+        if self.is_read_only:
+            return
+
+        try:
+            print("Triggering background maintenance...")
+            self.api_client.trigger_maintenance()
+        except Exception as e:
+            print(f"Failed to trigger maintenance: {e}")

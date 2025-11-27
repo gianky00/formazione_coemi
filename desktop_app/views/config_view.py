@@ -10,30 +10,24 @@ from PyQt6.QtGui import QColor
 from desktop_app.api_client import APIClient
 from app.utils.security import obfuscate_string, reveal_string
 
-class UserDialog(QDialog):
-    def __init__(self, parent=None, user_data=None):
+class ChangePasswordDialog(QDialog):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Nuovo Utente" if not user_data else "Modifica Utente")
-        self.resize(500, 400)
+        self.setWindowTitle("Modifica Password Personale")
+        self.resize(400, 250)
         self.layout = QVBoxLayout(self)
 
         form_layout = QFormLayout()
-        self.username_input = QLineEdit()
-        self.account_name_input = QLineEdit()
-        self.password_input = QLineEdit()
-        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.is_admin_check = QCheckBox("Amministratore")
+        self.old_password = QLineEdit()
+        self.old_password.setEchoMode(QLineEdit.EchoMode.Password)
+        self.new_password = QLineEdit()
+        self.new_password.setEchoMode(QLineEdit.EchoMode.Password)
+        self.confirm_password = QLineEdit()
+        self.confirm_password.setEchoMode(QLineEdit.EchoMode.Password)
 
-        if user_data:
-            self.username_input.setText(user_data.get('username', ''))
-            self.account_name_input.setText(user_data.get('account_name', ''))
-            self.is_admin_check.setChecked(user_data.get('is_admin', False))
-            self.password_input.setPlaceholderText("Lascia vuoto per mantenere la password attuale")
-
-        form_layout.addRow("Nome Utente:", self.username_input)
-        form_layout.addRow("Nome Account (es. Mario Rossi):", self.account_name_input)
-        form_layout.addRow("Password:", self.password_input)
-        form_layout.addRow("", self.is_admin_check)
+        form_layout.addRow("Password Attuale:", self.old_password)
+        form_layout.addRow("Nuova Password:", self.new_password)
+        form_layout.addRow("Conferma Password:", self.confirm_password)
         self.layout.addLayout(form_layout)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -43,11 +37,73 @@ class UserDialog(QDialog):
 
     def get_data(self):
         return {
+            "old_password": self.old_password.text(),
+            "new_password": self.new_password.text(),
+            "confirm_password": self.confirm_password.text()
+        }
+
+class UserDialog(QDialog):
+    def __init__(self, parent=None, user_data=None):
+        super().__init__(parent)
+        self.setWindowTitle("Nuovo Utente" if not user_data else "Modifica Utente")
+        self.resize(500, 350)
+        self.layout = QVBoxLayout(self)
+
+        form_layout = QFormLayout()
+        self.username_input = QLineEdit()
+        self.account_name_input = QLineEdit()
+        # self.password_input removed as per requirement for Create
+        self.is_admin_check = QCheckBox("Amministratore")
+
+        self.user_data = user_data
+
+        if user_data:
+            # Edit Mode
+            self.username_input.setText(user_data.get('username', ''))
+            self.account_name_input.setText(user_data.get('account_name', ''))
+            self.is_admin_check.setChecked(user_data.get('is_admin', False))
+
+            # For editing existing users (admin override), we might want to allow password reset
+            # But the requirement says "first password is ALWAYS primoaccesso" for NEW accounts.
+            # For existing accounts, admin can reset it.
+            # Adding a field for "Reset Password" only in edit mode
+            self.password_input = QLineEdit()
+            self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+            self.password_input.setPlaceholderText("Lascia vuoto per mantenere attuale")
+        else:
+            # Create Mode
+            self.password_info = QLabel("Password di default: <b>primoaccesso</b>")
+            self.password_info.setStyleSheet("color: gray;")
+
+        form_layout.addRow("Nome Utente:", self.username_input)
+        form_layout.addRow("Nome Account (es. Mario Rossi):", self.account_name_input)
+
+        if user_data:
+            form_layout.addRow("Nuova Password (Admin Reset):", self.password_input)
+        else:
+            form_layout.addRow("", self.password_info)
+
+        form_layout.addRow("", self.is_admin_check)
+        self.layout.addLayout(form_layout)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        self.layout.addWidget(buttons)
+
+    def get_data(self):
+        data = {
             "username": self.username_input.text(),
             "account_name": self.account_name_input.text(),
-            "password": self.password_input.text(),
             "is_admin": self.is_admin_check.isChecked()
         }
+        if self.user_data:
+            # Edit mode, return password only if set
+            data["password"] = self.password_input.text()
+        else:
+            # Create mode, no password field (handled by backend or None)
+            data["password"] = None
+        return data
 
 class UserManagementWidget(QFrame):
     def __init__(self, api_client, parent=None):
@@ -56,17 +112,22 @@ class UserManagementWidget(QFrame):
         self.setObjectName("card")
         self.layout = QVBoxLayout(self)
 
-        header = QHBoxLayout()
-        title = QLabel("Gestione Utenti")
-        title.setStyleSheet("font-size: 16px; font-weight: 600;")
-        header.addWidget(title)
-        header.addStretch()
+        self.title = QLabel("Gestione Utenti")
+        self.title.setStyleSheet("font-size: 16px; font-weight: 600;")
+        self.layout.addWidget(self.title)
 
+        # --- ADMIN SECTION ---
+        self.admin_container = QWidget()
+        admin_layout = QVBoxLayout(self.admin_container)
+        admin_layout.setContentsMargins(0, 10, 0, 10)
+
+        header = QHBoxLayout()
+        header.addStretch()
         self.add_btn = QPushButton("Nuovo Utente")
         self.add_btn.setObjectName("secondary")
         self.add_btn.clicked.connect(self.add_user)
         header.addWidget(self.add_btn)
-        self.layout.addLayout(header)
+        admin_layout.addLayout(header)
 
         self.table = QTableWidget()
         self.table.setColumnCount(4)
@@ -79,7 +140,7 @@ class UserManagementWidget(QFrame):
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.verticalHeader().setVisible(False)
-        self.layout.addWidget(self.table)
+        admin_layout.addWidget(self.table)
 
         actions_layout = QHBoxLayout()
         self.edit_btn = QPushButton("Modifica / Reset Password")
@@ -89,28 +150,55 @@ class UserManagementWidget(QFrame):
         self.delete_btn.setObjectName("destructive")
         self.delete_btn.clicked.connect(self.delete_user)
         actions_layout.addWidget(self.delete_btn)
-        self.layout.addLayout(actions_layout)
+
+        self.layout.addWidget(self.admin_container)
+
+        # --- COMMON SECTION (Change own password) ---
+        self.layout.addWidget(QLabel("")) # Spacer
+
+        personal_section = QFrame()
+        personal_section.setObjectName("card_inner")
+        personal_layout = QHBoxLayout(personal_section)
+
+        lbl = QLabel("Sicurezza Account:")
+        lbl.setStyleSheet("font-weight: bold;")
+        personal_layout.addWidget(lbl)
+        personal_layout.addStretch()
+
+        self.change_pw_btn = QPushButton("Modifica Password Personale")
+        self.change_pw_btn.clicked.connect(self.change_own_password)
+        personal_layout.addWidget(self.change_pw_btn)
+
+        self.layout.addWidget(personal_section)
+        self.layout.addStretch()
 
     def refresh_users(self):
-        try:
-            users = self.api_client.get_users()
-            self.table.setRowCount(len(users))
-            for i, user in enumerate(users):
-                self.table.setItem(i, 0, QTableWidgetItem(str(user['id'])))
-                self.table.setItem(i, 1, QTableWidgetItem(str(user['username'])))
-                self.table.setItem(i, 2, QTableWidgetItem(str(user.get('account_name', ''))))
-                self.table.setItem(i, 3, QTableWidgetItem("Sì" if user['is_admin'] else "No"))
-        except Exception:
-            pass
+        # Determine visibility based on admin status
+        is_admin = self.api_client.user_info.get("is_admin", False)
+        self.admin_container.setVisible(is_admin)
+        self.title.setText("Gestione Utenti" if is_admin else "Il Mio Account")
+
+        if is_admin:
+            try:
+                users = self.api_client.get_users()
+                self.table.setRowCount(len(users))
+                for i, user in enumerate(users):
+                    self.table.setItem(i, 0, QTableWidgetItem(str(user['id'])))
+                    self.table.setItem(i, 1, QTableWidgetItem(str(user['username'])))
+                    self.table.setItem(i, 2, QTableWidgetItem(str(user.get('account_name', ''))))
+                    self.table.setItem(i, 3, QTableWidgetItem("Sì" if user['is_admin'] else "No"))
+            except Exception:
+                pass
 
     def add_user(self):
         dialog = UserDialog(self)
         if dialog.exec():
             data = dialog.get_data()
-            if not data['username'] or not data['password']:
-                QMessageBox.warning(self, "Errore", "Nome utente e password sono obbligatori.")
+            if not data['username']:
+                QMessageBox.warning(self, "Errore", "Il nome utente è obbligatorio.")
                 return
             try:
+                # Password is None (default "primoaccesso" handled by backend)
                 self.api_client.create_user(
                     data['username'], data['password'],
                     data['account_name'], data['is_admin']
@@ -128,28 +216,61 @@ class UserManagementWidget(QFrame):
         user_id = self.get_selected_user_id()
         if not user_id: return
         current_user_id = self.api_client.user_info.get("id")
+
+        # Prevent editing own user via this admin table (use personal section)
+        if current_user_id == user_id:
+             QMessageBox.information(self, "Info", "Usa il pulsante 'Modifica Password Personale' in basso per gestire il tuo account.")
+             return
+
         user_data = {
             "username": self.table.item(self.table.currentRow(), 1).text(),
             "account_name": self.table.item(self.table.currentRow(), 2).text(),
             "is_admin": self.table.item(self.table.currentRow(), 3).text() == "Sì"
         }
+
         dialog = UserDialog(self, user_data)
-        if current_user_id == user_id:
-             dialog.password_input.setPlaceholderText("Non puoi modificare la tua password da qui")
-             dialog.password_input.setEnabled(False)
         if dialog.exec():
             data = dialog.get_data()
             update_payload = {}
             if data['username'] != user_data['username']: update_payload['username'] = data['username']
             if data['account_name'] != user_data['account_name']: update_payload['account_name'] = data['account_name']
             if data['is_admin'] != user_data['is_admin']: update_payload['is_admin'] = data['is_admin']
-            if data['password']: update_payload['password'] = data['password']
+            if data.get('password'): update_payload['password'] = data['password']
+
             if not update_payload: return
             try:
                 self.api_client.update_user(user_id, update_payload)
                 self.refresh_users()
             except Exception as e:
                 QMessageBox.critical(self, "Errore", str(e))
+
+    def change_own_password(self):
+        dialog = ChangePasswordDialog(self)
+        if dialog.exec():
+            data = dialog.get_data()
+            if not data['old_password'] or not data['new_password']:
+                QMessageBox.warning(self, "Errore", "Tutti i campi sono obbligatori.")
+                return
+
+            if data['new_password'] != data['confirm_password']:
+                QMessageBox.warning(self, "Errore", "Le nuove password non corrispondono.")
+                return
+
+            try:
+                response = self.api_client.change_password(data['old_password'], data['new_password'])
+                QMessageBox.information(self, "Successo", response.get("message", "Password aggiornata."))
+            except Exception as e:
+                # Parse error detail if possible
+                try:
+                    # e might be a Requests Error with .response.json()
+                    if hasattr(e, 'response') and e.response is not None:
+                        err_json = e.response.json()
+                        detail = err_json.get('detail', str(e))
+                        QMessageBox.critical(self, "Errore", detail)
+                    else:
+                        QMessageBox.critical(self, "Errore", str(e))
+                except:
+                    QMessageBox.critical(self, "Errore", str(e))
 
     def delete_user(self):
         user_id = self.get_selected_user_id()
@@ -279,8 +400,63 @@ class AuditLogWidget(QFrame):
         self.layout.addWidget(self.table)
 
     def refresh_logs(self):
-        # Implementation omitted for brevity
-        pass
+        user_id = self.user_filter.currentData()
+        category = self.category_filter.currentData()
+
+        # Helper to convert QDate to datetime/date for API
+        start = self.start_date.date().toPyDate()
+        end = self.end_date.date().toPyDate()
+
+        try:
+            logs = self.api_client.get_audit_logs(
+                user_id=user_id,
+                category=category,
+                start_date=start,
+                end_date=end
+            )
+
+            self.table.setRowCount(0)
+            self.table.setRowCount(len(logs))
+
+            for i, log in enumerate(logs):
+                # Columns: "Data/Ora", "Severità", "Utente", "IP", "Geo", "Device ID", "Azione", "Categoria", "Dettagli"
+
+                # Format timestamp (assuming ISO string from API)
+                ts_str = log['timestamp']
+                try:
+                    # Basic ISO parsing, might need adjustment if API returns fancy format
+                    ts_str = ts_str.replace("T", " ")[:19]
+                except: pass
+
+                self.table.setItem(i, 0, QTableWidgetItem(ts_str))
+                self.table.setItem(i, 1, QTableWidgetItem(log.get('severity', 'LOW')))
+                self.table.setItem(i, 2, QTableWidgetItem(log.get('username', 'Unknown')))
+                self.table.setItem(i, 3, QTableWidgetItem(log.get('ip_address', '')))
+                self.table.setItem(i, 4, QTableWidgetItem(log.get('geolocation', '')))
+                self.table.setItem(i, 5, QTableWidgetItem(log.get('device_id', '')[:8] + '...' if log.get('device_id') else ''))
+                self.table.setItem(i, 6, QTableWidgetItem(log.get('action', '')))
+                self.table.setItem(i, 7, QTableWidgetItem(log.get('category', '')))
+
+                details_item = QTableWidgetItem(log.get('details', ''))
+                details_item.setToolTip(log.get('changes') or log.get('details', '')) # Show full details/changes in tooltip
+                self.table.setItem(i, 8, details_item)
+
+                # Color code severity
+                sev = log.get('severity', 'LOW')
+                if sev == 'CRITICAL':
+                    for col in range(9):
+                        item = self.table.item(i, col)
+                        item.setBackground(QColor("#FEE2E2")) # Red-ish
+                        item.setForeground(QColor("#991B1B"))
+                elif sev == 'MEDIUM':
+                     for col in range(9):
+                        item = self.table.item(i, col)
+                        item.setBackground(QColor("#FEF3C7")) # Yellow-ish
+                        item.setForeground(QColor("#92400E"))
+
+        except Exception as e:
+            # QMessageBox.critical(self, "Errore", f"Impossibile caricare i log: {e}")
+            print(f"Error loading logs: {e}")
 
 class ConfigView(QWidget):
     def __init__(self, api_client: APIClient):
@@ -302,11 +478,13 @@ class ConfigView(QWidget):
 
         self.btn_general = QPushButton("Parametri generali")
         self.btn_general.setCheckable(True)
-        self.btn_general.setChecked(True)
+        # self.btn_general.setChecked(True) # Logic moved to showEvent/switch_tab
         self.btn_general.clicked.connect(lambda: self.switch_tab(0))
+
         self.btn_account = QPushButton("Account")
         self.btn_account.setCheckable(True)
         self.btn_account.clicked.connect(lambda: self.switch_tab(1))
+
         self.btn_audit = QPushButton("Log Attività")
         self.btn_audit.setCheckable(True)
         self.btn_audit.clicked.connect(lambda: self.switch_tab(2))
@@ -364,17 +542,29 @@ class ConfigView(QWidget):
         self.btn_general.setChecked(index == 0)
         self.btn_account.setChecked(index == 1)
         self.btn_audit.setChecked(index == 2)
+        # Show save button only on General Settings tab (index 0)
         self.bottom_buttons_frame.setVisible(index == 0)
 
     def showEvent(self, event):
         super().showEvent(event)
         if self.api_client and self.api_client.user_info:
             is_admin = self.api_client.user_info.get("is_admin", False)
-            self.btn_account.setVisible(is_admin)
+
+            self.btn_general.setVisible(is_admin)
             self.btn_audit.setVisible(is_admin)
+            self.btn_account.setVisible(True) # Account always visible
+
             if is_admin:
                 self.load_config()
-                self.user_management_widget.refresh_users()
+                # Default to General tab for Admin
+                if self.stacked_widget.currentIndex() == -1:
+                    self.switch_tab(0)
+            else:
+                # Default (and only) tab for User is Account
+                self.switch_tab(1)
+
+            # Refresh user management widget (handles its own admin/user logic)
+            self.user_management_widget.refresh_users()
 
     def load_config(self):
         try:

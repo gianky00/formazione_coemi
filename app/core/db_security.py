@@ -6,6 +6,8 @@ import time
 import logging
 import sqlite3
 import socket
+import threading
+import uuid
 from typing import Dict, Optional, Tuple
 from pathlib import Path
 from cryptography.fernet import Fernet
@@ -58,10 +60,56 @@ class DBSecurityManager:
 
         # Initialize LockManager
         self.lock_manager = LockManager(str(self.lock_path))
+        self._heartbeat_timer: Optional[threading.Timer] = None
 
     def _derive_key(self) -> bytes:
         digest = hashlib.sha256(self._STATIC_SECRET.encode()).digest()
         return base64.urlsafe_b64encode(digest)
+
+    def _start_heartbeat(self):
+        """
+        Starts the background heartbeat mechanism to maintain the lock.
+        """
+        self._stop_heartbeat()
+        self._heartbeat_failures = 0
+
+        def _tick():
+            if self.is_read_only:
+                return
+
+            success = self.lock_manager.update_heartbeat()
+            if not success:
+                self._heartbeat_failures += 1
+                logger.warning(f"HEARTBEAT WARNING: Verification failed ({self._heartbeat_failures}/3).")
+
+                # Tolerance: Force Read-Only only after 3 consecutive failures (30 seconds)
+                if self._heartbeat_failures >= 3:
+                    logger.critical("HEARTBEAT FAILED: Lock lost (Network issue or Split Brain). Forcing Read-Only mode.")
+                    self.force_read_only_mode()
+                    return
+            else:
+                self._heartbeat_failures = 0 # Reset counter on success
+
+            # Schedule next tick (10 seconds)
+            self._heartbeat_timer = threading.Timer(10.0, _tick)
+            self._heartbeat_timer.daemon = True
+            self._heartbeat_timer.start()
+
+        # Start immediately
+        _tick()
+
+    def _stop_heartbeat(self):
+        if self._heartbeat_timer:
+            self._heartbeat_timer.cancel()
+            self._heartbeat_timer = None
+
+    def force_read_only_mode(self):
+        """
+        Emergency method to switch to Read-Only mode if lock is lost.
+        """
+        self.is_read_only = True
+        self._stop_heartbeat()
+        logger.warning("System switched to READ-ONLY mode due to lock instability.")
 
     def acquire_session_lock(self, user_info: Dict) -> Tuple[bool, Optional[Dict]]:
         """
@@ -77,6 +125,7 @@ class DBSecurityManager:
         """
         # Add system info to user_info
         metadata = {
+            "uuid": str(uuid.uuid4()), # Unique Session ID
             "pid": os.getpid(),
             "hostname": socket.gethostname(),
             "timestamp": time.time(),
@@ -89,6 +138,7 @@ class DBSecurityManager:
             self.is_read_only = False
             self.read_only_info = None
             logger.info("Session lock acquired. Write access enabled.")
+            self._start_heartbeat()
         else:
             self.is_read_only = True
             self.read_only_info = owner_info
@@ -100,6 +150,7 @@ class DBSecurityManager:
         """
         Releases the lock via LockManager.
         """
+        self._stop_heartbeat()
         self.lock_manager.release()
         self.is_read_only = False # Reset state, though usually app is closing.
 
