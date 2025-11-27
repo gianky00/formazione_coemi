@@ -1,17 +1,21 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QTableView, QHeaderView, QHBoxLayout,
-    QComboBox, QLabel, QFileDialog, QMessageBox, QListView, QFrame
+    QComboBox, QLabel, QFileDialog, QMessageBox, QListView, QFrame,
+    QMenu
 )
-from PyQt6.QtCore import QAbstractTableModel, Qt, pyqtSignal, QTimer
-from PyQt6.QtGui import QColor, QPainter
+from PyQt6.QtCore import QAbstractTableModel, Qt, pyqtSignal, QTimer, QUrl
+from PyQt6.QtGui import QColor, QPainter, QDesktopServices, QAction
 from .edit_dialog import EditCertificatoDialog
 from ..view_models.database_view_model import DatabaseViewModel
 from ..api_client import APIClient
 from ..components.animated_widgets import AnimatedButton, AnimatedInput, CardWidget
 from ..components.cascade_delegate import CascadeDelegate
+from ..services.document_locator import find_document
 import requests
 import pandas as pd
 import html
+import subprocess
+import os
 
 
 class StatusDelegate(CascadeDelegate):
@@ -157,6 +161,8 @@ class DatabaseView(QWidget):
         self.table_view = QTableView()
         self.table_view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self.table_view.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
+        self.table_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table_view.customContextMenuRequested.connect(self._show_context_menu)
         self.table_view.setShowGrid(False)
         self.table_view.setAlternatingRowColors(True)
         self.table_view.setStyleSheet("""
@@ -411,3 +417,64 @@ class DatabaseView(QWidget):
                 QMessageBox.information(self, "Esportazione Riuscita", f"Dati esportati con successo in {path}")
             except Exception as e:
                 self._show_error_message(f"Impossibile salvare il file: {e}")
+
+    def _show_context_menu(self, pos):
+        index = self.table_view.indexAt(pos)
+        if not index.isValid():
+            return
+
+        menu = QMenu(self)
+
+        # Define Actions
+        open_pdf_action = QAction("Apri PDF", self)
+        open_folder_action = QAction("Apri percorso file", self)
+
+        menu.addAction(open_pdf_action)
+        menu.addAction(open_folder_action)
+
+        # Execute Menu
+        action = menu.exec(self.table_view.viewport().mapToGlobal(pos))
+
+        if not action:
+            return
+
+        # Prepare Data
+        row_idx = index.row()
+        if not self.model or row_idx >= len(self.model._data):
+            return
+
+        row_data = self.model._data.iloc[row_idx]
+        cert_data = {
+            'nome': row_data.get('Dipendente'),
+            'matricola': row_data.get('matricola'),
+            'categoria': row_data.get('categoria'),
+            'data_scadenza': row_data.get('data_scadenza')
+        }
+
+        if action == open_pdf_action:
+            self._open_document(cert_data, open_folder=False)
+        elif action == open_folder_action:
+            self._open_document(cert_data, open_folder=True)
+
+    def _open_document(self, cert_data, open_folder=False):
+        try:
+            paths = self.api_client.get_paths()
+            db_path = paths.get('database_path')
+
+            file_path = find_document(db_path, cert_data)
+
+            if file_path:
+                if open_folder:
+                    # Windows specific selection
+                    if os.name == 'nt':
+                        subprocess.run(['explorer', '/select,', file_path])
+                    else:
+                        # Fallback for Linux/Mac: just open the folder
+                        QDesktopServices.openUrl(QUrl.fromLocalFile(os.path.dirname(file_path)))
+                else:
+                     QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
+            else:
+                 QMessageBox.warning(self, "Non Trovato", "Il file PDF non è stato trovato nel percorso previsto.\n\nPotrebbe essere stato spostato, rinominato manualmente o non ancora archiviato.")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile eseguire l'operazione: {e}")
