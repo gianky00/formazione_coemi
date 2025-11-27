@@ -450,6 +450,8 @@ class ConfigView(QWidget):
         # Build the update payload, excluding unchanged values
         update_payload = {}
         for k, v in new_settings.items():
+            if k == "DATABASE_PATH":
+                continue # Handled separately via move_database
             if k == "GEMINI_API_KEY":
                 # Only add the API key if the plain text version has actually changed
                 if plain_text_api_key != current_revealed_key:
@@ -458,19 +460,27 @@ class ConfigView(QWidget):
                 update_payload[k] = v
         # --- End of smart comparison ---
 
-        if not update_payload:
-            QMessageBox.information(self, "Nessuna Modifica", "Nessuna modifica da salvare.")
-            return
-
         try:
+            db_moved = False
             # Check if database path has changed
             new_db_path = gs.db_path_input.text()
             current_db_path = self.current_settings.get("DATABASE_PATH", "")
             if new_db_path and new_db_path != current_db_path:
                 self.api_client.move_database(new_db_path)
+                db_moved = True
 
-            self.api_client.update_mutable_config(update_payload)
-            QMessageBox.information(self, "Salvato", "Configurazione salvata con successo. Le modifiche saranno attive al prossimo riavvio.")
+            if not update_payload and not db_moved:
+                QMessageBox.information(self, "Nessuna Modifica", "Nessuna modifica da salvare.")
+                return
+
+            if update_payload:
+                self.api_client.update_mutable_config(update_payload)
+
+            msg = "Configurazione salvata con successo."
+            if db_moved:
+                msg += "\nIl database è stato spostato nel nuovo percorso."
+
+            QMessageBox.information(self, "Salvato", msg)
             self.load_config() # Reload to update current_settings state
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Impossibile salvare la configurazione: {e}")
