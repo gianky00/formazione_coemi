@@ -87,6 +87,7 @@ class LockManager:
     def release(self):
         """
         Explicitly releases the lock by closing the file handle.
+        Attempts to remove the lock file to keep the directory clean.
         """
         if self._lock_handle:
             try:
@@ -96,7 +97,17 @@ class LockManager:
             finally:
                 self._lock_handle = None
                 self._is_locked = False
-                logger.info("Lock released.")
+
+                # Attempt to remove the file (Requested by user: "eliminare il .lock")
+                # On Windows, this will fail safely if another process has already opened it.
+                # On Linux, this might cause a race condition, but target is Windows.
+                try:
+                    if os.path.exists(self.lock_file_path):
+                        os.remove(self.lock_file_path)
+                        logger.info("Lock file removed.")
+                except Exception as e:
+                    # Ignore errors (e.g., race condition, permission, file already gone)
+                    logger.debug(f"Could not remove lock file (likely taken by another process): {e}")
 
     def _lock_byte_0(self):
         """
