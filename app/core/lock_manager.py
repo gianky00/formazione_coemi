@@ -100,12 +100,30 @@ class LockManager:
     def update_heartbeat(self) -> bool:
         """
         Updates the timestamp in the lock file to prove we are still alive.
+        Verifies identity before writing to prevent "Zombie Writer" scenario (Split Brain).
         Returns False if the update fails (indicates lock loss/network issue).
         """
         if not self._is_locked or not self.current_metadata:
             return False
 
         try:
+            # 1. Read existing metadata to verify identity
+            # In a network split-brain, another client might have overwritten the file.
+            current_on_disk = self._read_metadata()
+
+            # If disk metadata is valid structure, check if it matches our identity
+            if isinstance(current_on_disk, dict) and "pid" in current_on_disk:
+                disk_pid = current_on_disk.get("pid")
+                disk_host = current_on_disk.get("hostname")
+
+                my_pid = self.current_metadata.get("pid")
+                my_host = self.current_metadata.get("hostname")
+
+                if disk_pid != my_pid or disk_host != my_host:
+                    logger.critical(f"SPLIT BRAIN DETECTED: Lock file is owned by {disk_host} (PID {disk_pid}). I am {my_host} (PID {my_pid}). Aborting write.")
+                    return False
+
+            # 2. Update timestamp and write
             self.current_metadata['timestamp'] = time.time()
             self._write_metadata(self.current_metadata)
             return True

@@ -62,3 +62,26 @@ def test_lock_manager_heartbeat(tmp_path):
 
     # Release
     lm.release()
+
+def test_zombie_prevention(tmp_path):
+    lock_file = tmp_path / ".zombie.lock"
+    lm = LockManager(str(lock_file))
+
+    # 1. Acquire normally
+    lm.acquire({"pid": 123, "hostname": "me", "timestamp": 100})
+    assert lm._is_locked
+
+    # 2. Simulate "Split Brain" - Another process overwrites the file
+    # We write directly to the file to simulate another writer who stole the lock
+    import json
+    with open(lock_file, 'wb') as f:
+        f.write(b'\0')
+        other_metadata = {"pid": 999, "hostname": "other", "timestamp": 200}
+        f.write(json.dumps(other_metadata).encode('utf-8'))
+
+    # 3. Heartbeat should FAIL because identity mismatch
+    # (It reads the file, sees PID 999, compares with self PID 123)
+    success = lm.update_heartbeat()
+    assert not success, "Heartbeat should fail if file ownership changed"
+
+    lm.release()
