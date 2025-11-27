@@ -41,9 +41,12 @@ def create_user(
             detail="The user with this username already exists in the system.",
         )
 
+    # Force default password to "primoaccesso"
+    default_password = "primoaccesso"
+
     user = UserModel(
         username=user_in.username,
-        hashed_password=security.get_password_hash(user_in.password),
+        hashed_password=security.get_password_hash(default_password),
         account_name=user_in.account_name,
         is_admin=user_in.is_admin,
     )

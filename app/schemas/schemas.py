@@ -87,7 +87,11 @@ class UserBase(BaseModel):
     is_admin: bool = False
 
 class UserCreate(UserBase):
-    password: str
+    password: Optional[str] = None
+
+class UserPasswordUpdate(BaseModel):
+    old_password: str
+    new_password: str
 
 class UserUpdate(BaseModel):
     username: Optional[str] = None

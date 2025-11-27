@@ -7,7 +7,7 @@ from app.db.session import get_db
 from app.core import security
 from app.core.config import settings
 from app.core.db_security import db_security
-from app.schemas.schemas import Token, User
+from app.schemas.schemas import Token, User, UserPasswordUpdate
 from app.api import deps
 from app.db.models import BlacklistedToken, AuditLog
 from app.utils.audit import log_security_action
@@ -128,3 +128,26 @@ def read_users_me(current_user: deps.User = Depends(deps.get_current_user)):
     Fetch the current logged in user.
     """
     return current_user
+
+@router.post("/change-password", dependencies=[Depends(deps.check_write_permission)])
+def change_password(
+    password_data: UserPasswordUpdate,
+    request: Request,
+    current_user: deps.User = Depends(deps.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Allows the logged-in user to change their own password.
+    """
+    # Verify old password
+    if not security.verify_password(password_data.old_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="La password attuale non è corretta.")
+
+    # Update with new password
+    current_user.hashed_password = security.get_password_hash(password_data.new_password)
+    db.add(current_user)
+    db.commit()
+
+    log_security_action(db, current_user, "PASSWORD_CHANGE", "User changed their own password", category="USER_MGMT", request=request)
+
+    return {"message": "Password aggiornata con successo."}
