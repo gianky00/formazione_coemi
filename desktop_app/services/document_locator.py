@@ -45,9 +45,21 @@ def find_document(database_path: str, cert_data: dict) -> str | None:
     # but strictly speaking a file exists in only one status folder at a time)
     statuses = ["ATTIVO", "IN SCADENZA", "SCADUTO", "STORICO", "RINNOVATO"]
 
+    # 1. Search in Standard Path
     for status in statuses:
         candidate = os.path.join(base_search_path, status, filename)
         if os.path.isfile(candidate):
             return os.path.normpath(candidate)
+
+    # 2. Search in Error Paths (for Validation View items)
+    # Structure: ERRORI ANALISI / <ErrCategory> / <EmployeeFolder> / <Category> / <Status> / <Filename>
+    error_categories = ["ASSENZA MATRICOLE", "CATEGORIA NON TROVATA", "DUPLICATI", "ALTRI ERRORI"]
+
+    for err_cat in error_categories:
+        base_error_path = os.path.join(database_path, "ERRORI ANALISI", err_cat, employee_folder, categoria)
+        for status in statuses:
+             candidate = os.path.join(base_error_path, status, filename)
+             if os.path.isfile(candidate):
+                 return os.path.normpath(candidate)
 
     return None

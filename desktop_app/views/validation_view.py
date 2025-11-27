@@ -1,10 +1,14 @@
 
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QMessageBox, QStyledItemDelegate, QLineEdit, QLabel
-from PyQt6.QtCore import QAbstractTableModel, Qt, pyqtSignal
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QMessageBox, QStyledItemDelegate, QLineEdit, QLabel, QMenu
+from PyQt6.QtCore import QAbstractTableModel, Qt, pyqtSignal, QUrl
+from PyQt6.QtGui import QDesktopServices, QAction
 import pandas as pd
 import requests
 from ..api_client import APIClient
 from .edit_dialog import EditCertificatoDialog
+from ..services.document_locator import find_document
+import subprocess
+import os
 
 
 class SimpleTableModel(QAbstractTableModel):
@@ -81,6 +85,8 @@ class ValidationView(QWidget):
         self.table_view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self.table_view.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
         self.table_view.setAlternatingRowColors(True)
+        self.table_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table_view.customContextMenuRequested.connect(self._show_context_menu)
         # self.table_view.setItemDelegate(CustomDelegate())
 
         main_card_layout.addWidget(self.table_view)
@@ -295,3 +301,57 @@ class ValidationView(QWidget):
                 # Select the same index, or the last item if the index is now out of bounds
                 final_row = min(row_to_reselect, new_row_count - 1)
                 self.table_view.selectRow(final_row)
+
+    def _show_context_menu(self, pos):
+        index = self.table_view.indexAt(pos)
+        if not index.isValid():
+            return
+
+        menu = QMenu(self)
+        open_pdf_action = QAction("Apri PDF", self)
+        open_folder_action = QAction("Apri percorso file", self)
+        menu.addAction(open_pdf_action)
+        menu.addAction(open_folder_action)
+
+        action = menu.exec(self.table_view.viewport().mapToGlobal(pos))
+        if not action: return
+
+        row_idx = index.row()
+        if not hasattr(self, 'model') or row_idx >= self.model.rowCount():
+            return
+
+        # Access data from dataframe using iloc
+        row_data = self.df.iloc[row_idx]
+
+        cert_data = {
+            'nome': row_data.get('DIPENDENTE'),
+            'matricola': row_data.get('matricola'),
+            'categoria': row_data.get('categoria'),
+            'data_scadenza': row_data.get('data_scadenza')
+        }
+
+        if action == open_pdf_action:
+            self._open_document(cert_data, open_folder=False)
+        elif action == open_folder_action:
+            self._open_document(cert_data, open_folder=True)
+
+    def _open_document(self, cert_data, open_folder=False):
+        try:
+            paths = self.api_client.get_paths()
+            db_path = paths.get('database_path')
+
+            file_path = find_document(db_path, cert_data)
+
+            if file_path:
+                if open_folder:
+                    if os.name == 'nt':
+                        subprocess.run(['explorer', '/select,', file_path])
+                    else:
+                        QDesktopServices.openUrl(QUrl.fromLocalFile(os.path.dirname(file_path)))
+                else:
+                     QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
+            else:
+                 QMessageBox.warning(self, "Non Trovato", "Il file PDF non è stato trovato nel percorso previsto.")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile eseguire l'operazione: {e}")
