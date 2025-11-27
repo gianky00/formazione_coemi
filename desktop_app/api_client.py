@@ -21,7 +21,8 @@ class APIClient:
             "is_admin": token_data.get("is_admin"),
             "read_only": token_data.get("read_only", False),
             "lock_owner": token_data.get("lock_owner"),
-            "previous_login": token_data.get("previous_login")
+            "previous_login": token_data.get("previous_login"),
+            "require_password_change": token_data.get("require_password_change", False)
         }
 
     def clear_token(self):
@@ -176,13 +177,21 @@ class APIClient:
 
     # --- Audit Logs ---
 
-    def get_audit_logs(self, skip=0, limit=100, user_id=None, category=None, start_date=None, end_date=None):
+    def get_audit_categories(self):
+        url = f"{self.base_url}/audit/categories"
+        response = requests.get(url, headers=self._get_headers())
+        response.raise_for_status()
+        return response.json()
+
+    def get_audit_logs(self, skip=0, limit=100, user_id=None, category=None, search=None, start_date=None, end_date=None):
         url = f"{self.base_url}/audit/"
         params = {"skip": skip, "limit": limit}
         if user_id:
             params["user_id"] = user_id
         if category:
             params["category"] = category
+        if search:
+            params["search"] = search
         if start_date:
             # Assuming start_date is a datetime or date object, or ISO string
             params["start_date"] = start_date.isoformat() if hasattr(start_date, 'isoformat') else start_date

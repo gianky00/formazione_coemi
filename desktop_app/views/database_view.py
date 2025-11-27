@@ -29,12 +29,12 @@ class StatusDelegate(CascadeDelegate):
         status = index.data(Qt.ItemDataRole.DisplayRole)
         if status:
             color_map = {
-                "attivo": QColor("#ECFDF5"), "archiviato": QColor("#ECFDF5"),
-                "scaduto": QColor("#FEF2F2"), "in_scadenza": QColor("#FFFBEB")
+                "ATTIVO": QColor("#ECFDF5"), "ARCHIVIATO": QColor("#ECFDF5"),
+                "SCADUTO": QColor("#FEF2F2"), "IN_SCADENZA": QColor("#FFFBEB")
             }
             text_color_map = {
-                "attivo": QColor("#059669"), "archiviato": QColor("#059669"),
-                "scaduto": QColor("#DC2626"), "in_scadenza": QColor("#F59E0B")
+                "ATTIVO": QColor("#059669"), "ARCHIVIATO": QColor("#059669"),
+                "SCADUTO": QColor("#DC2626"), "IN_SCADENZA": QColor("#F59E0B")
             }
             color = color_map.get(status, QColor("white"))
             text_color = text_color_map.get(status, QColor("black"))
@@ -69,8 +69,8 @@ class CertificatoTableModel(QAbstractTableModel):
         val = self._data.iloc[index.row(), index.column()]
         if pd.isna(val) or val == "None" or val is None:
             return ""
-        # XSS Protection: Escape HTML characters to prevent rendering malicious code
-        return html.escape(str(val))
+        # Return uppercase string without HTML escaping to display correct characters like '
+        return str(val).upper()
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:

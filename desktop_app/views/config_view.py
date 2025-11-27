@@ -1,11 +1,12 @@
 import json
+from datetime import datetime
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton,
     QMessageBox, QFrame, QFormLayout, QComboBox, QFileDialog, QHBoxLayout,
     QTableWidget, QTableWidgetItem, QDialog, QDialogButtonBox, QCheckBox,
     QStackedWidget, QHeaderView, QDateEdit
 )
-from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtCore import Qt, QDate, QTimer
 from PyQt6.QtGui import QColor
 from desktop_app.api_client import APIClient
 from app.utils.security import obfuscate_string, reveal_string
@@ -217,11 +218,6 @@ class UserManagementWidget(QFrame):
         if not user_id: return
         current_user_id = self.api_client.user_info.get("id")
 
-        # Prevent editing own user via this admin table (use personal section)
-        if current_user_id == user_id:
-             QMessageBox.information(self, "Info", "Usa il pulsante 'Modifica Password Personale' in basso per gestire il tuo account.")
-             return
-
         user_data = {
             "username": self.table.item(self.table.currentRow(), 1).text(),
             "account_name": self.table.item(self.table.currentRow(), 2).text(),
@@ -367,7 +363,6 @@ class AuditLogWidget(QFrame):
         filter_layout.addWidget(self.user_filter)
         self.category_filter = QComboBox()
         self.category_filter.addItem("Tutte le categorie", None)
-        self.category_filter.addItems(["AUTH", "USER_MGMT", "CERTIFICATE", "SYSTEM", "CONFIG", "DATA"])
         filter_layout.addWidget(QLabel("Categoria:"))
         filter_layout.addWidget(self.category_filter)
         self.start_date = QDateEdit()
@@ -382,26 +377,74 @@ class AuditLogWidget(QFrame):
         filter_layout.addWidget(self.start_date)
         filter_layout.addWidget(QLabel("Al:"))
         filter_layout.addWidget(self.end_date)
-        self.refresh_btn = QPushButton("Aggiorna")
-        self.refresh_btn.clicked.connect(self.refresh_logs)
-        filter_layout.addWidget(self.refresh_btn)
+
+        filter_layout.addWidget(QLabel("Cerca:"))
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Cerca...")
+        self.search_input.textChanged.connect(self._on_search_changed)
+        filter_layout.addWidget(self.search_input)
+
+        self.start_date.dateChanged.connect(self.refresh_logs)
+        self.end_date.dateChanged.connect(self.refresh_logs)
+        self.user_filter.currentIndexChanged.connect(self.refresh_logs)
+        self.category_filter.currentIndexChanged.connect(self.refresh_logs)
+
         self.layout.addLayout(filter_layout)
 
+        self.search_timer = QTimer()
+        self.search_timer.setSingleShot(True)
+        self.search_timer.setInterval(500)
+        self.search_timer.timeout.connect(self.refresh_logs)
+
         self.table = QTableWidget()
-        self.table.setColumnCount(9)
-        self.table.setHorizontalHeaderLabels(["Data/Ora", "Severità", "Utente", "IP", "Geo", "Device ID", "Azione", "Categoria", "Dettagli"])
+        self.table.setColumnCount(6)
+        self.table.setHorizontalHeaderLabels(["Data/Ora", "Severità", "Utente", "Azione", "Categoria", "Dettagli"])
         header = self.table.horizontalHeader()
-        for i in range(8):
+        for i in range(5):
             header.setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(8, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.verticalHeader().setVisible(False)
         self.layout.addWidget(self.table)
 
+    def refresh_filters(self):
+        try:
+            users = self.api_client.get_users()
+            current_user = self.user_filter.currentData()
+            self.user_filter.clear()
+            self.user_filter.addItem("Tutti gli utenti", None)
+            for user in users:
+                self.user_filter.addItem(user['username'], user['id'])
+
+            if current_user:
+                idx = self.user_filter.findData(current_user)
+                if idx >= 0:
+                    self.user_filter.setCurrentIndex(idx)
+        except Exception:
+            pass
+
+        try:
+            cats = self.api_client.get_audit_categories()
+            current_cat = self.category_filter.currentData()
+            self.category_filter.clear()
+            self.category_filter.addItem("Tutte le categorie", None)
+            self.category_filter.addItems(cats)
+
+            if current_cat:
+                idx = self.category_filter.findData(current_cat)
+                if idx >= 0:
+                    self.category_filter.setCurrentIndex(idx)
+        except Exception:
+            pass
+
+    def _on_search_changed(self):
+        self.search_timer.start()
+
     def refresh_logs(self):
         user_id = self.user_filter.currentData()
         category = self.category_filter.currentData()
+        search_text = self.search_input.text()
 
         # Helper to convert QDate to datetime/date for API
         start = self.start_date.date().toPyDate()
@@ -411,6 +454,7 @@ class AuditLogWidget(QFrame):
             logs = self.api_client.get_audit_logs(
                 user_id=user_id,
                 category=category,
+                search=search_text,
                 start_date=start,
                 end_date=end
             )
@@ -419,37 +463,36 @@ class AuditLogWidget(QFrame):
             self.table.setRowCount(len(logs))
 
             for i, log in enumerate(logs):
-                # Columns: "Data/Ora", "Severità", "Utente", "IP", "Geo", "Device ID", "Azione", "Categoria", "Dettagli"
+                # Columns: "Data/Ora", "Severità", "Utente", "Azione", "Categoria", "Dettagli"
 
                 # Format timestamp (assuming ISO string from API)
                 ts_str = log['timestamp']
                 try:
-                    # Basic ISO parsing, might need adjustment if API returns fancy format
-                    ts_str = ts_str.replace("T", " ")[:19]
-                except: pass
+                    # Basic ISO parsing
+                    dt = datetime.fromisoformat(ts_str)
+                    formatted_date = dt.strftime("%d/%m/%Y %H:%M:%S")
+                except:
+                    formatted_date = ts_str
 
-                self.table.setItem(i, 0, QTableWidgetItem(ts_str))
+                self.table.setItem(i, 0, QTableWidgetItem(formatted_date))
                 self.table.setItem(i, 1, QTableWidgetItem(log.get('severity', 'LOW')))
                 self.table.setItem(i, 2, QTableWidgetItem(log.get('username', 'Unknown')))
-                self.table.setItem(i, 3, QTableWidgetItem(log.get('ip_address', '')))
-                self.table.setItem(i, 4, QTableWidgetItem(log.get('geolocation', '')))
-                self.table.setItem(i, 5, QTableWidgetItem(log.get('device_id', '')[:8] + '...' if log.get('device_id') else ''))
-                self.table.setItem(i, 6, QTableWidgetItem(log.get('action', '')))
-                self.table.setItem(i, 7, QTableWidgetItem(log.get('category', '')))
+                self.table.setItem(i, 3, QTableWidgetItem(log.get('action', '')))
+                self.table.setItem(i, 4, QTableWidgetItem(log.get('category', '')))
 
                 details_item = QTableWidgetItem(log.get('details', ''))
                 details_item.setToolTip(log.get('changes') or log.get('details', '')) # Show full details/changes in tooltip
-                self.table.setItem(i, 8, details_item)
+                self.table.setItem(i, 5, details_item)
 
                 # Color code severity
                 sev = log.get('severity', 'LOW')
                 if sev == 'CRITICAL':
-                    for col in range(9):
+                    for col in range(6):
                         item = self.table.item(i, col)
                         item.setBackground(QColor("#FEE2E2")) # Red-ish
                         item.setForeground(QColor("#991B1B"))
                 elif sev == 'MEDIUM':
-                     for col in range(9):
+                     for col in range(6):
                         item = self.table.item(i, col)
                         item.setBackground(QColor("#FEF3C7")) # Yellow-ish
                         item.setForeground(QColor("#92400E"))
@@ -544,6 +587,9 @@ class ConfigView(QWidget):
         self.btn_audit.setChecked(index == 2)
         # Show save button only on General Settings tab (index 0)
         self.bottom_buttons_frame.setVisible(index == 0)
+
+        if index == 2:
+            self.audit_widget.refresh_filters()
 
     def showEvent(self, event):
         super().showEvent(event)

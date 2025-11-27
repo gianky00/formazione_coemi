@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGraphicsView, QGraph
                              QSplitter, QTreeWidget, QTreeWidgetItem, QGraphicsRectItem,
                              QGraphicsTextItem, QGraphicsLineItem, QPushButton, QHBoxLayout,
                              QScrollBar, QTreeWidgetItemIterator, QMessageBox, QFileDialog, QComboBox)
-from PyQt6.QtCore import Qt, QDate, QRectF, QVariantAnimation, QEasingCurve
+from PyQt6.QtCore import Qt, QDate, QRectF, QVariantAnimation, QEasingCurve, pyqtSignal
 from PyQt6.QtGui import QColor, QBrush, QPen, QFont, QLinearGradient, QPainterPath, QPainter, QPageLayout, QPageSize, QImage
 from PyQt6.QtPrintSupport import QPrinter
 import requests
@@ -11,6 +11,13 @@ from ..api_client import APIClient
 from ..components.animated_widgets import AnimatedButton
 from collections import defaultdict
 from .gantt_item import GanttBarItem
+
+class ResizingGraphicsView(QGraphicsView):
+    resized = pyqtSignal()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.resized.emit()
 
 class ScadenzarioView(QWidget):
     def __init__(self):
@@ -77,8 +84,9 @@ class ScadenzarioView(QWidget):
         self.employee_tree.setFont(font)
         self.splitter.addWidget(self.employee_tree)
 
-        self.gantt_view = QGraphicsView()
+        self.gantt_view = ResizingGraphicsView()
         self.gantt_view.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        self.gantt_view.resized.connect(self.redraw_gantt_scene)
         self.gantt_scene = QGraphicsScene()
         self.gantt_view.setScene(self.gantt_scene)
         self.splitter.addWidget(self.gantt_view)
@@ -134,10 +142,6 @@ class ScadenzarioView(QWidget):
                 rect_item.setBrush(QBrush(QColor("lightblue")))
                 rect_item.setPen(QPen(QColor("blue"), 2))
                 break
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self.redraw_gantt_scene()
 
     def prev_month(self):
         self.current_date = self.current_date.addMonths(-1)

@@ -231,7 +231,10 @@ def create_certificato(
     if not dipendente_info:
         ragione_fallimento = "Non trovato in anagrafica (matricola mancante)."
 
-    log_security_action(db, current_user, "CERTIFICATE_CREATE", f"Created certificate for {certificato.nome} - {certificato.corso}", category="CERTIFICATE")
+    matricola_log = dipendente_info.matricola if dipendente_info else "N/A"
+    scadenza_log = certificato.data_scadenza if certificato.data_scadenza else "nessuna scadenza"
+    log_msg = f"creato certificato per {certificato.nome.upper()} ({matricola_log}) - {certificato.categoria.upper()} - {scadenza_log} (data scadenza)"
+    log_security_action(db, current_user, "CERTIFICATE_CREATE", log_msg, category="CERTIFICATE")
 
     return CertificatoSchema(
         id=new_cert.id,
@@ -260,7 +263,11 @@ def valida_certificato(
     db.refresh(db_cert)
     status = certificate_logic.get_certificate_status(db, db_cert)
 
-    log_security_action(db, current_user, "CERTIFICATE_VALIDATE", f"Validated certificate ID {certificato_id}", category="CERTIFICATE")
+    empl_name = (f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}" if db_cert.dipendente else db_cert.nome_dipendente_raw) or "Sconosciuto"
+    course_name = db_cert.corso.nome_corso
+    log_msg = f"validato certificato per {empl_name} - {course_name} (ID: {certificato_id})"
+
+    log_security_action(db, current_user, "CERTIFICATE_VALIDATE", log_msg, category="CERTIFICATE")
 
     if db_cert.dipendente:
         nome_completo = f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}"
@@ -357,7 +364,7 @@ def update_certificato(
     db.refresh(db_cert)
     status = certificate_logic.get_certificate_status(db, db_cert)
 
-    log_security_action(db, current_user, "CERTIFICATE_UPDATE", f"Updated certificate ID {certificato_id}. Fields: {', '.join(update_data.keys())}", category="CERTIFICATE")
+    log_security_action(db, current_user, "CERTIFICATE_UPDATE", f"aggiornato certificato ID {certificato_id}. Campi: {', '.join(update_data.keys())}", category="CERTIFICATE")
 
     dipendente_info = db_cert.dipendente  # Reload the relationship
 
@@ -384,7 +391,7 @@ def delete_certificato(
         raise HTTPException(status_code=404, detail="Certificato non trovato")
 
     # Snapshot for logging
-    log_details = f"Deleted certificate ID {certificato_id} - {db_cert.nome_dipendente_raw or 'Unknown'} - {db_cert.corso.nome_corso}"
+    log_details = f"eliminato certificato ID {certificato_id} - {db_cert.nome_dipendente_raw or 'Sconosciuto'} - {db_cert.corso.nome_corso}"
 
     db.delete(db_cert)
     db.commit()
@@ -518,7 +525,7 @@ async def import_dipendenti_csv(
     if linked_count > 0:
         db.commit()
 
-    log_security_action(db, current_user, "DIPENDENTI_IMPORT", f"Imported CSV: {file.filename}. Orphans linked: {linked_count}", category="DATA")
+    log_security_action(db, current_user, "DIPENDENTI_IMPORT", f"Importato CSV: {file.filename}. Orfani collegati: {linked_count}", category="DATA")
 
     return {
         "message": f"Importazione completata con successo. {linked_count} certificati orfani collegati.",
