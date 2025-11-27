@@ -63,9 +63,9 @@ async def lifespan(app: FastAPI):
         Base.metadata.create_all(bind=engine)
         seed_database()
 
-        # Schedule startup maintenance (delayed by 10s to allow server startup)
+        # Schedule startup maintenance (delayed by 60s to allow server startup and UI load)
         # This prevents blocking the main thread if maintenance takes a long time (e.g. slow network share)
-        scheduler.add_job(run_maintenance_task, 'date', run_date=datetime.now() + timedelta(seconds=10))
+        scheduler.add_job(run_maintenance_task, 'date', run_date=datetime.now() + timedelta(seconds=60))
 
         if settings.GEMINI_API_KEY:
             genai.configure(api_key=settings.GEMINI_API_KEY)
