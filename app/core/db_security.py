@@ -7,6 +7,7 @@ import logging
 import sqlite3
 import socket
 import threading
+import uuid
 from typing import Dict, Optional, Tuple
 from pathlib import Path
 from cryptography.fernet import Fernet
@@ -70,15 +71,24 @@ class DBSecurityManager:
         Starts the background heartbeat mechanism to maintain the lock.
         """
         self._stop_heartbeat()
+        self._heartbeat_failures = 0
 
         def _tick():
             if self.is_read_only:
                 return
 
-            if not self.lock_manager.update_heartbeat():
-                logger.critical("HEARTBEAT FAILED: Lock lost (Network issue?). Forcing Read-Only mode.")
-                self.force_read_only_mode()
-                return
+            success = self.lock_manager.update_heartbeat()
+            if not success:
+                self._heartbeat_failures += 1
+                logger.warning(f"HEARTBEAT WARNING: Verification failed ({self._heartbeat_failures}/3).")
+
+                # Tolerance: Force Read-Only only after 3 consecutive failures (30 seconds)
+                if self._heartbeat_failures >= 3:
+                    logger.critical("HEARTBEAT FAILED: Lock lost (Network issue or Split Brain). Forcing Read-Only mode.")
+                    self.force_read_only_mode()
+                    return
+            else:
+                self._heartbeat_failures = 0 # Reset counter on success
 
             # Schedule next tick (10 seconds)
             self._heartbeat_timer = threading.Timer(10.0, _tick)
@@ -115,6 +125,7 @@ class DBSecurityManager:
         """
         # Add system info to user_info
         metadata = {
+            "uuid": str(uuid.uuid4()), # Unique Session ID
             "pid": os.getpid(),
             "hostname": socket.gethostname(),
             "timestamp": time.time(),

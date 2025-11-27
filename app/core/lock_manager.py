@@ -100,35 +100,42 @@ class LockManager:
     def update_heartbeat(self) -> bool:
         """
         Updates the timestamp in the lock file to prove we are still alive.
-        Verifies identity before writing to prevent "Zombie Writer" scenario (Split Brain).
-        Returns False if the update fails (indicates lock loss/network issue).
+        Verifies identity (UUID/PID) before writing to prevent "Zombie Writer" scenarios.
+        STRICT MODE: If verification fails (e.g. read error), we do NOT write.
         """
         if not self._is_locked or not self.current_metadata:
             return False
 
         try:
             # 1. Read existing metadata to verify identity
-            # In a network split-brain, another client might have overwritten the file.
             current_on_disk = self._read_metadata()
 
-            # If disk metadata is valid structure, check if it matches our identity
-            if isinstance(current_on_disk, dict) and "pid" in current_on_disk:
-                disk_pid = current_on_disk.get("pid")
-                disk_host = current_on_disk.get("hostname")
-
-                my_pid = self.current_metadata.get("pid")
-                my_host = self.current_metadata.get("hostname")
-
-                if disk_pid != my_pid or disk_host != my_host:
-                    logger.critical(f"SPLIT BRAIN DETECTED: Lock file is owned by {disk_host} (PID {disk_pid}). I am {my_host} (PID {my_pid}). Aborting write.")
+            # 2. Strict Verification
+            # If we cannot confirm it's us (e.g. read error, empty file, corruption), we assume risk and FAIL.
+            if not isinstance(current_on_disk, dict) or "uuid" not in current_on_disk:
+                # Backward compatibility: if no uuid on disk but we have one, check PID/Host
+                if isinstance(current_on_disk, dict) and "pid" in current_on_disk:
+                     # Check Legacy Identity (PID + Host)
+                     if current_on_disk.get("pid") != self.current_metadata.get("pid") or \
+                        current_on_disk.get("hostname") != self.current_metadata.get("hostname"):
+                         logger.critical("SPLIT BRAIN DETECTED (Legacy Check): Identity mismatch.")
+                         return False
+                else:
+                    # Metadata corrupted or unreadable
+                    logger.error(f"Heartbeat Verification Failed: Could not read valid metadata. content: {current_on_disk}")
                     return False
+            else:
+                # Strong Verification (UUID)
+                if current_on_disk.get("uuid") != self.current_metadata.get("uuid"):
+                     logger.critical(f"SPLIT BRAIN DETECTED: UUID mismatch. Owner: {current_on_disk.get('uuid')}. Me: {self.current_metadata.get('uuid')}.")
+                     return False
 
-            # 2. Update timestamp and write
+            # 3. Update timestamp and write
             self.current_metadata['timestamp'] = time.time()
             self._write_metadata(self.current_metadata)
             return True
         except Exception as e:
-            logger.error(f"Heartbeat failed (Lock Lost?): {e}")
+            logger.error(f"Heartbeat failed (Exception): {e}")
             return False
 
     def release(self):
