@@ -138,8 +138,7 @@ class PdfWorker(QObject):
                         self.log_message.emit(f"File scartato (Generico/Syllabus): {original_filename}", "orange")
 
                         # Move to SCARTATI folder
-                        filename_no_ext = os.path.splitext(original_filename)[0]
-                        target_dir = os.path.join(self.output_folder, "ERRORI ANALISI", "SCARTATI", filename_no_ext)
+                        target_dir = os.path.join(self.output_folder, "ERRORI ANALISI", "SCARTATI")
                         os.makedirs(target_dir, exist_ok=True)
 
                         try:
