@@ -117,6 +117,7 @@ class Token(BaseModel):
     previous_login: Optional[datetime] = None
     read_only: bool = False
     lock_owner: Optional[dict] = None
+    require_password_change: bool = False
 
 class TokenData(BaseModel):
     username: Optional[str] = None

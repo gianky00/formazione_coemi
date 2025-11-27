@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QDialog, QDialogButtonBox, QCheckBox,
     QStackedWidget, QHeaderView, QDateEdit
 )
-from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtCore import Qt, QDate, QTimer
 from PyQt6.QtGui import QColor
 from desktop_app.api_client import APIClient
 from app.utils.security import obfuscate_string, reveal_string
@@ -382,10 +382,24 @@ class AuditLogWidget(QFrame):
         filter_layout.addWidget(self.start_date)
         filter_layout.addWidget(QLabel("Al:"))
         filter_layout.addWidget(self.end_date)
-        self.refresh_btn = QPushButton("Aggiorna")
-        self.refresh_btn.clicked.connect(self.refresh_logs)
-        filter_layout.addWidget(self.refresh_btn)
+
+        filter_layout.addWidget(QLabel("Cerca:"))
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Cerca...")
+        self.search_input.textChanged.connect(self._on_search_changed)
+        filter_layout.addWidget(self.search_input)
+
+        self.start_date.dateChanged.connect(self.refresh_logs)
+        self.end_date.dateChanged.connect(self.refresh_logs)
+        self.user_filter.currentIndexChanged.connect(self.refresh_logs)
+        self.category_filter.currentIndexChanged.connect(self.refresh_logs)
+
         self.layout.addLayout(filter_layout)
+
+        self.search_timer = QTimer()
+        self.search_timer.setSingleShot(True)
+        self.search_timer.setInterval(500)
+        self.search_timer.timeout.connect(self.refresh_logs)
 
         self.table = QTableWidget()
         self.table.setColumnCount(6)
@@ -429,9 +443,13 @@ class AuditLogWidget(QFrame):
         except Exception:
             pass
 
+    def _on_search_changed(self):
+        self.search_timer.start()
+
     def refresh_logs(self):
         user_id = self.user_filter.currentData()
         category = self.category_filter.currentData()
+        search_text = self.search_input.text()
 
         # Helper to convert QDate to datetime/date for API
         start = self.start_date.date().toPyDate()
@@ -441,6 +459,7 @@ class AuditLogWidget(QFrame):
             logs = self.api_client.get_audit_logs(
                 user_id=user_id,
                 category=category,
+                search=search_text,
                 start_date=start,
                 end_date=end
             )

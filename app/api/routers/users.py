@@ -54,7 +54,7 @@ def create_user(
     db.commit()
     db.refresh(user)
 
-    log_security_action(db, current_user, "USER_CREATE", f"Created user: {user.username} (Admin: {user.is_admin})", category="USER_MGMT")
+    log_security_action(db, current_user, "USER_CREATE", f"Creato utente: {user.username} (Admin: {user.is_admin})", category="USER_MGMT")
 
     return user
 
@@ -99,9 +99,9 @@ def update_user(
     db.refresh(user)
 
     if password_changed:
-        log_security_action(db, current_user, "PASSWORD_CHANGE", f"Changed password for user: {user.username}", category="USER_MGMT")
+        log_security_action(db, current_user, "PASSWORD_CHANGE", f"Cambiata password per utente: {user.username}", category="USER_MGMT")
     else:
-        log_security_action(db, current_user, "USER_UPDATE", f"Updated user: {user.username}. Fields: {', '.join(update_data.keys())}", category="USER_MGMT")
+        log_security_action(db, current_user, "USER_UPDATE", f"Aggiornato utente: {user.username}. Campi: {', '.join(update_data.keys())}", category="USER_MGMT")
 
     return user
 
@@ -131,6 +131,6 @@ def delete_user(
     db.delete(user)
     db.commit()
 
-    log_security_action(db, current_user, "USER_DELETE", f"Deleted user: {username_snapshot}", category="USER_MGMT")
+    log_security_action(db, current_user, "USER_DELETE", f"Eliminato utente: {username_snapshot}", category="USER_MGMT")
 
     return user

@@ -1,6 +1,7 @@
 from typing import Any, List, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, Body, HTTPException, Request
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.api import deps
@@ -29,6 +30,7 @@ def read_audit_logs(
     limit: int = 100,
     user_id: Optional[int] = None,
     category: Optional[str] = None,
+    search: Optional[str] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     current_user: UserModel = Depends(deps.get_current_active_admin),
@@ -37,6 +39,17 @@ def read_audit_logs(
     Retrieve audit logs with filtering (Admin only).
     """
     query = db.query(AuditLog)
+
+    if search:
+        search_lower = f"%{search}%"
+        query = query.filter(
+            or_(
+                AuditLog.action.ilike(search_lower),
+                AuditLog.details.ilike(search_lower),
+                AuditLog.username.ilike(search_lower),
+                AuditLog.category.ilike(search_lower)
+            )
+        )
 
     if user_id:
         query = query.filter(AuditLog.user_id == user_id)
