@@ -176,6 +176,12 @@ class APIClient:
 
     # --- Audit Logs ---
 
+    def get_audit_categories(self):
+        url = f"{self.base_url}/audit/categories"
+        response = requests.get(url, headers=self._get_headers())
+        response.raise_for_status()
+        return response.json()
+
     def get_audit_logs(self, skip=0, limit=100, user_id=None, category=None, start_date=None, end_date=None):
         url = f"{self.base_url}/audit/"
         params = {"skip": skip, "limit": limit}

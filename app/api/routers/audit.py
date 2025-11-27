@@ -10,6 +10,18 @@ from app.utils.audit import log_security_action
 
 router = APIRouter()
 
+@router.get("/categories", response_model=List[str])
+def read_audit_categories(
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_active_admin),
+) -> Any:
+    """
+    Retrieve distinct audit log categories (Admin only).
+    """
+    categories = db.query(AuditLog.category).distinct().filter(AuditLog.category.isnot(None)).all()
+    # Flatten list of tuples
+    return sorted([c[0] for c in categories if c[0]])
+
 @router.get("/", response_model=List[AuditLogSchema])
 def read_audit_logs(
     db: Session = Depends(get_db),
@@ -36,6 +48,10 @@ def read_audit_logs(
         query = query.filter(AuditLog.timestamp >= start_date)
 
     if end_date:
+        # Fix: If end_date is exactly midnight (00:00:00), assume it's a date selection
+        # and we want to include the entire day (up to 23:59:59).
+        if end_date.hour == 0 and end_date.minute == 0 and end_date.second == 0:
+            end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
         query = query.filter(AuditLog.timestamp <= end_date)
 
     logs = query.order_by(AuditLog.timestamp.desc()).offset(skip).limit(limit).all()

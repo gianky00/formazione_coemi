@@ -260,7 +260,11 @@ def valida_certificato(
     db.refresh(db_cert)
     status = certificate_logic.get_certificate_status(db, db_cert)
 
-    log_security_action(db, current_user, "CERTIFICATE_VALIDATE", f"Validated certificate ID {certificato_id}", category="CERTIFICATE")
+    empl_name = (f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}" if db_cert.dipendente else db_cert.nome_dipendente_raw) or "Unknown"
+    course_name = db_cert.corso.nome_corso
+    log_msg = f"Validated certificate for {empl_name} - {course_name} (ID: {certificato_id})"
+
+    log_security_action(db, current_user, "CERTIFICATE_VALIDATE", log_msg, category="CERTIFICATE")
 
     if db_cert.dipendente:
         nome_completo = f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}"
