@@ -401,6 +401,9 @@ class MainDashboardWidget(QWidget):
         # --- SECURITY FEATURE: Real-time Expiration Check ---
         self._init_license_check_timer()
 
+        # Trigger background maintenance after UI is loaded (5 seconds delay)
+        QTimer.singleShot(5000, self.trigger_background_maintenance)
+
     def _init_views(self):
         self.views["import"] = ImportView()
         self.views["import"].api_client = self.api_client
@@ -501,3 +504,17 @@ class MainDashboardWidget(QWidget):
                 view.set_read_only(is_read_only)
             else:
                 print(f"[DEBUG] View {key} has no set_read_only method")
+
+    def trigger_background_maintenance(self):
+        """
+        Triggers the background file maintenance task via API.
+        This is done asynchronously to avoid blocking the UI startup.
+        """
+        if self.is_read_only:
+            return
+
+        try:
+            print("Triggering background maintenance...")
+            self.api_client.trigger_maintenance()
+        except Exception as e:
+            print(f"Failed to trigger maintenance: {e}")

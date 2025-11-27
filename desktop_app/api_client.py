@@ -83,6 +83,15 @@ class APIClient:
         response.raise_for_status()
         return response.json()
 
+    # --- System ---
+
+    def trigger_maintenance(self):
+        """Triggers the background file maintenance task."""
+        url = f"{self.base_url}/system/maintenance/background"
+        response = requests.post(url, headers=self._get_headers())
+        response.raise_for_status()
+        return response.json()
+
     def import_dipendenti_csv(self, file_path):
         """
         Uploads a CSV file to import employee data.
