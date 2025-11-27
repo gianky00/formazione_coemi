@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from app.db.models import Corso, User
+from app.db.models import Corso, User, Certificato
 from app.db.session import SessionLocal
 from app.core.security import get_password_hash
 from app.core.config import settings
@@ -101,6 +101,33 @@ def migrate_schema(db: Session):
         print(f"Schema migration check failed: {e}")
         db.rollback()
 
+def cleanup_deprecated_data(db: Session):
+    """
+    Removes data related to deprecated categories like 'MEDICO COMPETENTE'.
+    """
+    deprecated_category = "MEDICO COMPETENTE"
+
+    try:
+        # Find course IDs for this category
+        courses = db.query(Corso).filter(Corso.categoria_corso == deprecated_category).all()
+        course_ids = [c.id for c in courses]
+
+        if course_ids:
+            # Delete Certificates
+            deleted_certs = db.query(Certificato).filter(Certificato.corso_id.in_(course_ids)).delete(synchronize_session=False)
+            if deleted_certs > 0:
+                print(f"Cleanup: Deleted {deleted_certs} certificates for deprecated category '{deprecated_category}'.")
+
+            # Delete Courses
+            deleted_courses = db.query(Corso).filter(Corso.id.in_(course_ids)).delete(synchronize_session=False)
+            if deleted_courses > 0:
+                 print(f"Cleanup: Deleted {deleted_courses} deprecated courses.")
+
+            db.commit()
+    except Exception as e:
+        print(f"Error during cleanup of deprecated data: {e}")
+        db.rollback()
+
 def seed_database(db: Session = None):
     """
     Populates the database with a predefined list of master courses and the default admin user.
@@ -114,6 +141,9 @@ def seed_database(db: Session = None):
     try:
         # --- Run Auto-Migration for missing columns ---
         migrate_schema(db)
+
+        # --- Cleanup Deprecated Data ---
+        cleanup_deprecated_data(db)
 
         # --- Seed Courses ---
         corsi = [
@@ -137,7 +167,6 @@ def seed_database(db: Session = None):
             {"nome_corso": "LAVORI IN QUOTA", "validita_mesi": 60, "categoria_corso": "LAVORI IN QUOTA"}, # 5 anni
             {"nome_corso": "MACCHINE OPERATRICI", "validita_mesi": 60, "categoria_corso": "MACCHINE OPERATRICI"}, # 5 anni
             {"nome_corso": "MANITOU P.ROTATIVE", "validita_mesi": 60, "categoria_corso": "MANITOU P.ROTATIVE"}, # 5 anni
-            {"nome_corso": "MEDICO COMPETENTE", "validita_mesi": 0, "categoria_corso": "MEDICO COMPETENTE"}, # Sempre valido
             {"nome_corso": "MULETTO CARRELISTI", "validita_mesi": 60, "categoria_corso": "MULETTO CARRELISTI"}, # 5 anni
             {"nome_corso": "SOPRAVVIVENZA E SALVATAGGIO IN MARE", "validita_mesi": 60, "categoria_corso": "SOPRAVVIVENZA E SALVATAGGIO IN MARE"}, # 5 anni
             {"nome_corso": "SPAZI CONFINATI DPI III E AUTORESPIRATORI", "validita_mesi": 60, "categoria_corso": "SPAZI CONFINATI DPI III E AUTORESPIRATORI"}, # 5 anni

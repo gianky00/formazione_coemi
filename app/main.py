@@ -13,6 +13,8 @@ from app.core.config import settings
 from app.core.db_security import db_security
 from app.db.seeding import seed_database
 from app.services.notification_service import check_and_send_alerts
+from app.services.file_maintenance import organize_expired_files
+from app.db.session import SessionLocal
 from app.utils.logging import setup_logging
 
 scheduler = AsyncIOScheduler()
@@ -44,6 +46,26 @@ async def lifespan(app: FastAPI):
     try:
         Base.metadata.create_all(bind=engine)
         seed_database()
+
+        # Run File Maintenance (if we can acquire the lock)
+        success, owner = db_security.acquire_session_lock({"username": "SYSTEM_MAINTENANCE"})
+        if success:
+            try:
+                print("Acquired lock for system maintenance...")
+                db = SessionLocal()
+                try:
+                    organize_expired_files(db)
+                finally:
+                    db.close()
+                db_security.save_to_disk()
+            except Exception as e:
+                print(f"Error during file maintenance: {e}")
+            finally:
+                db_security.release_lock()
+                print("Released system maintenance lock.")
+        else:
+            print(f"Skipping file maintenance (Read-Only Mode). Locked by: {owner}")
+
         if settings.GEMINI_API_KEY:
             genai.configure(api_key=settings.GEMINI_API_KEY)
 

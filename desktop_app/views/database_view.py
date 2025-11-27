@@ -10,7 +10,7 @@ from ..view_models.database_view_model import DatabaseViewModel
 from ..api_client import APIClient
 from ..components.animated_widgets import AnimatedButton, AnimatedInput, CardWidget
 from ..components.cascade_delegate import CascadeDelegate
-from ..services.document_locator import find_document
+from app.services.document_locator import find_document
 import requests
 import pandas as pd
 import html
