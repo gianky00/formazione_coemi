@@ -131,6 +131,26 @@ class PdfWorker(QObject):
             if response.status_code == 200:
                 data = response.json()
                 entities = data.get('entities', {})
+            elif response.status_code == 422:
+                try:
+                    error_detail = response.json().get("detail", "")
+                    if "REJECTED" in str(error_detail):
+                        self.log_message.emit(f"File scartato (Generico/Syllabus): {original_filename}", "orange")
+
+                        # Move to SCARTATI folder
+                        target_dir = os.path.join(self.output_folder, "ERRORI ANALISI", "SCARTATI")
+                        os.makedirs(target_dir, exist_ok=True)
+
+                        try:
+                            shutil.move(file_path, os.path.join(target_dir, original_filename))
+                        except Exception as e:
+                            self.log_message.emit(f"Impossibile spostare il file scartato {original_filename}: {e}", "red")
+                        return
+                except Exception:
+                    pass # Fallback to standard handling if parsing fails
+
+                self.log_message.emit(f"Errore durante l'elaborazione di {original_filename}: {response.text}", "red")
+                move_to_error(f"Errore Analisi: {response.text}")
 
                 # Normalizza il formato della data prima di inviarlo
                 data_rilascio_raw = entities.get('data_rilascio', '')
