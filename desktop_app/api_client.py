@@ -92,6 +92,13 @@ class APIClient:
         response.raise_for_status()
         return response.json()
 
+    def get_lock_status(self):
+        """Checks if the backend is in Read-Only mode."""
+        url = f"{self.base_url}/system/lock-status"
+        response = requests.get(url, headers=self._get_headers())
+        response.raise_for_status()
+        return response.json()
+
     def import_dipendenti_csv(self, file_path):
         """
         Uploads a CSV file to import employee data.

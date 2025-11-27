@@ -44,6 +44,15 @@ def trigger_maintenance(background_tasks: BackgroundTasks):
     background_tasks.add_task(run_maintenance_task)
     return {"status": "started"}
 
+@router.get("/lock-status", dependencies=[Depends(deps.get_current_user)])
+def get_lock_status():
+    """
+    Returns the current lock status (Read-Only mode).
+    Used by the frontend to detect split-brain or network lock loss.
+    """
+    from app.core.db_security import db_security
+    return {"read_only": db_security.is_read_only}
+
 @router.post("/open-action")
 def open_action(action_request: SystemAction):
     """
