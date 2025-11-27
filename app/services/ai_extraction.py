@@ -77,7 +77,7 @@ Prima di tutto, applica questo CONTROLLO BINARIO:
 
 Se il documento è VALIDO, estrai le seguenti informazioni:
 
-1.  "nome": Il nome completo del partecipante (es. "MARIO ROSSI"). Se non c'è, restituisci null.
+1.  "nome": Il nome completo del partecipante. IMPORTANTE: Estrai SEMPRE nel formato "COGNOME NOME" (es. "ROSSI MARIO"). Se nel documento è scritto "Mario Rossi", DEVI convertirlo in "ROSSI MARIO". Se non c'è, restituisci null.
 2.  "data_nascita": La data di nascita del partecipante (formato DD-MM-AAAA). Se non la trovi, restituisci null.
 3.  "corso": Il titolo esatto del corso o del documento (es. "NOMINA CAPO CANTIERE", "Giudizio di idoneità alla Mansione Specifica"). Se non c'è, restituisci null.
 4.  "data_rilascio": La data di emissione del documento (formato DD-MM-AAAA). Se non c'è, restituisci null.

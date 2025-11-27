@@ -30,7 +30,7 @@ def logout(
             blacklist_entry = BlacklistedToken(token=token)
             db.add(blacklist_entry)
             db.commit()
-            log_security_action(db, current_user, "LOGOUT", "User logged out successfully", category="AUTH", request=request)
+            log_security_action(db, current_user, "LOGOUT", "Utente disconnesso con successo", category="AUTH", request=request)
         except Exception:
             db.rollback()
             # If it failed, it's likely already blacklisted or race condition.
@@ -74,7 +74,7 @@ def login_access_token(
                 db,
                 user if user else None, # Log user if known, else None
                 "LOGIN_FAILED",
-                details=f"Failed login attempt for username: {form_data.username}",
+                details=f"Tentativo di login fallito per utente: {form_data.username}",
                 category="AUTH",
                 request=request,
                 severity=severity
@@ -106,9 +106,13 @@ def login_access_token(
     }
     success, owner_info = db_security.acquire_session_lock(user_info)
 
+    require_password_change = False
+    if form_data.password == "primoaccesso":
+        require_password_change = True
+
     print(f"[DEBUG] Login success. Username: {user.username}, Previous Login: {user.previous_login}, New Last Login: {user.last_login}, ReadOnly: {not success}")
 
-    log_security_action(db, user, "LOGIN", "User logged in successfully", category="AUTH", request=request)
+    log_security_action(db, user, "LOGIN", "Utente connesso con successo", category="AUTH", request=request)
 
     return {
         "access_token": access_token,
@@ -119,7 +123,8 @@ def login_access_token(
         "is_admin": user.is_admin,
         "previous_login": user.previous_login,
         "read_only": not success,
-        "lock_owner": owner_info
+        "lock_owner": owner_info,
+        "require_password_change": require_password_change
     }
 
 @router.get("/me", response_model=User)
@@ -148,6 +153,6 @@ def change_password(
     db.add(current_user)
     db.commit()
 
-    log_security_action(db, current_user, "PASSWORD_CHANGE", "User changed their own password", category="USER_MGMT", request=request)
+    log_security_action(db, current_user, "PASSWORD_CHANGE", "L'utente ha cambiato la propria password", category="USER_MGMT", request=request)
 
     return {"message": "Password aggiornata con successo."}

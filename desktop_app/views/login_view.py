@@ -1,7 +1,8 @@
 import os
 import sys
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QFrame, QMessageBox, QHBoxLayout,
-                             QGraphicsOpacityEffect, QGraphicsDropShadowEffect, QApplication, QPushButton)
+                             QGraphicsOpacityEffect, QGraphicsDropShadowEffect, QApplication, QPushButton,
+                             QDialog, QLineEdit, QDialogButtonBox)
 from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPropertyAnimation, QPoint, QEasingCurve, QTimer, QObject, QThread
 from PyQt6.QtGui import QPixmap, QColor, QFont
 from desktop_app.utils import get_asset_path
@@ -9,6 +10,35 @@ from desktop_app.components.animated_widgets import AnimatedButton, AnimatedInpu
 from desktop_app.services.license_manager import LicenseManager
 from desktop_app.services.license_updater_service import LicenseUpdaterService
 from desktop_app.services.hardware_id_service import get_machine_id
+
+class ForcePasswordChangeDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Impostazione Password Obbligatoria")
+        self.resize(400, 200)
+        self.layout = QVBoxLayout(self)
+
+        lbl = QLabel("È il tuo primo accesso. Devi impostare una nuova password.")
+        lbl.setWordWrap(True)
+        self.layout.addWidget(lbl)
+
+        self.new_password = QLineEdit()
+        self.new_password.setEchoMode(QLineEdit.EchoMode.Password)
+        self.new_password.setPlaceholderText("Nuova Password")
+        self.layout.addWidget(self.new_password)
+
+        self.confirm_password = QLineEdit()
+        self.confirm_password.setEchoMode(QLineEdit.EchoMode.Password)
+        self.confirm_password.setPlaceholderText("Conferma Password")
+        self.layout.addWidget(self.confirm_password)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        self.layout.addWidget(buttons)
+
+    def get_data(self):
+        return self.new_password.text(), self.confirm_password.text()
 
 class LicenseUpdateWorker(QObject):
     """Worker to run license update in a separate thread."""
@@ -455,6 +485,39 @@ class LoginView(QWidget):
             self.api_client.set_token(response)
 
             user_info = self.api_client.user_info
+
+            if user_info.get("require_password_change"):
+                if user_info.get("read_only"):
+                     QMessageBox.warning(self, "Attenzione", "È richiesto il cambio password, ma il database è in sola lettura. Riprova più tardi.")
+                else:
+                    while True: # Loop until success or cancel
+                        dialog = ForcePasswordChangeDialog(self)
+                        if dialog.exec():
+                            new_pw, confirm_pw = dialog.get_data()
+                            if not new_pw:
+                                QMessageBox.warning(self, "Errore", "Password vuota.")
+                                continue
+                            if new_pw != confirm_pw:
+                                QMessageBox.warning(self, "Errore", "Le password non coincidono.")
+                                continue
+
+                            try:
+                                self.api_client.change_password("primoaccesso", new_pw)
+                                QMessageBox.information(self, "Successo", "Password aggiornata. Procedi pure.")
+                                break
+                            except Exception as e:
+                                err = str(e)
+                                if hasattr(e, 'response'):
+                                    try: err = e.response.json()['detail']
+                                    except: pass
+                                QMessageBox.critical(self, "Errore", f"Errore cambio password: {err}")
+                        else:
+                            # User cancelled. Disconnect?
+                            self.api_client.logout()
+                            self.login_btn.setText("Accedi")
+                            self.login_btn.setEnabled(True)
+                            return
+
             if user_info.get("read_only"):
                 owner = user_info.get("lock_owner") or {}
                 msg = "⚠️ DATABASE IN USO\n\n"

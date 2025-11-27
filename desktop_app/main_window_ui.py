@@ -183,10 +183,10 @@ class Sidebar(QFrame):
 
         self.buttons = {}
         # Nav Icons are White
-        self.add_button("database", "Database", "layout-dashboard.svg")
         self.add_button("import", "Analisi Documenti", "file-text.svg")
         self.add_button("validation", "Convalida Dati", "database.svg")
         self.add_button("scadenzario", "Scadenzario", "calendar.svg")
+        self.add_button("database", "Database", "layout-dashboard.svg")
 
         # Separator
         line = QFrame()
