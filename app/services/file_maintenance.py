@@ -6,6 +6,7 @@ from app.db.models import Certificato
 from app.services import certificate_logic
 from app.services.document_locator import find_document
 from app.core.config import settings, get_user_data_dir
+from datetime import date
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -21,7 +22,14 @@ def organize_expired_files(db: Session):
         logging.warning(f"Database path not found or invalid: {database_path}. Skipping maintenance.")
         return
 
-    certificates = db.query(Certificato).all()
+    # Optimization: Filter at DB level for potential candidates (expired dates)
+    # This avoids iterating thousands of active certificates and triggering 'get_certificate_status' N+1 queries for them.
+    today = date.today()
+    certificates = db.query(Certificato).filter(
+        Certificato.data_scadenza_calcolata.isnot(None),
+        Certificato.data_scadenza_calcolata < today
+    ).all()
+
     moved_count = 0
 
     for cert in certificates:
