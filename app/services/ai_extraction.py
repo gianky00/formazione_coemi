@@ -47,26 +47,26 @@ def _generate_prompt() -> str:
     categorie_str = ", ".join(f'"{c}"' for c in categorie_list)
     
     esempi_categorie = """
-- ANTINCENDIO: "Addetto Antincendio Rischio Basso", "Corso Antincendio Rischio Medio", "ADDETTI INCENDIO", "RISCHIO INCENDIO", "D.M. 2/9/2021"
-- PREPOSTO: [USA QUESTA SOLO PER CORSI/ATTESTATI] "Corso per Preposti alla Sicurezza", "Aggiornamento Preposto"
-- NOMINA: [USA QUESTA PER LETTERE DI INCARICO/ATTRIBUZIONE] "NOMINA CAPO CANTIERE", "NOMINA PREPOSTO", "Attribuzione e competenze del ruolo di Preposto", "Oggetto: NOMINA ADDETTO", "Nomina Addetto al primo soccorso", "Nomina Addetto Antincendio"
-- VISITA MEDICA: [USA QUESTA PER GIUDIZI DI IDONEITÀ] "Giudizio di idoneità alla Mansione Specifica", "Visita medica periodica", "Protocollo Sanitario n."
-- UNILAV: [USA QUESTA PER COMUNICAZIONI OBBLIGATORIE] "UNILAV - Comunicazione di assunzione", "Comunicazione Obbligatoria Assunzione"
-- PATENTE: [USA QUESTA PER PATENTI DI GUIDA] "Patente di Guida", "Patente B"
-- CARTA DI IDENTITA: [USA QUESTA PER CARTE DI IDENTITÀ] "Carta d'Identità Elettronica", "Documento di Riconoscimento"
-- MODULO RECESSO RAPPORTO DI LAVORO: [USA QUESTA PER DIMISSIONI/RECESSO] "Modulo Recesso Rapporto di Lavoro", "Comunicazione di dimissioni"
-- HLO: [USA QUESTA PER ATTESTATI HLO] "Attestato HLO", "Certificato HLO"
-- TESSERA HLO: [USA QUESTA PER TESSERE HLO] "Tessera HLO", "Badge HLO"
-- ATEX: [USA QUESTA PER CORSI ATEX] "Formazione su Protezione da Atmosfere Esplosive", "ATEX", "Addetti verifiche impianti elettrici ATEX", "CEI 31-34"
+- ANTINCENDIO: "ADDETTI INCENDIO", "LIVELLO 3", "RISCHIO INCENDIO", "D.M. 2/9/2021", "Corso Antincendio Rischio Medio"
+- PREPOSTO: [SOLO ATTESTATI] "Corso per Preposti alla Sicurezza", "Aggiornamento Preposto"
+- NOMINA: [SOLO LETTERE DI INCARICO] "Oggetto: NOMINA ADDETTO", "Nomina Addetto al primo soccorso e gestione delle emergenze e incendio", "NOMINA CAPO CANTIERE", "NOMINA PREPOSTO", "Attribuzione e competenze del ruolo di Preposto", "Lettera di incarico"
+- VISITA MEDICA: "Giudizio di idoneità alla Mansione Specifica", "Visita medica periodica", "Protocollo Sanitario n."
+- UNILAV: "UNILAV - Comunicazione di assunzione", "Comunicazione Obbligatoria Assunzione"
+- PATENTE: "Patente di Guida", "Patente B"
+- CARTA DI IDENTITA: "Carta d'Identità Elettronica", "Documento di Riconoscimento"
+- MODULO RECESSO RAPPORTO DI LAVORO: "Modulo Recesso Rapporto di Lavoro", "Comunicazione di dimissioni"
+- HLO: [CORSO] "Attestato HLO", "Certificato HLO"
+- TESSERA HLO: [BADGE] "Tessera HLO", "Badge HLO"
+- ATEX: "FORMAZIONE SU PROTEZIONE DA ATMOSFERE ESPLOSIVE (ATEX)", "ATEX", "Titolo XI", "CEI 31-34", "Addetti verifiche impianti elettrici ATEX"
 - DIRETTIVA SEVESO: "DIRETTIVA SEVESO III", "INCIDENTE RILEVANTE", "D.Lgs. 105/2015", "INFORMAZIONE E FORMAZIONE PER I LAVORATORI"
-- BLSD: "OPERATORE BLS-D", "Rianimazione cardiopolmonare", "Defibrillazione precoce", "PBLS-D"
+- BLSD: "OPERATORE BLS-D", "Rianimazione cardiopolmonare di base", "Adulto - Bambino e Lattante", "PBLS-D", "Defibrillazione precoce"
 - H2S: "IDROGENO SOLFORATO H2S", "RISCHI DA ESPOSIZIONE AD IDROGENO SOLFORATO", "NORME DI PRIMO SOCCORSO CONTRO I RISCHI DA ESPOSIZIONE"
-- GRU A TORRE E PONTE: "CONDUZIONE DI GRU A TORRE", "GRU A TORRE A ROTAZIONE", "AGGIORNAMENTO TEORICO/PRATICO PER OPERATORE ADDETTO ALLA CONDUZIONE DI GRU"
-- PRIMO SOCCORSO: "ADDETTI AL PRIMO SOCCORSO", "D.M. 388", "Gruppo A", "PRIMO SOCCORSO (GRUPPO A)"
-- FORMAZIONE GENERICA ART.37: "AGGIORNAMENTO LAVORATORI", "art. 36 e 37 del D.lgs 81/08", "FORMAZIONE GENERICA"
-- CARROPONTE: "UTILIZZO DELLE ATTREZZATURE (CARROPONTE)", "Conduzione di Carroponte"
-- IMBRACATORE: "FORMAZIONE E ADDESTRAMENTO PER IMBRACATORI", "Imbracatura dei carichi"
-- DIRIGENTI E FORMATORI: "CORSO FORMAZIONE FORMATORI", "DIRIGENTI", "Qualificazione del formatore", "FORMATORE SICUREZZA"
+- GRU A TORRE E PONTE: "GRU A TORRE A ROTAZIONE IN BASSO E A ROTAZIONE IN ALTO", "AGGIORNAMENTO TEORICO/PRATICO PER OPERATORE ADDETTO ALLA CONDUZIONE DI GRU", "CONDUZIONE DI GRU A TORRE"
+- PRIMO SOCCORSO: "ADDETTI AL PRIMO SOCCORSO (GRUPPO A)", "D.M. 388", "Gruppo A"
+- FORMAZIONE GENERICA ART.37: "AGGIORNAMENTO LAVORATORI", "art. 36 e 37 del D.lgs 81/08", "FORMAZIONE GENERICA", "Corso per la sicurezza e salute sui luoghi"
+- CARROPONTE: "FORMAZIONE E ADDESTRAMENTO PER L'UTILIZZO DELLE ATTREZZATURE (CARROPONTE)", "Conduzione di Carroponte", "UTILIZZO DELLE ATTREZZATURE (CARROPONTE)"
+- IMBRACATORE: "FORMAZIONE E ADDESTRAMENTO PER IMBRACATORI", "Imbracatura dei carichi", "art. 71 c.7 lettera a"
+- DIRIGENTI E FORMATORI: "CORSO FORMAZIONE FORMATORI PER LA SICUREZZA SUL LAVORO", "DIRIGENTI", "Decreto interministeriale del 6 marzo 2013", "Qualificazione del formatore", "FORMATORE SICUREZZA"
 - ALTRO: (qualsiasi altro documento non classificabile)
 """
     return f"""
@@ -97,35 +97,33 @@ Se il documento è VALIDO, estrai le seguenti informazioni:
     Usa questi esempi per guidarti. Presta MOLTA attenzione alle differenze:
     {esempi_categorie}
 
-    REGOLE DI CLASSIFICAZIONE ASSOLUTE:
-    1.  'PREPOSTO' deve essere usata **SOLO** per **attestati di FORMAZIONE** (es. "Corso per Preposti").
-    2.  Qualsiasi **lettera di incarico** o **nomina** (es. "NOMINA CAPO CANTIERE", "Oggetto: NOMINA ADDETTO", "Nomina Addetto...") deve essere **SEMPRE** "NOMINA".
-        -   ATTENZIONE: Anche se la nomina è per "Addetto Antincendio" o "Addetto Primo Soccorso", se è una **NOMINA** (lettera di incarico), la categoria è "NOMINA", NON "ANTINCENDIO" o "PRIMO SOCCORSO".
-    3.  Qualsiasi documento che sia un **"Giudizio di idoneità alla Mansione Specifica"**, emesso da un "Medico Competente" e che contenga frasi come "Visita medica del...", "accertamenti sanitari" e una scadenza (es. "Da rivedere entro il..."), deve essere **SEMPRE** "VISITA MEDICA".
-    4.  Qualsiasi documento intitolato **"Comunicazione Obbligatoria di Assunzione"** o simile, e che contenga il termine "UNILAV", deve essere **SEMPRE** "UNILAV". La sua data di scadenza si trova nel campo "Data Fine".
-    5.  Se il documento è una **"Patente di Guida"**, la categoria è **SEMPRE** "PATENTE". La data di scadenza è al punto 4b.
-    6.  Se il documento è una **"Carta d'Identità"**, la categoria è **SEMPRE** "CARTA DI IDENTITA". La data di scadenza è nel campo "Scadenza".
-    7.  Se il documento è un **"Modulo Recesso Rapporto di Lavoro"** o una comunicazione di dimissioni, la categoria è **SEMPRE** "MODULO RECESSO RAPPORTO DI LAVORO" e la `data_scadenza` deve essere `null`.
-    8.  Se il documento riguarda un HLO:
-        -   Se è un **attestato di corso** -> "HLO".
-        -   Se è una **tessera/badge** -> "TESSERA HLO".
-    9.  Se il documento contiene "DIRETTIVA SEVESO" o "INCIDENTE RILEVANTE" o "D.Lgs. 105/2015", la categoria è **SEMPRE** "DIRETTIVA SEVESO".
-    10. Se il documento contiene "BLS-D" o "Rianimazione cardiopolmonare" o "PBLS-D", la categoria è **SEMPRE** "BLSD".
-    11. Se il documento contiene "IDROGENO SOLFORATO" o "H2S" o "RISCHI DA ESPOSIZIONE AD IDROGENO", la categoria è **SEMPRE** "H2S".
-    12. Se il documento contiene "GRU A TORRE" o "CONDUZIONE DI GRU A TORRE", la categoria è **SEMPRE** "GRU A TORRE E PONTE".
-    13. Se il documento contiene "CARROPONTE" o "UTILIZZO DELLE ATTREZZATURE (CARROPONTE)", la categoria è **SEMPRE** "CARROPONTE".
-    14. Se il documento contiene "IMBRACATORI" o "FORMAZIONE E ADDESTRAMENTO PER IMBRACATORI", la categoria è **SEMPRE** "IMBRACATORE".
-    15. Se il documento contiene "FORMATORI PER LA SICUREZZA" o è un corso per "DIRIGENTI", la categoria è **SEMPRE** "DIRIGENTI E FORMATORI".
-    16. Se il documento contiene "PROTEZIONE DA ATMOSFERE ESPLOSIVE" o "ATEX" o "CEI 31-34", la categoria è **SEMPRE** "ATEX".
-    17. Se il documento contiene "FORMAZIONE GENERICA" o "AGGIORNAMENTO LAVORATORI" e cita "art. 37", la categoria è **SEMPRE** "FORMAZIONE GENERICA ART.37".
-    18. Se il documento contiene "ADDETTI AL PRIMO SOCCORSO" o "D.M. 388" ed è un **attestato** (non una nomina), la categoria è "PRIMO SOCCORSO".
-    19. Se il documento contiene "ADDETTI INCENDIO" o "RISCHIO INCENDIO" o "D.M. 2/9/2021" ed è un **attestato** (non una nomina), la categoria è "ANTINCENDIO".
+    REGOLE DI CLASSIFICAZIONE ASSOLUTE (GERARCHIA RIGIDA):
+    1.  **DIRETTIVA SEVESO**: Se contiene "DIRETTIVA SEVESO" o "INCIDENTE RILEVANTE" o "D.Lgs. 105/2015", è SEMPRE "DIRETTIVA SEVESO".
+    2.  **ATEX**: Se contiene "PROTEZIONE DA ATMOSFERE ESPLOSIVE" o "ATEX" o "Titolo XI", è SEMPRE "ATEX". (Eccezione: se è un corso per "FORMATORI", vedi regola Dirigenti).
+    3.  **H2S**: Se contiene "IDROGENO SOLFORATO" o "H2S" o "RISCHI DA ESPOSIZIONE AD IDROGENO", è SEMPRE "H2S".
+    4.  **GRU A TORRE E PONTE**: Se contiene "GRU A TORRE" o "ROTAZIONE IN BASSO", è SEMPRE "GRU A TORRE E PONTE".
+    5.  **CARROPONTE**: Se contiene "CARROPONTE" o "UTILIZZO DELLE ATTREZZATURE (CARROPONTE)", è SEMPRE "CARROPONTE".
+    6.  **IMBRACATORE**: Se contiene "IMBRACATORI" o "IMBRACATURA", è SEMPRE "IMBRACATORE".
+    7.  **BLSD**: Se contiene "BLS-D" o "Rianimazione cardiopolmonare" o "PBLS-D", è SEMPRE "BLSD".
+    8.  **DIRIGENTI E FORMATORI**: Se contiene "FORMATORI PER LA SICUREZZA", "CORSO FORMAZIONE FORMATORI" o "DIRIGENTI", è SEMPRE "DIRIGENTI E FORMATORI".
+    9.  **FORMAZIONE GENERICA ART.37**: Se contiene "FORMAZIONE GENERICA" o ("AGGIORNAMENTO LAVORATORI" e cita "art. 37"), è SEMPRE "FORMAZIONE GENERICA ART.37".
 
-    ERRORE COMUNE DA EVITARE:
-    - NON classificare "NOMINA... Preposto" come "PREPOSTO". Quella è una "NOMINA".
-    - NON classificare un "Giudizio di idoneità" in base alla mansione. La categoria è "VISITA MEDICA".
+    10. **NOMINA (Lettere di Incarico)**:
+        -   Se il documento è una **Lettera di Incarico** o una **Nomina** (es. inizia con "Oggetto: NOMINA ADDETTO", "Nomina Addetto...", "Con la presente Vi notifichiamo di averla nominata..."), la categoria è **SEMPRE** "NOMINA".
+        -   **ATTENZIONE:** Questo vale ANCHE SE la nomina è per "Addetto Antincendio" o "Primo Soccorso". Se è una **NOMINA** (lettera), va classificata come "NOMINA".
+        -   NON classificare una Lettera di Nomina come "ANTINCENDIO" o "PRIMO SOCCORSO" o "PREPOSTO".
 
-    Se non riesci a classificare, usa "ALTRO".
+    11. **ANTINCENDIO**: Se il documento è un **ATTESTATO** (non una nomina) e riguarda "ADDETTI INCENDIO", "RISCHIO INCENDIO" o "D.M. 2/9/2021", è "ANTINCENDIO".
+    12. **PRIMO SOCCORSO**: Se il documento è un **ATTESTATO** (non una nomina) e riguarda "ADDETTI AL PRIMO SOCCORSO", "D.M. 388" o "Gruppo A", è "PRIMO SOCCORSO".
+
+    ALTRE REGOLE SPECIFICHE:
+    -   'PREPOSTO' deve essere usata **SOLO** per **attestati di FORMAZIONE** (es. "Corso per Preposti"). Una "NOMINA PREPOSTO" è una "NOMINA".
+    -   "VISITA MEDICA": Solo per "Giudizio di idoneità".
+    -   "UNILAV": Solo per "Comunicazione Obbligatoria di Assunzione".
+    -   "PATENTE": Solo per Patenti di Guida.
+    -   "HLO" vs "TESSERA HLO": Attestato -> "HLO". Badge -> "TESSERA HLO".
+
+    Se non riesci a classificare in nessuna delle categorie sopra, usa "ALTRO".
 
 JSON:
 """
