@@ -18,10 +18,11 @@ class PdfWorker(QObject):
     status_update = pyqtSignal(str)
     etr_update = pyqtSignal(str)
 
-    def __init__(self, file_paths, api_client):
+    def __init__(self, file_paths, api_client, output_folder):
         super().__init__()
         self.file_paths = file_paths
         self.api_client = api_client
+        self.output_folder = output_folder
         self._is_stopped = False
 
     def stop(self):
@@ -58,14 +59,24 @@ class PdfWorker(QObject):
         self.finished.emit()
 
     def process_pdf(self, file_path):
-        base_folder = os.path.dirname(file_path)
-        analyzed_folder = os.path.join(base_folder, "DOCUMENTI ANALIZZATI ASSENZA MATRICOLE")
-        unanalyzed_folder = os.path.join(base_folder, "DOCUMENTI NON ANALIZZATI")
-
-        os.makedirs(analyzed_folder, exist_ok=True)
-        os.makedirs(unanalyzed_folder, exist_ok=True)
-
         original_filename = os.path.basename(file_path)
+
+        # Helper for moving to error folder with specific structure
+        def move_to_error(reason="Errore Generico"):
+            error_category = "ALTRI ERRORI"
+            if "matricola" in reason.lower():
+                error_category = "ASSENZA MATRICOLE"
+            elif "categoria" in reason.lower():
+                error_category = "CATEGORIA NON TROVATA"
+
+            filename_no_ext = os.path.splitext(original_filename)[0]
+            target_dir = os.path.join(self.output_folder, "ERRORI ANALISI", error_category, filename_no_ext)
+            os.makedirs(target_dir, exist_ok=True)
+
+            try:
+                shutil.move(file_path, os.path.join(target_dir, original_filename))
+            except Exception as e:
+                self.log_message.emit(f"Impossibile spostare il file {original_filename}: {e}", "red")
 
         try:
             with open(file_path, 'rb') as f:
@@ -103,7 +114,7 @@ class PdfWorker(QObject):
                     if ragione_fallimento:
                         log_msg = f"File {original_filename} analizzato. Assegnazione manuale richiesta: {ragione_fallimento}"
                         self.log_message.emit(log_msg, "orange")
-                        shutil.move(file_path, os.path.join(analyzed_folder, original_filename))
+                        move_to_error(ragione_fallimento)
                     else:
                         nome_completo = cert_data.get('nome', 'ERRORE')
                         self.log_message.emit(f"File {original_filename} elaborato e salvato per {nome_completo}.", "default")
@@ -125,29 +136,26 @@ class PdfWorker(QObject):
                             employee_folder_name = f"{nome_completo} ({matricola})"
                             new_filename = f"{nome_completo} ({matricola}) - {categoria} - {file_scadenza}.pdf"
 
-                            documenti_folder = os.path.join(base_folder, "DOCUMENTI DIPENDENTI")
+                            documenti_folder = os.path.join(self.output_folder, "DOCUMENTI DIPENDENTI")
                             dest_path = os.path.join(documenti_folder, employee_folder_name, categoria, stato)
                             os.makedirs(dest_path, exist_ok=True)
 
                             shutil.move(file_path, os.path.join(dest_path, new_filename))
                         except Exception as e:
                             self.log_message.emit(f"Errore durante lo spostamento del file {original_filename}: {e}", "red")
-                            shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
+                            move_to_error(f"Errore Spostamento: {e}")
                 elif save_response.status_code == 409:
                     self.log_message.emit(f"{original_filename} - Documento risulta già in Database.", "orange")
-                    shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
+                    move_to_error("Già in Database")
                 else:
                     self.log_message.emit(f"Errore durante il salvaggio di {original_filename}: {save_response.text}", "red")
-                    shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
+                    move_to_error(f"Errore Salvaggio: {save_response.text}")
             else:
                 self.log_message.emit(f"Errore durante l'elaborazione di {original_filename}: {response.text}", "red")
-                shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
+                move_to_error(f"Errore Analisi: {response.text}")
         except (requests.exceptions.RequestException, IOError) as e:
             self.log_message.emit(f"Errore critico durante l'elaborazione di {original_filename}: {e}", "red")
-            try:
-                shutil.move(file_path, os.path.join(unanalyzed_folder, original_filename))
-            except Exception as move_error:
-                self.log_message.emit(f"Impossibile spostare il file {original_filename}: {move_error}", "red")
+            move_to_error(f"Errore Critico: {e}")
 
 class DropZone(QFrame):
     def __init__(self, parent=None):
@@ -335,6 +343,20 @@ class ImportView(QWidget):
         if not file_paths:
             return
 
+        # Get Output Path
+        try:
+            paths = self.api_client.get_paths()
+            output_folder = paths.get("database_path")
+        except Exception as e:
+            self.results_display.setTextColor(QColor("#DC2626"))
+            self.results_display.append(f"Errore critico: Impossibile recuperare il percorso del database. {e}")
+            return
+
+        if not output_folder or not os.path.isdir(output_folder):
+             self.results_display.setTextColor(QColor("#DC2626"))
+             self.results_display.append(f"Errore critico: Percorso database non valido: {output_folder}")
+             return
+
         # Configure and show progress bar
         self.progress_bar.setMaximum(len(file_paths))
         self.progress_bar.setValue(0)
@@ -345,7 +367,7 @@ class ImportView(QWidget):
         self.progress_frame.setVisible(True)
 
         self.thread = QThread()
-        self.worker = PdfWorker(file_paths, self.api_client)
+        self.worker = PdfWorker(file_paths, self.api_client, output_folder)
         self.worker.moveToThread(self.thread)
 
         self.thread.started.connect(self.worker.run)

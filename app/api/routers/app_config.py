@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional
-from app.api.deps import get_current_active_admin, check_write_permission
-from app.core.config import settings
+from app.api.deps import get_current_active_admin, check_write_permission, get_current_user
+from app.core.config import settings, get_user_data_dir
 import logging
+from pathlib import Path
 
 router = APIRouter()
 
@@ -36,6 +37,26 @@ async def get_updater_config():
         repo_owner=settings.LICENSE_REPO_OWNER,
         repo_name=settings.LICENSE_REPO_NAME
     )
+
+@router.get("/config/paths", response_model=Dict[str, str])
+async def get_config_paths(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Returns the configured database path and the default user data directory.
+    Accessible to any authenticated user.
+    """
+    default_dir = get_user_data_dir()
+    db_path = settings.DATABASE_PATH
+
+    final_path = default_dir
+    if db_path and Path(db_path).is_dir():
+         final_path = Path(db_path)
+
+    return {
+        "database_path": str(final_path),
+        "default_path": str(default_dir)
+    }
 
 @router.get("/config", response_model=Dict[str, Any])
 async def get_mutable_config(
