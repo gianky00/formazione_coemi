@@ -409,6 +409,7 @@ class MainDashboardWidget(QWidget):
         self.views["validation"].api_client = self.api_client
 
         self.views["database"] = DatabaseView()
+        self.views["database"].api_client = self.api_client
         if hasattr(self.views["database"], 'view_model'):
              self.views["database"].view_model.api_client = self.api_client
 

@@ -10,6 +10,7 @@ from ..api_client import APIClient
 from ..components.animated_widgets import LoadingOverlay
 
 import time
+from collections import deque
 
 class PdfWorker(QObject):
     finished = pyqtSignal()
@@ -24,13 +25,13 @@ class PdfWorker(QObject):
         self.api_client = api_client
         self.output_folder = output_folder
         self._is_stopped = False
+        self.recent_times = deque(maxlen=5)
 
     def stop(self):
         self._is_stopped = True
 
     def run(self):
         total_files = len(self.file_paths)
-        start_time = time.time()
         processed_files = 0
         for i, file_path in enumerate(self.file_paths):
             if self._is_stopped:
@@ -38,23 +39,28 @@ class PdfWorker(QObject):
                 break
 
             self.status_update.emit(f"File {i+1} di {total_files}...")
+
+            file_start_time = time.time()
             self.process_pdf(file_path)
+            duration = time.time() - file_start_time
+            self.recent_times.append(duration)
+
             processed_files += 1
             self.progress.emit(i + 1)
 
-            # ETR calculation
-            elapsed_time = time.time() - start_time
-            avg_time_per_file = elapsed_time / processed_files if processed_files > 0 else 0
-            remaining_files = total_files - (i + 1)
-            etr_seconds = remaining_files * avg_time_per_file
+            # ETR calculation (Rolling Average)
+            if self.recent_times:
+                avg_time_per_file = sum(self.recent_times) / len(self.recent_times)
+                remaining_files = total_files - (i + 1)
+                etr_seconds = remaining_files * avg_time_per_file
 
-            if etr_seconds > 120:
-                etr_str = f"Circa {round(etr_seconds / 60)} minuti rimanenti"
-            elif etr_seconds > 60:
-                etr_str = "Circa 1 minuto rimanente"
-            else:
-                etr_str = f"Circa {int(etr_seconds)} secondi rimanenti"
-            self.etr_update.emit(etr_str)
+                if etr_seconds > 120:
+                    etr_str = f"Circa {round(etr_seconds / 60)} minuti rimanenti"
+                elif etr_seconds > 60:
+                    etr_str = "Circa 1 minuto rimanente"
+                else:
+                    etr_str = f"Circa {int(etr_seconds)} secondi rimanenti"
+                self.etr_update.emit(etr_str)
 
         self.finished.emit()
 
