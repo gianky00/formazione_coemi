@@ -1,6 +1,6 @@
 import sys
 import os
-from PyQt6.QtWidgets import QWidget, QVBoxLayout
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PyQt6.QtCore import QUrl, pyqtSlot, QObject, pyqtSignal
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebChannel import QWebChannel
@@ -9,7 +9,6 @@ class GuideBridge(QObject):
     """
     A bridge object to expose functionality to the frontend.
     """
-    # Signal kept for compatibility, though tab interface might not use it
     closeRequested = pyqtSignal()
 
     @pyqtSlot()
@@ -28,6 +27,7 @@ class ModernGuideView(QWidget):
 
         # WebEngine View
         self.webview = QWebEngineView()
+        self.webview.show() # Explicitly show
 
         # QWebChannel Setup for Bridge
         self.channel = QWebChannel()
@@ -55,11 +55,14 @@ class ModernGuideView(QWidget):
             # Fallback explanation
             html_content = f"""
             <html>
-            <body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
-                <h1>Guida non trovata</h1>
-                <p>Il file della guida non &egrave; stato trovato in: {index_path}</p>
-                <p>Assicurati di aver eseguito il comando di build:</p>
-                <pre>python tools/build_guide.py</pre>
+            <body style="font-family: sans-serif; text-align: center; padding-top: 50px; background-color: #f0f8ff; color: #1f2937;">
+                <h1>Guida non disponibile</h1>
+                <p>Il file della guida non &egrave; stato trovato in:</p>
+                <code style="background: #e5e7eb; padding: 5px; border-radius: 4px;">{index_path}</code>
+                <p>Se sei in ambiente di sviluppo, esegui il comando:</p>
+                <pre style="background: #1e3a8a; color: white; padding: 10px; border-radius: 8px; display: inline-block;">npm run build (in guide_frontend/)</pre>
+                <p>Oppure usa lo script di build:</p>
+                <pre style="background: #1e3a8a; color: white; padding: 10px; border-radius: 8px; display: inline-block;">python tools/build_guide.py</pre>
             </body>
             </html>
             """

@@ -180,7 +180,7 @@ class Sidebar(QFrame):
         self.nav_layout.addWidget(line)
 
         self.add_button("config", "Configurazione", "settings.svg")
-        self.add_button("guide", "Guida Utente", "book-open.svg") # Changed key from 'help' to 'guide'
+        self.add_button("guide", "Guida Utente", "book-open.svg")
 
         self.main_layout.addWidget(self.nav_container)
 
@@ -355,47 +355,144 @@ class MainDashboardWidget(QWidget):
 
         self.main_layout.addWidget(self.content_area)
 
-        # Initialize Views (Lazy imports inside)
-        self.views = {}
-        self._init_views()
+        # Initialize placeholders
+        self.views = {
+            "database": None,
+            "import": None,
+            "validation": None,
+            "scadenzario": None,
+            "config": None,
+            "guide": None
+        }
+
         self._connect_signals()
 
+        # Step 1: Load Essential View (Database) immediately
+        self._load_essential_views()
         self.switch_to("database")
+
+        # Step 2: Schedule Background Views
+        QTimer.singleShot(200, self._load_background_views)
 
         self._init_system_checks()
         QTimer.singleShot(5000, self.trigger_background_maintenance)
 
-    def _init_views(self):
-        # LAZY LOADING: Import views here to prevent heavy load at startup
-        from .views.import_view import ImportView
+    def _load_essential_views(self):
         from .views.database_view import DatabaseView
+        if not self.views["database"]:
+            self.views["database"] = DatabaseView()
+            self.views["database"].api_client = self.api_client
+            if hasattr(self.views["database"], 'view_model'):
+                 self.views["database"].view_model.api_client = self.api_client
+            self.stacked_widget.addWidget(self.views["database"])
+
+    def _load_background_views(self):
+        # Load secondary views
+        from .views.import_view import ImportView
         from .views.validation_view import ValidationView
         from .views.scadenzario_view import ScadenzarioView
         from .views.config_view import ConfigView
+
+        # We load them but don't force show. Only add to stack.
+        # This keeps the UI responsive.
+
+        if not self.views["import"]:
+            self.views["import"] = ImportView()
+            self.views["import"].api_client = self.api_client
+            self.stacked_widget.addWidget(self.views["import"])
+
+        if not self.views["validation"]:
+            self.views["validation"] = ValidationView()
+            self.views["validation"].api_client = self.api_client
+            self.stacked_widget.addWidget(self.views["validation"])
+
+        if not self.views["scadenzario"]:
+            self.views["scadenzario"] = ScadenzarioView()
+            self.views["scadenzario"].api_client = self.api_client
+            self.stacked_widget.addWidget(self.views["scadenzario"])
+
+        if not self.views["config"]:
+            self.views["config"] = ConfigView(self.api_client)
+            self.stacked_widget.addWidget(self.views["config"])
+
+        # Step 3: Schedule Guide (Heaviest) after secondary views
+        QTimer.singleShot(800, self._load_guide_view)
+
+    def _load_guide_view(self):
         from .views.modern_guide_view import ModernGuideView
+        if not self.views["guide"]:
+            self.views["guide"] = ModernGuideView()
+            self.stacked_widget.addWidget(self.views["guide"])
 
-        self.views["import"] = ImportView()
-        self.views["import"].api_client = self.api_client
+    def _ensure_view_loaded(self, key):
+        """Fallback to load a view immediately if user clicks before background load finishes."""
+        if self.views.get(key) is not None:
+            return
 
-        self.views["validation"] = ValidationView()
-        self.views["validation"].api_client = self.api_client
+        if key == "database": self._load_essential_views()
+        elif key == "guide": self._load_guide_view()
+        elif key in ["import", "validation", "scadenzario", "config"]:
+            # Load all secondary or just the specific one?
+            # Loading just the specific one is safer for responsiveness.
+            if key == "import":
+                from .views.import_view import ImportView
+                self.views["import"] = ImportView()
+                self.views["import"].api_client = self.api_client
+                self.stacked_widget.addWidget(self.views["import"])
+            elif key == "validation":
+                from .views.validation_view import ValidationView
+                self.views["validation"] = ValidationView()
+                self.views["validation"].api_client = self.api_client
+                self.stacked_widget.addWidget(self.views["validation"])
+            elif key == "scadenzario":
+                from .views.scadenzario_view import ScadenzarioView
+                self.views["scadenzario"] = ScadenzarioView()
+                self.views["scadenzario"].api_client = self.api_client
+                self.stacked_widget.addWidget(self.views["scadenzario"])
+            elif key == "config":
+                from .views.config_view import ConfigView
+                self.views["config"] = ConfigView(self.api_client)
+                self.stacked_widget.addWidget(self.views["config"])
 
-        self.views["database"] = DatabaseView()
-        self.views["database"].api_client = self.api_client
-        if hasattr(self.views["database"], 'view_model'):
-             self.views["database"].view_model.api_client = self.api_client
+        # Connect signals for newly loaded view (if not already done globally)
+        # Note: _connect_signals connects based on sidebar clicks which invoke switch_to.
+        # But inter-view signals (import -> validation) need connections.
+        # Ideally, we should connect signals when views are created.
+        self._connect_view_signals(key)
 
-        self.views["scadenzario"] = ScadenzarioView()
-        self.views["scadenzario"].api_client = self.api_client
+    def _connect_view_signals(self, key):
+        # We need to reconnect signals involving this key.
+        # Simple approach: Re-run connections if source/target exist.
+        if key == "import" and self.views["validation"]:
+            try: self.views["import"].import_completed.disconnect()
+            except: pass
+            self.views["import"].import_completed.connect(self.views["validation"].refresh_data)
 
-        self.views["config"] = ConfigView(self.api_client)
+        if key == "validation":
+            if self.views["import"]:
+                try: self.views["import"].import_completed.disconnect()
+                except: pass
+                self.views["import"].import_completed.connect(self.views["validation"].refresh_data)
 
-        self.views["guide"] = ModernGuideView() # Pre-fetch
+            if self.views["database"]:
+                try: self.views["validation"].validation_completed.disconnect()
+                except: pass
+                self.views["validation"].validation_completed.connect(self.views["database"].load_data)
 
-        for key in ["import", "validation", "database", "scadenzario", "config", "guide"]:
-            self.stacked_widget.addWidget(self.views[key])
+            if self.views["scadenzario"]:
+                try: self.views["validation"].validation_completed.disconnect() # might be connected to multiple
+                except: pass
+                # Reconnect
+                self.views["validation"].validation_completed.connect(self.views["database"].load_data)
+                self.views["validation"].validation_completed.connect(self.views["scadenzario"].refresh_data)
+
+        if key == "database" and self.views["scadenzario"]:
+             try: self.views["database"].database_changed.disconnect()
+             except: pass
+             self.views["database"].database_changed.connect(self.views["scadenzario"].refresh_data)
 
     def _connect_signals(self):
+        # Sidebar connections (Always safe)
         self.sidebar.buttons["import"].clicked.connect(lambda: self.switch_to("import"))
         self.sidebar.buttons["validation"].clicked.connect(lambda: self.switch_to("validation"))
         self.sidebar.buttons["database"].clicked.connect(lambda: self.switch_to("database"))
@@ -403,13 +500,17 @@ class MainDashboardWidget(QWidget):
         self.sidebar.buttons["config"].clicked.connect(lambda: self.switch_to("config"))
         self.sidebar.buttons["guide"].clicked.connect(lambda: self.switch_to("guide"))
 
-        self.views["import"].import_completed.connect(self.views["validation"].refresh_data)
-        self.views["validation"].validation_completed.connect(self.views["database"].load_data)
-        self.views["validation"].validation_completed.connect(self.views["scadenzario"].refresh_data)
-        self.views["database"].database_changed.connect(self.views["scadenzario"].refresh_data)
+        # Inter-view signals are handled in _connect_view_signals as views load
 
     def switch_to(self, key):
         if key not in self.views: return
+
+        # Ensure loaded
+        self._ensure_view_loaded(key)
+
+        if self.views[key] is None:
+            # Should not happen after ensure_view_loaded
+            return
 
         for k, btn in self.sidebar.buttons.items():
             btn.setChecked(k == key)
@@ -465,7 +566,7 @@ class MainDashboardWidget(QWidget):
         self.is_read_only = is_read_only
         self.read_only_label.setVisible(is_read_only)
         for key, view in self.views.items():
-            if hasattr(view, 'set_read_only'):
+            if view and hasattr(view, 'set_read_only'):
                 view.set_read_only(is_read_only)
 
     def trigger_background_maintenance(self):
