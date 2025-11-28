@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QTableView, QHeaderView, QHBoxLayout,
     QComboBox, QLabel, QFileDialog, QMessageBox, QListView, QFrame,
-    QMenu
+    QMenu, QProgressBar
 )
 from PyQt6.QtCore import QAbstractTableModel, Qt, pyqtSignal, QTimer, QUrl
 from PyQt6.QtGui import QColor, QPainter, QDesktopServices, QAction
@@ -111,6 +111,15 @@ class DatabaseView(QWidget):
         header_layout.addStretch()
         self.layout.addLayout(header_layout)
 
+        # Loading Bar
+        self.loading_bar = QProgressBar()
+        self.loading_bar.setRange(0, 0) # Indeterminate
+        self.loading_bar.setFixedHeight(4)
+        self.loading_bar.setTextVisible(False)
+        self.loading_bar.setStyleSheet("QProgressBar { border: none; background: transparent; } QProgressBar::chunk { background: #1D4ED8; border-radius: 2px; }")
+        self.loading_bar.hide()
+        self.layout.addWidget(self.loading_bar)
+
         # --- FILTER CARD ---
         self.filter_card = CardWidget()
         filter_layout = QHBoxLayout(self.filter_card)
@@ -181,6 +190,7 @@ class DatabaseView(QWidget):
         self.view_model.data_changed.connect(self.on_data_changed)
         self.view_model.error_occurred.connect(self._show_error_message)
         self.view_model.operation_completed.connect(self._show_success_message)
+        self.view_model.loading_changed.connect(self._on_loading_changed)
 
         self.dipendente_filter.currentIndexChanged.connect(self._trigger_filter)
         self.categoria_filter.currentIndexChanged.connect(self._trigger_filter)
@@ -193,6 +203,16 @@ class DatabaseView(QWidget):
     def load_data(self):
         self._current_selection = self._get_selection_info()
         self.view_model.load_data()
+
+    def _on_loading_changed(self, is_loading):
+        if is_loading:
+            self.loading_bar.show()
+            self.filter_card.setEnabled(False)
+            self.data_card.setEnabled(False)
+        else:
+            self.loading_bar.hide()
+            self.filter_card.setEnabled(True)
+            self.data_card.setEnabled(True)
 
     def on_data_changed(self):
         self._update_table_view()

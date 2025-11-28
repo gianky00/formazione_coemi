@@ -1,118 +1,84 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import GuideCard from '../components/ui/GuideCard';
+import Note from '../components/ui/Note';
+import Step from '../components/ui/Step';
 import DashboardSimulator from '../components/DashboardSimulator';
-import { Info, AlertCircle, CheckCircle } from 'lucide-react';
-
-const Section = ({ title, children }) => (
-  <section className="mb-12">
-    <h2 className="text-2xl font-bold text-gray-800 mb-4 border-b border-gray-200 pb-2">{title}</h2>
-    <div className="text-gray-600 leading-relaxed space-y-4">
-      {children}
-    </div>
-  </section>
-);
+import { Database, Filter, Search, Edit, Trash, Download } from 'lucide-react';
 
 const DatabaseGuide = () => {
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="space-y-12">
       {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-10"
-      >
-        <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-blue-100 rounded-lg text-intelleo-accent">
-            <Info size={24} />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900">Database Certificati</h1>
-        </div>
-        <p className="text-lg text-gray-500 ml-14">
-          Il cuore del sistema. Visualizza, filtra e gestisci tutte le scadenze dei dipendenti in un'unica vista centralizzata.
+      <div className="max-w-3xl">
+        <h1 className="h1">Database & Dashboard</h1>
+        <p className="text-body text-xl">
+          Il cuore di Intelleo. Qui hai il controllo completo su tutti i certificati, le scadenze e lo stato di conformità della tua azienda.
         </p>
-      </motion.div>
+      </div>
 
-      {/* Interactive Simulator */}
-      <Section title="Prova Interattiva">
-        <p className="mb-4">
-          Utilizza il simulatore qui sotto per prendere confidenza con l'interfaccia.
-          <br/>
-          <span className="text-sm text-blue-600 font-medium bg-blue-50 px-2 py-1 rounded">
-            Obiettivo: Clicca su una riga per selezionarla e vedere i dettagli.
-          </span>
+      {/* Simulator Section */}
+      <section>
+        <h2 className="h2 flex items-center gap-2">
+            <Database className="text-blue-600" />
+            Prova Interattiva
+        </h2>
+        <p className="text-body mb-6">
+          Questa è una simulazione fedele della tabella che troverai nell'applicazione. Prova a cercare "Rossi", filtrare i risultati o selezionare una riga per attivare i comandi.
         </p>
         <DashboardSimulator />
-      </Section>
+        <div className="mt-4 flex gap-4 overflow-x-auto pb-2">
+           <Note type="tip" title="Suggerimento">
+              Fai doppio clic su una riga (nella tabella reale) per aprire rapidamente i dettagli del certificato.
+           </Note>
+        </div>
+      </section>
 
-      {/* Detailed Guide */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <Section title="Funzionalità Chiave">
-          <ul className="space-y-3">
-            <li className="flex items-start gap-3">
-              <CheckCircle size={20} className="text-green-500 mt-1 shrink-0" />
-              <span>
-                <strong>Monitoraggio Scadenze:</strong> La colonna <strong>Stato</strong> usa delle "pillole" colorate per mostrare a colpo d'occhio la situazione (Attivo, In Scadenza, Scaduto).
-              </span>
-            </li>
-            <li className="flex items-start gap-3">
-              <CheckCircle size={20} className="text-green-500 mt-1 shrink-0" />
-              <span>
-                <strong>Filtri Avanzati:</strong> Utilizza i menu a tendina sopra la tabella per filtrare rapidamente per <strong>Dipendente</strong>, <strong>Categoria</strong>, o <strong>Stato</strong>.
-              </span>
-            </li>
-            <li className="flex items-start gap-3">
-              <CheckCircle size={20} className="text-green-500 mt-1 shrink-0" />
-              <span>
-                <strong>Validazione:</strong> Visualizza solo i documenti che hanno superato il processo di validazione manuale.
-              </span>
-            </li>
-          </ul>
-        </Section>
+      {/* Features Detail */}
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <GuideCard title="Filtri Avanzati" icon={Filter}>
+            <p className="mb-4">
+                Usa i menu a tendina sopra la tabella per filtrare rapidamente per:
+            </p>
+            <ul className="list-disc pl-5 space-y-2 text-sm">
+                <li><strong>Dipendente:</strong> Mostra solo i documenti di una persona specifica.</li>
+                <li><strong>Categoria:</strong> Vedi solo "Antincendio" o "Visite Mediche".</li>
+                <li><strong>Stato:</strong> Isola solo i certificati "Scaduti" o "In Scadenza".</li>
+            </ul>
+        </GuideCard>
 
-        <Section title="Interazioni Avanzate">
-          <div className="space-y-4">
-             <div className="p-4 bg-white border border-gray-200 rounded-lg hover:border-blue-300 transition-colors">
-                <h4 className="font-bold text-gray-800 mb-2">Modifica Rapida</h4>
-                <p className="text-sm text-gray-600">
-                   Seleziona una riga e clicca su <strong>Modifica</strong> per cambiare date o note.
-                   Le modifiche vengono tracciate nel Log Attività.
-                </p>
-             </div>
-             <div className="p-4 bg-white border border-gray-200 rounded-lg hover:border-red-300 transition-colors">
-                <h4 className="font-bold text-gray-800 mb-2">Eliminazione Sicura</h4>
-                <p className="text-sm text-gray-600">
-                   Il tasto <strong>Cancella</strong> rimuove il certificato dal database.
-                   Questa azione richiede conferma ed è irreversibile.
-                </p>
-             </div>
-          </div>
-        </Section>
+        <GuideCard title="Ricerca Rapida" icon={Search}>
+            <p className="mb-4">
+                La barra di ricerca è universale. Puoi digitare qualsiasi cosa:
+            </p>
+            <ul className="list-disc pl-5 space-y-2 text-sm">
+                <li>Nome del dipendente</li>
+                <li>Tipo di corso (es. "PLE")</li>
+                <li>Data di rilascio (es. "2023")</li>
+            </ul>
+            <p className="mt-4 text-sm text-gray-500 italic">I risultati vengono aggiornati in tempo reale mentre digiti.</p>
+        </GuideCard>
+      </section>
 
-        <Section title="Suggerimenti">
-          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg mb-4">
-            <div className="flex items-start gap-3">
-              <AlertCircle size={20} className="text-yellow-600 mt-1" />
-              <div>
-                <h4 className="font-bold text-yellow-800">Esportazione Dati</h4>
-                <p className="text-sm text-yellow-700 mt-1">
-                  Puoi esportare la vista corrente in formato CSV cliccando sul pulsante <strong>Esporta</strong>, posizionato accanto ai filtri.
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg">
-            <div className="flex items-start gap-3">
-              <Info size={20} className="text-blue-600 mt-1" />
-              <div>
-                <h4 className="font-bold text-blue-800">Selezione Multipla</h4>
-                <p className="text-sm text-blue-700 mt-1">
-                  Tieni premuto <code>CTRL</code> o <code>SHIFT</code> per selezionare più righe e cancellarle in un'unica operazione con il pulsante <strong>Cancella</strong>.
-                </p>
-              </div>
-            </div>
-          </div>
-        </Section>
-      </div>
+      {/* CRUD Operations */}
+      <section>
+        <h2 className="h2">Gestione dei Dati</h2>
+        <div className="bg-white rounded-xl border border-gray-200 p-8 shadow-sm">
+            <Step number="1" title="Modifica un Certificato">
+                <p>Seleziona una riga e clicca sul pulsante <strong>Modifica</strong> (icona matita <Edit size={14} className="inline"/>). Si aprirà una finestra dove potrai correggere le date o cambiare l'associazione col dipendente.</p>
+            </Step>
+            <Step number="2" title="Eliminazione">
+                <p>Seleziona una o più righe (tenendo premuto CTRL) e clicca su <strong>Cancella</strong> (icona cestino <Trash size={14} className="inline"/>). Ti verrà chiesta una conferma prima della rimozione definitiva.</p>
+            </Step>
+            <Step number="3" title="Esportazione Excel/CSV">
+                <p>Vuoi lavorare i dati altrove? Clicca sul pulsante <strong>Esporta</strong> <Download size={14} className="inline"/> in alto a destra per scaricare l'attuale vista (filtrata) in formato CSV compatibile con Excel.</p>
+            </Step>
+        </div>
+      </section>
+
+       <Note type="warning" title="Attenzione">
+          L'eliminazione di un certificato dal Database è <strong>irreversibile</strong> e rimuove anche il file PDF associato dalla cartella del dipendente.
+       </Note>
+
     </div>
   );
 };

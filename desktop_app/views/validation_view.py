@@ -1,12 +1,13 @@
 
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QMessageBox, QStyledItemDelegate, QLineEdit, QLabel, QMenu
-from PyQt6.QtCore import QAbstractTableModel, Qt, pyqtSignal, QUrl
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QMessageBox, QStyledItemDelegate, QLineEdit, QLabel, QMenu, QProgressBar
+from PyQt6.QtCore import QAbstractTableModel, Qt, pyqtSignal, QUrl, QThreadPool
 from PyQt6.QtGui import QDesktopServices, QAction
 import pandas as pd
 import requests
 from ..api_client import APIClient
 from .edit_dialog import EditCertificatoDialog
 from app.services.document_locator import find_document
+from ..workers.data_worker import FetchCertificatesWorker, DeleteCertificatesWorker, ValidateCertificatesWorker
 import subprocess
 import os
 
@@ -47,6 +48,8 @@ class ValidationView(QWidget):
     def __init__(self):
         super().__init__()
         self.api_client = APIClient()
+        self.threadpool = QThreadPool()
+
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(20, 20, 20, 20)
         self.layout.setSpacing(15)
@@ -55,9 +58,18 @@ class ValidationView(QWidget):
         description.setObjectName("viewDescription")
         self.layout.addWidget(description)
 
-        main_card = QWidget()
-        main_card.setObjectName("card")
-        main_card_layout = QVBoxLayout(main_card)
+        # Loading Bar
+        self.loading_bar = QProgressBar()
+        self.loading_bar.setRange(0, 0)
+        self.loading_bar.setFixedHeight(4)
+        self.loading_bar.setTextVisible(False)
+        self.loading_bar.setStyleSheet("QProgressBar { border: none; background: transparent; } QProgressBar::chunk { background: #1D4ED8; border-radius: 2px; }")
+        self.loading_bar.hide()
+        self.layout.addWidget(self.loading_bar)
+
+        self.main_card = QWidget() # Renamed to access it
+        self.main_card.setObjectName("card")
+        main_card_layout = QVBoxLayout(self.main_card)
         main_card_layout.setSpacing(15)
 
         # Controls
@@ -87,11 +99,11 @@ class ValidationView(QWidget):
         self.table_view.setAlternatingRowColors(True)
         self.table_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table_view.customContextMenuRequested.connect(self._show_context_menu)
-        # self.table_view.setItemDelegate(CustomDelegate())
 
         main_card_layout.addWidget(self.table_view)
-        self.layout.addWidget(main_card)
+        self.layout.addWidget(self.main_card)
 
+        # Initial Load
         self.load_data()
 
         if hasattr(self, 'model') and self.table_view.selectionModel():
@@ -101,6 +113,14 @@ class ValidationView(QWidget):
     def refresh_data(self):
         """Public slot to reload data from the API."""
         self.load_data()
+
+    def set_loading(self, loading):
+        if loading:
+            self.loading_bar.show()
+            self.main_card.setEnabled(False)
+        else:
+            self.loading_bar.hide()
+            self.main_card.setEnabled(True)
 
     def set_read_only(self, is_read_only: bool):
         print(f"[DEBUG] ValidationView.set_read_only: {is_read_only}")
@@ -139,6 +159,7 @@ class ValidationView(QWidget):
 
         cert_id = selected_ids[0]
         try:
+            # Sync fetch for edit dialog is acceptable as it's a modal action
             response = requests.get(f"{self.api_client.base_url}/certificati/{cert_id}", headers=self.api_client._get_headers())
             response.raise_for_status()
             cert_data = response.json()
@@ -147,6 +168,7 @@ class ValidationView(QWidget):
             dialog = EditCertificatoDialog(cert_data, all_categories, self)
             if dialog.exec():
                 updated_data = dialog.get_data()
+                # Sync update for edit dialog
                 update_response = requests.put(f"{self.api_client.base_url}/certificati/{cert_id}", json=updated_data, headers=self.api_client._get_headers())
                 update_response.raise_for_status()
                 QMessageBox.information(self, "Successo", "Certificato aggiornato con successo.")
@@ -155,62 +177,64 @@ class ValidationView(QWidget):
             QMessageBox.critical(self, "Errore", f"Impossibile modificare il certificato: {e}")
 
     def load_data(self):
-        try:
-            # Fetch unvalidated certificates
-            response = requests.get(f"{self.api_client.base_url}/certificati/?validated=false", headers=self.api_client._get_headers())
-            response.raise_for_status()
-            data = response.json()
+        self.set_loading(True)
+        worker = FetchCertificatesWorker(self.api_client, validated=False)
+        worker.signals.result.connect(self._on_data_loaded)
+        worker.signals.error.connect(self._on_error)
+        worker.signals.finished.connect(lambda: self.set_loading(False))
+        self.threadpool.start(worker)
 
-            if not data:
-                self.df = pd.DataFrame()
-            else:
-                self.df = pd.DataFrame(data)
-                self.df.rename(columns={
-                    'nome': 'DIPENDENTE',
-                    'data_rilascio': 'DATA_EMISSIONE',
-                    'corso': 'DOCUMENTO',
-                    'assegnazione_fallita_ragione': 'CAUSA'
-                }, inplace=True)
+    def _on_error(self, message):
+        QMessageBox.critical(self, "Errore di Connessione", f"Impossibile caricare i dati da validare: {message}")
+        # Reset to empty
+        self._on_data_loaded([])
+
+    def _on_data_loaded(self, data):
+        if not data:
+            self.df = pd.DataFrame()
+        else:
+            self.df = pd.DataFrame(data)
+            self.df.rename(columns={
+                'nome': 'DIPENDENTE',
+                'data_rilascio': 'DATA_EMISSIONE',
+                'corso': 'DOCUMENTO',
+                'assegnazione_fallita_ragione': 'CAUSA'
+            }, inplace=True)
+
+        self.model = SimpleTableModel(self.df, self)
+        self.table_view.setModel(self.model)
+
+        if not self.df.empty:
+            if 'stato_certificato' in self.df.columns:
+                self.df['stato_certificato'] = self.df['stato_certificato'].apply(lambda x: str(x).replace('_', ' ') if x else x)
+
+            if 'data_nascita' not in self.df.columns:
+                self.df['data_nascita'] = None
+
+            column_order = ['id', 'DIPENDENTE', 'data_nascita', 'matricola', 'DOCUMENTO', 'categoria', 'DATA_EMISSIONE', 'data_scadenza', 'stato_certificato', 'CAUSA']
+            existing_columns = [col for col in column_order if col in self.df.columns]
+            self.df = self.df[existing_columns]
 
             self.model = SimpleTableModel(self.df, self)
             self.table_view.setModel(self.model)
 
-            if not self.df.empty:
-                if 'stato_certificato' in self.df.columns:
-                    self.df['stato_certificato'] = self.df['stato_certificato'].apply(lambda x: str(x).replace('_', ' ') if x else x)
-
-                if 'data_nascita' not in self.df.columns:
-                    self.df['data_nascita'] = None
-
-                column_order = ['id', 'DIPENDENTE', 'data_nascita', 'matricola', 'DOCUMENTO', 'categoria', 'DATA_EMISSIONE', 'data_scadenza', 'stato_certificato', 'CAUSA']
-                existing_columns = [col for col in column_order if col in self.df.columns]
-                self.df = self.df[existing_columns]
-
-                self.model = SimpleTableModel(self.df, self)
-                self.table_view.setModel(self.model)
-
-                # Hide 'id' column
+            # Hide 'id' column
+            if 'id' in self.df.columns:
                 id_col_index = self.df.columns.get_loc('id')
                 self.table_view.setColumnHidden(id_col_index, True)
 
-                # Increase row height
-                self.table_view.verticalHeader().setDefaultSectionSize(50)
+            # Increase row height
+            self.table_view.verticalHeader().setDefaultSectionSize(50)
 
-                # Adjust column widths
-                header = self.table_view.horizontalHeader()
-                header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-                if 'DIPENDENTE' in self.df.columns:
-                    header.setSectionResizeMode(self.df.columns.get_loc('DIPENDENTE'), QHeaderView.ResizeMode.Stretch)
-                if 'DOCUMENTO' in self.df.columns:
-                    header.setSectionResizeMode(self.df.columns.get_loc('DOCUMENTO'), QHeaderView.ResizeMode.Stretch)
-                if 'data_nascita' in self.df.columns:
-                    header.setSectionResizeMode(self.df.columns.get_loc('data_nascita'), QHeaderView.ResizeMode.ResizeToContents)
-
-        except requests.exceptions.RequestException as e:
-            QMessageBox.critical(self, "Errore di Connessione", f"Impossibile caricare i dati da validare: {e}")
-            self.df = pd.DataFrame()
-            self.model = SimpleTableModel(self.df, self)
-            self.table_view.setModel(self.model)
+            # Adjust column widths
+            header = self.table_view.horizontalHeader()
+            header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+            if 'DIPENDENTE' in self.df.columns:
+                header.setSectionResizeMode(self.df.columns.get_loc('DIPENDENTE'), QHeaderView.ResizeMode.Stretch)
+            if 'DOCUMENTO' in self.df.columns:
+                header.setSectionResizeMode(self.df.columns.get_loc('DOCUMENTO'), QHeaderView.ResizeMode.Stretch)
+            if 'data_nascita' in self.df.columns:
+                header.setSectionResizeMode(self.df.columns.get_loc('data_nascita'), QHeaderView.ResizeMode.ResizeToContents)
 
         # Reconnect the selection signal because setModel() clears previous selection model
         if self.table_view.selectionModel():
@@ -219,14 +243,15 @@ class ValidationView(QWidget):
         # Update buttons initially
         self.update_button_states()
 
-
     def get_selected_ids(self):
         if self.df.empty:
             return []
 
         selection_model = self.table_view.selectionModel()
+        if not selection_model: return []
         selected_rows_indices = selection_model.selectedRows()
 
+        if 'id' not in self.df.columns: return []
         id_column_index = self.df.columns.get_loc('id')
 
         selected_ids = [str(self.model.index(row.row(), id_column_index).data()) for row in selected_rows_indices]
@@ -239,15 +264,11 @@ class ValidationView(QWidget):
         if not selected_ids:
             return
 
-        selection_model = self.table_view.selectionModel()
-        selected_rows = selection_model.selectedRows()
-        first_row = min((r.row() for r in selected_rows), default=-1)
-
         reply = QMessageBox.question(self, 'Conferma Cancellazione', f'Sei sicuro di voler cancellare {len(selected_ids)} certificati?',
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
 
         if reply == QMessageBox.StandardButton.Yes:
-            self.perform_action("delete", selected_ids, first_row)
+            self.perform_action("delete", selected_ids)
 
     def validate_selected(self):
         if getattr(self, 'is_read_only', False): return
@@ -256,51 +277,43 @@ class ValidationView(QWidget):
         if not selected_ids:
             return
 
-        selection_model = self.table_view.selectionModel()
-        selected_rows = selection_model.selectedRows()
-        first_row = min((r.row() for r in selected_rows), default=-1)
-
         reply = QMessageBox.question(self, 'Conferma Validazione', f'Sei sicuro di voler validare {len(selected_ids)} certificati?',
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
 
         if reply == QMessageBox.StandardButton.Yes:
-            self.perform_action("validate", selected_ids, first_row)
+            self.perform_action("validate", selected_ids)
 
-    def perform_action(self, action_type, ids, row_to_reselect=-1):
-        success_count = 0
-        error_messages = []
+    def perform_action(self, action_type, ids):
+        self.set_loading(True)
 
-        for cert_id in ids:
-            try:
-                if action_type == "validate":
-                    response = requests.put(f"{self.api_client.base_url}/certificati/{cert_id}/valida", headers=self.api_client._get_headers())
-                else: # delete
-                    response = requests.delete(f"{self.api_client.base_url}/certificati/{cert_id}", headers=self.api_client._get_headers())
-
-                response.raise_for_status()
-                success_count += 1
-            except requests.exceptions.RequestException as e:
-                error_messages.append(f"ID {cert_id}: {e}")
-
-        if error_messages:
-            QMessageBox.warning(self, "Operazione Parzialmente Riuscita",
-                                f"{success_count} operazioni riuscite.\n"
-                                f"Errori su {len(error_messages)} elementi:\n" + "\n".join(error_messages))
+        # Determine worker type
+        if action_type == "validate":
+            worker = ValidateCertificatesWorker(self.api_client, ids)
         else:
-            QMessageBox.information(self, "Successo", f"Operazione completata con successo su {success_count} elementi.")
+            worker = DeleteCertificatesWorker(self.api_client, ids)
 
-        if success_count > 0 and action_type == "validate":
+        worker.signals.result.connect(lambda res: self._on_action_completed(res, action_type))
+        worker.signals.error.connect(lambda err: QMessageBox.critical(self, "Errore", f"Errore durante l'operazione: {err}"))
+        worker.signals.finished.connect(lambda: self.set_loading(False)) # UI re-enabled when finished
+
+        self.threadpool.start(worker)
+
+    def _on_action_completed(self, result, action_type):
+        success = result.get("success", 0)
+        errors = result.get("errors", [])
+
+        if errors:
+            QMessageBox.warning(self, "Operazione Parzialmente Riuscita",
+                                f"{success} operazioni riuscite.\n"
+                                f"Errori su {len(errors)} elementi:\n" + "\n".join(errors))
+        else:
+            QMessageBox.information(self, "Successo", f"Operazione completata con successo su {success} elementi.")
+
+        if success > 0 and action_type == "validate":
             self.validation_completed.emit()
 
+        # Reload to refresh table
         self.load_data()
-
-        # After reloading, try to re-select a row to keep the flow
-        if row_to_reselect != -1:
-            new_row_count = self.model.rowCount()
-            if new_row_count > 0:
-                # Select the same index, or the last item if the index is now out of bounds
-                final_row = min(row_to_reselect, new_row_count - 1)
-                self.table_view.selectRow(final_row)
 
     def _show_context_menu(self, pos):
         index = self.table_view.indexAt(pos)

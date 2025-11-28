@@ -1,191 +1,121 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  LifeBuoy,
-  AlertTriangle,
-  WifiOff,
-  FileWarning,
-  ShieldAlert,
-  ChevronDown,
-  ChevronUp,
-  Server
-} from 'lucide-react';
-
-const AccordionItem = ({ question, answer, icon: Icon, isOpen, onClick }) => {
-  return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden bg-white mb-4 shadow-sm hover:shadow-md transition-shadow">
-      <button
-        onClick={onClick}
-        className="w-full flex items-center justify-between p-4 text-left bg-white hover:bg-gray-50 transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-lg ${isOpen ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
-            <Icon size={20} />
-          </div>
-          <span className="font-semibold text-gray-800">{question}</span>
-        </div>
-        {isOpen ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
-      </button>
-
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <div className="p-4 pt-0 border-t border-gray-100 bg-gray-50/50 text-gray-600 leading-relaxed text-sm">
-              <div className="pt-4">
-                {answer}
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-};
+import React from 'react';
+import GuideCard from '../components/ui/GuideCard';
+import Note from '../components/ui/Note';
+import Accordion from '../components/ui/Accordion';
+import { HelpCircle, WifiOff, FileX, ShieldAlert } from 'lucide-react';
 
 const TroubleshootingGuide = () => {
-  const [openIndex, setOpenIndex] = useState(0);
-
-  const items = [
+  const faqItems = [
     {
-      question: "Errore 429: Resource Exhausted (Quota AI Superata)",
-      icon: Server,
-      answer: (
-        <>
-          <p className="mb-2">
-            Questo errore indica che hai raggiunto il limite di richieste del piano gratuito di Google Gemini (2.5 Pro).
-          </p>
-          <ul className="list-disc list-inside space-y-1 mb-2">
-            <li><strong>Causa:</strong> Troppi documenti inviati in un breve lasso di tempo.</li>
-            <li><strong>Soluzione:</strong> Attendi circa 1-2 minuti prima di riprovare.</li>
-            <li><strong>Fix Permanente:</strong> Passa a un piano a pagamento (Pay-as-you-go) nella Google Cloud Console se devi elaborare grandi volumi di dati quotidianamente.</li>
+      title: "Errore: \"Database Locked\" o \"Sola Lettura\"",
+      content: (
+        <div>
+          <p className="mb-2">Questo accade se un altro utente (o un'altra istanza di Intelleo) ha già aperto il database.</p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li>Chiudi Intelleo su tutti gli altri PC.</li>
+            <li>Controlla se hai aperto l'app due volte sullo stesso PC.</li>
+            <li>Se il problema persiste, riavvia il computer per sbloccare i file.</li>
           </ul>
-        </>
+        </div>
       )
     },
     {
-      question: "Errore Connessione SMTP (Invio Email Fallito)",
-      icon: WifiOff,
-      answer: (
-        <>
-          <p className="mb-2">
-            Se l'invio delle email fallisce, verifica i seguenti punti in <em>Configurazione</em>:
-          </p>
-          <ol className="list-decimal list-inside space-y-1">
-            <li><strong>Credenziali:</strong> Assicurati che l'indirizzo email e la password siano corretti. Per Gmail, DEVI usare una <strong>App Password</strong>, non la tua password di login abituale.</li>
-            <li><strong>Porta e Sicurezza:</strong>
-              <ul className="list-disc list-inside ml-4 mt-1 text-gray-500">
-                <li>Porta <strong>465</strong> richiede SSL (implicito).</li>
-                <li>Porta <strong>587</strong> richiede STARTTLS.</li>
-              </ul>
-            </li>
-            <li><strong>Firewall:</strong> Verifica che il firewall aziendale o Windows Defender non stia bloccando le connessioni in uscita sulla porta 465/587.</li>
-          </ol>
-        </>
-      )
-    },
-    {
-      question: "Licenza Scaduta",
-      icon: ShieldAlert,
-      answer: (
-        <>
-          <p className="mb-2">
-            L'applicazione richiede una licenza attiva per funzionare.
-          </p>
-          <ul className="list-disc list-inside space-y-1">
-            <li>Se vedi il messaggio <strong>"Licenza SCADUTA"</strong> nella schermata di login, contatta l'amministratore di sistema o il fornitore per il rinnovo.</li>
-            <li>La cartella <code>Licenza</code> (contenente <code>config.dat</code>) deve essere presente nella directory di installazione. Non eliminare o modificare questi file.</li>
+      title: "L'importazione AI è lenta o ferma",
+      content: (
+        <div>
+          <p className="mb-2">L'analisi dipende dalla connessione internet e dai server Google Gemini.</p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li>Verifica la tua connessione internet.</li>
+            <li>Se stai caricando PDF molto pesanti (&gt;20MB) o scansioni ad altissima risoluzione, l'upload potrebbe richiedere tempo.</li>
+            <li>Prova a riavviare l'importazione con meno file per volta (es. 10 alla volta).</li>
           </ul>
-        </>
+        </div>
       )
     },
     {
-      question: "Errori Importazione PDF (File non analizzato)",
-      icon: FileWarning,
-      answer: (
-        <>
-          <p className="mb-2">
-            Se un file viene spostato nella cartella <code>NON ANALIZZATI</code> o genera errore:
-          </p>
-          <ul className="list-disc list-inside space-y-1">
-            <li><strong>Corruzione:</strong> Il file PDF potrebbe essere danneggiato. Prova ad aprirlo con Adobe Reader.</li>
-            <li><strong>Password:</strong> I file protetti da password non possono essere letti dall'AI. Rimuovi la protezione e riprova.</li>
-            <li><strong>Scansione Ileggibile:</strong> Se il PDF è una scansione di bassissima qualità (immagine sgranata), l'AI potrebbe non riuscire a leggere il testo.</li>
+      title: "Email di test non arriva",
+      content: (
+        <div>
+          <p className="mb-2">Spesso è un problema di configurazione SMTP.</p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li>Se usi Gmail, <strong>DEVI</strong> usare una "App Password", non la tua password normale.</li>
+            <li>Controlla la cartella Spam.</li>
+            <li>Verifica che la porta sia 465 (SSL) o 587 (STARTTLS).</li>
+            <li>Controlla che l'antivirus aziendale non blocchi le connessioni in uscita sulla porta 465/587.</li>
           </ul>
-        </>
+        </div>
       )
     },
     {
-      question: "File Non Valido (Firma non riconosciuta)",
-      icon: AlertTriangle,
-      answer: (
-        <>
-          <p>
-            Per sicurezza, il sistema verifica la "firma digitale" interna dei file (Magic Numbers).
-          </p>
-          <p className="mt-2">
-            Se ricevi questo errore, significa che un file con estensione <code>.pdf</code> o <code>.csv</code> non è realmente di quel formato (es. un file .exe rinominato). Il caricamento viene bloccato per prevenire rischi di sicurezza.
-          </p>
-        </>
-      )
-    },
-    {
-      question: "Errore critico all'avvio: 'Database bloccato'",
-      icon: ShieldAlert,
-      answer: (
-        <>
-          <p className="mb-2">
-            Questo errore indica che il database è già in uso da un'altra istanza di Intelleo (o è rimasto bloccato dopo una chiusura anomala).
-          </p>
-          <ul className="list-disc list-inside space-y-1">
-            <li><strong>Causa:</strong> Il sistema di sicurezza impedisce l'accesso concorrente per proteggere i dati.</li>
-            <li><strong>Soluzione:</strong> Verifica che non ci siano altre finestre di Intelleo aperte sulla stessa macchina. Se il problema persiste, riavvia il PC o elimina manualmente il file <code>.database_documenti.db.lock</code> nella cartella del database.</li>
+      title: "Licenza scaduta o non valida",
+      content: (
+        <div>
+          <p className="mb-2">Se vedi un avviso di licenza:</p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li>Assicurati di essere connesso a internet (necessario per il controllo periodico).</li>
+            <li>Verifica la data di scadenza in <strong>Configurazione</strong>.</li>
+            <li>Contatta il supporto fornendo il tuo <strong>Hardware ID</strong> visualizzato nella schermata di errore.</li>
           </ul>
-        </>
+        </div>
+      )
+    },
+    {
+      title: "Il PDF non si apre dall'applicazione",
+      content: (
+        <div>
+          <p className="mb-2">Intelleo usa il visualizzatore PDF predefinito del tuo sistema.</p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li>Verifica di avere Adobe Reader o un browser (Edge/Chrome) impostato come default per i .pdf.</li>
+            <li>Controlla se il file esiste ancora sul disco (potrebbe essere stato spostato o cancellato manualmente).</li>
+          </ul>
+        </div>
       )
     }
   ];
 
   return (
-    <div className="max-w-4xl mx-auto">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-10"
-      >
-        <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-red-100 rounded-lg text-red-700">
-            <LifeBuoy size={24} />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900">Risoluzione Problemi</h1>
-        </div>
-        <p className="text-lg text-gray-500 ml-14">
-          Soluzioni rapide ai problemi più comuni riscontrati durante l'utilizzo di Intelleo.
+    <div className="space-y-12">
+      <div className="max-w-3xl">
+        <h1 className="h1">Risoluzione Problemi</h1>
+        <p className="text-body text-xl">
+          Soluzioni rapide per gli errori più comuni. Prima di chiamare l'assistenza, prova questi passaggi.
         </p>
-      </motion.div>
+      </div>
 
-      {/* Accordion List */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.1 }}
-      >
-        {items.map((item, index) => (
-          <AccordionItem
-            key={index}
-            question={item.question}
-            answer={item.answer}
-            icon={item.icon}
-            isOpen={openIndex === index}
-            onClick={() => setOpenIndex(index === openIndex ? -1 : index)}
-          />
-        ))}
-      </motion.div>
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+         <GuideCard title="Connessione" icon={WifiOff}>
+             Problemi con l'AI o l'invio Email? Spesso dipende dalla rete o dal firewall.
+         </GuideCard>
+         <GuideCard title="File & Dati" icon={FileX}>
+             Errori di lettura PDF o file spariti? Verifica i percorsi e i nomi dei file.
+         </GuideCard>
+         <GuideCard title="Accesso" icon={ShieldAlert}>
+             Password dimenticata o Database bloccato? Gestione sessioni e lock file.
+         </GuideCard>
+      </section>
+
+      <section>
+          <h2 className="h2 flex items-center gap-2"><HelpCircle className="text-blue-600"/> FAQ Tecniche</h2>
+          <Accordion items={faqItems} />
+      </section>
+
+      <section className="bg-blue-50 border border-blue-100 rounded-xl p-8 text-center mt-12">
+          <h3 className="text-xl font-bold text-blue-900 mb-2">Hai ancora problemi?</h3>
+          <p className="text-blue-700 mb-6">
+              Se la guida non basta, il nostro team di supporto è a disposizione.
+          </p>
+          <div className="flex justify-center gap-4">
+              <button className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-sm">
+                  Apri Ticket Supporto
+              </button>
+              <button className="bg-white text-blue-700 border border-blue-200 px-6 py-2 rounded-lg font-medium hover:bg-blue-50 transition-colors">
+                  Scarica Log Errori
+              </button>
+          </div>
+          <p className="text-xs text-blue-400 mt-4">
+              Includi sempre il file di Log quando contatti l'assistenza.
+          </p>
+      </section>
     </div>
   );
 };
