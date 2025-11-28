@@ -27,9 +27,13 @@ class DummyEnum:
     Horizontal = 1
     Vertical = 2
     WA_TransparentForMouseEvents = 0
+    AA_ShareOpenGLContexts = 0
     DisplayRole = 0
     EditRole = 1
     UserRole = 256
+    WindowActive = 1
+    KeepAspectRatio = 1
+    CustomContextMenu = 1
 
 class DummyQLayoutItem:
     def __init__(self, widget):
@@ -49,7 +53,12 @@ class DummyQWidget:
     AlignmentFlag = DummyEnum
     Orientation = DummyEnum
     WidgetAttribute = DummyEnum
+    ApplicationAttribute = DummyEnum
     ItemDataRole = DummyEnum
+    WindowState = DummyEnum
+    AspectRatioMode = DummyEnum
+    TransformationMode = DummyEnum
+    ContextMenuPolicy = DummyEnum
 
     def __init__(self, text=None, *args, **kwargs):
         self._clicked = DummySignal()
@@ -253,6 +262,8 @@ class DummyQWidget:
         m = MagicMock()
         m.isValid.return_value = False
         return m
+    def setContextMenuPolicy(self, policy):
+        pass
     def setScene(self, scene):
         pass
     def setRange(self, min, max):
@@ -438,6 +449,18 @@ class DummyQWebEnginePage(DummyQWidget):
     def javaScriptConsoleMessage(self, level, message, lineNumber, sourceID):
         pass
 
+class DummyQAbstractTableModel(MagicMock):
+    def __init__(self, *args, **kwargs):
+        # Consume parent arg safely
+        parent = kwargs.pop('parent', None)
+        super().__init__(*args, **kwargs)
+
+class DummyEffect(MagicMock):
+    def setOpacity(self, opacity):
+        pass
+    def setBlurRadius(self, radius):
+        pass
+
 # Mock module structure
 def mock_qt_modules():
     mock_widgets = MagicMock()
@@ -473,8 +496,8 @@ def mock_qt_modules():
     mock_widgets.QMenu = MagicMock()
     mock_widgets.QAction = MagicMock()
     mock_widgets.QStyledItemDelegate = MagicMock
-    mock_widgets.QGraphicsOpacityEffect = MagicMock
-    mock_widgets.QGraphicsDropShadowEffect = MagicMock
+    mock_widgets.QGraphicsOpacityEffect = DummyEffect
+    mock_widgets.QGraphicsDropShadowEffect = DummyEffect
     mock_widgets.QTextEdit = DummyQWidget
     mock_widgets.QFileDialog = MagicMock()
 
@@ -483,7 +506,7 @@ def mock_qt_modules():
     mock_core.QSize = MagicMock()
     mock_core.QDate = DummyQDate
     mock_core.QObject = DummyQObject
-    mock_core.QAbstractTableModel = MagicMock
+    mock_core.QAbstractTableModel = DummyQAbstractTableModel
     mock_core.QTimer = MagicMock()
     mock_core.QPropertyAnimation = MagicMock()
     mock_core.QEasingCurve = MagicMock()

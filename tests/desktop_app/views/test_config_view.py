@@ -37,7 +37,7 @@ def test_config_view_loads_settings_from_api(MockAPIClient, mock_api_client):
 
     from desktop_app.views.config_view import ConfigView
 
-    view = ConfigView()
+    view = ConfigView(mock_api_client)
 
     # Trigger the load_config method
     view.load_config()
@@ -61,7 +61,7 @@ def test_config_view_saves_settings_via_api(MockAPIClient, mock_api_client):
 
     from desktop_app.views.config_view import ConfigView
 
-    view = ConfigView()
+    view = ConfigView(mock_api_client)
     view.load_config() # Load initial state
 
     # Simulate user changing a value

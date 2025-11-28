@@ -1,4 +1,5 @@
 import os
+import sys
 import pytest
 from app.core.lock_manager import LockManager
 
@@ -17,6 +18,7 @@ def test_lock_manager_release_deletes_file(tmp_path):
     # 3. Verify file is gone
     assert not lock_file.exists()
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows prevents deleting locked files")
 def test_lock_manager_release_handles_missing_file(tmp_path):
     lock_file = tmp_path / ".test_missing.lock"
     lock_manager = LockManager(str(lock_file))

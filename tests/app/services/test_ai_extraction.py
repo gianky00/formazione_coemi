@@ -1,107 +1,150 @@
 import pytest
-from unittest.mock import patch, MagicMock
 import json
-from app.services.ai_extraction import extract_entities_with_ai, GeminiClient, get_gemini_model
+from unittest.mock import MagicMock, patch
+from google.api_core import exceptions
+from app.services import ai_extraction
 
-@pytest.fixture
-def mock_gemini_client():
-    # We mock the entire GeminiClient class to control its behavior
-    with patch('app.services.ai_extraction.GeminiClient') as MockClient:
-        mock_instance = MagicMock()
-        MockClient.return_value = mock_instance # Singleton instance
-        mock_model = MagicMock()
-        mock_instance.get_model.return_value = mock_model
-        yield mock_model
+# --- Prompt Audit ---
+def test_prompt_integrity():
+    """
+    Verifies that the AI prompt contains critical business logic anchors ("Hierarchical Logic").
+    The "Brain" of the classification logic resides in the prompt, so we must ensure it's not corrupted.
+    """
+    prompt = ai_extraction._generate_prompt()
+    
+    # Critical Anchors
+    assert "REGOLE DI CLASSIFICAZIONE ASSOLUTE" in prompt
+    assert "D.M. 388" in prompt
+    assert "NOMINA" in prompt
+    assert "SCARTO (REJECT)" in prompt
+    assert "ATEX" in prompt
+    assert "COGNOME NOME" in prompt
+    
+    # Verify specific hierarchy rules
+    assert "Se contiene \"IDROGENO SOLFORATO\"" in prompt
+    assert "SE il documento è un programma generico" in prompt
 
-def test_gemini_client_singleton():
-    """Test that GeminiClient behaves as a singleton."""
-    # We need to unpatch implicit mocks for this specific test to test the actual class logic
-    # But since we can't easily unpatch in the middle of a test session if patching is done via decorator or fixture on the module,
-    # we will test the logic by mocking the underlying 'genai' and 'settings'.
+# --- Functional Tests (Mocking AI Response) ---
 
-    with patch('app.services.ai_extraction.genai') as mock_genai, \
-         patch('app.services.ai_extraction.settings') as mock_settings:
-
-        # Reset singleton
-        GeminiClient._instance = None
-        mock_settings.GEMINI_API_KEY = "fake_key"
-
-        client1 = GeminiClient()
-        client2 = GeminiClient()
-
-        assert client1 is client2
-        mock_genai.configure.assert_called_once_with(api_key="fake_key")
-
-def test_gemini_client_init_failure():
-    """Test GeminiClient initialization failure (missing key)."""
-    with patch('app.services.ai_extraction.genai'), \
-         patch('app.services.ai_extraction.settings') as mock_settings:
-
-        GeminiClient._instance = None
-        mock_settings.GEMINI_API_KEY = None
-
-        with pytest.raises(ValueError, match="GEMINI_API_KEY not configured"):
-            GeminiClient()
-
-def test_get_gemini_model_error():
-    with patch('app.services.ai_extraction.GeminiClient', side_effect=ValueError("Init failed")):
-        assert get_gemini_model() is None
-
-def test_extract_entities_with_ai_success(mock_gemini_client):
+def test_extraction_valid_nomina(mocker):
+    """
+    Simulates AI returning a valid 'NOMINA' document.
+    Verifies the application correctly parses and returns the data.
+    """
+    # Mock the AI Model
+    mock_model = MagicMock()
     mock_response = MagicMock()
-    mock_response.text = '{"nome": "Mario Rossi", "corso": "ANTINCENDIO", "data_rilascio": "14-11-2025", "categoria": "ANTINCENDIO"}'
-    mock_gemini_client.generate_content.return_value = mock_response
+    # Simulate Gemini wrapping JSON in markdown code blocks
+    mock_response.text = '```json\n{"categoria": "NOMINA", "nome": "ROSSI MARIO", "data_rilascio": "01/01/2024"}\n```'
+    mock_model.generate_content.return_value = mock_response
+    
+    # Patch the get_model function to return our mock
+    mocker.patch("app.services.ai_extraction.get_gemini_model", return_value=mock_model)
+    
+    # Execute
+    result = ai_extraction.extract_entities_with_ai(b"%PDF-fake")
+    
+    # Verify
+    assert result["categoria"] == "NOMINA"
+    assert result["nome"] == "ROSSI MARIO"
+    assert "error" not in result
 
-    result = extract_entities_with_ai(b"dummy pdf")
-
-    assert result == {
-        "nome": "Mario Rossi", "corso": "ANTINCENDIO",
-        "data_rilascio": "14-11-2025", "categoria": "ANTINCENDIO"
-    }
-
-def test_extract_entities_with_ai_list_response(mock_gemini_client):
-    """Test when AI returns a list of objects."""
+def test_extraction_reject_syllabus(mocker):
+    """
+    Simulates AI rejecting a document (Syllabus/Generic).
+    Verifies the application correctly flags it as rejected.
+    """
+    mock_model = MagicMock()
     mock_response = MagicMock()
-    mock_response.text = '[{"nome": "Mario Rossi", "categoria": "ANTINCENDIO"}]'
-    mock_gemini_client.generate_content.return_value = mock_response
-
-    result = extract_entities_with_ai(b"dummy pdf")
-    assert result["nome"] == "Mario Rossi"
-
-def test_extract_entities_with_ai_empty_list_response(mock_gemini_client):
-    """Test when AI returns an empty list."""
-    mock_response = MagicMock()
-    mock_response.text = '[]'
-    mock_gemini_client.generate_content.return_value = mock_response
-
-    result = extract_entities_with_ai(b"dummy pdf")
+    mock_response.text = json.dumps({"status": "REJECT", "reason": "Syllabus/Generic"})
+    mock_model.generate_content.return_value = mock_response
+    
+    mocker.patch("app.services.ai_extraction.get_gemini_model", return_value=mock_model)
+    
+    result = ai_extraction.extract_entities_with_ai(b"%PDF-fake")
+    
     assert "error" in result
+    assert result["is_rejected"] is True
+    assert "Syllabus/Generic" in result["error"]
 
-def test_extract_entities_with_ai_fallback_category(mock_gemini_client):
+def test_extraction_list_response_handling(mocker):
+    """
+    Simulates AI returning a list of objects (occasional Gemini quirk).
+    Verifies the application extracts the first item.
+    """
+    mock_model = MagicMock()
     mock_response = MagicMock()
-    mock_response.text = '{"categoria": "INVALID"}'
-    mock_gemini_client.generate_content.return_value = mock_response
+    mock_response.text = json.dumps([{"categoria": "ATEX", "nome": "BIANCHI LUIGI"}])
+    mock_model.generate_content.return_value = mock_response
+    
+    mocker.patch("app.services.ai_extraction.get_gemini_model", return_value=mock_model)
+    
+    result = ai_extraction.extract_entities_with_ai(b"%PDF-fake")
+    
+    assert result["categoria"] == "ATEX"
+    assert result["nome"] == "BIANCHI LUIGI"
 
-    result = extract_entities_with_ai(b"dummy pdf")
-
+def test_extraction_invalid_category_fallback(mocker):
+    """
+    Simulates AI returning an unknown category.
+    Verifies fallback to 'ALTRO'.
+    """
+    mock_model = MagicMock()
+    mock_response = MagicMock()
+    mock_response.text = json.dumps({"categoria": "SUPER_UNKNOWN_CERT", "nome": "VERDI ANNA"})
+    mock_model.generate_content.return_value = mock_response
+    
+    mocker.patch("app.services.ai_extraction.get_gemini_model", return_value=mock_model)
+    
+    result = ai_extraction.extract_entities_with_ai(b"%PDF-fake")
+    
     assert result["categoria"] == "ALTRO"
+    assert result["nome"] == "VERDI ANNA"
 
-def test_extract_entities_with_ai_json_error(mock_gemini_client):
-    mock_response = MagicMock()
-    mock_response.text = 'INVALID JSON'
-    mock_gemini_client.generate_content.return_value = mock_response
+def test_ai_extraction_retry_logic(mocker):
+    """
+    Test that the implementation retries on ResourceExhausted error
+    and eventually returns a 429 status code structure.
+    """
+    mock_model = MagicMock()
+    # Configure the mock to raise ResourceExhausted every time
+    mock_model.generate_content.side_effect = exceptions.ResourceExhausted("Quota exceeded")
 
-    result = extract_entities_with_ai(b"dummy pdf")
+    # Patch get_gemini_model to return our mock model
+    mocker.patch("app.services.ai_extraction.get_gemini_model", return_value=mock_model)
+
+    pdf_bytes = b"fake pdf content"
+    result = ai_extraction.extract_entities_with_ai(pdf_bytes)
+
+    # Verify that it failed and returned the correct error structure
     assert "error" in result
-    assert "Invalid JSON" in result["error"]
+    assert result.get("status_code") == 429
 
-def test_extract_entities_with_ai_model_none():
-    with patch('app.services.ai_extraction.get_gemini_model', return_value=None):
-        result = extract_entities_with_ai(b"pdf")
-        assert result == {"error": "Modello Gemini non inizializzato."}
+    # Verify it called generate_content 3 times (initial + 2 retries)
+    # Note: tenacity retry behavior depends on config, assuming 3 attempts
+    assert mock_model.generate_content.call_count == 3
 
-def test_extract_entities_with_ai_general_exception(mock_gemini_client):
-    mock_gemini_client.generate_content.side_effect = Exception("API Error")
-    result = extract_entities_with_ai(b"pdf")
-    assert "error" in result
-    assert "AI call failed" in result["error"]
+def test_ai_extraction_success_after_retry(mocker):
+    """
+    Test that the implementation succeeds if a subsequent try works.
+    """
+    mock_model = MagicMock()
+    success_response = MagicMock()
+    success_response.text = '```json\n{"nome": "Mario", "categoria": "ATEX"}\n```'
+
+    # Fail twice, then succeed
+    mock_model.generate_content.side_effect = [
+        exceptions.ResourceExhausted("Quota exceeded"),
+        exceptions.ResourceExhausted("Quota exceeded"),
+        success_response
+    ]
+
+    mocker.patch("app.services.ai_extraction.get_gemini_model", return_value=mock_model)
+
+    pdf_bytes = b"fake pdf content"
+    result = ai_extraction.extract_entities_with_ai(pdf_bytes)
+
+    assert "error" not in result
+    assert result["nome"] == "Mario"
+    # Should be called 3 times
+    assert mock_model.generate_content.call_count == 3

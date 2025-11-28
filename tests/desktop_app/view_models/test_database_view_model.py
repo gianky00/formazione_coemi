@@ -15,8 +15,15 @@ def mock_api_data():
 
 @pytest.fixture
 def view_model():
-    from desktop_app.view_models.database_view_model import DatabaseViewModel
-    return DatabaseViewModel()
+    # Patch APIClient to prevent real network calls and env var checks during init
+    with patch('desktop_app.view_models.database_view_model.APIClient') as MockClient:
+        client_instance = MockClient.return_value
+        client_instance.base_url = "http://mock-api"
+        client_instance._get_headers.return_value = {}
+        
+        from desktop_app.view_models.database_view_model import DatabaseViewModel
+        vm = DatabaseViewModel()
+        return vm
 
 @patch('requests.get')
 def test_load_data_success(mock_get, mock_api_data, view_model):
@@ -103,7 +110,7 @@ def test_load_data_failure(mock_get, view_model):
 def test_delete_certificates_success(mock_get, mock_delete, view_model):
     # Setup load_data mock
     mock_get.return_value.status_code = 200
-    mock_get.return_value.json.return_value = [] # Empty after delete for simplicity
+    mock_get.return_value.json.return_value = [] 
 
     # Setup delete mock
     mock_delete.return_value.status_code = 204
@@ -132,7 +139,7 @@ def test_delete_certificates_partial_failure(mock_delete, view_model):
     mock_delete.side_effect = side_effect
 
     vm = view_model
-    vm.load_data = Mock() # Mock load_data to avoid extra calls
+    vm.load_data = Mock() 
     vm.operation_completed = MagicMock()
     vm.error_occurred = MagicMock()
 
@@ -173,7 +180,6 @@ def test_update_certificate_failure(mock_put, view_model):
 
 def test_filter_data_empty(view_model):
     vm = view_model
-    # _df_original is empty by default
     vm.filter_data("A", "B", "C")
     assert vm.filtered_data.empty
 

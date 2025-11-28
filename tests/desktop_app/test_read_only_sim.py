@@ -15,7 +15,7 @@ sys.modules.update(modules_to_patch)
 from desktop_app.main import ApplicationController
 from desktop_app.api_client import APIClient
 from desktop_app.views.import_view import ImportView
-from desktop_app.views.dashboard_view import DashboardView
+from desktop_app.views.database_view import DatabaseView
 
 class TestReadOnlyEnforcement(unittest.TestCase):
 

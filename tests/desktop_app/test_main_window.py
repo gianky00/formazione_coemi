@@ -7,32 +7,32 @@ from tests.desktop_app.mock_qt import mock_qt_modules
 def mock_qt_env():
     modules = mock_qt_modules()
     with patch.dict(sys.modules, modules):
-        # Unload desktop_app modules
+        # Unload desktop_app modules to force re-import with mocks
         for k in list(sys.modules.keys()):
             if k.startswith('desktop_app'):
                 del sys.modules[k]
         yield
 
 def test_mainwindow_init(mock_qt_env):
-    # We need to mock the views imported by MainWindow logic
-    # Logic in MainWindow imports views from .views.*
+    """
+    Verifies that MainWindow initializes and loads views.
+    We patch the views where they are used (in MainDashboardWidget or its methods).
+    """
+    
+    # We patch the imports inside main_window_ui or wherever they are used.
+    # Since MainDashboardWidget does local imports, we must patch the modules they import from.
+    
+    with patch("desktop_app.views.database_view.DatabaseView") as MockDash, \
+         patch("desktop_app.views.import_view.ImportView") as MockImport, \
+         patch("desktop_app.views.validation_view.ValidationView") as MockValid, \
+         patch("desktop_app.views.scadenzario_view.ScadenzarioView") as MockScad, \
+         patch("desktop_app.views.config_view.ConfigView") as MockConfig, \
+         patch("desktop_app.views.modern_guide_view.ModernGuideView") as MockGuide, \
+         patch("desktop_app.main_window_ui.QIcon") as MockIcon, \
+         patch("os.path.exists", return_value=True):
 
-    # We can rely on the mocked QWidget base returning simple objects
-    # But we want to verify switch logic.
-
-    # Important: imports inside main_window_ui.py happen at module level.
-    # So by the time we import MainWindow, those imports run using our mocked PyQt6.
-    # This means ImportView etc will be defined inheriting from DummyQWidget.
-    # BUT, their own imports (like APIClient) might trigger side effects.
-
-    # Ideally we mock the view classes themselves to keep MainWindow isolated.
-
-    with patch("desktop_app.main_window_ui.ImportView") as MockImport, \
-         patch("desktop_app.main_window_ui.DashboardView") as MockDash, \
-         patch("desktop_app.main_window_ui.ValidationView") as MockValid, \
-         patch("desktop_app.main_window_ui.ScadenzarioView") as MockScad, \
-         patch("desktop_app.main_window_ui.ConfigView") as MockConfig, \
-         patch("desktop_app.main_window_ui.ModernGuideDialog") as MockGuide:
+        # Mock QIcon.isNull to return False (so it enters if block)
+        MockIcon.return_value.isNull.return_value = False
 
         from desktop_app.main_window_ui import MainDashboardWidget
 
@@ -42,14 +42,20 @@ def test_mainwindow_init(mock_qt_env):
         assert window.stacked_widget is not None
 
         # Test switch
-        window.switch_to("dashboard")
+        window.switch_to("database")
         assert window.page_title.text() != ""
 
         # Verify views were instantiated
+        # DatabaseView is loaded immediately
         MockDash.assert_called()
 
 def test_sidebar_init(mock_qt_env):
-    from desktop_app.main_window_ui import Sidebar
-    sidebar = Sidebar()
-    # Sidebar adds buttons
-    assert len(sidebar.buttons) > 0
+    with patch("desktop_app.main_window_ui.QIcon") as MockIcon, \
+         patch("os.path.exists", return_value=True):
+        
+        MockIcon.return_value.isNull.return_value = False
+        
+        from desktop_app.main_window_ui import Sidebar
+        sidebar = Sidebar()
+        # Sidebar adds buttons
+        assert len(sidebar.buttons) > 0

@@ -19,12 +19,12 @@ def test_trigger_maintenance_endpoint(test_client: TestClient, db_session: Sessi
 
     # 2. Login
     login_data = {"username": username, "password": password}
-    response = test_client.post("/api/v1/auth/login", data=login_data)
+    response = test_client.post("/auth/login", data=login_data)
     token = response.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
     # 3. Call endpoint
-    response = test_client.post("/api/v1/system/maintenance/background", headers=headers)
+    response = test_client.post("/system/maintenance/background", headers=headers)
     assert response.status_code == 200
     assert response.json() == {"status": "started"}
 
