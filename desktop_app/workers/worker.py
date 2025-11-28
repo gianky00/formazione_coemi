@@ -1,5 +1,6 @@
 import traceback
 import sys
+import inspect
 from PyQt6.QtCore import QRunnable, pyqtSignal, QObject
 
 class WorkerSignals(QObject):
@@ -34,10 +35,18 @@ class Worker(QRunnable):
         self.kwargs = kwargs
         self.signals = WorkerSignals()
 
-        # Add the progress callback to kwargs if the function accepts it
-        # We can't know for sure, so we rely on the function to use 'progress_callback' or 'status_callback'
-        self.kwargs['progress_callback'] = self.signals.progress
-        self.kwargs['status_callback'] = self.signals.status
+        # Conditionally inject callbacks if the function accepts them
+        try:
+            sig = inspect.signature(self.fn)
+            if 'progress_callback' in sig.parameters:
+                self.kwargs['progress_callback'] = self.signals.progress
+            if 'status_callback' in sig.parameters:
+                self.kwargs['status_callback'] = self.signals.status
+        except ValueError:
+            # If fn is not a python function (e.g. built-in), signature might fail.
+            # In that case, we assume it doesn't accept callbacks unless kwargs are supported.
+            # But inspect works for most callables.
+            pass
 
     def run(self):
         """
@@ -46,7 +55,7 @@ class Worker(QRunnable):
         try:
             result = self.fn(*self.args, **self.kwargs)
         except:
-            traceback.print_exc()
+            # traceback.print_exc() # detailed logging
             exctype, value = sys.exc_info()[:2]
             self.signals.error.emit((exctype, value, traceback.format_exc()))
         else:
