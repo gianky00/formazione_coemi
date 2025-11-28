@@ -422,6 +422,8 @@ class MainDashboardWidget(QWidget):
         from .views.modern_guide_view import ModernGuideView
         if not self.views["guide"]:
             self.views["guide"] = ModernGuideView()
+            # Handle close signal from the guide (triggered by JS via QWebChannel)
+            self.views["guide"].bridge.closeRequested.connect(lambda: self.switch_to("database"))
             self.stacked_widget.addWidget(self.views["guide"])
 
     def _ensure_view_loaded(self, key):
@@ -454,15 +456,10 @@ class MainDashboardWidget(QWidget):
                 self.views["config"] = ConfigView(self.api_client)
                 self.stacked_widget.addWidget(self.views["config"])
 
-        # Connect signals for newly loaded view (if not already done globally)
-        # Note: _connect_signals connects based on sidebar clicks which invoke switch_to.
-        # But inter-view signals (import -> validation) need connections.
-        # Ideally, we should connect signals when views are created.
         self._connect_view_signals(key)
 
     def _connect_view_signals(self, key):
         # We need to reconnect signals involving this key.
-        # Simple approach: Re-run connections if source/target exist.
         if key == "import" and self.views["validation"]:
             try: self.views["import"].import_completed.disconnect()
             except: pass
@@ -480,9 +477,8 @@ class MainDashboardWidget(QWidget):
                 self.views["validation"].validation_completed.connect(self.views["database"].load_data)
 
             if self.views["scadenzario"]:
-                try: self.views["validation"].validation_completed.disconnect() # might be connected to multiple
+                try: self.views["validation"].validation_completed.disconnect()
                 except: pass
-                # Reconnect
                 self.views["validation"].validation_completed.connect(self.views["database"].load_data)
                 self.views["validation"].validation_completed.connect(self.views["scadenzario"].refresh_data)
 
@@ -500,8 +496,6 @@ class MainDashboardWidget(QWidget):
         self.sidebar.buttons["config"].clicked.connect(lambda: self.switch_to("config"))
         self.sidebar.buttons["guide"].clicked.connect(lambda: self.switch_to("guide"))
 
-        # Inter-view signals are handled in _connect_view_signals as views load
-
     def switch_to(self, key):
         if key not in self.views: return
 
@@ -509,7 +503,6 @@ class MainDashboardWidget(QWidget):
         self._ensure_view_loaded(key)
 
         if self.views[key] is None:
-            # Should not happen after ensure_view_loaded
             return
 
         for k, btn in self.sidebar.buttons.items():
