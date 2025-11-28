@@ -6,26 +6,26 @@ from datetime import datetime, date
 class TestPdfWorker(unittest.TestCase):
 
     def setUp(self):
-        from desktop_app.views.import_view import PdfWorker
+        # Patch collections.deque to avoid import error during test collection if logic changed
+        with patch("collections.deque"):
+            from desktop_app.views.import_view import PdfWorker
         self.api_client = MagicMock()
         self.api_client.base_url = "http://test-api"
-        self.worker = PdfWorker([], self.api_client)
-        # Mock signals to prevent segfaults or errors if no event loop
+        self.worker = PdfWorker([], self.api_client, "/tmp/output")
+        # Mock signals
         self.worker.log_message = MagicMock()
         self.worker.status_update = MagicMock()
         self.worker.progress = MagicMock()
         self.worker.finished = MagicMock()
+        self.worker.etr_update = MagicMock()
 
     @patch('desktop_app.views.import_view.requests.post')
     @patch('desktop_app.views.import_view.shutil.move')
     @patch('desktop_app.views.import_view.os.makedirs')
     @patch('builtins.open', new_callable=mock_open, read_data=b"pdf_content")
     def test_process_pdf_success_active(self, mock_file, mock_makedirs, mock_move, mock_post):
-        # Setup
         file_path = "/tmp/test_folder/doc.pdf"
 
-        # Mock API responses
-        # 1. upload-pdf response
         mock_upload_resp = MagicMock()
         mock_upload_resp.status_code = 200
         mock_upload_resp.json.return_value = {
@@ -39,7 +39,6 @@ class TestPdfWorker(unittest.TestCase):
             }
         }
 
-        # 2. save certificate response
         mock_save_resp = MagicMock()
         mock_save_resp.status_code = 200
         mock_save_resp.json.return_value = {
@@ -53,16 +52,11 @@ class TestPdfWorker(unittest.TestCase):
 
         mock_post.side_effect = [mock_upload_resp, mock_save_resp]
 
-        # Execute
         self.worker.process_pdf(file_path)
 
-        # Assertions
-        # Check folder creation
-        expected_base = os.path.dirname(file_path)
-        expected_doc_folder = os.path.join(expected_base, "DOCUMENTI DIPENDENTI", "Mario Rossi (12345)", "ANTINCENDIO", "ATTIVO")
+        expected_doc_folder = os.path.join(self.worker.output_folder, "DOCUMENTI DIPENDENTI", "Mario Rossi (12345)", "ANTINCENDIO", "ATTIVO")
         mock_makedirs.assert_any_call(expected_doc_folder, exist_ok=True)
 
-        # Check file move
         expected_new_filename = "Mario Rossi (12345) - ANTINCENDIO - 01_01_2030.pdf"
         expected_dest_path = os.path.join(expected_doc_folder, expected_new_filename)
         mock_move.assert_called_with(file_path, expected_dest_path)
@@ -72,10 +66,8 @@ class TestPdfWorker(unittest.TestCase):
     @patch('desktop_app.views.import_view.os.makedirs')
     @patch('builtins.open', new_callable=mock_open, read_data=b"pdf_content")
     def test_process_pdf_success_expired_historical(self, mock_file, mock_makedirs, mock_move, mock_post):
-        # Setup
         file_path = "/tmp/test_folder/old_doc.pdf"
 
-        # Mock API responses
         mock_upload_resp = MagicMock()
         mock_upload_resp.status_code = 200
         mock_upload_resp.json.return_value = {"entities": {}}
@@ -87,19 +79,15 @@ class TestPdfWorker(unittest.TestCase):
             "nome": "Luigi Verdi",
             "matricola": "67890",
             "categoria": "PRIMO SOCCORSO",
-            "data_scadenza": "01/01/2020", # Expired
+            "data_scadenza": "01/01/2020",
             "assegnazione_fallita_ragione": None
         }
 
         mock_post.side_effect = [mock_upload_resp, mock_save_resp]
 
-        # Execute
         self.worker.process_pdf(file_path)
 
-        # Assertions
-        expected_base = os.path.dirname(file_path)
-        # Status should be STORICO
-        expected_doc_folder = os.path.join(expected_base, "DOCUMENTI DIPENDENTI", "Luigi Verdi (67890)", "PRIMO SOCCORSO", "STORICO")
+        expected_doc_folder = os.path.join(self.worker.output_folder, "DOCUMENTI DIPENDENTI", "Luigi Verdi (67890)", "PRIMO SOCCORSO", "STORICO")
         mock_makedirs.assert_any_call(expected_doc_folder, exist_ok=True)
 
         expected_new_filename = "Luigi Verdi (67890) - PRIMO SOCCORSO - 01_01_2020.pdf"
@@ -111,10 +99,8 @@ class TestPdfWorker(unittest.TestCase):
     @patch('desktop_app.views.import_view.os.makedirs')
     @patch('builtins.open', new_callable=mock_open, read_data=b"pdf_content")
     def test_process_pdf_no_expiration_nomine(self, mock_file, mock_makedirs, mock_move, mock_post):
-        # Setup
         file_path = "/tmp/test_folder/nomina.pdf"
 
-        # Mock API responses
         mock_upload_resp = MagicMock()
         mock_upload_resp.status_code = 200
         mock_upload_resp.json.return_value = {"entities": {}}
@@ -126,22 +112,17 @@ class TestPdfWorker(unittest.TestCase):
             "nome": "Anna Bianchi",
             "matricola": "11223",
             "categoria": "NOMINA",
-            "data_scadenza": None, # No expiration
+            "data_scadenza": None,
             "assegnazione_fallita_ragione": None
         }
 
         mock_post.side_effect = [mock_upload_resp, mock_save_resp]
 
-        # Execute
         self.worker.process_pdf(file_path)
 
-        # Assertions
-        expected_base = os.path.dirname(file_path)
-        # Status should be ATTIVO
-        expected_doc_folder = os.path.join(expected_base, "DOCUMENTI DIPENDENTI", "Anna Bianchi (11223)", "NOMINA", "ATTIVO")
+        expected_doc_folder = os.path.join(self.worker.output_folder, "DOCUMENTI DIPENDENTI", "Anna Bianchi (11223)", "NOMINA", "ATTIVO")
         mock_makedirs.assert_any_call(expected_doc_folder, exist_ok=True)
 
-        # Filename should contain "no scadenza"
         expected_new_filename = "Anna Bianchi (11223) - NOMINA - no scadenza.pdf"
         expected_dest_path = os.path.join(expected_doc_folder, expected_new_filename)
         mock_move.assert_called_with(file_path, expected_dest_path)
@@ -151,36 +132,33 @@ class TestPdfWorker(unittest.TestCase):
     @patch('desktop_app.views.import_view.os.makedirs')
     @patch('builtins.open', new_callable=mock_open, read_data=b"pdf_content")
     def test_process_pdf_manual_assignment(self, mock_file, mock_makedirs, mock_move, mock_post):
-        # Setup
         file_path = "/tmp/test_folder/orphan.pdf"
 
-        # Mock API responses
         mock_upload_resp = MagicMock()
         mock_upload_resp.status_code = 200
-        mock_upload_resp.json.return_value = {"entities": {}}
+        mock_upload_resp.json.return_value = {"entities": {"categoria": "ANTINCENDIO"}}
 
         mock_save_resp = MagicMock()
         mock_save_resp.status_code = 200
         mock_save_resp.json.return_value = {
             "id": 1,
-            "assegnazione_fallita_ragione": "Non trovato in anagrafica"
+            "nome": "SCONOSCIUTO",
+            "categoria": "ANTINCENDIO",
+            "assegnazione_fallita_ragione": "Non trovato in anagrafica (matricola mancante)."
         }
 
         mock_post.side_effect = [mock_upload_resp, mock_save_resp]
 
-        # Execute
         self.worker.process_pdf(file_path)
 
-        # Assertions
-        expected_base = os.path.dirname(file_path)
-
-        # UPDATED: Should be moved to PDF ANALIZZATI, NOT NON ANALIZZATI
-        # Because the data was successfully saved to the DB (even if orphaned)
-        expected_folder = os.path.join(expected_base, "PDF ANALIZZATI")
-        expected_dest = os.path.join(expected_folder, "orphan.pdf")
-
-        # We need to verify that "PDF ANALIZZATI" was created
+        # Logic for "matricola" in failure reason -> ERRORI ANALISI/ASSENZA MATRICOLE
+        # Name is SCONOSCIUTO (N-A)
+        # Category is ANTINCENDIO
+        # Status is ATTIVO (scadenza None defaults to attivo) -> no, it defaults to 'ATTIVO' in code if not present
+        expected_folder = os.path.join(self.worker.output_folder, "ERRORI ANALISI", "ASSENZA MATRICOLE", "SCONOSCIUTO (N-A)", "ANTINCENDIO", "ATTIVO")
         mock_makedirs.assert_any_call(expected_folder, exist_ok=True)
+
+        expected_dest = os.path.join(expected_folder, "SCONOSCIUTO (N-A) - ANTINCENDIO - no scadenza.pdf")
         mock_move.assert_called_with(file_path, expected_dest)
 
     @patch('desktop_app.views.import_view.requests.post')
@@ -188,24 +166,18 @@ class TestPdfWorker(unittest.TestCase):
     @patch('desktop_app.views.import_view.os.makedirs')
     @patch('builtins.open', new_callable=mock_open, read_data=b"pdf_content")
     def test_process_pdf_ai_failure(self, mock_file, mock_makedirs, mock_move, mock_post):
-        # Setup
         file_path = "/tmp/test_folder/error.pdf"
 
-        # Mock API response for FAILURE (e.g. 429 or 500)
         mock_upload_resp = MagicMock()
         mock_upload_resp.status_code = 429
         mock_upload_resp.text = "Too Many Requests"
 
         mock_post.side_effect = [mock_upload_resp]
 
-        # Execute
         self.worker.process_pdf(file_path)
 
-        # Assertions
-        expected_base = os.path.dirname(file_path)
-
-        # Should be moved to NON ANALIZZATI
-        expected_folder = os.path.join(expected_base, "NON ANALIZZATI")
+        # Default fallback -> ERRORI ANALISI/ALTRI ERRORI/<Filename>/error.pdf
+        expected_folder = os.path.join(self.worker.output_folder, "ERRORI ANALISI", "ALTRI ERRORI", "error")
         expected_dest = os.path.join(expected_folder, "error.pdf")
 
         mock_makedirs.assert_any_call(expected_folder, exist_ok=True)

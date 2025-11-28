@@ -27,9 +27,11 @@ class DummyEnum:
     Horizontal = 1
     Vertical = 2
     WA_TransparentForMouseEvents = 0
+    AA_ShareOpenGLContexts = 0
     DisplayRole = 0
     EditRole = 1
     UserRole = 256
+    WindowActive = 1
 
 class DummyQLayoutItem:
     def __init__(self, widget):
@@ -49,7 +51,9 @@ class DummyQWidget:
     AlignmentFlag = DummyEnum
     Orientation = DummyEnum
     WidgetAttribute = DummyEnum
+    ApplicationAttribute = DummyEnum
     ItemDataRole = DummyEnum
+    WindowState = DummyEnum
 
     def __init__(self, text=None, *args, **kwargs):
         self._clicked = DummySignal()
