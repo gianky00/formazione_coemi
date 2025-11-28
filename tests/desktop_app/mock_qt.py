@@ -5,6 +5,8 @@ from unittest.mock import MagicMock
 class DummySignal:
     def connect(self, slot):
         pass
+    def emit(self, *args, **kwargs):
+        pass
 
 class DummyEnum:
     StyledPanel = 1
@@ -15,6 +17,19 @@ class DummyEnum:
     Ok = 1
     Cancel = 2
     AdjustToContents = 0
+    WindowMaximizeButtonHint = 0
+    AlignCenter = 0
+    AlignLeft = 0
+    AlignTop = 0
+    AlignRight = 0
+    AlignBottom = 0
+    PointingHandCursor = 0
+    Horizontal = 1
+    Vertical = 2
+    WA_TransparentForMouseEvents = 0
+    DisplayRole = 0
+    EditRole = 1
+    UserRole = 256
 
 class DummyQLayoutItem:
     def __init__(self, widget):
@@ -29,6 +44,12 @@ class DummyQWidget:
     EchoMode = DummyEnum
     StandardButton = DummyEnum
     SizeAdjustPolicy = DummyEnum
+    WindowType = DummyEnum
+    CursorShape = DummyEnum
+    AlignmentFlag = DummyEnum
+    Orientation = DummyEnum
+    WidgetAttribute = DummyEnum
+    ItemDataRole = DummyEnum
 
     def __init__(self, text=None, *args, **kwargs):
         self._clicked = DummySignal()
@@ -37,6 +58,8 @@ class DummyQWidget:
         self._rejected = DummySignal()
         self._currentIndexChanged = DummySignal()
         self._returnPressed = DummySignal()
+        self._textChanged = DummySignal()
+        self._dateChanged = DummySignal()
         self.widgets = []
         self._text = text if isinstance(text, str) else ""
 
@@ -47,6 +70,8 @@ class DummyQWidget:
     def show(self):
         pass
     def hide(self):
+        pass
+    def setVisible(self, visible):
         pass
     def setWindowTitle(self, title):
         pass
@@ -72,6 +97,8 @@ class DummyQWidget:
         pass
     def setMinimumHeight(self, height):
         pass
+    def setMaximumWidth(self, width):
+        pass
     def setContentsMargins(self, l, t, r, b):
         pass
     def setSpacing(self, spacing):
@@ -95,7 +122,7 @@ class DummyQWidget:
         return m
     def addWidget(self, widget, *args, **kwargs):
         self.widgets.append(widget)
-    def addLayout(self, layout):
+    def addLayout(self, layout, stretch=0):
         pass
     def addStretch(self, stretch=0):
         pass
@@ -159,6 +186,7 @@ class DummyQWidget:
         m = MagicMock()
         m.hasSelection.return_value = True
         m.selectedRows.return_value = [1]
+        m.selectionChanged = DummySignal()
         return m
     def setCurrentIndex(self, index):
         pass
@@ -214,6 +242,63 @@ class DummyQWidget:
         pass
     def reject(self):
         pass
+    def setReadOnly(self, ro):
+        pass
+    def viewport(self):
+        m = MagicMock()
+        m.mapToGlobal = MagicMock()
+        m.width.return_value = 800
+        return m
+    def indexAt(self, pos):
+        m = MagicMock()
+        m.isValid.return_value = False
+        return m
+    def setScene(self, scene):
+        pass
+    def setRange(self, min, max):
+        pass
+    def setTextVisible(self, v):
+        pass
+    def setValue(self, v):
+        pass
+    def setMaximum(self, m):
+        pass
+    def insertWidget(self, i, w):
+        pass
+    def takeAt(self, i):
+        return DummyQLayoutItem(MagicMock())
+    def setSizes(self, sizes):
+        pass
+    def setHeaderLabels(self, labels):
+        pass
+    def setFont(self, font):
+        pass
+    def clear(self):
+        pass
+    def setStartValue(self, v):
+        pass
+    def setEndValue(self, v):
+        pass
+    def setDuration(self, d):
+        pass
+    def setEasingCurve(self, c):
+        pass
+    def start(self):
+        pass
+    def stop(self):
+        pass
+    def valueChanged(self):
+        return DummySignal()
+    def finished(self):
+        return DummySignal()
+    def clicked(self):
+        return self._clicked
+    def setSceneRect(self, *args):
+        pass
+    def mapToGlobal(self, pos):
+        return pos
+    def exec(self, *args):
+        pass
 
     # Signals
     @builtins.property
@@ -239,6 +324,33 @@ class DummyQWidget:
     @builtins.property
     def returnPressed(self):
         return self._returnPressed
+
+    @builtins.property
+    def textChanged(self):
+        return self._textChanged
+
+    @builtins.property
+    def dateChanged(self):
+        return self._dateChanged
+
+    @builtins.property
+    def resized(self):
+        return DummySignal()
+    @builtins.property
+    def itemClicked(self):
+        return DummySignal()
+    @builtins.property
+    def customContextMenuRequested(self):
+        return DummySignal()
+    @builtins.property
+    def import_completed(self):
+        return DummySignal()
+    @builtins.property
+    def validation_completed(self):
+        return DummySignal()
+    @builtins.property
+    def database_changed(self):
+        return DummySignal()
 
 class DummyQMainWindow(DummyQWidget):
     def setCentralWidget(self, widget):
@@ -319,6 +431,12 @@ class DummyQWebEngineView(DummyQWidget):
     def page(self):
         page = MagicMock()
         return page
+    def setPage(self, page):
+        pass
+
+class DummyQWebEnginePage(DummyQWidget):
+    def javaScriptConsoleMessage(self, level, message, lineNumber, sourceID):
+        pass
 
 # Mock module structure
 def mock_qt_modules():
@@ -342,20 +460,62 @@ def mock_qt_modules():
     mock_widgets.QCheckBox = DummyQWidget
     mock_widgets.QDialogButtonBox = DummyQWidget
     mock_widgets.QListView = DummyQWidget
+    mock_widgets.QTreeWidget = DummyQWidget
+    mock_widgets.QTreeWidgetItem = MagicMock
+    mock_widgets.QSplitter = DummyQWidget
+    mock_widgets.QGraphicsView = DummyQWidget
+    mock_widgets.QGraphicsScene = DummyQWidget
+    mock_widgets.QGraphicsRectItem = MagicMock
+    mock_widgets.QGraphicsTextItem = MagicMock
+    mock_widgets.QGraphicsLineItem = MagicMock
+    mock_widgets.QScrollBar = DummyQWidget
+    mock_widgets.QProgressBar = DummyQWidget
+    mock_widgets.QMenu = MagicMock()
+    mock_widgets.QAction = MagicMock()
+    mock_widgets.QStyledItemDelegate = MagicMock
+    mock_widgets.QGraphicsOpacityEffect = MagicMock
+    mock_widgets.QGraphicsDropShadowEffect = MagicMock
+    mock_widgets.QTextEdit = DummyQWidget
+    mock_widgets.QFileDialog = MagicMock()
 
     mock_core = MagicMock()
-    mock_core.Qt = MagicMock()
+    mock_core.Qt = DummyQWidget # Reuse Enum
     mock_core.QSize = MagicMock()
     mock_core.QDate = DummyQDate
     mock_core.QObject = DummyQObject
     mock_core.QAbstractTableModel = MagicMock
+    mock_core.QTimer = MagicMock()
+    mock_core.QPropertyAnimation = MagicMock()
+    mock_core.QEasingCurve = MagicMock()
+    mock_core.pyqtSignal = lambda *args: DummySignal()
+    mock_core.QThreadPool = MagicMock()
+    mock_core.QRunnable = MagicMock
+    mock_core.QPoint = MagicMock()
+    mock_core.QRect = MagicMock()
+    mock_core.QRectF = MagicMock()
+    mock_core.QVariantAnimation = MagicMock()
+    mock_core.QParallelAnimationGroup = MagicMock()
 
     mock_gui = MagicMock()
     mock_gui.QIcon = MagicMock()
     mock_gui.QPixmap = MagicMock()
+    mock_gui.QColor = MagicMock()
+    mock_gui.QBrush = MagicMock()
+    mock_gui.QPen = MagicMock()
+    mock_gui.QFont = MagicMock()
+    mock_gui.QLinearGradient = MagicMock()
+    mock_gui.QPainterPath = MagicMock()
+    mock_gui.QPainter = MagicMock()
+    mock_gui.QPageLayout = MagicMock()
+    mock_gui.QPageSize = MagicMock()
+    mock_gui.QImage = MagicMock()
+    mock_gui.QDesktopServices = MagicMock()
 
     mock_web = MagicMock()
     mock_web.QWebEngineView = DummyQWebEngineView
+
+    mock_web_core = MagicMock()
+    mock_web_core.QWebEnginePage = DummyQWebEnginePage
 
     mock_webchannel = MagicMock()
     mock_webchannel.QWebChannel = MagicMock
@@ -365,6 +525,7 @@ def mock_qt_modules():
         'PyQt6.QtCore': mock_core,
         'PyQt6.QtGui': mock_gui,
         'PyQt6.QtWebEngineWidgets': mock_web,
+        'PyQt6.QtWebEngineCore': mock_web_core,
         'PyQt6.QtWebChannel': mock_webchannel,
         'PyQt6.QtPrintSupport': MagicMock(),
         'PyQt6.QtNetwork': MagicMock(),

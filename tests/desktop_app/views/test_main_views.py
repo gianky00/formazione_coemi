@@ -18,8 +18,10 @@ def test_validation_view_init():
     from desktop_app.views.validation_view import ValidationView
 
     # ValidationView uses requests directly AND APIClient
+    # It now uses QThreadPool for loading data
     with patch("desktop_app.views.validation_view.APIClient"), \
-         patch("desktop_app.views.validation_view.requests.get") as mock_get:
+         patch("desktop_app.views.validation_view.requests.get") as mock_get, \
+         patch("desktop_app.views.validation_view.QThreadPool") as MockThreadPool:
 
         mock_get.return_value.status_code = 200
         mock_get.return_value.json.return_value = []
@@ -29,14 +31,16 @@ def test_validation_view_init():
 
         # Manually trigger refresh
         view.refresh_data()
-        mock_get.assert_called()
+        # Should start a worker
+        assert MockThreadPool.return_value.start.called
 
 def test_scadenzario_view_init():
     from desktop_app.views.scadenzario_view import ScadenzarioView
 
     with patch("desktop_app.views.scadenzario_view.APIClient"), \
          patch("desktop_app.views.scadenzario_view.requests.get") as mock_get, \
-         patch("desktop_app.views.scadenzario_view.QGraphicsView") as MockQGraphicsView:
+         patch("desktop_app.views.scadenzario_view.QGraphicsView") as MockQGraphicsView, \
+         patch("desktop_app.views.scadenzario_view.QThreadPool") as MockThreadPool:
 
         mock_instance = MockQGraphicsView.return_value
         mock_instance.viewport.return_value.width.return_value = 800
@@ -46,8 +50,8 @@ def test_scadenzario_view_init():
 
         view = ScadenzarioView()
         assert view is not None
-        # ScadenzarioView calls load_data in init
-        mock_get.assert_called()
+        # ScadenzarioView calls load_data in init -> starts worker
+        assert MockThreadPool.return_value.start.called
 
 def test_import_view_init():
     from desktop_app.views.import_view import ImportView

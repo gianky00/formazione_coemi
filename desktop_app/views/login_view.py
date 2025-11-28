@@ -3,13 +3,14 @@ import sys
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QFrame, QMessageBox, QHBoxLayout,
                              QGraphicsOpacityEffect, QGraphicsDropShadowEffect, QApplication, QPushButton,
                              QDialog, QLineEdit, QDialogButtonBox)
-from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPropertyAnimation, QPoint, QEasingCurve, QTimer, QObject, QThread
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPropertyAnimation, QPoint, QEasingCurve, QTimer, QObject, QThread, QThreadPool
 from PyQt6.QtGui import QPixmap, QColor, QFont
 from desktop_app.utils import get_asset_path
 from desktop_app.components.animated_widgets import AnimatedButton, AnimatedInput
 from desktop_app.services.license_manager import LicenseManager
 from desktop_app.services.license_updater_service import LicenseUpdaterService
 from desktop_app.services.hardware_id_service import get_machine_id
+from desktop_app.workers.worker import Worker
 
 class ForcePasswordChangeDialog(QDialog):
     def __init__(self, parent=None):
@@ -65,7 +66,8 @@ class LoginView(QWidget):
     def __init__(self, api_client, license_ok=True, license_error=""):
         super().__init__()
         self.api_client = api_client
-        self.setStyleSheet("background-color: #F0F8FF;") # Global background match
+        self.threadpool = QThreadPool()
+        self.setStyleSheet("background-color: #F0F8FF;")
 
         # Main Layout (Centering the Container)
         main_layout = QVBoxLayout(self)
@@ -82,9 +84,6 @@ class LoginView(QWidget):
             }
         """)
 
-        # Apply Shadow to Container
-        # Note: QGraphicsDropShadowEffect applies to children unless we wrap content in a child frame.
-        # But here self.container holds left_panel and right_panel.
         shadow = QGraphicsDropShadowEffect(self)
         shadow.setBlurRadius(50)
         shadow.setXOffset(0)
@@ -116,8 +115,6 @@ class LoginView(QWidget):
 
         if logo_path:
             pixmap = QPixmap(logo_path)
-            # Scale to maximize width within the 40% left panel (approx 380px width available)
-            # We leave slight padding. Target width ~340-350px.
             scaled = pixmap.scaled(QSize(350, 160), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             logo_label.setPixmap(scaled)
         else:
@@ -126,23 +123,19 @@ class LoginView(QWidget):
 
         left_layout.addStretch()
 
-        # Container for logo to ensure visibility against blue
         logo_container = QFrame()
         logo_container.setStyleSheet("""
             background-color: #FFFFFF;
             border-radius: 16px;
         """)
         logo_container_layout = QVBoxLayout(logo_container)
-        # Reduced margins to eliminate empty space on sides
         logo_container_layout.setContentsMargins(15, 20, 15, 20)
         logo_container_layout.addWidget(logo_label)
 
-        # Removed setFixedSize to allow natural fit
         left_layout.addWidget(logo_container, alignment=Qt.AlignmentFlag.AlignCenter)
-
         left_layout.addStretch()
 
-        # Container for license info at the bottom-left
+        # License Info
         license_info_container = QFrame()
         license_info_layout = QVBoxLayout(license_info_container)
         license_info_layout.setContentsMargins(15, 15, 15, 15)
@@ -157,16 +150,14 @@ class LoginView(QWidget):
 
         license_label = QLabel(license_text)
         license_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
-
-        # --- SECURITY FEATURE: Grace Period Warning ---
         if LicenseManager.is_license_expiring_soon(license_data):
-            license_label.setStyleSheet("color: #FBBF24; font-size: 13px; font-weight: 600;") # Yellow color for warning
+            license_label.setStyleSheet("color: #FBBF24; font-size: 13px; font-weight: 600;")
         else:
             license_label.setStyleSheet("color: #93C5FD; font-size: 13px; font-weight: 500;")
         license_label.setWordWrap(True)
         license_info_layout.addWidget(license_label)
 
-        # --- PC DETAILS SECTION ---
+        # PC Details
         pc_details_layout = QVBoxLayout()
         pc_details_layout.setContentsMargins(15, 15, 15, 15)
         pc_details_layout.setSpacing(5)
@@ -181,21 +172,19 @@ class LoginView(QWidget):
         pc_hw_id_label.setStyleSheet("color: #93C5FD; font-size: 13px; font-weight: 500;")
         pc_details_layout.addWidget(pc_hw_id_label)
 
-        # --- COHERENCE CHECK ---
         coherence_label = QLabel("")
         coherence_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
         if license_data and "Hardware ID" in license_data:
             stored_hw_id = license_data["Hardware ID"]
             if stored_hw_id == current_hw_id:
                 coherence_label.setText("Coerenza: Matched")
-                coherence_label.setStyleSheet("color: #22C55E; font-size: 13px; font-weight: 600;") # Green
+                coherence_label.setStyleSheet("color: #22C55E; font-size: 13px; font-weight: 600;")
             else:
                 coherence_label.setText("Coerenza: Mismatch")
-                coherence_label.setStyleSheet("color: #EF4444; font-size: 13px; font-weight: 600;") # Red
+                coherence_label.setStyleSheet("color: #EF4444; font-size: 13px; font-weight: 600;")
         pc_details_layout.addWidget(coherence_label)
 
         license_info_layout.addLayout(pc_details_layout)
-
         left_layout.addWidget(license_info_container)
 
         # --- RIGHT PANEL (Form) ---
@@ -213,7 +202,6 @@ class LoginView(QWidget):
 
         right_layout.addStretch()
 
-        # Header
         welcome_title = QLabel("Bentornato")
         welcome_title.setStyleSheet("color: #1F2937; font-size: 32px; font-weight: 700;")
         right_layout.addWidget(welcome_title)
@@ -224,7 +212,6 @@ class LoginView(QWidget):
 
         right_layout.addSpacing(20)
 
-        # Inputs
         self.username_input = AnimatedInput()
         self.username_input.setPlaceholderText("Nome Utente")
         self.username_input.setFixedHeight(50)
@@ -267,7 +254,6 @@ class LoginView(QWidget):
 
         right_layout.addSpacing(10)
 
-        # Button
         self.login_btn = AnimatedButton("Accedi")
         self.login_btn.setFixedHeight(50)
         self.login_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -289,10 +275,8 @@ class LoginView(QWidget):
         right_layout.addWidget(self.login_btn)
 
         right_layout.addStretch()
-
         right_layout.addStretch(1)
 
-        # License Update Section
         update_layout = QVBoxLayout()
         update_layout.setSpacing(10)
 
@@ -318,50 +302,38 @@ class LoginView(QWidget):
         right_layout.addLayout(update_layout)
         right_layout.addStretch(2)
 
-        # Footer
         footer_text = "v1.0.0 • Intelleo Security"
-
         footer_layout = QVBoxLayout()
-
         ver_label = QLabel(footer_text)
         ver_label.setStyleSheet("color: #6B7280; font-size: 13px;")
         ver_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         footer_layout.addWidget(ver_label)
-
         right_layout.addLayout(footer_layout)
 
-        # Add panels to container
-        container_layout.addWidget(self.left_panel, 40) # 40% width
-        container_layout.addWidget(self.right_panel, 60) # 60% width
+        container_layout.addWidget(self.left_panel, 40)
+        container_layout.addWidget(self.right_panel, 60)
 
         main_layout.addWidget(self.container)
 
-        # Animation Setup
         self.setup_entrance_animation()
 
-        # Handle invalid license state
         if not license_ok:
             self.username_input.setEnabled(False)
             self.password_input.setEnabled(False)
             self.login_btn.setEnabled(False)
-
-            # Add a clear error message
             error_label = QLabel("Licenza non valida o scaduta. Aggiornala per continuare.")
             error_label.setStyleSheet("color: #DC2626; font-size: 14px; font-weight: 500;")
             error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            right_layout.insertWidget(5, error_label) # Insert after welcome_sub
+            right_layout.insertWidget(5, error_label)
 
-        # Auto-trigger license update if files are missing
         self._auto_update_if_needed()
 
     def _auto_update_if_needed(self):
         from desktop_app.services.path_service import get_license_dir
         license_dir = get_license_dir()
         required_files = ["pyarmor.rkey", "config.dat", "manifest.json"]
-
-        # Check if any of the essential files are missing
         if any(not os.path.exists(os.path.join(license_dir, f)) for f in required_files):
-            QTimer.singleShot(1000, self.handle_update_license) # Delay to allow UI to show
+            QTimer.singleShot(1000, self.handle_update_license)
 
     def handle_update_license(self):
         self.update_btn.setText("Aggiornamento in corso...")
@@ -381,7 +353,6 @@ class LoginView(QWidget):
         self.update_btn.setEnabled(True)
 
         if success:
-            # Specific check for the "already up to date" message
             if "già aggiornata" in message:
                 msg_box = QMessageBox(self)
                 msg_box.setIcon(QMessageBox.Icon.Information)
@@ -407,7 +378,6 @@ class LoginView(QWidget):
         self.thread.wait()
 
     def setup_entrance_animation(self):
-        # We animate the container
         self.opacity_effect = QGraphicsOpacityEffect(self.container)
         self.container.setGraphicsEffect(self.opacity_effect)
         self.opacity_effect.setOpacity(0)
@@ -444,16 +414,11 @@ class LoginView(QWidget):
         animation.setDuration(100)
         animation.setLoopCount(3)
         animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
-
-        # Note: self.container.pos() works, but since it's centered by layout,
-        # manual movement might be fought by layout.
-        # But for small shakes it usually works visually.
         current_pos = self.container.pos()
         animation.setKeyValueAt(0, current_pos)
         animation.setKeyValueAt(0.25, current_pos + QPoint(-5, 0))
         animation.setKeyValueAt(0.75, current_pos + QPoint(5, 0))
         animation.setKeyValueAt(1, current_pos)
-
         animation.start()
 
     def handle_login(self):
@@ -465,7 +430,6 @@ class LoginView(QWidget):
             QMessageBox.warning(self, "Errore", "Inserisci nome utente e password.")
             return
 
-        # --- SECURITY CHECK: Hardware ID Mismatch ---
         _, license_data = self.read_license_info()
         if license_data and "Hardware ID" in license_data:
             stored_hw_id = license_data["Hardware ID"]
@@ -476,21 +440,41 @@ class LoginView(QWidget):
                                      "Contattare il supporto per una nuova licenza.")
                 return
 
+        # Start Threaded Login
+        self.login_btn.set_loading(True)
+        worker = Worker(self.api_client.login, username=username, password=password)
+        worker.signals.result.connect(self._on_login_success_internal)
+        worker.signals.error.connect(self._on_login_error)
+        self.threadpool.start(worker)
+
+    def _on_login_error(self, error_tuple):
+        self.login_btn.set_loading(False)
+        self.shake_window()
+
+        exctype, value, tb = error_tuple
+        error_msg = "Credenziali non valide o errore del server."
+
+        # Extract detail from requests exception if available
+        # Value is the exception object
+        e = value
+        if hasattr(e, 'response') and e.response is not None:
+             try:
+                 detail = e.response.json().get('detail')
+                 if detail: error_msg = detail
+             except: pass
+
+        QMessageBox.critical(self, "Errore di Accesso", error_msg)
+
+    def _on_login_success_internal(self, response):
         try:
-            self.login_btn.setText("Accesso in corso...")
-            self.login_btn.setEnabled(False)
-            self.login_btn.repaint()
-
-            response = self.api_client.login(username, password)
             self.api_client.set_token(response)
-
             user_info = self.api_client.user_info
 
             if user_info.get("require_password_change"):
                 if user_info.get("read_only"):
                      QMessageBox.warning(self, "Attenzione", "È richiesto il cambio password, ma il database è in sola lettura. Riprova più tardi.")
                 else:
-                    while True: # Loop until success or cancel
+                    while True:
                         dialog = ForcePasswordChangeDialog(self)
                         if dialog.exec():
                             new_pw, confirm_pw = dialog.get_data()
@@ -502,6 +486,7 @@ class LoginView(QWidget):
                                 continue
 
                             try:
+                                # This is sync, but acceptable for modal dialog
                                 self.api_client.change_password("primoaccesso", new_pw)
                                 QMessageBox.information(self, "Successo", "Password aggiornata. Procedi pure.")
                                 break
@@ -512,10 +497,8 @@ class LoginView(QWidget):
                                     except: pass
                                 QMessageBox.critical(self, "Errore", f"Errore cambio password: {err}")
                         else:
-                            # User cancelled. Disconnect?
                             self.api_client.logout()
-                            self.login_btn.setText("Accedi")
-                            self.login_btn.setEnabled(True)
+                            self.login_btn.set_loading(False)
                             return
 
             if user_info.get("read_only"):
@@ -531,15 +514,6 @@ class LoginView(QWidget):
             self.login_success.emit(self.api_client.user_info)
 
         except Exception as e:
-            self.shake_window()
-            error_msg = "Credenziali non valide o errore del server."
-            if hasattr(e, 'response') and e.response is not None:
-                 try:
-                     detail = e.response.json().get('detail')
-                     if detail: error_msg = detail
-                 except: pass
-
-            QMessageBox.critical(self, "Errore di Accesso", error_msg)
+            self._on_login_error((type(e), e, None))
         finally:
-            self.login_btn.setText("Accedi")
-            self.login_btn.setEnabled(True)
+            self.login_btn.set_loading(False)

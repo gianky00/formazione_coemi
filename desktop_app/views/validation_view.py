@@ -8,6 +8,7 @@ from ..api_client import APIClient
 from .edit_dialog import EditCertificatoDialog
 from app.services.document_locator import find_document
 from ..workers.data_worker import FetchCertificatesWorker, DeleteCertificatesWorker, ValidateCertificatesWorker
+from ..components.animated_widgets import LoadingOverlay
 import subprocess
 import os
 
@@ -58,7 +59,7 @@ class ValidationView(QWidget):
         description.setObjectName("viewDescription")
         self.layout.addWidget(description)
 
-        # Loading Bar
+        # Loading Bar (for indeterminate loading)
         self.loading_bar = QProgressBar()
         self.loading_bar.setRange(0, 0)
         self.loading_bar.setFixedHeight(4)
@@ -67,7 +68,7 @@ class ValidationView(QWidget):
         self.loading_bar.hide()
         self.layout.addWidget(self.loading_bar)
 
-        self.main_card = QWidget() # Renamed to access it
+        self.main_card = QWidget()
         self.main_card.setObjectName("card")
         main_card_layout = QVBoxLayout(self.main_card)
         main_card_layout.setSpacing(15)
@@ -103,6 +104,9 @@ class ValidationView(QWidget):
         main_card_layout.addWidget(self.table_view)
         self.layout.addWidget(self.main_card)
 
+        # Loading Overlay (for determinate actions)
+        self.loading_overlay = LoadingOverlay(self)
+
         # Initial Load
         self.load_data()
 
@@ -123,7 +127,6 @@ class ValidationView(QWidget):
             self.main_card.setEnabled(True)
 
     def set_read_only(self, is_read_only: bool):
-        print(f"[DEBUG] ValidationView.set_read_only: {is_read_only}")
         self.is_read_only = is_read_only
         self.update_button_states()
 
@@ -159,7 +162,6 @@ class ValidationView(QWidget):
 
         cert_id = selected_ids[0]
         try:
-            # Sync fetch for edit dialog is acceptable as it's a modal action
             response = requests.get(f"{self.api_client.base_url}/certificati/{cert_id}", headers=self.api_client._get_headers())
             response.raise_for_status()
             cert_data = response.json()
@@ -168,7 +170,6 @@ class ValidationView(QWidget):
             dialog = EditCertificatoDialog(cert_data, all_categories, self)
             if dialog.exec():
                 updated_data = dialog.get_data()
-                # Sync update for edit dialog
                 update_response = requests.put(f"{self.api_client.base_url}/certificati/{cert_id}", json=updated_data, headers=self.api_client._get_headers())
                 update_response.raise_for_status()
                 QMessageBox.information(self, "Successo", "Certificato aggiornato con successo.")
@@ -186,7 +187,6 @@ class ValidationView(QWidget):
 
     def _on_error(self, message):
         QMessageBox.critical(self, "Errore di Connessione", f"Impossibile caricare i dati da validare: {message}")
-        # Reset to empty
         self._on_data_loaded([])
 
     def _on_data_loaded(self, data):
@@ -218,15 +218,11 @@ class ValidationView(QWidget):
             self.model = SimpleTableModel(self.df, self)
             self.table_view.setModel(self.model)
 
-            # Hide 'id' column
             if 'id' in self.df.columns:
                 id_col_index = self.df.columns.get_loc('id')
                 self.table_view.setColumnHidden(id_col_index, True)
 
-            # Increase row height
             self.table_view.verticalHeader().setDefaultSectionSize(50)
-
-            # Adjust column widths
             header = self.table_view.horizontalHeader()
             header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
             if 'DIPENDENTE' in self.df.columns:
@@ -236,11 +232,9 @@ class ValidationView(QWidget):
             if 'data_nascita' in self.df.columns:
                 header.setSectionResizeMode(self.df.columns.get_loc('data_nascita'), QHeaderView.ResizeMode.ResizeToContents)
 
-        # Reconnect the selection signal because setModel() clears previous selection model
         if self.table_view.selectionModel():
             self.table_view.selectionModel().selectionChanged.connect(self.update_button_states)
 
-        # Update buttons initially
         self.update_button_states()
 
     def get_selected_ids(self):
@@ -259,10 +253,8 @@ class ValidationView(QWidget):
 
     def delete_selected(self):
         if getattr(self, 'is_read_only', False): return
-
         selected_ids = self.get_selected_ids()
-        if not selected_ids:
-            return
+        if not selected_ids: return
 
         reply = QMessageBox.question(self, 'Conferma Cancellazione', f'Sei sicuro di voler cancellare {len(selected_ids)} certificati?',
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
@@ -272,10 +264,8 @@ class ValidationView(QWidget):
 
     def validate_selected(self):
         if getattr(self, 'is_read_only', False): return
-
         selected_ids = self.get_selected_ids()
-        if not selected_ids:
-            return
+        if not selected_ids: return
 
         reply = QMessageBox.question(self, 'Conferma Validazione', f'Sei sicuro di voler validare {len(selected_ids)} certificati?',
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
@@ -284,17 +274,20 @@ class ValidationView(QWidget):
             self.perform_action("validate", selected_ids)
 
     def perform_action(self, action_type, ids):
-        self.set_loading(True)
+        # Use Overlay instead of simple loading
+        self.loading_overlay.show_progress(0, len(ids), "Preparazione operazione...")
 
-        # Determine worker type
         if action_type == "validate":
             worker = ValidateCertificatesWorker(self.api_client, ids)
+            action_text = "Salvataggio record"
         else:
             worker = DeleteCertificatesWorker(self.api_client, ids)
+            action_text = "Cancellazione record"
 
+        worker.signals.progress.connect(lambda cur, tot: self.loading_overlay.show_progress(cur, tot, f"{action_text} {cur} di {tot}..."))
         worker.signals.result.connect(lambda res: self._on_action_completed(res, action_type))
         worker.signals.error.connect(lambda err: QMessageBox.critical(self, "Errore", f"Errore durante l'operazione: {err}"))
-        worker.signals.finished.connect(lambda: self.set_loading(False)) # UI re-enabled when finished
+        worker.signals.finished.connect(self.loading_overlay.stop)
 
         self.threadpool.start(worker)
 
@@ -312,13 +305,11 @@ class ValidationView(QWidget):
         if success > 0 and action_type == "validate":
             self.validation_completed.emit()
 
-        # Reload to refresh table
         self.load_data()
 
     def _show_context_menu(self, pos):
         index = self.table_view.indexAt(pos)
-        if not index.isValid():
-            return
+        if not index.isValid(): return
 
         menu = QMenu(self)
         open_pdf_action = QAction("Apri PDF", self)
@@ -330,12 +321,9 @@ class ValidationView(QWidget):
         if not action: return
 
         row_idx = index.row()
-        if not hasattr(self, 'model') or row_idx >= self.model.rowCount():
-            return
+        if not hasattr(self, 'model') or row_idx >= self.model.rowCount(): return
 
-        # Access data from dataframe using iloc
         row_data = self.df.iloc[row_idx]
-
         cert_data = {
             'nome': row_data.get('DIPENDENTE'),
             'matricola': row_data.get('matricola'),
@@ -352,7 +340,6 @@ class ValidationView(QWidget):
         try:
             paths = self.api_client.get_paths()
             db_path = paths.get('database_path')
-
             file_path = find_document(db_path, cert_data)
 
             if file_path:
@@ -365,6 +352,5 @@ class ValidationView(QWidget):
                      QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
             else:
                  QMessageBox.warning(self, "Non Trovato", "Il file PDF non è stato trovato nel percorso previsto.")
-
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Impossibile eseguire l'operazione: {e}")
