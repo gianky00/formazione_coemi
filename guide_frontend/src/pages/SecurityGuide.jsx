@@ -1,197 +1,93 @@
 import React from 'react';
-import { Shield, AlertTriangle, Eye, Activity, Smartphone, Mail, Database, Lock } from 'lucide-react';
+import GuideCard from '../components/ui/GuideCard';
+import Note from '../components/ui/Note';
+import { Shield, Lock, Eye, Key, FileWarning, Fingerprint } from 'lucide-react';
 
 const SecurityGuide = () => {
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold text-gray-900 mb-6 flex items-center gap-3">
-        <Shield className="w-8 h-8 text-blue-700" />
-        Sicurezza & Audit
-      </h1>
-
-      <div className="space-y-8">
-        {/* Intro */}
-        <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-          <p className="text-gray-600 leading-relaxed">
-            Il modulo Sicurezza di Intelleo offre un sistema completo di monitoraggio e auditing per proteggere i dati sensibili e tracciare le attività degli utenti.
-            Tutte le operazioni critiche vengono registrate in modo immutabile nel <strong>Log Attività</strong>.
-          </p>
-        </section>
-
-        {/* Log Attività */}
-        <section>
-          <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
-            <Activity className="w-5 h-5 text-blue-600" />
-            Log Attività (Audit Trail)
-          </h2>
-
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-6">
-            <div>
-              <h3 className="text-md font-bold text-gray-800 mb-2">Navigazione e Filtri</h3>
-              <p className="text-gray-600 mb-3 text-sm">
-                Per investigare su eventi specifici, utilizza la barra degli strumenti sopra la tabella:
-              </p>
-              <ul className="list-disc list-inside text-sm text-gray-600 space-y-1 ml-2">
-                <li><strong>Utente:</strong> Filtra le azioni compiute da uno specifico account.</li>
-                <li><strong>Categoria:</strong> Isola il tipo di evento (es. <em>AUTH</em> per i login, <em>CERTIFICATE</em> per i dati).</li>
-                <li><strong>Intervallo Date:</strong> Seleziona una data di inizio e fine per restringere la ricerca temporale.</li>
-              </ul>
-              <div className="mt-2 text-xs bg-gray-100 p-2 rounded text-gray-500">
-                Clicca su <strong>"Aggiorna"</strong> dopo aver modificato i filtri per ricaricare i dati.
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <h3 className="text-md font-bold text-gray-800 mb-2">Dettaglio Colonne</h3>
-              <table className="min-w-full text-sm text-left text-gray-500">
-                <thead className="text-xs text-gray-700 uppercase bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-2">Colonna</th>
-                    <th className="px-4 py-2">Descrizione</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="bg-white border-b">
-                    <td className="px-4 py-2 font-medium text-gray-900">Data/Ora</td>
-                    <td className="px-4 py-2">Timestamp esatto dell'evento.</td>
-                  </tr>
-                  <tr className="bg-white border-b">
-                    <td className="px-4 py-2 font-medium text-gray-900">Severità</td>
-                    <td className="px-4 py-2">Livello di rischio (Low, Medium, Critical).</td>
-                  </tr>
-                  <tr className="bg-white border-b">
-                    <td className="px-4 py-2 font-medium text-gray-900">Utente</td>
-                    <td className="px-4 py-2">Username dell'operatore che ha eseguito l'azione.</td>
-                  </tr>
-                  <tr className="bg-white border-b">
-                    <td className="px-4 py-2 font-medium text-gray-900">IP & Geo</td>
-                    <td className="px-4 py-2">Indirizzo IP e posizione geografica stimata.</td>
-                  </tr>
-                  <tr className="bg-white border-b">
-                    <td className="px-4 py-2 font-medium text-gray-900">Device ID</td>
-                    <td className="px-4 py-2">Identificativo hardware univoco della macchina.</td>
-                  </tr>
-                  <tr className="bg-white border-b">
-                    <td className="px-4 py-2 font-medium text-gray-900">Azione</td>
-                    <td className="px-4 py-2">Il tipo di operazione eseguita (es. `USER_LOGIN`, `CERTIFICATE_UPDATE`).</td>
-                  </tr>
-                  <tr className="bg-white border-b">
-                    <td className="px-4 py-2 font-medium text-gray-900">Categoria</td>
-                    <td className="px-4 py-2">Il modulo dell'applicazione interessato (es. `AUTH`, `USER_MGMT`).</td>
-                  </tr>
-                  <tr className="bg-white border-b">
-                    <td className="px-4 py-2 font-medium text-gray-900">Dettagli</td>
-                    <td className="px-4 py-2">Descrizione estesa dell'evento. Per le modifiche, mostra i campi cambiati (Vecchio {'->'} Nuovo).</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-
-        {/* Indicatori Visivi */}
-        <section>
-          <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
-            <Eye className="w-5 h-5 text-blue-600" />
-            Indicatori Visivi & Severità
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white p-4 rounded-lg border-l-4 border-green-500 shadow-sm">
-              <h3 className="font-bold text-gray-800 mb-1">LOW (Basso)</h3>
-              <p className="text-sm text-gray-600">Attività normali (Login successo, Aggiornamento dati).</p>
-            </div>
-            <div className="bg-orange-50 p-4 rounded-lg border-l-4 border-orange-500 shadow-sm">
-              <h3 className="font-bold text-orange-800 mb-1">MEDIUM (Medio)</h3>
-              <p className="text-sm text-orange-700">Eventi sospetti (es. Login fallito, Modifica configurazione sensibile).</p>
-            </div>
-            <div className="bg-red-50 p-4 rounded-lg border-l-4 border-red-500 shadow-sm">
-              <h3 className="font-bold text-red-800 mb-1">CRITICAL (Critico)</h3>
-              <p className="text-sm text-red-700">Minacce attive (es. Brute Force Attack, Accesso Admin non autorizzato).</p>
-            </div>
-          </div>
-        </section>
-
-        {/* Database Sicuro */}
-        <section>
-          <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
-            <Database className="w-5 h-5 text-blue-600" />
-            Architettura di Sicurezza Database
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2">
-                    <Shield className="w-4 h-4 text-green-500" /> Crittografia "At Rest"
-                </h3>
-                <p className="text-sm text-gray-600">
-                    Il file database (<code>database_documenti.db</code>) è salvato su disco interamente crittografato (algoritmo AES-128 Fernet).
-                    È illeggibile per qualsiasi strumento esterno. La decrittazione avviene esclusivamente nella memoria RAM volatile durante l'uso.
-                </p>
-            </div>
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-orange-500" /> Accesso Esclusivo (.lock)
-                </h3>
-                <p className="text-sm text-gray-600">
-                    Al login, viene generato un file <code>.lock</code> che impedisce l'apertura simultanea da parte di altri utenti.
-                    Il file viene rimosso automaticamente alla chiusura. Questo garantisce l'integrità dei dati in ambienti mono-utente.
-                </p>
-            </div>
-             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-purple-500" /> Gestione Concorrenza (Multi-Utente)
-                </h3>
-                <p className="text-sm text-gray-600">
-                    Il sistema di blocco a livello di sistema operativo (OS-level lock) garantisce che solo un utente alla volta possa avere i permessi di scrittura sul database.
-                    Se un secondo utente apre l'applicazione mentre è già in uso, Intelleo si avvierà in modalità <strong>Sola Lettura</strong>, garantendo la consistenza dei dati.
-                </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Protezione Avanzata */}
-        <section>
-          <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
-            <Shield className="w-5 h-5 text-blue-600" />
-            Protezione Avanzata
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2">
-                    <Smartphone className="w-4 h-4 text-blue-500" /> Device Fingerprinting
-                </h3>
-                <p className="text-sm text-gray-600">
-                    Il sistema identifica ogni dispositivo tramite un <strong>Device ID</strong> univoco (basato sulla licenza o sull'hardware).
-                    Se un utente accede da una postazione sconosciuta, l'evento viene tracciato.
-                </p>
-            </div>
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-red-500" /> Rilevamento Anomalie
-                </h3>
-                <p className="text-sm text-gray-600">
-                    Tentativi ripetuti di accesso falliti (Brute Force) o tentativi di accesso a funzioni Admin da parte di utenti non autorizzati
-                    vengono bloccati e segnalati come CRITICI.
-                </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Notifiche */}
-        <section>
-          <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
-            <Mail className="w-5 h-5 text-blue-600" />
-            Notifiche di Sicurezza
-          </h2>
-          <div className="bg-blue-50 p-6 rounded-xl border border-blue-100 text-blue-900">
-            <p>
-                Quando viene rilevato un evento di gravità <strong>CRITICAL</strong>, il sistema invia automaticamente una
-                <strong>email di allerta immediata</strong> agli amministratori configurati, contenente i dettagli dell'attacco (IP, Utente, Tipo di azione).
-            </p>
-          </div>
-        </section>
+    <div className="space-y-12">
+      <div className="max-w-3xl">
+        <h1 className="h1">Sicurezza & Audit</h1>
+        <p className="text-body text-xl">
+          Proteggi i tuoi dati sensibili. Scopri come Intelleo garantisce l'integrità del database e traccia ogni operazione critica.
+        </p>
       </div>
+
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <GuideCard title="Crittografia" icon={Lock}>
+            <p>Il database <code>database_documenti.db</code> è cifrato su disco (AES-256). Se qualcuno ruba il file, non potrà leggerne il contenuto senza la chiave univoca del software.</p>
+        </GuideCard>
+        <GuideCard title="In-Memory DB" icon={Zap}>
+            <p>Per massima velocità e sicurezza, il database viene decifrato e caricato interamente nella RAM all'avvio. Nessun dato in chiaro viene mai scritto su disco durante l'uso.</p>
+        </GuideCard>
+        <GuideCard title="Lock File" icon={FileWarning}>
+            <p>Un sistema di "Locking" impedisce a due utenti di modificare il database contemporaneamente, prevenendo corruzione dei dati o conflitti di salvataggio.</p>
+        </GuideCard>
+      </section>
+
+      <section>
+          <h2 className="h2 flex items-center gap-2"><Eye className="text-blue-600"/> Audit Log (Registro Attività)</h2>
+          <p className="text-body mb-6">
+              Per conformità GDPR e sicurezza interna, ogni azione critica viene registrata in un log immutabile.
+          </p>
+
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm mb-6">
+              <table className="w-full text-sm text-left">
+                  <thead className="bg-gray-50 text-gray-500 font-semibold uppercase text-xs border-b">
+                      <tr>
+                          <th className="px-6 py-3">Evento</th>
+                          <th className="px-6 py-3">Severità</th>
+                          <th className="px-6 py-3">Descrizione</th>
+                      </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                      <tr className="hover:bg-gray-50">
+                          <td className="px-6 py-3 font-medium">LOGIN_FAILED</td>
+                          <td className="px-6 py-3 text-orange-500 font-bold">MEDIUM</td>
+                          <td className="px-6 py-3 text-gray-600">Tentativo di accesso fallito (password errata).</td>
+                      </tr>
+                       <tr className="hover:bg-gray-50">
+                          <td className="px-6 py-3 font-medium">CERTIFICATE_DELETED</td>
+                          <td className="px-6 py-3 text-red-600 font-bold">HIGH</td>
+                          <td className="px-6 py-3 text-gray-600">L'utente Admin ha eliminato il certificato ID #402.</td>
+                      </tr>
+                       <tr className="hover:bg-gray-50">
+                          <td className="px-6 py-3 font-medium">SETTINGS_CHANGED</td>
+                          <td className="px-6 py-3 text-blue-600 font-bold">LOW</td>
+                          <td className="px-6 py-3 text-gray-600">Modificate impostazioni SMTP (Email).</td>
+                      </tr>
+                  </tbody>
+              </table>
+          </div>
+          <Note type="info" title="Consultazione">
+              Solo gli amministratori possono vedere l'Audit Log completo nella sezione <strong>Configurazione &gt; Log Attività</strong>.
+          </Note>
+      </section>
+
+      <section>
+          <h2 className="h2 flex items-center gap-2"><Key className="text-purple-600"/> Gestione Utenti</h2>
+          <div className="space-y-4">
+              <GuideCard>
+                  <h3 className="font-bold text-gray-900 mb-2">Utente Admin Default</h3>
+                  <p className="text-sm text-gray-600">
+                      Al primo avvio, il sistema crea un utente <code>admin</code>. Ti verrà chiesto di impostare una password sicura immediatamente.
+                  </p>
+              </GuideCard>
+              <GuideCard>
+                  <h3 className="font-bold text-gray-900 mb-2">Creazione Nuovi Utenti</h3>
+                  <p className="text-sm text-gray-600">
+                      Puoi creare account aggiuntivi per i colleghi. Ogni azione nel log sarà tracciata con lo specifico username di chi l'ha eseguita.
+                  </p>
+              </GuideCard>
+          </div>
+      </section>
+
+      <Note type="warning" title="Brute Force Protection">
+          Dopo 5 tentativi di login falliti consecutivi, l'account viene temporaneamente bloccato e viene inviata un'email di allerta all'amministratore (se configurata).
+      </Note>
     </div>
   );
 };
 
+import { Zap } from 'lucide-react'; // Fix missing import
 export default SecurityGuide;

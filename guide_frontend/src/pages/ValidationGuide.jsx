@@ -1,125 +1,63 @@
 import React from 'react';
-import { motion } from 'framer-motion';
-import { Database, CheckSquare, UserX, Edit3, Trash2, RefreshCw } from 'lucide-react';
-
-const Section = ({ title, children }) => (
-  <section className="mb-12">
-    <h2 className="text-2xl font-bold text-gray-800 mb-4 border-b border-gray-200 pb-2">{title}</h2>
-    <div className="text-gray-600 leading-relaxed space-y-4">
-      {children}
-    </div>
-  </section>
-);
+import GuideCard from '../components/ui/GuideCard';
+import Note from '../components/ui/Note';
+import Step from '../components/ui/Step';
+import ValidationSimulator from '../components/ValidationSimulator';
+import { Database, CheckCircle, AlertOctagon } from 'lucide-react';
 
 const ValidationGuide = () => {
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="space-y-12">
       {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-10"
-      >
-        <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-orange-100 rounded-lg text-orange-700">
-            <Database size={24} />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900">Convalida Dati</h1>
-        </div>
-        <p className="text-lg text-gray-500 ml-14">
-          L'area di transito dove i dati estratti dall'AI vengono revisionati prima di diventare ufficiali.
+      <div className="max-w-3xl">
+        <h1 className="h1">Convalida Dati</h1>
+        <p className="text-body text-xl">
+          Il tuo centro di controllo qualità. Qui revisioni i documenti che l'AI ha analizzato ma che richiedono una conferma umana prima di entrare nel database.
         </p>
-      </motion.div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <Section title="Il Flusso di Lavoro">
-          <p>
-            I certificati appena analizzati non entrano direttamente nel Database principale. Appaiono prima nella vista <strong>Convalida Dati</strong>.
-          </p>
-          <ul className="space-y-3 mt-4">
-            <li className="flex items-start gap-3">
-              <div className="bg-gray-100 p-1 rounded text-gray-600 font-bold text-xs mt-1">1</div>
-              <span>Controlla le colonne chiave: <strong>DOCUMENTO</strong> (Tipologia) e <strong>DATA EMISSIONE</strong>.</span>
-            </li>
-            <li className="flex items-start gap-3">
-              <div className="bg-gray-100 p-1 rounded text-gray-600 font-bold text-xs mt-1">2</div>
-              <span>Verifica la colonna <strong>DIPENDENTE</strong>. Se è vuota, l'associazione è fallita e la colonna <strong>CAUSA</strong> ne spiega il motivo.</span>
-            </li>
-            <li className="flex items-start gap-3">
-              <div className="bg-gray-100 p-1 rounded text-gray-600 font-bold text-xs mt-1">3</div>
-              <span>Seleziona le righe corrette e clicca su <strong>"Convalida Selezionati"</strong>.</span>
-            </li>
-          </ul>
-        </Section>
-
-        <Section title="Flusso Dati Tecnico">
-          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 font-mono text-sm text-slate-700">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="bg-slate-200 px-2 py-0.5 rounded text-xs font-bold uppercase">Input</span>
-              <span>File Analizzati (In attesa di convalida)</span>
-            </div>
-            <div className="flex justify-center my-1 text-slate-400">↓</div>
-            <div className="flex items-center gap-2">
-              <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded text-xs font-bold uppercase">Output</span>
-              <span>Record Validato (Stato: MANUAL) in Database</span>
-            </div>
-          </div>
-        </Section>
-
-        <Section title="Certificati Orfani">
-          <div className="flex items-start gap-3 bg-red-50 p-4 rounded-lg border border-red-100">
-            <UserX size={24} className="text-red-500 mt-1 shrink-0" />
-            <div>
-              <h3 className="font-bold text-red-800 mb-1">Dipendente Non Trovato</h3>
-              <p className="text-sm text-red-700 mb-2">
-                Se l'AI non riesce ad associare un certificato (es. matricola assente), la colonna <strong>CAUSA</strong> mostrerà il motivo (es. "Non trovato in anagrafica").
-              </p>
-
-              <div className="mt-3 bg-white p-3 rounded border border-red-200">
-                  <h4 className="font-bold text-red-800 text-xs uppercase mb-1 flex items-center gap-2">
-                      <RefreshCw size={12} /> Soluzione Automatica
-                  </h4>
-                  <p className="text-xs text-red-700">
-                      Vai in <strong>Gestione Dipendenti</strong> e importa il file CSV aggiornato. Il sistema ri-scansionerà automaticamente tutti i certificati orfani cercando di collegarli ai nuovi dipendenti inseriti.
-                  </p>
-              </div>
-
-              <p className="text-sm text-red-700 font-medium mt-3">
-                Alternativamente, usa il tasto "Modifica" per cercare e collegare manualmente il dipendente.
-              </p>
-            </div>
-          </div>
-        </Section>
       </div>
 
-      <Section title="Strumenti di Revisione">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-4 border border-gray-200 rounded hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-2 text-blue-600 font-bold mb-2">
-              <Edit3 size={18} /> Modifica
-            </div>
-            <p className="text-sm text-gray-500">
-              Seleziona una singola riga e usa il tasto <strong>Modifica</strong> per correggere eventuali dati errati o per assegnare manualmente un dipendente.
-            </p>
-          </div>
-          <div className="p-4 border border-gray-200 rounded hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-2 text-green-600 font-bold mb-2">
-              <CheckSquare size={18} /> Convalida Multipla
-            </div>
-            <p className="text-sm text-gray-500">
-              Tieni premuto <code>CTRL</code> o <code>SHIFT</code> per selezionare più righe e convalidarle in blocco.
-            </p>
-          </div>
-          <div className="p-4 border border-gray-200 rounded hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-2 text-red-600 font-bold mb-2">
-              <Trash2 size={18} /> Elimina
-            </div>
-            <p className="text-sm text-gray-500">
-              Rimuove il record dal database. Il file PDF originale <strong>non</strong> viene cancellato dal disco.
-            </p>
-          </div>
+      {/* Simulator */}
+      <section>
+         <h2 className="h2 flex items-center gap-2">
+            <CheckCircle className="text-green-600" />
+            Prova la Convalida
+        </h2>
+        <p className="text-body mb-6">
+            In questa simulazione, puoi approvare (✓) o rifiutare (✕) i documenti. Nota come spariscono dalla lista una volta processati.
+        </p>
+        <ValidationSimulator />
+      </section>
+
+      {/* Workflow Steps */}
+      <section className="mt-12">
+        <h2 className="h2">Il Flusso di Lavoro</h2>
+        <div className="bg-white rounded-xl border border-gray-200 p-8 shadow-sm">
+            <Step number="1" title="Revisione">
+                <p>Controlla i dati estratti (Nome, Categoria, Data). Se vedi un'etichetta <span className="text-red-500 font-bold">Dati Incerti</span> o <span className="text-orange-500 font-bold">???</span>, fai particolare attenzione.</p>
+            </Step>
+            <Step number="2" title="Anteprima">
+                <p>Clicca sull'icona dell'occhio per aprire il PDF originale a schermo intero e verificare la correttezza delle informazioni lette dall'AI.</p>
+            </Step>
+            <Step number="3" title="Azione">
+                <ul className="list-disc pl-5 space-y-2 mt-2">
+                    <li><strong>Approva (Verde):</strong> Il certificato viene salvato nel database ufficiale e il file spostato nella cartella del dipendente.</li>
+                    <li><strong>Rifiuta (Rosso):</strong> Il file viene cancellato o marcato come errore, e non entra nel database.</li>
+                    <li><strong>Modifica (Matita):</strong> Se i dati sono quasi corretti (es. data sbagliata di un giorno), correggili prima di approvare.</li>
+                </ul>
+            </Step>
         </div>
-      </Section>
+      </section>
+
+      {/* Tips */}
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Note type="tip" title="Scorciatoia">
+              Puoi selezionare più righe contemporaneamente (tieni premuto CTRL) e approvarle in blocco se sei sicuro che siano corrette.
+          </Note>
+          <Note type="warning" title="Attenzione ai 'Falsi Positivi'">
+              A volte l'AI può scambiare una data di nascita per una data di scadenza. Controlla sempre le date nei documenti più vecchi o mal scansionati.
+          </Note>
+      </section>
+
     </div>
   );
 };

@@ -1,87 +1,66 @@
 import React from 'react';
-import { motion } from 'framer-motion';
-import { Users, Upload, Link, Search, RefreshCw } from 'lucide-react';
-
-const Section = ({ title, children }) => (
-  <section className="mb-12">
-    <h2 className="text-2xl font-bold text-gray-800 mb-4 border-b border-gray-200 pb-2">{title}</h2>
-    <div className="text-gray-600 leading-relaxed space-y-4">
-      {children}
-    </div>
-  </section>
-);
+import GuideCard from '../components/ui/GuideCard';
+import Note from '../components/ui/Note';
+import Step from '../components/ui/Step';
+import { Users, FileSpreadsheet, UserPlus, Link } from 'lucide-react';
 
 const EmployeesGuide = () => {
   return (
-    <div className="max-w-4xl mx-auto">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-10"
-      >
-        <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-blue-100 rounded-lg text-blue-700">
-            <Users size={24} />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900">Gestione Dipendenti</h1>
-        </div>
-        <p className="text-lg text-gray-500 ml-14">
-          Il registro centrale di tutto il personale. Mantieni i dati anagrafici sempre aggiornati per garantire associazioni corrette.
+    <div className="space-y-12">
+      <div className="max-w-3xl">
+        <h1 className="h1">Gestione Dipendenti</h1>
+        <p className="text-body text-xl">
+          Gestisci l'anagrafica del personale. Intelleo collega automaticamente i certificati alle persone giuste usando il nome e la matricola.
         </p>
-      </motion.div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <Section title="Anagrafica">
-          <p>
-            L'anagrafica dei dipendenti funge da "Master Data" (fonte di verità) per l'intera applicazione, garantendo che i certificati vengano associati alle persone corrette.
-          </p>
-          <ul className="space-y-3 mt-4">
-            <li className="flex items-start gap-3">
-              <Link size={20} className="text-gray-400 mt-1 shrink-0" />
-              <span>
-                <strong>Matricola Univoca:</strong> I documenti vengono collegati ai dipendenti tramite la <strong>Matricola</strong> (nel file CSV è la colonna `Badge`). È fondamentale che questo codice sia univoco per ogni dipendente.
-              </span>
-            </li>
-          </ul>
-        </Section>
-
-        <Section title="Importazione Massiva & Recupero Orfani">
-          <div className="bg-indigo-50 p-5 rounded-lg border border-indigo-100">
-            <div className="flex items-center gap-2 text-indigo-800 font-bold mb-3">
-              <Upload size={20} /> Import CSV
-            </div>
-            <p className="text-sm text-indigo-900 mb-3">
-              Questa funzione esegue un <strong>"upsert"</strong>: aggiorna i dipendenti esistenti (in base alla matricola) e inserisce quelli nuovi, senza cancellare i dati non presenti nel file.
-            </p>
-            <div className="text-xs bg-white p-3 rounded border border-indigo-200 font-mono text-indigo-700">
-              Cognome;Nome;Data_nascita;Badge<br/>
-              ROSSI;MARIO;01/01/1980;12345
-            </div>
-            <p className="text-xs text-indigo-600 mt-2 italic">
-             Nota: Il delimitatore deve essere il punto e virgola (;) e la dimensione massima del file è 5MB.
-            </p>
-
-            <div className="mt-4 pt-4 border-t border-indigo-200">
-               <div className="flex items-center gap-2 text-indigo-800 font-bold mb-2">
-                 <RefreshCw size={16} /> Link Automatico
-               </div>
-               <p className="text-sm text-indigo-900">
-                 Al termine dell'importazione, il sistema scansiona automaticamente tutti i certificati "orfani" (non assegnati) nella vista <em>Convalida Dati</em> e tenta di collegarli ai nuovi dipendenti inseriti.
-               </p>
-            </div>
-          </div>
-        </Section>
       </div>
 
-      <Section title="Risoluzione Omonimie">
-        <p>
-          Intelleo gestisce automaticamente i casi di omonimia (stesso Nome e Cognome).
-        </p>
-        <p className="mt-2">
-          Durante l'importazione dei certificati, se vengono trovati due dipendenti con lo stesso nome, il sistema utilizza la <strong>Data di Nascita</strong> estratta dal documento per identificare la persona corretta. Assicurati che le date di nascita siano presenti in anagrafica.
-        </p>
-      </Section>
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div>
+              <h2 className="h2 flex items-center gap-2"><UserPlus className="text-blue-600"/> Importazione Massiva</h2>
+              <p className="text-body mb-4">
+                  Il modo più veloce per popolare l'anagrafica è importare un file CSV (Excel).
+              </p>
+              <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                  <h4 className="font-bold text-gray-800 mb-2">Formato Richiesto (.csv)</h4>
+                  <div className="code-block bg-gray-50 text-gray-600 border-gray-200 text-xs mb-4">
+                      Cognome;Nome;Data_nascita;Badge<br/>
+                      ROSSI;MARIO;15/05/1980;101<br/>
+                      BIANCHI;LUCA;20/11/1992;102
+                  </div>
+                  <Step number="1" title="Prepara il File">
+                      Usa Excel e salva come "CSV (delimitato dal separatore di elenco)". Assicurati di avere le 4 colonne indicate.
+                  </Step>
+                  <Step number="2" title="Carica">
+                      Vai su <strong>Configurazione &gt; Importa Dipendenti</strong> e seleziona il file.
+                  </Step>
+              </div>
+          </div>
+
+          <div>
+               <h2 className="h2 flex items-center gap-2"><Link className="text-purple-600"/> Collegamento Automatico</h2>
+               <p className="text-body mb-4">
+                   Quando importi un nuovo dipendente, Intelleo fa una magia:
+               </p>
+               <GuideCard className="border-purple-200 bg-purple-50">
+                   <h3 className="font-bold text-purple-900 mb-2">Retro-Scan degli Orfani</h3>
+                   <p className="text-purple-800 text-sm">
+                       Il sistema scansiona immediatamente tutti i certificati "Orfani" (che non avevano una matricola). Se trova una corrispondenza con il nuovo dipendente (stesso nome + data di nascita), li <strong>collega automaticamente</strong>.
+                   </p>
+               </GuideCard>
+               <div className="mt-6">
+                   <Note type="tip" title="Omonimie">
+                       Intelleo gestisce i casi di omonimia (es. due "Mario Rossi") usando la <strong>Data di Nascita</strong> come discriminante univoco. Assicurati che sia sempre presente nel CSV.
+                   </Note>
+               </div>
+          </div>
+      </section>
+
+      <section>
+          <h2 className="h2">Modifica Manuale</h2>
+          <p className="text-body">
+              Al momento, la modifica dei dati anagrafici (es. correzione nome errato) avviene principalmente tramite il ricaricamento del CSV aggiornato (modalità "Upsert": aggiorna se esiste, crea se nuovo).
+          </p>
+      </section>
     </div>
   );
 };
