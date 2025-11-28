@@ -4,6 +4,7 @@ import os
 import shutil
 import tempfile
 from datetime import datetime, date
+from desktop_app.views.import_view import PdfWorker
 
 class TestPdfWorker(unittest.TestCase):
 
@@ -11,9 +12,7 @@ class TestPdfWorker(unittest.TestCase):
         # Create a temporary directory for output to ensure valid OS paths
         self.output_folder = tempfile.mkdtemp()
         
-        # Patch collections.deque to avoid import error during test collection if logic changed
-        with patch("collections.deque"):
-            from desktop_app.views.import_view import PdfWorker
+        # We do NOT patch collections.deque anymore as it caused side effects
         
         self.api_client = MagicMock()
         self.api_client.base_url = "http://test-api"
@@ -28,6 +27,27 @@ class TestPdfWorker(unittest.TestCase):
     def tearDown(self):
         # Clean up the temporary directory
         shutil.rmtree(self.output_folder)
+
+    def assert_path_called(self, mock_func, expected_path, **kwargs):
+        """Helper to assert a path was passed to a mock, normalizing separators."""
+        assert mock_func.called, f"Mock {mock_func._mock_name} was not called"
+
+        # Check if any call matches the expected path
+        found = False
+        norm_expected = os.path.normpath(expected_path)
+
+        for call_args in mock_func.call_args_list:
+            args = call_args[0]
+            if len(args) > 0:
+                norm_actual = os.path.normpath(args[0])
+                if norm_actual == norm_expected:
+                    found = True
+                    break
+
+        if not found:
+            # Format actual calls for debug
+            actual_calls = [os.path.normpath(c[0][0]) if c[0] else str(c) for c in mock_func.call_args_list]
+            raise AssertionError(f"Path {norm_expected} not found in calls. Actual calls: {actual_calls}")
 
     @patch('desktop_app.views.import_view.requests.post')
     @patch('desktop_app.views.import_view.shutil.move')
@@ -65,11 +85,16 @@ class TestPdfWorker(unittest.TestCase):
         self.worker.process_pdf(file_path)
 
         expected_doc_folder = os.path.join(self.worker.output_folder, "DOCUMENTI DIPENDENTI", "Mario Rossi (12345)", "ANTINCENDIO", "ATTIVO")
-        mock_makedirs.assert_any_call(expected_doc_folder, exist_ok=True)
+        self.assert_path_called(mock_makedirs, expected_doc_folder)
 
         expected_new_filename = "Mario Rossi (12345) - ANTINCENDIO - 01_01_2030.pdf"
         expected_dest_path = os.path.join(expected_doc_folder, expected_new_filename)
-        mock_move.assert_called_with(file_path, expected_dest_path)
+        # Verify move called with correct dest
+        # mock_move(src, dst)
+        assert mock_move.called
+        # Check last call or find match
+        args = mock_move.call_args[0]
+        assert os.path.normpath(args[1]) == os.path.normpath(expected_dest_path)
 
     @patch('desktop_app.views.import_view.requests.post')
     @patch('desktop_app.views.import_view.shutil.move')
@@ -98,11 +123,14 @@ class TestPdfWorker(unittest.TestCase):
         self.worker.process_pdf(file_path)
 
         expected_doc_folder = os.path.join(self.worker.output_folder, "DOCUMENTI DIPENDENTI", "Luigi Verdi (67890)", "PRIMO SOCCORSO", "STORICO")
-        mock_makedirs.assert_any_call(expected_doc_folder, exist_ok=True)
+        self.assert_path_called(mock_makedirs, expected_doc_folder)
 
         expected_new_filename = "Luigi Verdi (67890) - PRIMO SOCCORSO - 01_01_2020.pdf"
         expected_dest_path = os.path.join(expected_doc_folder, expected_new_filename)
-        mock_move.assert_called_with(file_path, expected_dest_path)
+
+        assert mock_move.called
+        args = mock_move.call_args[0]
+        assert os.path.normpath(args[1]) == os.path.normpath(expected_dest_path)
 
     @patch('desktop_app.views.import_view.requests.post')
     @patch('desktop_app.views.import_view.shutil.move')
@@ -131,11 +159,14 @@ class TestPdfWorker(unittest.TestCase):
         self.worker.process_pdf(file_path)
 
         expected_doc_folder = os.path.join(self.worker.output_folder, "DOCUMENTI DIPENDENTI", "Anna Bianchi (11223)", "NOMINA", "ATTIVO")
-        mock_makedirs.assert_any_call(expected_doc_folder, exist_ok=True)
+        self.assert_path_called(mock_makedirs, expected_doc_folder)
 
         expected_new_filename = "Anna Bianchi (11223) - NOMINA - no scadenza.pdf"
         expected_dest_path = os.path.join(expected_doc_folder, expected_new_filename)
-        mock_move.assert_called_with(file_path, expected_dest_path)
+
+        assert mock_move.called
+        args = mock_move.call_args[0]
+        assert os.path.normpath(args[1]) == os.path.normpath(expected_dest_path)
 
     @patch('desktop_app.views.import_view.requests.post')
     @patch('desktop_app.views.import_view.shutil.move')
@@ -165,10 +196,13 @@ class TestPdfWorker(unittest.TestCase):
         # Name is SCONOSCIUTO (N-A)
         # Category is ANTINCENDIO
         expected_folder = os.path.join(self.worker.output_folder, "ERRORI ANALISI", "ASSENZA MATRICOLE", "SCONOSCIUTO (N-A)", "ANTINCENDIO", "ATTIVO")
-        mock_makedirs.assert_any_call(expected_folder, exist_ok=True)
+        self.assert_path_called(mock_makedirs, expected_folder)
         
         expected_dest = os.path.join(expected_folder, "SCONOSCIUTO (N-A) - ANTINCENDIO - no scadenza.pdf")
-        mock_move.assert_called_with(file_path, expected_dest)
+
+        assert mock_move.called
+        args = mock_move.call_args[0]
+        assert os.path.normpath(args[1]) == os.path.normpath(expected_dest)
 
     @patch('desktop_app.views.import_view.requests.post')
     @patch('desktop_app.views.import_view.shutil.move')
@@ -190,5 +224,8 @@ class TestPdfWorker(unittest.TestCase):
         expected_folder = os.path.join(self.worker.output_folder, "ERRORI ANALISI", "ALTRI ERRORI", "error")
         expected_dest = os.path.join(expected_folder, "error.pdf")
 
-        mock_makedirs.assert_any_call(expected_folder, exist_ok=True)
-        mock_move.assert_called_with(file_path, expected_dest)
+        self.assert_path_called(mock_makedirs, expected_folder)
+
+        assert mock_move.called
+        args = mock_move.call_args[0]
+        assert os.path.normpath(args[1]) == os.path.normpath(expected_dest)

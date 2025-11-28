@@ -29,7 +29,7 @@ def test_sidebar_license_expired(mock_get_license, mock_load_icon):
     assert any("Licenza SCADUTA" in t for t in labels)
     assert any("5 giorni" in t for t in labels)
 
-@patch('requests.post')
+@patch('desktop_app.views.import_view.requests.post')
 def test_pdf_worker_headers(mock_post):
     from desktop_app.views.import_view import PdfWorker
     mock_client = MagicMock()
@@ -45,7 +45,8 @@ def test_pdf_worker_headers(mock_post):
     # Mock file open and os.makedirs
     with patch("builtins.open", create=True) as mock_open, \
          patch("os.makedirs") as mock_makedirs, \
-         patch("shutil.move") as mock_move:
+         patch("shutil.move") as mock_move, \
+         patch("shutil.copy2") as mock_copy2:
 
         mock_open.return_value.__enter__.return_value = MagicMock()
 

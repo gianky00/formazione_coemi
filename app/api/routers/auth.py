@@ -1,4 +1,4 @@
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
@@ -59,7 +59,7 @@ def login_access_token(
         try:
             ip = request.client.host if request.client else "Unknown"
             # Brute force check: > 5 failures in last 10 minutes
-            cutoff = datetime.utcnow() - timedelta(minutes=10)
+            cutoff = datetime.now(timezone.utc) - timedelta(minutes=10)
             failed_count = db.query(AuditLog).filter(
                 AuditLog.action == "LOGIN_FAILED",
                 AuditLog.timestamp >= cutoff,
@@ -92,7 +92,7 @@ def login_access_token(
     # Update last login
     old_last_login = user.last_login
     user.previous_login = old_last_login
-    user.last_login = datetime.utcnow()
+    user.last_login = datetime.now(timezone.utc)
     db.commit()
     db.refresh(user)
 

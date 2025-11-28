@@ -1,9 +1,12 @@
 from sqlalchemy import Column, Integer, String, Date, ForeignKey, Enum, UniqueConstraint, DateTime, Boolean
 from sqlalchemy.orm import relationship, declarative_base
 import enum
-from datetime import datetime
+from datetime import datetime, timezone
 
 Base = declarative_base()
+
+def utc_now():
+    return datetime.now(timezone.utc)
 
 class ValidationStatus(str, enum.Enum):
     """
@@ -28,7 +31,7 @@ class User(Base):
     is_admin = Column(Boolean, default=False)
     last_login = Column(DateTime, nullable=True)
     previous_login = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
 class BlacklistedToken(Base):
     """
@@ -37,7 +40,7 @@ class BlacklistedToken(Base):
     __tablename__ = 'blacklisted_tokens'
     id = Column(Integer, primary_key=True, index=True)
     token = Column(String, unique=True, index=True)
-    blacklisted_on = Column(DateTime, default=datetime.utcnow)
+    blacklisted_on = Column(DateTime, default=utc_now)
 
 class AuditLog(Base):
     """
@@ -50,7 +53,7 @@ class AuditLog(Base):
     action = Column(String, index=True, nullable=False) # e.g. "PASSWORD_CHANGE", "USER_CREATE"
     category = Column(String, index=True, nullable=True) # e.g. "LOGIN", "USER", "CERTIFICATE"
     details = Column(String, nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    timestamp = Column(DateTime, default=utc_now, index=True)
     ip_address = Column(String, nullable=True, index=True)
     user_agent = Column(String, nullable=True)
     geolocation = Column(String, nullable=True)

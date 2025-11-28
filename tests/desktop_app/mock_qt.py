@@ -3,10 +3,15 @@ import builtins
 from unittest.mock import MagicMock
 
 class DummySignal:
+    def __init__(self):
+        self._slots = []
+
     def connect(self, slot):
-        pass
+        self._slots.append(slot)
+
     def emit(self, *args, **kwargs):
-        pass
+        for slot in self._slots:
+            slot(*args, **kwargs)
 
 class DummyEnum:
     StyledPanel = 1
@@ -34,12 +39,39 @@ class DummyEnum:
     WindowActive = 1
     KeepAspectRatio = 1
     CustomContextMenu = 1
+    SmoothTransformation = 1
 
 class DummyQLayoutItem:
     def __init__(self, widget):
         self._widget = widget
     def widget(self):
         return self._widget
+
+class DummyQModelIndex:
+    def __init__(self, row=0, column=0):
+        self._row = row
+        self._column = column
+
+    def row(self):
+        return self._row
+
+    def column(self):
+        return self._column
+
+    def isValid(self):
+        return True
+
+    def data(self, role=0):
+        return None
+
+class DummyQAbstractTableModel(MagicMock):
+    def __init__(self, *args, **kwargs):
+        # Consume parent arg safely
+        parent = kwargs.pop('parent', None)
+        super().__init__(*args, **kwargs)
+
+    def index(self, row, column, parent=None):
+        return DummyQModelIndex(row, column)
 
 class DummyQWidget:
     # Enum mocks
@@ -449,16 +481,12 @@ class DummyQWebEnginePage(DummyQWidget):
     def javaScriptConsoleMessage(self, level, message, lineNumber, sourceID):
         pass
 
-class DummyQAbstractTableModel(MagicMock):
-    def __init__(self, *args, **kwargs):
-        # Consume parent arg safely
-        parent = kwargs.pop('parent', None)
-        super().__init__(*args, **kwargs)
-
 class DummyEffect(MagicMock):
     def setOpacity(self, opacity):
         pass
     def setBlurRadius(self, radius):
+        pass
+    def setXOffset(self, offset):
         pass
 
 # Mock module structure
@@ -512,6 +540,7 @@ def mock_qt_modules():
     mock_core.QEasingCurve = MagicMock()
     mock_core.pyqtSignal = lambda *args: DummySignal()
     mock_core.QThreadPool = MagicMock()
+    mock_core.QThread = MagicMock()
     mock_core.QRunnable = MagicMock
     mock_core.QPoint = MagicMock()
     mock_core.QRect = MagicMock()
