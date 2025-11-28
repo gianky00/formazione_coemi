@@ -1,8 +1,9 @@
 from datetime import date, datetime
 from dateutil.relativedelta import relativedelta
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.db.models import Certificato, Corso
-from typing import Optional
+from typing import Optional, List, Dict, Tuple
 from app.core.config import settings
 
 def calculate_expiration_date(issue_date: date, validity_months: int) -> Optional[date]:
@@ -26,6 +27,8 @@ def calculate_expiration_date(issue_date: date, validity_months: int) -> Optiona
 def get_certificate_status(db: Session, certificato: Certificato) -> str:
     """
     Determina lo stato di un certificato (attivo, scaduto, o archiviato).
+    NOTA: Questa funzione esegue query DB ed è inefficiente per liste lunghe.
+    Usare get_bulk_certificate_statuses per performance migliori.
 
     Args:
         db: La sessione del database.
@@ -62,3 +65,88 @@ def get_certificate_status(db: Session, certificato: Certificato) -> str:
     ).first()
 
     return "archiviato" if newer_cert_exists else "scaduto"
+
+def get_bulk_certificate_statuses(db: Session, certificati: List[Certificato]) -> Dict[int, str]:
+    """
+    Calcola lo stato per una lista di certificati in modo efficiente (bulk).
+    Restituisce un dizionario {certificato_id: status}.
+    """
+    if not certificati:
+        return {}
+
+    today = date.today()
+    status_map = {}
+
+    # 1. Calcola stati basati sulla data (attivo/in_scadenza/scaduto_preliminare)
+    #    E identifica quali certificati scaduti necessitano controllo "archiviato".
+    expired_linked_certs = [] # (cert, dipendente_id, categoria)
+
+    threshold_std = settings.ALERT_THRESHOLD_DAYS
+    threshold_med = settings.ALERT_THRESHOLD_DAYS_VISITE
+
+    for cert in certificati:
+        if cert.data_scadenza_calcolata is None:
+            status_map[cert.id] = "attivo"
+            continue
+
+        # Determine threshold based on category (optimized access if possible, assumes cert.corso joined)
+        threshold = threshold_std
+        cat = cert.corso.categoria_corso if cert.corso else ""
+        if cat == "VISITA MEDICA":
+            threshold = threshold_med
+
+        if cert.data_scadenza_calcolata >= today:
+            days = (cert.data_scadenza_calcolata - today).days
+            if days <= threshold:
+                status_map[cert.id] = "in_scadenza"
+            else:
+                status_map[cert.id] = "attivo"
+        else:
+            # Expired. Check if needs archive check.
+            if cert.dipendente_id is None:
+                status_map[cert.id] = "scaduto"
+            else:
+                # Potentially archived. We need to check against latest dates.
+                # We defer this to the bulk query result.
+                expired_linked_certs.append(cert)
+                # Default to scaduto, will overwrite if archiviato
+                status_map[cert.id] = "scaduto"
+
+    if not expired_linked_certs:
+        return status_map
+
+    # 2. Fetch latest release dates for ALL employees/categories in the DB.
+    #    This is O(1) query complexity (aggregator).
+    #    We query for the (dipendente_id, categoria) pairs relevant to our expired list?
+    #    Or just fetch all map? Fetching all map is safer and likely fast enough (group by is efficient).
+    #    Optimization: Filter query to only relevant dipendenti/categorie?
+    #    If we have 7000 certs, filtering might be slower than just scanning.
+    #    Let's try to fetch all max dates.
+
+    stmt = db.query(
+        Certificato.dipendente_id,
+        Corso.categoria_corso,
+        func.max(Certificato.data_rilascio).label('max_rilascio')
+    ).join(Corso).filter(
+        Certificato.dipendente_id.isnot(None)
+    ).group_by(
+        Certificato.dipendente_id,
+        Corso.categoria_corso
+    )
+
+    latest_results = stmt.all()
+    # Map: (dipendente_id, categoria_str) -> max_date
+    latest_map = {(r.dipendente_id, r.categoria_corso): r.max_rilascio for r in latest_results}
+
+    # 3. Resolve "Archiviato" status
+    for cert in expired_linked_certs:
+        # Check if there is a newer date in the map
+        category = cert.corso.categoria_corso if cert.corso else None
+        if not category: continue
+
+        max_date = latest_map.get((cert.dipendente_id, category))
+
+        if max_date and max_date > cert.data_rilascio:
+            status_map[cert.id] = "archiviato"
+
+    return status_map

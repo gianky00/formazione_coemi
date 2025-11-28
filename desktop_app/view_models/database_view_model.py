@@ -1,47 +1,63 @@
 
 import pandas as pd
 import requests
-from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal, QThreadPool
 from ..api_client import APIClient
+from ..workers.data_worker import FetchCertificatesWorker, DeleteCertificatesWorker, UpdateCertificateWorker
 
 class DatabaseViewModel(QObject):
     data_changed = pyqtSignal()
     error_occurred = pyqtSignal(str)
     operation_completed = pyqtSignal(str)
+    loading_changed = pyqtSignal(bool)
 
     def __init__(self):
         super().__init__()
         self._df_original = pd.DataFrame()
         self._df_filtered = pd.DataFrame()
         self.api_client = APIClient()
+        self.threadpool = QThreadPool()
 
     @property
     def filtered_data(self):
         return self._df_filtered
 
     def load_data(self):
-        try:
-            response = requests.get(f"{self.api_client.base_url}/certificati/?validated=true", headers=self.api_client._get_headers())
-            response.raise_for_status()
-            data = response.json()
-            if data:
-                self._df_original = pd.DataFrame(data)
-                # The API returns 'nome' pre-formatted as "COGNOME NOME"
-                self._df_original.rename(columns={
-                    'nome': 'Dipendente',
-                    'data_rilascio': 'DATA_EMISSIONE',
-                    'corso': 'DOCUMENTO'
-                }, inplace=True)
-            else:
-                self._df_original = pd.DataFrame()
+        self.loading_changed.emit(True)
+        worker = FetchCertificatesWorker(self.api_client, validated=True)
+        worker.signals.result.connect(self._on_data_loaded)
+        worker.signals.error.connect(self._on_error)
+        # worker.signals.finished.connect(lambda: self.loading_changed.emit(False))
+        # Better handle finished in _on_data_loaded to avoid race conditions/flicker?
+        # Actually finished is emitted finally.
 
-            self._df_filtered = self._df_original.copy()
-            self.data_changed.emit()
-        except requests.exceptions.RequestException as e:
+        # We'll use a wrapper or just connect directly.
+        worker.signals.finished.connect(self._on_worker_finished)
+        self.threadpool.start(worker)
+
+    def _on_worker_finished(self):
+        self.loading_changed.emit(False)
+
+    def _on_data_loaded(self, data):
+        if data:
+            self._df_original = pd.DataFrame(data)
+            # The API returns 'nome' pre-formatted as "COGNOME NOME"
+            self._df_original.rename(columns={
+                'nome': 'Dipendente',
+                'data_rilascio': 'DATA_EMISSIONE',
+                'corso': 'DOCUMENTO'
+            }, inplace=True)
+        else:
             self._df_original = pd.DataFrame()
-            self._df_filtered = pd.DataFrame()
-            self.error_occurred.emit(f"Impossibile caricare i dati: {e}")
-            self.data_changed.emit()
+
+        self._df_filtered = self._df_original.copy()
+        self.data_changed.emit()
+
+    def _on_error(self, error_message):
+        self._df_original = pd.DataFrame()
+        self._df_filtered = pd.DataFrame()
+        self.error_occurred.emit(f"Errore durante il caricamento: {error_message}")
+        self.data_changed.emit()
 
     def filter_data(self, dipendente, categoria, stato):
         if self._df_original.empty:
@@ -69,11 +85,11 @@ class DatabaseViewModel(QObject):
         if self._df_original.empty:
             return {"dipendenti": [], "categorie": [], "stati": []}
 
+        # Sorting might be slightly slow for 7k rows but negligible compared to network
         dipendenti = sorted(self._df_original['Dipendente'].unique())
         categorie = sorted(self._df_original['categoria'].unique())
         stati_db = sorted(self._df_original['stato_certificato'].unique())
 
-        # Map database state "in_scadenza" to display state "in scadenza"
         stati = [s.replace("in_scadenza", "in scadenza") for s in stati_db]
 
         return {"dipendenti": dipendenti, "categorie": categorie, "stati": stati}
@@ -82,31 +98,35 @@ class DatabaseViewModel(QObject):
         if not ids:
             return
 
-        success_count = 0
-        error_messages = []
-        for cert_id in ids:
-            try:
-                response = requests.delete(f"{self.api_client.base_url}/certificati/{cert_id}", headers=self.api_client._get_headers())
-                response.raise_for_status()
-                success_count += 1
-            except requests.exceptions.RequestException as e:
-                error_messages.append(f"ID {cert_id}: {e}")
+        self.loading_changed.emit(True)
+        worker = DeleteCertificatesWorker(self.api_client, ids)
+        worker.signals.result.connect(self._on_delete_completed)
+        worker.signals.error.connect(self._on_error)
+        worker.signals.finished.connect(self._on_worker_finished)
+        self.threadpool.start(worker)
 
-        if success_count > 0:
-            self.operation_completed.emit(f"{success_count} certificati cancellati con successo.")
+    def _on_delete_completed(self, result):
+        success = result.get("success", 0)
+        errors = result.get("errors", [])
+
+        if success > 0:
+            self.operation_completed.emit(f"{success} certificati cancellati con successo.")
+            # Reload data to reflect changes
             self.load_data()
 
-        if error_messages:
-            full_error_message = "Si sono verificati alcuni errori:\n" + "\n".join(error_messages)
-            self.error_occurred.emit(full_error_message)
+        if errors:
+            full_error = "Alcuni errori:\n" + "\n".join(errors)
+            self.error_occurred.emit(full_error)
 
     def update_certificate(self, cert_id, data):
-        try:
-            response = requests.put(f"{self.api_client.base_url}/certificati/{cert_id}", json=data, headers=self.api_client._get_headers())
-            response.raise_for_status()
+        self.loading_changed.emit(True)
+        worker = UpdateCertificateWorker(self.api_client, cert_id, data)
+        worker.signals.result.connect(self._on_update_completed)
+        worker.signals.error.connect(self._on_error)
+        worker.signals.finished.connect(self._on_worker_finished)
+        self.threadpool.start(worker)
+
+    def _on_update_completed(self, success):
+        if success:
             self.operation_completed.emit("Certificato aggiornato con successo.")
             self.load_data()
-            return True
-        except requests.exceptions.RequestException as e:
-            self.error_occurred.emit(f"Impossibile modificare il certificato: {e}")
-            return False

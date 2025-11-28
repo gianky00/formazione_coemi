@@ -2,13 +2,15 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGraphicsView, QGraphicsScene,
                              QSplitter, QTreeWidget, QTreeWidgetItem, QGraphicsRectItem,
                              QGraphicsTextItem, QGraphicsLineItem, QPushButton, QHBoxLayout,
-                             QScrollBar, QTreeWidgetItemIterator, QMessageBox, QFileDialog, QComboBox)
-from PyQt6.QtCore import Qt, QDate, QRectF, QVariantAnimation, QEasingCurve, pyqtSignal
+                             QScrollBar, QTreeWidgetItemIterator, QMessageBox, QFileDialog, QComboBox,
+                             QProgressBar)
+from PyQt6.QtCore import Qt, QDate, QRectF, QVariantAnimation, QEasingCurve, pyqtSignal, QThreadPool
 from PyQt6.QtGui import QColor, QBrush, QPen, QFont, QLinearGradient, QPainterPath, QPainter, QPageLayout, QPageSize, QImage
 from PyQt6.QtPrintSupport import QPrinter
 import requests
 from ..api_client import APIClient
 from ..components.animated_widgets import AnimatedButton
+from ..workers.data_worker import FetchCertificatesWorker
 from collections import defaultdict
 from .gantt_item import GanttBarItem
 
@@ -73,6 +75,15 @@ class ScadenzarioView(QWidget):
 
         self.layout.addLayout(toolbar_layout)
 
+        # Loading Bar
+        self.loading_bar = QProgressBar()
+        self.loading_bar.setRange(0, 0)
+        self.loading_bar.setFixedHeight(4)
+        self.loading_bar.setTextVisible(False)
+        self.loading_bar.setStyleSheet("QProgressBar { border: none; background: transparent; } QProgressBar::chunk { background: #1D4ED8; border-radius: 2px; }")
+        self.loading_bar.hide()
+        self.layout.addWidget(self.loading_bar)
+
         # Main Content Area (Tree and Gantt)
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
 
@@ -95,6 +106,7 @@ class ScadenzarioView(QWidget):
         self.layout.addWidget(self.splitter)
 
         self.api_client = APIClient()
+        self.threadpool = QThreadPool()
         self.current_date = QDate.currentDate()
         self.zoom_months = 3.0 # Float for animation
         self.target_zoom_months = 3.0
@@ -152,10 +164,30 @@ class ScadenzarioView(QWidget):
         self.redraw_gantt_scene()
 
     def load_data(self):
-        try:
-            response = requests.get(f"{self.api_client.base_url}/certificati/?validated=true", headers=self.api_client._get_headers())
-            all_data = response.json() if response.status_code == 200 else []
+        self.loading_bar.show()
+        self.splitter.setEnabled(False)
 
+        worker = FetchCertificatesWorker(self.api_client, validated=True)
+        worker.signals.result.connect(self._on_data_loaded)
+        worker.signals.error.connect(self._on_error)
+        worker.signals.finished.connect(self._on_worker_finished)
+        self.threadpool.start(worker)
+
+    def _on_worker_finished(self):
+        self.loading_bar.hide()
+        self.splitter.setEnabled(True)
+
+    def _on_error(self, message):
+        self.certificates = []
+        self._assign_category_colors()
+        self.populate_tree()
+        self.redraw_gantt_scene()
+        QMessageBox.warning(self, "Errore Caricamento", f"Impossibile caricare lo scadenzario:\n{message}")
+
+    def _on_data_loaded(self, all_data):
+        if not all_data:
+            self.certificates = []
+        else:
             # Exclude specific categories
             excluded_categories = ['ATEX', 'BLSD', 'DIRETTIVA SEVESO', 'DIRIGENTI E FORMATORI', 'H2S', 'MEDICO COMPETENTE', 'HLO']
             filtered_data = [item for item in all_data if item.get('categoria') not in excluded_categories]
@@ -167,8 +199,6 @@ class ScadenzarioView(QWidget):
                 item for item in filtered_data
                 if 'data_scadenza' in item and item.get('data_scadenza') and today.daysTo(QDate.fromString(item['data_scadenza'], "dd/MM/yyyy")) <= 90
             ], key=lambda x: QDate.fromString(x['data_scadenza'], "dd/MM/yyyy"))
-        except requests.exceptions.RequestException:
-            self.certificates = []
 
         self._assign_category_colors()
         self.populate_tree()

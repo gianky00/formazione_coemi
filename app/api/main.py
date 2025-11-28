@@ -85,6 +85,10 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
         query = query.filter(Certificato.stato_validazione == (ValidationStatus.MANUAL if validated else ValidationStatus.AUTOMATIC))
 
     certificati = query.all()
+
+    # Optimize: Calculate statuses in bulk to avoid N+1 queries
+    status_map = certificate_logic.get_bulk_certificate_statuses(db, certificati)
+
     result = []
     for cert in certificati:
         if not cert.corso:
@@ -101,7 +105,7 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
             matricola = None
             ragione_fallimento = "Non trovato in anagrafica (matricola mancante)."
 
-        status = certificate_logic.get_certificate_status(db, cert)
+        status = status_map.get(cert.id, "attivo")
         result.append(CertificatoSchema(
             id=cert.id,
             nome=nome_completo,
