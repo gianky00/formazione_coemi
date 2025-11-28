@@ -19,7 +19,7 @@ class TestModernGuideView:
 
         # Should fall back to HTML or URL depending on file existence
         if view.webview.html:
-             assert "Guida non trovata" in view.webview.html
+             assert "Guida non disponibile" in view.webview.html
         else:
              assert view.webview.url is not None
 
@@ -50,4 +50,4 @@ class TestModernGuideView:
         view = modern_guide_view.ModernGuideView()
 
         assert view.webview.html is not None
-        assert "Guida non trovata" in view.webview.html
+        assert "Guida non disponibile" in view.webview.html
