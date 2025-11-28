@@ -13,6 +13,18 @@ class DummySignal:
         for slot in self._slots:
             slot(*args, **kwargs)
 
+class DummyPyQtSignal:
+    def __init__(self, *args):
+        self.args = args
+        self._signals = {}
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            return self
+        if instance not in self._signals:
+            self._signals[instance] = DummySignal()
+        return self._signals[instance]
+
 class DummyEnum:
     StyledPanel = 1
     Sunken = 1
@@ -538,7 +550,7 @@ def mock_qt_modules():
     mock_core.QTimer = MagicMock()
     mock_core.QPropertyAnimation = MagicMock()
     mock_core.QEasingCurve = MagicMock()
-    mock_core.pyqtSignal = lambda *args: DummySignal()
+    mock_core.pyqtSignal = DummyPyQtSignal
     mock_core.QThreadPool = MagicMock()
     mock_core.QThread = MagicMock()
     mock_core.QRunnable = MagicMock
