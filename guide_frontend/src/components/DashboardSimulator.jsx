@@ -10,9 +10,9 @@ const StatusPill = ({ status }) => {
   };
 
   const labels = {
-    attivo: 'Attivo',
-    in_scadenza: 'In Scadenza',
-    scaduto: 'Scaduto',
+    attivo: 'attivo',
+    in_scadenza: 'in scadenza',
+    scaduto: 'scaduto',
   };
 
   return (
@@ -66,7 +66,7 @@ const DashboardSimulator = () => {
       <div className="grid grid-cols-5 bg-gray-100 p-3 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">
         <div className="col-span-1">Dipendente</div>
         <div className="col-span-1">Documento</div>
-        <div className="col-span-1">Data Rilascio</div>
+        <div className="col-span-1">Data Emissione</div>
         <div className="col-span-1">Data Scadenza</div>
         <div className="col-span-1 text-center">Stato</div>
       </div>
