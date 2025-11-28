@@ -431,6 +431,12 @@ class DummyQWebEngineView(DummyQWidget):
     def page(self):
         page = MagicMock()
         return page
+    def setPage(self, page):
+        pass
+
+class DummyQWebEnginePage(DummyQWidget):
+    def javaScriptConsoleMessage(self, level, message, lineNumber, sourceID):
+        pass
 
 # Mock module structure
 def mock_qt_modules():
@@ -508,6 +514,9 @@ def mock_qt_modules():
     mock_web = MagicMock()
     mock_web.QWebEngineView = DummyQWebEngineView
 
+    mock_web_core = MagicMock()
+    mock_web_core.QWebEnginePage = DummyQWebEnginePage
+
     mock_webchannel = MagicMock()
     mock_webchannel.QWebChannel = MagicMock
 
@@ -516,6 +525,7 @@ def mock_qt_modules():
         'PyQt6.QtCore': mock_core,
         'PyQt6.QtGui': mock_gui,
         'PyQt6.QtWebEngineWidgets': mock_web,
+        'PyQt6.QtWebEngineCore': mock_web_core,
         'PyQt6.QtWebChannel': mock_webchannel,
         'PyQt6.QtPrintSupport': MagicMock(),
         'PyQt6.QtNetwork': MagicMock(),

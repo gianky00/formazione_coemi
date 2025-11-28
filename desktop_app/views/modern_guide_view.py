@@ -3,6 +3,7 @@ import os
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PyQt6.QtCore import QUrl, pyqtSlot, QObject, pyqtSignal
 from PyQt6.QtWebEngineWidgets import QWebEngineView
+from PyQt6.QtWebEngineCore import QWebEnginePage
 from PyQt6.QtWebChannel import QWebChannel
 
 class GuideBridge(QObject):
@@ -16,6 +17,13 @@ class GuideBridge(QObject):
         """Slot accessible from JavaScript."""
         self.closeRequested.emit()
 
+class CustomWebEnginePage(QWebEnginePage):
+    def javaScriptConsoleMessage(self, level, message, lineNumber, sourceID):
+        # Suppress specific router warnings that clutter the console
+        if "No routes matched location" in message:
+            return
+        super().javaScriptConsoleMessage(level, message, lineNumber, sourceID)
+
 class ModernGuideView(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -27,6 +35,11 @@ class ModernGuideView(QWidget):
 
         # WebEngine View
         self.webview = QWebEngineView()
+
+        # Set custom page to filter logs
+        self.custom_page = CustomWebEnginePage(self.webview)
+        self.webview.setPage(self.custom_page)
+
         self.webview.show() # Explicitly show
 
         # QWebChannel Setup for Bridge
