@@ -49,7 +49,7 @@ def mock_settings(test_dirs):
         "FIRST_RUN_ADMIN_USERNAME": "admin",
         "FIRST_RUN_ADMIN_PASSWORD": "prova"
     }
-
+    
     # Patch the mutable settings object
     settings.mutable._data = mock_data
     return mock_data
@@ -64,7 +64,7 @@ def setup_security_manager(test_dirs):
     db_security.data_dir = test_dirs
     db_security.db_path = test_dirs / "database_documenti.db"
     db_security.lock_path = test_dirs / ".database_documenti.db.lock"
-
+    
     # 2. Mock Encryption (Fernet) - Passthrough
     mock_fernet = MagicMock()
     mock_fernet.encrypt.side_effect = lambda x: x
@@ -76,7 +76,7 @@ def setup_security_manager(test_dirs):
     db_security.lock_manager.acquire.return_value = (True, {"user": "test_runner"})
     db_security.lock_manager.update_heartbeat.return_value = True
     db_security.lock_manager.release.return_value = True
-
+    
     return db_security
 
 @pytest.fixture(scope="function")
@@ -89,25 +89,25 @@ def db_session(setup_security_manager):
     db_security.active_connection = None
     db_security.initial_bytes = None
     db_security.is_read_only = False
-
+    
     # 2. Clean up disk (mocked disk)
     if db_security.db_path.exists():
         os.remove(db_security.db_path)
-
+        
     # 3. Dispose Engine (Clear StaticPool)
     engine.dispose()
-
+    
     # 4. Initialize Connection (This triggers load_memory_db, which will find no file and start empty)
     # We call get_connection explicitely to ensure the global 'active_connection' is set
     connection = db_security.get_connection()
-
+    
     # 5. Create Tables
     Base.metadata.create_all(bind=engine)
-
+    
     # 6. Create Session
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
-
+    
     try:
         yield session
     finally:
@@ -124,24 +124,24 @@ def test_client(db_session):
     """
     def override_get_db():
         yield db_session
-
+        
     def override_get_current_user():
         return User(id=1, username="admin", is_admin=True, hashed_password="hashed_secret")
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[deps.check_write_permission] = lambda: None # Always allow write in basic tests
     app.dependency_overrides[deps.get_current_user] = override_get_current_user
-
+    
     # Disable lifespan to prevent startup errors from invalid config/env
     @asynccontextmanager
     async def no_lifespan(app):
         yield
     app.router.lifespan_context = no_lifespan
-
+    
     # Set base_url to include the API prefix so tests using relative paths work
     with TestClient(app, base_url="http://testserver/api/v1") as client:
         yield client
-
+        
     app.dependency_overrides = {}
 
 @pytest.fixture
@@ -168,10 +168,10 @@ def override_user_auth(db_session):
     user = User(username="admin", is_admin=True, hashed_password="hashed_secret")
     db_session.add(user)
     db_session.commit()
-
+    
     def override():
         return user
-
+        
     app.dependency_overrides[deps.get_current_user] = override
     yield
     # Clean up handled by db_session rollback/close

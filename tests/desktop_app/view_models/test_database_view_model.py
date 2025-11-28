@@ -20,7 +20,7 @@ def view_model():
         client_instance = MockClient.return_value
         client_instance.base_url = "http://mock-api"
         client_instance._get_headers.return_value = {}
-
+        
         from desktop_app.view_models.database_view_model import DatabaseViewModel
         vm = DatabaseViewModel()
         return vm
@@ -110,7 +110,7 @@ def test_load_data_failure(mock_get, view_model):
 def test_delete_certificates_success(mock_get, mock_delete, view_model):
     # Setup load_data mock
     mock_get.return_value.status_code = 200
-    mock_get.return_value.json.return_value = []
+    mock_get.return_value.json.return_value = [] 
 
     # Setup delete mock
     mock_delete.return_value.status_code = 204
@@ -139,7 +139,7 @@ def test_delete_certificates_partial_failure(mock_delete, view_model):
     mock_delete.side_effect = side_effect
 
     vm = view_model
-    vm.load_data = Mock()
+    vm.load_data = Mock() 
     vm.operation_completed = MagicMock()
     vm.error_occurred = MagicMock()
 

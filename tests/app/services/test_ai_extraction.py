@@ -11,7 +11,7 @@ def test_prompt_integrity():
     The "Brain" of the classification logic resides in the prompt, so we must ensure it's not corrupted.
     """
     prompt = ai_extraction._generate_prompt()
-
+    
     # Critical Anchors
     assert "REGOLE DI CLASSIFICAZIONE ASSOLUTE" in prompt
     assert "D.M. 388" in prompt
@@ -19,7 +19,7 @@ def test_prompt_integrity():
     assert "SCARTO (REJECT)" in prompt
     assert "ATEX" in prompt
     assert "COGNOME NOME" in prompt
-
+    
     # Verify specific hierarchy rules
     assert "Se contiene \"IDROGENO SOLFORATO\"" in prompt
     assert "SE il documento è un programma generico" in prompt
@@ -37,13 +37,13 @@ def test_extraction_valid_nomina(mocker):
     # Simulate Gemini wrapping JSON in markdown code blocks
     mock_response.text = '```json\n{"categoria": "NOMINA", "nome": "ROSSI MARIO", "data_rilascio": "01/01/2024"}\n```'
     mock_model.generate_content.return_value = mock_response
-
+    
     # Patch the get_model function to return our mock
     mocker.patch("app.services.ai_extraction.get_gemini_model", return_value=mock_model)
-
+    
     # Execute
     result = ai_extraction.extract_entities_with_ai(b"%PDF-fake")
-
+    
     # Verify
     assert result["categoria"] == "NOMINA"
     assert result["nome"] == "ROSSI MARIO"
@@ -58,11 +58,11 @@ def test_extraction_reject_syllabus(mocker):
     mock_response = MagicMock()
     mock_response.text = json.dumps({"status": "REJECT", "reason": "Syllabus/Generic"})
     mock_model.generate_content.return_value = mock_response
-
+    
     mocker.patch("app.services.ai_extraction.get_gemini_model", return_value=mock_model)
-
+    
     result = ai_extraction.extract_entities_with_ai(b"%PDF-fake")
-
+    
     assert "error" in result
     assert result["is_rejected"] is True
     assert "Syllabus/Generic" in result["error"]
@@ -76,11 +76,11 @@ def test_extraction_list_response_handling(mocker):
     mock_response = MagicMock()
     mock_response.text = json.dumps([{"categoria": "ATEX", "nome": "BIANCHI LUIGI"}])
     mock_model.generate_content.return_value = mock_response
-
+    
     mocker.patch("app.services.ai_extraction.get_gemini_model", return_value=mock_model)
-
+    
     result = ai_extraction.extract_entities_with_ai(b"%PDF-fake")
-
+    
     assert result["categoria"] == "ATEX"
     assert result["nome"] == "BIANCHI LUIGI"
 
@@ -93,11 +93,11 @@ def test_extraction_invalid_category_fallback(mocker):
     mock_response = MagicMock()
     mock_response.text = json.dumps({"categoria": "SUPER_UNKNOWN_CERT", "nome": "VERDI ANNA"})
     mock_model.generate_content.return_value = mock_response
-
+    
     mocker.patch("app.services.ai_extraction.get_gemini_model", return_value=mock_model)
-
+    
     result = ai_extraction.extract_entities_with_ai(b"%PDF-fake")
-
+    
     assert result["categoria"] == "ALTRO"
     assert result["nome"] == "VERDI ANNA"
 

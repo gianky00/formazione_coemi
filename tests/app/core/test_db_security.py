@@ -176,7 +176,7 @@ def test_stale_lock_recovery(temp_workspace, mock_user_data_dir):
     # Verify metadata was overwritten (checked by acquiring successfully)
     # Since release() removes the file on success, we check it before releasing
     # or verify removal.
-
+    
     # We verify that we hold the lock and it's ours
     assert manager.lock_manager.current_metadata["user"] == "live_process"
 

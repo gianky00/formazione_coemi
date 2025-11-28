@@ -10,11 +10,11 @@ class TestPdfWorker(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory for output to ensure valid OS paths
         self.output_folder = tempfile.mkdtemp()
-
+        
         # Patch collections.deque to avoid import error during test collection if logic changed
         with patch("collections.deque"):
             from desktop_app.views.import_view import PdfWorker
-
+        
         self.api_client = MagicMock()
         self.api_client.base_url = "http://test-api"
         self.worker = PdfWorker([], self.api_client, self.output_folder)
@@ -166,7 +166,7 @@ class TestPdfWorker(unittest.TestCase):
         # Category is ANTINCENDIO
         expected_folder = os.path.join(self.worker.output_folder, "ERRORI ANALISI", "ASSENZA MATRICOLE", "SCONOSCIUTO (N-A)", "ANTINCENDIO", "ATTIVO")
         mock_makedirs.assert_any_call(expected_folder, exist_ok=True)
-
+        
         expected_dest = os.path.join(expected_folder, "SCONOSCIUTO (N-A) - ANTINCENDIO - no scadenza.pdf")
         mock_move.assert_called_with(file_path, expected_dest)
 

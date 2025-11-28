@@ -32,6 +32,8 @@ class DummyEnum:
     EditRole = 1
     UserRole = 256
     WindowActive = 1
+    KeepAspectRatio = 1
+    CustomContextMenu = 1
 
 class DummyQLayoutItem:
     def __init__(self, widget):
@@ -56,6 +58,7 @@ class DummyQWidget:
     WindowState = DummyEnum
     AspectRatioMode = DummyEnum
     TransformationMode = DummyEnum
+    ContextMenuPolicy = DummyEnum
 
     def __init__(self, text=None, *args, **kwargs):
         self._clicked = DummySignal()
@@ -493,8 +496,8 @@ def mock_qt_modules():
     mock_widgets.QMenu = MagicMock()
     mock_widgets.QAction = MagicMock()
     mock_widgets.QStyledItemDelegate = MagicMock
-    mock_widgets.QGraphicsOpacityEffect = MagicMock
-    mock_widgets.QGraphicsDropShadowEffect = MagicMock
+    mock_widgets.QGraphicsOpacityEffect = DummyEffect
+    mock_widgets.QGraphicsDropShadowEffect = DummyEffect
     mock_widgets.QTextEdit = DummyQWidget
     mock_widgets.QFileDialog = MagicMock()
 

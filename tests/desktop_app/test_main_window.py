@@ -18,10 +18,10 @@ def test_mainwindow_init(mock_qt_env):
     Verifies that MainWindow initializes and loads views.
     We patch the views where they are used (in MainDashboardWidget or its methods).
     """
-
+    
     # We patch the imports inside main_window_ui or wherever they are used.
     # Since MainDashboardWidget does local imports, we must patch the modules they import from.
-
+    
     with patch("desktop_app.views.database_view.DatabaseView") as MockDash, \
          patch("desktop_app.views.import_view.ImportView") as MockImport, \
          patch("desktop_app.views.validation_view.ValidationView") as MockValid, \
@@ -52,9 +52,9 @@ def test_mainwindow_init(mock_qt_env):
 def test_sidebar_init(mock_qt_env):
     with patch("desktop_app.main_window_ui.QIcon") as MockIcon, \
          patch("os.path.exists", return_value=True):
-
+        
         MockIcon.return_value.isNull.return_value = False
-
+        
         from desktop_app.main_window_ui import Sidebar
         sidebar = Sidebar()
         # Sidebar adds buttons

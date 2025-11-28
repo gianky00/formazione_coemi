@@ -26,7 +26,8 @@ def test_get_mutable_config_as_admin(test_client: TestClient, admin_token_header
     assert response.status_code == 200
     data = response.json()
     assert "SMTP_HOST" in data
-    assert data["SMTP_PORT"] == 465
+    # Expect 1025 because conftest.py mocks settings with port 1025
+    assert data["SMTP_PORT"] == 1025
 
 def test_get_mutable_config_as_non_admin(test_client: TestClient, user_token_headers: dict):
     """
