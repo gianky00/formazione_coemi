@@ -53,7 +53,21 @@ class Worker(QRunnable):
         Initialise the runner function with passed args, kwargs.
         """
         try:
-            result = self.fn(*self.args, **self.kwargs)
+            try:
+                result = self.fn(*self.args, **self.kwargs)
+            except TypeError as e:
+                # Runtime Fallback: If inspect failed or decorator hid the signature,
+                # and we injected callbacks that are not accepted, retry without them.
+                msg = str(e)
+                if "unexpected keyword argument" in msg and \
+                   ("progress_callback" in msg or "status_callback" in msg):
+
+                    # Clean kwargs
+                    clean_kwargs = {k: v for k, v in self.kwargs.items()
+                                    if k not in ['progress_callback', 'status_callback']}
+                    result = self.fn(*self.args, **clean_kwargs)
+                else:
+                    raise e
         except:
             # traceback.print_exc() # detailed logging
             exctype, value = sys.exc_info()[:2]
