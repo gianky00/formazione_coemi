@@ -9,8 +9,9 @@ from PyQt6.QtGui import QColor, QBrush, QPen, QFont, QLinearGradient, QPainterPa
 from PyQt6.QtPrintSupport import QPrinter
 import requests
 from ..api_client import APIClient
-from ..components.animated_widgets import AnimatedButton
+from ..components.animated_widgets import AnimatedButton, LoadingOverlay
 from ..workers.data_worker import FetchCertificatesWorker
+from ..workers.worker import Worker
 from collections import defaultdict
 from .gantt_item import GanttBarItem
 
@@ -27,12 +28,11 @@ class ScadenzarioView(QWidget):
         self.layout = QVBoxLayout(self)
         self.layout.setSpacing(10)
 
-        # Main Title and Description
         description = QLabel("Timeline interattiva dei certificati in scadenza.")
         description.setStyleSheet("font-size: 14px; color: #6B7280;")
         self.layout.addWidget(description)
 
-        # Toolbar Layout
+        # Toolbar
         toolbar_layout = QHBoxLayout()
         toolbar_layout.setSpacing(10)
 
@@ -59,7 +59,6 @@ class ScadenzarioView(QWidget):
         toolbar_layout.addStretch()
 
         self.generate_email_button = AnimatedButton("Genera Email")
-        # self.generate_email_button.setObjectName("primary") # AnimatedButton handles colors
         self.generate_email_button.clicked.connect(self.generate_email)
         toolbar_layout.addWidget(self.generate_email_button)
 
@@ -68,14 +67,13 @@ class ScadenzarioView(QWidget):
         self.export_pdf_button.clicked.connect(self.export_to_pdf)
         toolbar_layout.addWidget(self.export_pdf_button)
 
-        # Dynamic Legend
         self.legend_layout = QHBoxLayout()
         self.legend_layout.addStretch()
         toolbar_layout.addLayout(self.legend_layout)
 
         self.layout.addLayout(toolbar_layout)
 
-        # Loading Bar
+        # Loading Bar (for data fetch)
         self.loading_bar = QProgressBar()
         self.loading_bar.setRange(0, 0)
         self.loading_bar.setFixedHeight(4)
@@ -84,7 +82,7 @@ class ScadenzarioView(QWidget):
         self.loading_bar.hide()
         self.layout.addWidget(self.loading_bar)
 
-        # Main Content Area (Tree and Gantt)
+        # Splitter
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
 
         self.employee_tree = QTreeWidget()
@@ -108,18 +106,19 @@ class ScadenzarioView(QWidget):
         self.api_client = APIClient()
         self.threadpool = QThreadPool()
         self.current_date = QDate.currentDate()
-        self.zoom_months = 3.0 # Float for animation
+        self.zoom_months = 3.0
         self.target_zoom_months = 3.0
         self.certificates = []
         self.category_colors = {}
         self.color_palette = [QColor(c) for c in ["#3b82f6", "#10b981", "#ef4444", "#f97316", "#8b5cf6", "#d946ef", "#14b8a6", "#64748b"]]
 
-
-        # Zoom Animation
         self.zoom_anim = QVariantAnimation(self)
         self.zoom_anim.setDuration(400)
         self.zoom_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self.zoom_anim.valueChanged.connect(self._on_zoom_anim_step)
+
+        # Loading Overlay (for PDF/Email actions)
+        self.loading_overlay = LoadingOverlay(self)
 
         self.load_data()
 
@@ -140,8 +139,7 @@ class ScadenzarioView(QWidget):
 
     def _on_tree_item_selected(self, item, column):
         course_data = item.data(0, Qt.ItemDataRole.UserRole)
-        if not isinstance(course_data, dict):
-            return
+        if not isinstance(course_data, dict): return
 
         for scene_item in self.gantt_scene.items():
             if isinstance(scene_item, GanttBarItem):
@@ -166,7 +164,6 @@ class ScadenzarioView(QWidget):
     def load_data(self):
         self.loading_bar.show()
         self.splitter.setEnabled(False)
-
         worker = FetchCertificatesWorker(self.api_client, validated=True)
         worker.signals.result.connect(self._on_data_loaded)
         worker.signals.error.connect(self._on_error)
@@ -188,10 +185,8 @@ class ScadenzarioView(QWidget):
         if not all_data:
             self.certificates = []
         else:
-            # Exclude specific categories
             excluded_categories = ['ATEX', 'BLSD', 'DIRETTIVA SEVESO', 'DIRIGENTI E FORMATORI', 'H2S', 'MEDICO COMPETENTE', 'HLO']
             filtered_data = [item for item in all_data if item.get('categoria') not in excluded_categories]
-
             for item in filtered_data:
                 item['Dipendente'] = item['nome']
             today = QDate.currentDate()
@@ -230,7 +225,6 @@ class ScadenzarioView(QWidget):
 
     def redraw_gantt_scene(self):
         self.gantt_scene.clear()
-
         bar_height = 18
         bar_spacing = 4
         row_height = bar_height + bar_spacing
@@ -238,40 +232,32 @@ class ScadenzarioView(QWidget):
 
         today = QDate.currentDate()
         start_date = self.current_date.addDays(-self.current_date.day() + 1)
-
-        # Calculate dynamic end date based on floating zoom_months
-        days_total = int(30.44 * self.zoom_months) # approx days
+        days_total = int(30.44 * self.zoom_months)
         end_date = start_date.addDays(days_total)
         total_days = max(1, start_date.daysTo(end_date))
 
         scene_width = self.gantt_view.viewport().width()
-        if scene_width <= 0: scene_width = 700 # Default backup
-
+        if scene_width <= 0: scene_width = 700
         col_width = scene_width / total_days
 
-        # --- Draw Zone Backgrounds ---
         zone_definitions = {
-            "scaduto": (start_date, today.addDays(-1), QColor(239, 68, 68, 30)), # #EF4444 with alpha
-            "in_scadenza": (today, today.addDays(30), QColor(249, 115, 22, 30)), # #F97316 with alpha
-            "avviso": (today.addDays(31), today.addDays(90), QColor(251, 191, 36, 30)) # #FBBF24 with alpha
+            "scaduto": (start_date, today.addDays(-1), QColor(239, 68, 68, 30)),
+            "in_scadenza": (today, today.addDays(30), QColor(249, 115, 22, 30)),
+            "avviso": (today.addDays(31), today.addDays(90), QColor(251, 191, 36, 30))
         }
 
         for name, (zone_start, zone_end, color) in zone_definitions.items():
             start_x = max(0, start_date.daysTo(zone_start) * col_width)
             end_x = min(scene_width, start_date.daysTo(zone_end) * col_width)
-
             if end_x > start_x:
-                zone_rect = QGraphicsRectItem(start_x, 0, end_x - start_x, 2000) # Height will be adjusted later
+                zone_rect = QGraphicsRectItem(start_x, 0, end_x - start_x, 2000)
                 zone_rect.setBrush(QBrush(color))
                 zone_rect.setPen(QPen(Qt.PenStyle.NoPen))
-                zone_rect.setZValue(-1) # Ensure it's in the background
+                zone_rect.setZValue(-1)
                 self.gantt_scene.addItem(zone_rect)
 
-        # Draw Header (Months)
-        # Optimization: Draw only every N days or start of month
         current_draw_date = start_date
         while current_draw_date <= end_date:
-            # Find next first of month
             if current_draw_date.day() != 1:
                 next_month = current_draw_date.addMonths(1)
                 next_month.setDate(next_month.year(), next_month.month(), 1)
@@ -284,7 +270,6 @@ class ScadenzarioView(QWidget):
                 text = QGraphicsTextItem(month_name)
                 text.setPos(days_from_start * col_width, 0)
                 self.gantt_scene.addItem(text)
-
             current_draw_date = current_draw_date.addMonths(1)
 
         if start_date <= today <= end_date:
@@ -298,7 +283,6 @@ class ScadenzarioView(QWidget):
             if (QDate.fromString(cert['data_scadenza'], "dd/MM/yyyy").addDays(-30) <= end_date) and \
                (QDate.fromString(cert['data_scadenza'], "dd/MM/yyyy") >= start_date)
         ]
-
         sorted_certs = sorted(visible_certs, key=lambda x: QDate.fromString(x['data_scadenza'], "dd/MM/yyyy"))
 
         y_pos = header_height
@@ -309,28 +293,20 @@ class ScadenzarioView(QWidget):
 
             start_x = start_date.daysTo(bar_start_date) * col_width
             end_x = start_date.daysTo(expiry_date) * col_width
-
-            # Clamp logic for smoother visual
-            # But standard GANTT implies accurate time pos.
-            # We just draw.
-
             bar_width = max(2, end_x - start_x)
 
             color = self.category_colors.get(cert_data['categoria'], QColor("gray"))
-
             gradient = QLinearGradient(start_x, y_pos, start_x + bar_width, y_pos)
             gradient.setColorAt(0, color.lighter(120))
             gradient.setColorAt(1, color)
 
             rect = GanttBarItem(start_x, y_pos, bar_width, bar_height, QBrush(gradient), color, cert_data)
             self.gantt_scene.addItem(rect)
-
             y_pos += row_height
 
         total_height = y_pos
         self.gantt_scene.setSceneRect(0, 0, scene_width, total_height)
 
-        # Adjust background zones and today line to full height
         for item in self.gantt_scene.items():
             if isinstance(item, QGraphicsRectItem) and item.zValue() == -1:
                 item.setRect(item.rect().x(), 0, item.rect().width(), total_height)
@@ -340,14 +316,11 @@ class ScadenzarioView(QWidget):
         self._update_legend(visible_certs)
 
     def _update_legend(self, visible_certs):
-        # Clear existing legend widgets except for the stretch
         while self.legend_layout.count() > 1:
             item = self.legend_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+            if item.widget(): item.widget().deleteLater()
 
         visible_categories = sorted(list(set(cert['categoria'] for cert in visible_certs)))
-
         for category in visible_categories:
             color = self.category_colors.get(category)
             if color:
@@ -358,7 +331,6 @@ class ScadenzarioView(QWidget):
                 self.legend_layout.insertWidget(0, color_box)
 
     def set_read_only(self, is_read_only: bool):
-        print(f"[DEBUG] ScadenzarioView.set_read_only: {is_read_only}")
         self.is_read_only = is_read_only
         if is_read_only:
             self.generate_email_button.setEnabled(False)
@@ -369,19 +341,24 @@ class ScadenzarioView(QWidget):
 
     def generate_email(self):
         if getattr(self, 'is_read_only', False): return
+        self.loading_overlay.set_text("Invio email in corso...")
 
-        try:
-            response = requests.post(f"{self.api_client.base_url}/notifications/send-manual-alert", headers=self.api_client._get_headers())
+        def send():
+            return requests.post(f"{self.api_client.base_url}/notifications/send-manual-alert", headers=self.api_client._get_headers())
 
-            if response.status_code == 200:
-                QMessageBox.information(self, "Successo", "Richiesta di invio email inviata con successo.")
-            else:
-                error_data = response.json()
-                error_detail = error_data.get("detail", "Errore sconosciuto dal server.")
-                QMessageBox.critical(self, "Errore Invio Email", f"Impossibile inviare l'email:\n{error_detail}")
+        worker = Worker(send)
+        worker.signals.result.connect(self._on_email_sent)
+        worker.signals.error.connect(lambda err: self._on_generic_error(err, "Errore Invio Email"))
+        worker.signals.finished.connect(self.loading_overlay.stop)
+        self.threadpool.start(worker)
 
-        except requests.exceptions.RequestException as e:
-            QMessageBox.critical(self, "Errore di Connessione", f"Impossibile connettersi al server: {e}")
+    def _on_email_sent(self, response):
+        if response.status_code == 200:
+            QMessageBox.information(self, "Successo", "Richiesta di invio email inviata con successo.")
+        else:
+            error_data = response.json()
+            error_detail = error_data.get("detail", "Errore sconosciuto dal server.")
+            QMessageBox.critical(self, "Errore Invio Email", f"Impossibile inviare l'email:\n{error_detail}")
 
     def refresh_data(self):
         self.load_data()
@@ -389,16 +366,30 @@ class ScadenzarioView(QWidget):
     def export_to_pdf(self):
         default_filename = f"Report scadenze del {QDate.currentDate().toString('dd_MM_yyyy')}.pdf"
         path, _ = QFileDialog.getSaveFileName(self, "Salva PDF", default_filename, "PDF Files (*.pdf)")
-        if not path:
-            return
+        if not path: return
 
-        try:
-            response = requests.get(f"{self.api_client.base_url}/notifications/export-report", headers=self.api_client._get_headers())
-            if response.status_code == 200:
+        self.loading_overlay.set_text("Generazione Report PDF...")
+
+        def download():
+            return requests.get(f"{self.api_client.base_url}/notifications/export-report", headers=self.api_client._get_headers())
+
+        worker = Worker(download)
+        worker.signals.result.connect(lambda res: self._on_pdf_downloaded(res, path))
+        worker.signals.error.connect(lambda err: self._on_generic_error(err, "Errore Esportazione"))
+        worker.signals.finished.connect(self.loading_overlay.stop)
+        self.threadpool.start(worker)
+
+    def _on_pdf_downloaded(self, response, path):
+        if response.status_code == 200:
+            try:
                 with open(path, 'wb') as f:
                     f.write(response.content)
                 QMessageBox.information(self, "Esportazione Riuscita", f"Report esportato con successo in {path}")
-            else:
-                QMessageBox.critical(self, "Errore", f"Errore durante l'esportazione: {response.text}")
-        except Exception as e:
-            QMessageBox.critical(self, "Errore", f"Impossibile esportare il PDF: {e}")
+            except Exception as e:
+                QMessageBox.critical(self, "Errore", f"Impossibile salvare il file: {e}")
+        else:
+            QMessageBox.critical(self, "Errore", f"Errore durante l'esportazione: {response.text}")
+
+    def _on_generic_error(self, error_tuple, title):
+        exctype, value, tb = error_tuple
+        QMessageBox.critical(self, title, f"{value}")

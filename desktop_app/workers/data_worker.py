@@ -8,10 +8,12 @@ class WorkerSignals(QObject):
     finished: No data
     error: str (error message)
     result: object (data returned from processing)
+    progress: int, int (current, total)
     """
     finished = pyqtSignal()
     error = pyqtSignal(str)
     result = pyqtSignal(object)
+    progress = pyqtSignal(int, int)
 
 class FetchCertificatesWorker(QRunnable):
     def __init__(self, api_client, validated=True):
@@ -51,8 +53,10 @@ class DeleteCertificatesWorker(QRunnable):
     def run(self):
         success_count = 0
         errors = []
+        total = len(self.cert_ids)
         try:
-            for cert_id in self.cert_ids:
+            for i, cert_id in enumerate(self.cert_ids):
+                self.signals.progress.emit(i + 1, total)
                 try:
                     response = requests.delete(
                         f"{self.api_client.base_url}/certificati/{cert_id}",
@@ -101,8 +105,10 @@ class ValidateCertificatesWorker(QRunnable):
     def run(self):
         success_count = 0
         errors = []
+        total = len(self.cert_ids)
         try:
-            for cert_id in self.cert_ids:
+            for i, cert_id in enumerate(self.cert_ids):
+                self.signals.progress.emit(i + 1, total)
                 try:
                     response = requests.put(
                         f"{self.api_client.base_url}/certificati/{cert_id}/valida",
