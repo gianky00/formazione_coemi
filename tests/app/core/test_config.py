@@ -16,11 +16,11 @@ def settings_file(test_data_dir: Path) -> Path:
     """Provides the path to the settings file in the temp directory."""
     return test_data_dir / "settings.json"
 
-def test_immutable_settings_are_hardcoded(monkeypatch):
+def test_immutable_settings_are_hardcoded(monkeypatch, tmp_path):
     """
     Test that critical, unchangeable settings are hardcoded constants.
     """
-    monkeypatch.setattr('app.core.config.get_user_data_dir', lambda: Path("/tmp"))
+    monkeypatch.setattr('app.core.config.get_user_data_dir', lambda: tmp_path)
     settings = SettingsManager()
     assert settings.SECRET_KEY == "a_very_strong_and_long_secret_key_that_is_not_easily_guessable_and_is_unique_to_this_application"
     assert settings.ALGORITHM == "HS256"
@@ -110,11 +110,11 @@ def test_handles_corrupted_settings_file(settings_file: Path, monkeypatch):
 # --- Tests for Security Obfuscation ---
 from app.utils.security import obfuscate_string
 
-def test_github_token_is_revealed_at_runtime(monkeypatch):
+def test_github_token_is_revealed_at_runtime(monkeypatch, tmp_path):
     """
     Tests that the hardcoded obfuscated GitHub token is correctly revealed.
     """
-    monkeypatch.setattr('app.core.config.get_user_data_dir', lambda: Path("/tmp"))
+    monkeypatch.setattr('app.core.config.get_user_data_dir', lambda: tmp_path)
     settings = SettingsManager()
 
     # The value is hardcoded in config.py

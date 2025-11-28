@@ -54,6 +54,8 @@ class DummyQWidget:
     ApplicationAttribute = DummyEnum
     ItemDataRole = DummyEnum
     WindowState = DummyEnum
+    AspectRatioMode = DummyEnum
+    TransformationMode = DummyEnum
 
     def __init__(self, text=None, *args, **kwargs):
         self._clicked = DummySignal()
@@ -257,6 +259,8 @@ class DummyQWidget:
         m = MagicMock()
         m.isValid.return_value = False
         return m
+    def setContextMenuPolicy(self, policy):
+        pass
     def setScene(self, scene):
         pass
     def setRange(self, min, max):
@@ -442,6 +446,18 @@ class DummyQWebEnginePage(DummyQWidget):
     def javaScriptConsoleMessage(self, level, message, lineNumber, sourceID):
         pass
 
+class DummyQAbstractTableModel(MagicMock):
+    def __init__(self, *args, **kwargs):
+        # Consume parent arg safely
+        parent = kwargs.pop('parent', None)
+        super().__init__(*args, **kwargs)
+
+class DummyEffect(MagicMock):
+    def setOpacity(self, opacity):
+        pass
+    def setBlurRadius(self, radius):
+        pass
+
 # Mock module structure
 def mock_qt_modules():
     mock_widgets = MagicMock()
@@ -487,7 +503,7 @@ def mock_qt_modules():
     mock_core.QSize = MagicMock()
     mock_core.QDate = DummyQDate
     mock_core.QObject = DummyQObject
-    mock_core.QAbstractTableModel = MagicMock
+    mock_core.QAbstractTableModel = DummyQAbstractTableModel
     mock_core.QTimer = MagicMock()
     mock_core.QPropertyAnimation = MagicMock()
     mock_core.QEasingCurve = MagicMock()

@@ -11,7 +11,7 @@ def test_open_action(mock_bridge_cls):
     mock_bridge_cls.instance.return_value = mock_instance
 
     response = client.post(
-        "/api/v1/system/open-action",
+        "/system/open-action",
         json={"action": "test_action", "payload": {"key": "value"}}
     )
 
@@ -22,13 +22,13 @@ def test_open_action(mock_bridge_cls):
 
 def test_open_action_invalid_payload():
     response = client.post(
-        "/api/v1/system/open-action",
+        "/system/open-action",
         json={"action": "test"} # Payload optional
     )
     assert response.status_code == 200
 
     response = client.post(
-        "/api/v1/system/open-action",
+        "/system/open-action",
         json={} # Missing action
     )
     assert response.status_code == 422

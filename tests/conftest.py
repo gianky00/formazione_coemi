@@ -155,6 +155,10 @@ def mock_ai_service(mocker):
 def admin_token_headers():
     return {"Authorization": "Bearer admin-token"}
 
+@pytest.fixture(scope="session")
+def user_token_headers():
+    return {"Authorization": "Bearer user-token"}
+
 @pytest.fixture
 def override_user_auth(db_session):
     """

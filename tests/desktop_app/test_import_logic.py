@@ -1,17 +1,23 @@
 import unittest
 from unittest.mock import MagicMock, patch, mock_open
 import os
+import shutil
+import tempfile
 from datetime import datetime, date
 
 class TestPdfWorker(unittest.TestCase):
 
     def setUp(self):
+        # Create a temporary directory for output to ensure valid OS paths
+        self.output_folder = tempfile.mkdtemp()
+
         # Patch collections.deque to avoid import error during test collection if logic changed
         with patch("collections.deque"):
             from desktop_app.views.import_view import PdfWorker
+
         self.api_client = MagicMock()
         self.api_client.base_url = "http://test-api"
-        self.worker = PdfWorker([], self.api_client, "/tmp/output")
+        self.worker = PdfWorker([], self.api_client, self.output_folder)
         # Mock signals
         self.worker.log_message = MagicMock()
         self.worker.status_update = MagicMock()
@@ -19,12 +25,16 @@ class TestPdfWorker(unittest.TestCase):
         self.worker.finished = MagicMock()
         self.worker.etr_update = MagicMock()
 
+    def tearDown(self):
+        # Clean up the temporary directory
+        shutil.rmtree(self.output_folder)
+
     @patch('desktop_app.views.import_view.requests.post')
     @patch('desktop_app.views.import_view.shutil.move')
     @patch('desktop_app.views.import_view.os.makedirs')
     @patch('builtins.open', new_callable=mock_open, read_data=b"pdf_content")
     def test_process_pdf_success_active(self, mock_file, mock_makedirs, mock_move, mock_post):
-        file_path = "/tmp/test_folder/doc.pdf"
+        file_path = os.path.join(self.output_folder, "doc.pdf")
 
         mock_upload_resp = MagicMock()
         mock_upload_resp.status_code = 200
@@ -66,7 +76,7 @@ class TestPdfWorker(unittest.TestCase):
     @patch('desktop_app.views.import_view.os.makedirs')
     @patch('builtins.open', new_callable=mock_open, read_data=b"pdf_content")
     def test_process_pdf_success_expired_historical(self, mock_file, mock_makedirs, mock_move, mock_post):
-        file_path = "/tmp/test_folder/old_doc.pdf"
+        file_path = os.path.join(self.output_folder, "old_doc.pdf")
 
         mock_upload_resp = MagicMock()
         mock_upload_resp.status_code = 200
@@ -99,7 +109,7 @@ class TestPdfWorker(unittest.TestCase):
     @patch('desktop_app.views.import_view.os.makedirs')
     @patch('builtins.open', new_callable=mock_open, read_data=b"pdf_content")
     def test_process_pdf_no_expiration_nomine(self, mock_file, mock_makedirs, mock_move, mock_post):
-        file_path = "/tmp/test_folder/nomina.pdf"
+        file_path = os.path.join(self.output_folder, "nomina.pdf")
 
         mock_upload_resp = MagicMock()
         mock_upload_resp.status_code = 200
@@ -132,7 +142,7 @@ class TestPdfWorker(unittest.TestCase):
     @patch('desktop_app.views.import_view.os.makedirs')
     @patch('builtins.open', new_callable=mock_open, read_data=b"pdf_content")
     def test_process_pdf_manual_assignment(self, mock_file, mock_makedirs, mock_move, mock_post):
-        file_path = "/tmp/test_folder/orphan.pdf"
+        file_path = os.path.join(self.output_folder, "orphan.pdf")
 
         mock_upload_resp = MagicMock()
         mock_upload_resp.status_code = 200
@@ -154,7 +164,6 @@ class TestPdfWorker(unittest.TestCase):
         # Logic for "matricola" in failure reason -> ERRORI ANALISI/ASSENZA MATRICOLE
         # Name is SCONOSCIUTO (N-A)
         # Category is ANTINCENDIO
-        # Status is ATTIVO (scadenza None defaults to attivo) -> no, it defaults to 'ATTIVO' in code if not present
         expected_folder = os.path.join(self.worker.output_folder, "ERRORI ANALISI", "ASSENZA MATRICOLE", "SCONOSCIUTO (N-A)", "ANTINCENDIO", "ATTIVO")
         mock_makedirs.assert_any_call(expected_folder, exist_ok=True)
 
@@ -166,7 +175,7 @@ class TestPdfWorker(unittest.TestCase):
     @patch('desktop_app.views.import_view.os.makedirs')
     @patch('builtins.open', new_callable=mock_open, read_data=b"pdf_content")
     def test_process_pdf_ai_failure(self, mock_file, mock_makedirs, mock_move, mock_post):
-        file_path = "/tmp/test_folder/error.pdf"
+        file_path = os.path.join(self.output_folder, "error.pdf")
 
         mock_upload_resp = MagicMock()
         mock_upload_resp.status_code = 429
@@ -177,6 +186,7 @@ class TestPdfWorker(unittest.TestCase):
         self.worker.process_pdf(file_path)
 
         # Default fallback -> ERRORI ANALISI/ALTRI ERRORI/<Filename>/error.pdf
+        # Note: filename without extension is used as folder
         expected_folder = os.path.join(self.worker.output_folder, "ERRORI ANALISI", "ALTRI ERRORI", "error")
         expected_dest = os.path.join(expected_folder, "error.pdf")
 

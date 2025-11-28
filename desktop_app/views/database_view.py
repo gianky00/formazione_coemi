@@ -50,8 +50,8 @@ class StatusDelegate(CascadeDelegate):
         painter.restore()
 
 class CertificatoTableModel(QAbstractTableModel):
-    def __init__(self, data):
-        super().__init__()
+    def __init__(self, data, parent=None):
+        super().__init__(parent)
         self._data = data
 
     def flags(self, index):

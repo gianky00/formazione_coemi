@@ -27,24 +27,24 @@ def test_logout_invalidates_token(test_client: TestClient, db_session: Session, 
     db_session.commit()
 
     login_data = {"username": username, "password": password}
-    response = test_client.post("/api/v1/auth/login", data=login_data)
+    response = test_client.post("/auth/login", data=login_data)
     assert response.status_code == 200
     token = response.json()["access_token"]
 
     # 2. Verify token works
     headers = {"Authorization": f"Bearer {token}"}
-    response_me = test_client.get("/api/v1/auth/me", headers=headers)
+    response_me = test_client.get("/auth/me", headers=headers)
     assert response_me.status_code == 200
 
     # 3. Logout
-    response_logout = test_client.post("/api/v1/auth/logout", headers=headers)
+    response_logout = test_client.post("/auth/logout", headers=headers)
     assert response_logout.status_code == 200
 
     # Verify token is in blacklist DB
     assert db_session.query(BlacklistedToken).filter_by(token=token).first() is not None
 
     # 4. Verify token is rejected
-    response_rejected = test_client.get("/api/v1/auth/me", headers=headers)
+    response_rejected = test_client.get("/auth/me", headers=headers)
     assert response_rejected.status_code == 401
     assert "invalidated" in response_rejected.json()["detail"]
 
@@ -58,7 +58,7 @@ def test_audit_logging_on_user_create(test_client: TestClient, db_session: Sessi
     db_session.commit()
 
     login_data = {"username": username, "password": password}
-    response_login = test_client.post("/api/v1/auth/login", data=login_data)
+    response_login = test_client.post("/auth/login", data=login_data)
     assert response_login.status_code == 200
     token = response_login.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
@@ -70,7 +70,7 @@ def test_audit_logging_on_user_create(test_client: TestClient, db_session: Sessi
         "account_name": "New User",
         "is_admin": False
     }
-    response = test_client.post("/api/v1/users/", json=new_user_data, headers=headers)
+    response = test_client.post("/users/", json=new_user_data, headers=headers)
     assert response.status_code == 200
 
     # 3. Check Audit Log

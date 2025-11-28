@@ -1,64 +1,7 @@
 
 import pytest
-from unittest.mock import MagicMock, patch
-from fastapi.testclient import TestClient
-from app.api.main import router
-from app.db.session import get_db
-from app.db.models import Certificato, ValidationStatus, Corso, Dipendente, Base, User
-from app.api import deps
-from app.schemas.schemas import CertificatoSchema
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
+from app.db.models import Certificato, ValidationStatus, Corso, Dipendente
 import datetime
-
-# Setup in-memory DB for testing
-# Use StaticPool to share the same in-memory database across threads/connections
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-def override_get_db():
-    try:
-        db = TestingSessionLocal()
-        yield db
-    finally:
-        db.close()
-
-@pytest.fixture(scope="module")
-def test_client():
-    Base.metadata.create_all(bind=engine)
-    from fastapi import FastAPI
-    app = FastAPI()
-    app.include_router(router, prefix="/api/v1")
-    app.dependency_overrides[get_db] = override_get_db
-
-    # Override auth
-    def override_get_current_user():
-        return User(id=1, username="admin", is_admin=True)
-    app.dependency_overrides[deps.get_current_user] = override_get_current_user
-
-    return TestClient(app)
-
-@pytest.fixture(autouse=True)
-def run_around_tests():
-    # Setup: create tables
-    Base.metadata.create_all(bind=engine)
-    yield
-    # Teardown: drop tables
-    Base.metadata.drop_all(bind=engine)
-
-@pytest.fixture
-def db_session():
-    db = TestingSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 def test_orphans_visibility(test_client, db_session):
     """
@@ -82,7 +25,8 @@ def test_orphans_visibility(test_client, db_session):
     db_session.commit()
 
     # 3. Call GET /certificati/?validated=false
-    response = test_client.get("/api/v1/certificati/?validated=false")
+    # Note: test_client base_url includes /api/v1
+    response = test_client.get("/certificati/?validated=false")
     assert response.status_code == 200
     data = response.json()
 
@@ -126,8 +70,9 @@ def test_csv_import_links_orphans(test_client, db_session):
         "Cognome;Nome;Badge;Data_nascita\n"
         "Bianchi;Paolo;B001;15/05/1985\n"
     )
-    files = {"file": ("dipendenti.csv", csv_content, "text/csv")}
-    response = test_client.post("/api/v1/dipendenti/import-csv", files=files)
+    content_bytes = csv_content.encode('utf-8')
+    files = {"file": ("dipendenti.csv", content_bytes, "text/csv")}
+    response = test_client.post("/dipendenti/import-csv", files=files)
     assert response.status_code == 200
     assert "1 certificati orfani collegati" in response.json()["message"]
 
@@ -152,10 +97,11 @@ def test_csv_import_upsert(test_client, db_session):
         "Rossi;Mario Updated;001;01/01/1980\n"
         "Verdi;Luigi;002;02/02/1990\n"
     )
+    content_bytes = csv_content.encode('utf-8')
 
     # 3. Upload CSV
-    files = {"file": ("test.csv", csv_content, "text/csv")}
-    response = test_client.post("/api/v1/dipendenti/import-csv", files=files)
+    files = {"file": ("test.csv", content_bytes, "text/csv")}
+    response = test_client.post("/dipendenti/import-csv", files=files)
     assert response.status_code == 200
 
     # 4. Verify 001 is updated and 002 is created

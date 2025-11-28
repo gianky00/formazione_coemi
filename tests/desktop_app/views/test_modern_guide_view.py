@@ -36,7 +36,9 @@ class TestModernGuideView:
              view = modern_guide_view.ModernGuideView()
 
              assert view.webview.url is not None
-             assert '/tmp/fake_meipass/guide/index.html' in view.webview.url
+             # Ensure path separators match the OS
+             expected_part = os.path.join('guide', 'index.html')
+             assert expected_part in view.webview.url
 
     @patch('os.path.exists')
     def test_fallback_html(self, mock_exists):
