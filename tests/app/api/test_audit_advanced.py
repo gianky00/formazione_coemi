@@ -35,7 +35,8 @@ def test_audit_log_filtering(test_client: TestClient, db_session: Session):
 
     # 3. Filter by Date Range (User 1 only recent)
     start = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
-    resp = test_client.get(f"/audit/?user_id={user1.id}&start_date={start}")
+    # Use params dict to ensure URL encoding of special chars (like + in timezone)
+    resp = test_client.get("/audit/", params={"user_id": user1.id, "start_date": start})
     data = resp.json()
     assert len(data) == 1
     assert data[0]["action"] == "ACT2"

@@ -52,6 +52,7 @@ class DummyEnum:
     KeepAspectRatio = 1
     CustomContextMenu = 1
     SmoothTransformation = 1
+    TextSelectableByMouse = 1
 
 class DummyQLayoutItem:
     def __init__(self, widget):
@@ -103,6 +104,7 @@ class DummyQWidget:
     AspectRatioMode = DummyEnum
     TransformationMode = DummyEnum
     ContextMenuPolicy = DummyEnum
+    TextInteractionFlag = DummyEnum
 
     def __init__(self, text=None, *args, **kwargs):
         self._clicked = DummySignal()
@@ -494,12 +496,9 @@ class DummyQWebEnginePage(DummyQWidget):
         pass
 
 class DummyEffect(MagicMock):
-    def setOpacity(self, opacity):
-        pass
-    def setBlurRadius(self, radius):
-        pass
-    def setXOffset(self, offset):
-        pass
+    def __init__(self, *args, **kwargs):
+        # Swallow arguments to prevent MagicMock from using them as spec/parent
+        super().__init__()
 
 # Mock module structure
 def mock_qt_modules():
