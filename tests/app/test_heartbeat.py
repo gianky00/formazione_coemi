@@ -63,8 +63,10 @@ def test_lock_manager_heartbeat(tmp_path):
     # Release
     lm.release()
 
-@pytest.mark.skipif(sys.platform == "win32", reason="Windows prevents overwriting locked files")
-def test_zombie_prevention(tmp_path):
+def test_zombie_prevention(tmp_path, mocker):
+    # Mock _lock_byte_0 to bypass OS lock, allowing overwrites
+    mocker.patch.object(LockManager, '_lock_byte_0')
+
     lock_file = tmp_path / ".zombie.lock"
     lm = LockManager(str(lock_file))
 
@@ -84,8 +86,9 @@ def test_zombie_prevention(tmp_path):
 
     lm.release()
 
-@pytest.mark.skipif(sys.platform == "win32", reason="Windows prevents overwriting locked files")
-def test_uuid_mismatch(tmp_path):
+def test_uuid_mismatch(tmp_path, mocker):
+    mocker.patch.object(LockManager, '_lock_byte_0')
+
     lock_file = tmp_path / ".uuid_zombie.lock"
     lm = LockManager(str(lock_file))
 
@@ -102,8 +105,9 @@ def test_uuid_mismatch(tmp_path):
     assert not lm.update_heartbeat()
     lm.release()
 
-@pytest.mark.skipif(sys.platform == "win32", reason="Windows prevents overwriting locked files")
-def test_read_failure_protection(tmp_path):
+def test_read_failure_protection(tmp_path, mocker):
+    mocker.patch.object(LockManager, '_lock_byte_0')
+
     lock_file = tmp_path / ".corrupt.lock"
     lm = LockManager(str(lock_file))
     lm.acquire({"uuid": "safe", "pid": 1})

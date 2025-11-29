@@ -5,7 +5,7 @@ from app.db.models import Base
 
 def test_migrate_schema_adds_column():
     # 1. Setup in-memory DB
-    engine = create_engine("sqlite://:memory:")
+    engine = create_engine("sqlite:///:memory:")
     Session = sessionmaker(bind=engine)
     db = Session()
 
@@ -41,7 +41,7 @@ def test_migrate_schema_adds_column():
 
 def test_smart_backfill_categories():
     # 1. Setup
-    engine = create_engine("sqlite://:memory:")
+    engine = create_engine("sqlite:///:memory:")
     Session = sessionmaker(bind=engine)
     db = Session()
 

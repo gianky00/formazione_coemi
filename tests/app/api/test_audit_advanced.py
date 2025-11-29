@@ -2,7 +2,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from app.db.models import AuditLog, User
 from app.utils.audit import log_security_action
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 def test_audit_log_filtering(test_client: TestClient, db_session: Session):
     # 1. Setup: Create users and logs
@@ -14,14 +14,14 @@ def test_audit_log_filtering(test_client: TestClient, db_session: Session):
 
     # Create logs with different dates and categories
     # User 1
-    log1 = AuditLog(user_id=user1.id, username=user1.username, action="ACT1", category="AUTH", timestamp=datetime.utcnow() - timedelta(days=10))
-    log2 = AuditLog(user_id=user1.id, username=user1.username, action="ACT2", category="USER_MGMT", timestamp=datetime.utcnow())
+    log1 = AuditLog(user_id=user1.id, username=user1.username, action="ACT1", category="AUTH", timestamp=datetime.now(timezone.utc) - timedelta(days=10))
+    log2 = AuditLog(user_id=user1.id, username=user1.username, action="ACT2", category="USER_MGMT", timestamp=datetime.now(timezone.utc))
 
     # User 2
-    log3 = AuditLog(user_id=user2.id, username=user2.username, action="ACT3", category="AUTH", timestamp=datetime.utcnow())
+    log3 = AuditLog(user_id=user2.id, username=user2.username, action="ACT3", category="AUTH", timestamp=datetime.now(timezone.utc))
 
     # System
-    log4 = AuditLog(user_id=None, username="SYSTEM", action="SYS1", category="SYSTEM", timestamp=datetime.utcnow())
+    log4 = AuditLog(user_id=None, username="SYSTEM", action="SYS1", category="SYSTEM", timestamp=datetime.now(timezone.utc))
 
     db_session.add_all([log1, log2, log3, log4])
     db_session.commit()
@@ -34,7 +34,7 @@ def test_audit_log_filtering(test_client: TestClient, db_session: Session):
     assert all(l["username"] == "user1" for l in data)
 
     # 3. Filter by Date Range (User 1 only recent)
-    start = (datetime.utcnow() - timedelta(days=1)).isoformat()
+    start = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
     resp = test_client.get(f"/audit/?user_id={user1.id}&start_date={start}")
     data = resp.json()
     assert len(data) == 1
