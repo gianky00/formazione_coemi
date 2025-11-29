@@ -5,6 +5,7 @@ from cryptography.fernet import Fernet
 from app.core.license_security import LICENSE_SECRET_KEY
 from desktop_app.services.path_service import get_license_dir, get_app_install_dir
 from datetime import datetime, timedelta
+from desktop_app.services.time_service import get_secure_date
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -77,8 +78,8 @@ class LicenseManager:
             return False
 
         try:
-            expiry_date = datetime.strptime(license_data["Scadenza Licenza"], "%d/%m/%Y")
-            now = datetime.now()
-            return now < expiry_date < now + timedelta(days=days)
+            expiry_date = datetime.strptime(license_data["Scadenza Licenza"], "%d/%m/%Y").date()
+            today = get_secure_date()
+            return today < expiry_date < today + timedelta(days=days)
         except (ValueError, TypeError):
             return False
