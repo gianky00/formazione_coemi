@@ -116,14 +116,18 @@ class SoundManager(QObject):
     def play_sound(self, sound_name):
         if sound_name not in self.sounds: return
         
-        # Clean cache
-        self.effects_cache = [e for e in self.effects_cache if e.isPlaying()]
-        
-        effect = QSoundEffect(self)
-        effect.setSource(self.sounds[sound_name])
-        effect.setVolume(0.5)
-        effect.play()
-        self.effects_cache.append(effect) # Prevent GC
+        try:
+            # Clean cache
+            self.effects_cache = [e for e in self.effects_cache if e.isPlaying()]
+
+            effect = QSoundEffect(self)
+            effect.setSource(self.sounds[sound_name])
+            effect.setVolume(0.5)
+            effect.play()
+            self.effects_cache.append(effect) # Prevent GC
+        except Exception as e:
+            # Catch potential audio device errors to prevent crashes
+            print(f"[SoundManager] Play Sound Error: {e}")
 
     def speak(self, text):
         """

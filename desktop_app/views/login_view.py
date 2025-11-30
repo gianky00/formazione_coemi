@@ -515,9 +515,23 @@ class LoginView(QWidget):
             else:
                 self.container.move(cx, cy)
 
+    def reset_view(self):
+        """Resets the UI state for a fresh login attempt."""
+        self.username_input.setEnabled(True)
+        self.password_input.setEnabled(True)
+        self.login_btn.setEnabled(True)
+        self.login_btn.set_loading(False)
+        self.password_input.clear()
+
+        # Ensure background animation is running
+        if not self._anim_timer.isActive():
+            self._anim_timer.start(25)
+
     def showEvent(self, event):
         super().showEvent(event)
         
+        self.reset_view()
+
         # Stable "Slide Up" Entrance Animation
         x = (self.width() - self.container.width()) // 2
         final_y = (self.height() - self.container.height()) // 2
@@ -658,15 +672,21 @@ class LoginView(QWidget):
             self.login_btn.set_loading(False)
 
     def _animate_success_exit(self):
-        # Audio Feedback
-        SoundManager.instance().play_sound('success')
+        # Audio Feedback - Removed 'success' (sirena) sound per user request
+        # try:
+        #    SoundManager.instance().play_sound('success')
+        # except: pass
         
         username = "Operatore"
         if self.api_client.user_info:
             # Prefer full name (account_name) over username if available
             username = self.api_client.user_info.get("account_name") or self.api_client.user_info.get("username", "Operatore")
 
-        SoundManager.instance().speak(f"Benvenuto, {username}. Sistemi Online.")
+        try:
+            # Modified speech: Removed "Sistemi Online"
+            SoundManager.instance().speak(f"Benvenuto, {username}.")
+        except Exception:
+            pass # Fail silently if audio/TTS fails
 
         # Stop background animation
         self._anim_timer.stop()

@@ -588,10 +588,16 @@ def mock_qt_modules():
     mock_core.QThread = MagicMock()
     mock_core.QRunnable = MagicMock
     mock_core.QPoint = MagicMock()
+    mock_core.QPointF = MagicMock()
     mock_core.QRect = MagicMock()
     mock_core.QRectF = MagicMock()
     mock_core.QVariantAnimation = MagicMock()
     mock_core.QParallelAnimationGroup = MagicMock()
+
+    mock_media = MagicMock()
+    mock_media.QSoundEffect = MagicMock()
+    mock_media.QMediaPlayer = MagicMock()
+    mock_media.QAudioOutput = MagicMock()
 
     mock_gui = MagicMock()
     mock_gui.QIcon = MagicMock()
@@ -624,6 +630,7 @@ def mock_qt_modules():
         'PyQt6.QtWebEngineWidgets': mock_web,
         'PyQt6.QtWebEngineCore': mock_web_core,
         'PyQt6.QtWebChannel': mock_webchannel,
+        'PyQt6.QtMultimedia': mock_media,
         'PyQt6.QtPrintSupport': MagicMock(),
         'PyQt6.QtNetwork': MagicMock(),
     }
