@@ -220,10 +220,31 @@ class LoginView(QWidget):
         os_label.setStyleSheet("color: #93C5FD; font-size: 13px; font-weight: 500;")
         pc_details_layout.addWidget(os_label)
 
-        # Removed HW ID and "Coerenza:" label as requested
-
         license_info_layout.addLayout(pc_details_layout)
         left_layout.addWidget(license_info_container)
+
+        left_layout.addSpacing(20)
+
+        # Update License Button (Moved to Left Panel)
+        self.update_btn = QPushButton("Aggiorna Licenza")
+        self.update_btn.setFixedHeight(35)
+        self.update_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.update_btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(255, 255, 255, 0.1);
+                color: white;
+                font-weight: 600;
+                font-size: 12px;
+                border-radius: 6px;
+                border: 1px solid #60A5FA;
+            }
+            QPushButton:hover {
+                background-color: rgba(255, 255, 255, 0.2);
+                border-color: #93C5FD;
+            }
+        """)
+        self.update_btn.clicked.connect(self.handle_update_license)
+        left_layout.addWidget(self.update_btn)
 
         # --- RIGHT PANEL (Form) ---
         self.right_panel = QFrame()
@@ -315,27 +336,7 @@ class LoginView(QWidget):
         right_layout.addStretch()
         right_layout.addStretch(1)
 
-        update_layout = QVBoxLayout()
-        update_layout.setSpacing(10)
-
-        # Removed HW ID Label here
-
-        self.update_btn = QPushButton("Aggiorna Licenza")
-        self.update_btn.setFixedHeight(35)
-        self.update_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.update_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #E5E7EB; color: #374151;
-                font-weight: 600; font-size: 12px;
-                border-radius: 6px; border: 1px solid #D1D5DB;
-            }
-            QPushButton:hover { background-color: #D1D5DB; }
-        """)
-        self.update_btn.clicked.connect(self.handle_update_license)
-        update_layout.addWidget(self.update_btn)
-
-        right_layout.addLayout(update_layout)
-        right_layout.addStretch(2)
+        # Removed update_layout from Right Panel
 
         footer_text = "v1.0.0 • Intelleo Security"
         footer_layout = QVBoxLayout()
