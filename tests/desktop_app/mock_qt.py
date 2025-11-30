@@ -53,6 +53,7 @@ class DummyEnum:
     CustomContextMenu = 1
     SmoothTransformation = 1
     TextSelectableByMouse = 1
+    NoPen = 0
 
 class DummyQLayoutItem:
     def __init__(self, widget):
@@ -105,6 +106,7 @@ class DummyQWidget:
     TransformationMode = DummyEnum
     ContextMenuPolicy = DummyEnum
     TextInteractionFlag = DummyEnum
+    PenStyle = DummyEnum
 
     def __init__(self, text=None, *args, **kwargs):
         self._clicked = DummySignal()

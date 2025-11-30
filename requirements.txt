@@ -5,6 +5,7 @@ uvicorn==0.38.0
 sqlalchemy==2.0.44
 pydantic==2.12.4
 pandas==2.3.3
+numpy
 google-generativeai==0.8.5
 python-dateutil==2.9.0.post0
 # FIX: Align PyQt6 version with PyQt6-WebEngine to prevent DLL load errors
