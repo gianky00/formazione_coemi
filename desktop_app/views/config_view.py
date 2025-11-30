@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton,
-    QMessageBox, QFrame, QFormLayout, QComboBox, QFileDialog, QHBoxLayout,
+    QFrame, QFormLayout, QComboBox, QFileDialog, QHBoxLayout,
     QTableWidget, QTableWidgetItem, QDialog, QDialogButtonBox, QCheckBox,
     QStackedWidget, QHeaderView, QDateEdit
 )
@@ -10,6 +10,7 @@ from PyQt6.QtCore import Qt, QDate, QTimer
 from PyQt6.QtGui import QColor
 from desktop_app.api_client import APIClient
 from app.utils.security import obfuscate_string, reveal_string
+from desktop_app.components.custom_dialog import CustomMessageDialog
 
 class ChangePasswordDialog(QDialog):
     def __init__(self, parent=None):
@@ -196,7 +197,7 @@ class UserManagementWidget(QFrame):
         if dialog.exec():
             data = dialog.get_data()
             if not data['username']:
-                QMessageBox.warning(self, "Errore", "Il nome utente è obbligatorio.")
+                CustomMessageDialog.show_warning(self, "Errore", "Il nome utente è obbligatorio.")
                 return
             try:
                 # Password is None (default "primoaccesso" handled by backend)
@@ -206,7 +207,7 @@ class UserManagementWidget(QFrame):
                 )
                 self.refresh_users()
             except Exception as e:
-                QMessageBox.critical(self, "Errore", str(e))
+                CustomMessageDialog.show_error(self, "Errore", str(e))
 
     def get_selected_user_id(self):
         rows = self.table.selectionModel().selectedRows()
@@ -238,23 +239,23 @@ class UserManagementWidget(QFrame):
                 self.api_client.update_user(user_id, update_payload)
                 self.refresh_users()
             except Exception as e:
-                QMessageBox.critical(self, "Errore", str(e))
+                CustomMessageDialog.show_error(self, "Errore", str(e))
 
     def change_own_password(self):
         dialog = ChangePasswordDialog(self)
         if dialog.exec():
             data = dialog.get_data()
             if not data['old_password'] or not data['new_password']:
-                QMessageBox.warning(self, "Errore", "Tutti i campi sono obbligatori.")
+                CustomMessageDialog.show_warning(self, "Errore", "Tutti i campi sono obbligatori.")
                 return
 
             if data['new_password'] != data['confirm_password']:
-                QMessageBox.warning(self, "Errore", "Le nuove password non corrispondono.")
+                CustomMessageDialog.show_warning(self, "Errore", "Le nuove password non corrispondono.")
                 return
 
             try:
                 response = self.api_client.change_password(data['old_password'], data['new_password'])
-                QMessageBox.information(self, "Successo", response.get("message", "Password aggiornata."))
+                CustomMessageDialog.show_info(self, "Successo", response.get("message", "Password aggiornata."))
             except Exception as e:
                 # Parse error detail if possible
                 try:
@@ -262,24 +263,24 @@ class UserManagementWidget(QFrame):
                     if hasattr(e, 'response') and e.response is not None:
                         err_json = e.response.json()
                         detail = err_json.get('detail', str(e))
-                        QMessageBox.critical(self, "Errore", detail)
+                        CustomMessageDialog.show_error(self, "Errore", detail)
                     else:
-                        QMessageBox.critical(self, "Errore", str(e))
+                        CustomMessageDialog.show_error(self, "Errore", str(e))
                 except:
-                    QMessageBox.critical(self, "Errore", str(e))
+                    CustomMessageDialog.show_error(self, "Errore", str(e))
 
     def delete_user(self):
         user_id = self.get_selected_user_id()
         if not user_id: return
         if user_id == self.api_client.user_info.get("id"):
-            QMessageBox.warning(self, "Azione Non Consentita", "Non puoi eliminare il tuo account.")
+            CustomMessageDialog.show_warning(self, "Azione Non Consentita", "Non puoi eliminare il tuo account.")
             return
-        if QMessageBox.question(self, "Conferma", "Eliminare questo utente?") == QMessageBox.StandardButton.Yes:
+        if CustomMessageDialog.show_question(self, "Conferma", "Eliminare questo utente?"):
             try:
                 self.api_client.delete_user(user_id)
                 self.refresh_users()
             except Exception as e:
-                QMessageBox.critical(self, "Errore", str(e))
+                CustomMessageDialog.show_error(self, "Errore", str(e))
 
 class GeneralSettingsWidget(QFrame):
     def __init__(self, api_client, parent=None):
@@ -498,7 +499,7 @@ class AuditLogWidget(QFrame):
                         item.setForeground(QColor("#92400E"))
 
         except Exception as e:
-            # QMessageBox.critical(self, "Errore", f"Impossibile caricare i log: {e}")
+            # CustomMessageDialog.show_error(self, "Errore", f"Impossibile caricare i log: {e}")
             print(f"Error loading logs: {e}")
 
 class ConfigView(QWidget):
@@ -632,7 +633,7 @@ class ConfigView(QWidget):
             gs.alert_threshold_input.setText(str(self.current_settings.get("ALERT_THRESHOLD_DAYS", "60")))
             gs.alert_threshold_visite_input.setText(str(self.current_settings.get("ALERT_THRESHOLD_DAYS_VISITE", "30")))
         except Exception as e:
-            QMessageBox.critical(self, "Errore", f"Impossibile caricare la configurazione: {e}")
+            CustomMessageDialog.show_error(self, "Errore", f"Impossibile caricare la configurazione: {e}")
 
     def apply_email_preset(self):
         preset = self.general_settings.email_preset_combo.currentText()
@@ -652,9 +653,9 @@ class ConfigView(QWidget):
         if file_path:
             try:
                 response = self.api_client.import_dipendenti_csv(file_path)
-                QMessageBox.information(self, "Importazione Completata", response.get("message", "Successo"))
+                CustomMessageDialog.show_info(self, "Importazione Completata", response.get("message", "Successo"))
             except Exception as e:
-                QMessageBox.critical(self, "Errore", f"Impossibile importare: {e}")
+                CustomMessageDialog.show_error(self, "Errore", f"Impossibile importare: {e}")
 
     def save_config(self):
         if getattr(self, 'is_read_only', False):
@@ -695,7 +696,7 @@ class ConfigView(QWidget):
         # --- End of smart comparison ---
 
         if not update_payload:
-            QMessageBox.information(self, "Nessuna Modifica", "Nessuna modifica da salvare.")
+            CustomMessageDialog.show_info(self, "Nessuna Modifica", "Nessuna modifica da salvare.")
             return
 
         try:
@@ -706,7 +707,7 @@ class ConfigView(QWidget):
                 self.api_client.move_database(new_db_path)
 
             self.api_client.update_mutable_config(update_payload)
-            QMessageBox.information(self, "Salvato", "Configurazione salvata con successo. Le modifiche saranno attive al prossimo riavvio.")
+            CustomMessageDialog.show_info(self, "Salvato", "Configurazione salvata con successo. Le modifiche saranno attive al prossimo riavvio.")
             self.load_config() # Reload to update current_settings state
         except Exception as e:
-            QMessageBox.critical(self, "Errore", f"Impossibile salvare la configurazione: {e}")
+            CustomMessageDialog.show_error(self, "Errore", f"Impossibile salvare la configurazione: {e}")

@@ -1,5 +1,7 @@
 import os
 import sys
+import socket
+import platform
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QFrame, QMessageBox, QHBoxLayout,
                              QGraphicsOpacityEffect, QGraphicsDropShadowEffect, QApplication, QPushButton,
                              QDialog, QLineEdit, QDialogButtonBox)
@@ -7,6 +9,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPropertyAnimation, QPoint, QEas
 from PyQt6.QtGui import QPixmap, QColor, QFont
 from desktop_app.utils import get_asset_path
 from desktop_app.components.animated_widgets import AnimatedButton, AnimatedInput
+from desktop_app.components.custom_dialog import CustomMessageDialog
 from desktop_app.services.license_manager import LicenseManager
 from desktop_app.services.license_updater_service import LicenseUpdaterService
 from desktop_app.services.hardware_id_service import get_machine_id
@@ -141,12 +144,50 @@ class LoginView(QWidget):
         license_info_layout.setContentsMargins(15, 15, 15, 15)
         license_info_layout.setSpacing(5)
 
+        # Header with Title and Coherence Pill
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(10)
+
         title_label = QLabel("Dettagli Licenza")
         title_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        title_label.setStyleSheet("color: #FFFFFF; font-size: 14px; font-weight: 600; border-bottom: 1px solid #60A5FA; padding-bottom: 5px;")
-        license_info_layout.addWidget(title_label)
+        title_label.setStyleSheet("color: #FFFFFF; font-size: 14px; font-weight: 600;")
+        header_layout.addWidget(title_label)
 
-        license_text, license_data = self.read_license_info()
+        header_layout.addStretch()
+
+        # Coherence Check Logic
+        current_hw_id = get_machine_id()
+        _, license_data = self.read_license_info()
+
+        coherence_pill = QLabel()
+        coherence_pill.setStyleSheet("""
+            QLabel {
+                border-radius: 4px;
+                padding: 2px 6px;
+                font-size: 11px;
+                font-weight: 600;
+            }
+        """)
+        if license_data and "Hardware ID" in license_data:
+            stored_hw_id = license_data["Hardware ID"]
+            if stored_hw_id == current_hw_id:
+                coherence_pill.setText("Matched")
+                coherence_pill.setStyleSheet(coherence_pill.styleSheet() + "background-color: #065F46; color: #6EE7B7;")
+            else:
+                coherence_pill.setText("Mismatch")
+                coherence_pill.setStyleSheet(coherence_pill.styleSheet() + "background-color: #7F1D1D; color: #FCA5A5;")
+        else:
+             coherence_pill.hide() # Should not happen usually if lic exists
+
+        header_layout.addWidget(coherence_pill)
+
+        # Header container to draw the bottom border
+        header_container = QFrame()
+        header_container.setLayout(header_layout)
+        header_container.setStyleSheet("border-bottom: 1px solid #60A5FA; padding-bottom: 5px;")
+        license_info_layout.addWidget(header_container)
+
+        license_text, _ = self.read_license_info()
 
         license_label = QLabel(license_text)
         license_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
@@ -167,22 +208,19 @@ class LoginView(QWidget):
         pc_title_label.setStyleSheet("color: #FFFFFF; font-size: 14px; font-weight: 600; border-bottom: 1px solid #60A5FA; padding-bottom: 5px;")
         pc_details_layout.addWidget(pc_title_label)
 
-        current_hw_id = get_machine_id()
-        pc_hw_id_label = QLabel(f"ID Hardware PC: {current_hw_id}")
-        pc_hw_id_label.setStyleSheet("color: #93C5FD; font-size: 13px; font-weight: 500;")
-        pc_details_layout.addWidget(pc_hw_id_label)
+        # Hostname
+        hostname = socket.gethostname()
+        hostname_label = QLabel(f"Hostname: {hostname}")
+        hostname_label.setStyleSheet("color: #93C5FD; font-size: 13px; font-weight: 500;")
+        pc_details_layout.addWidget(hostname_label)
 
-        coherence_label = QLabel("")
-        coherence_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        if license_data and "Hardware ID" in license_data:
-            stored_hw_id = license_data["Hardware ID"]
-            if stored_hw_id == current_hw_id:
-                coherence_label.setText("Coerenza: Matched")
-                coherence_label.setStyleSheet("color: #22C55E; font-size: 13px; font-weight: 600;")
-            else:
-                coherence_label.setText("Coerenza: Mismatch")
-                coherence_label.setStyleSheet("color: #EF4444; font-size: 13px; font-weight: 600;")
-        pc_details_layout.addWidget(coherence_label)
+        # OS
+        os_name = f"{platform.system()} {platform.release()}"
+        os_label = QLabel(f"Sistema Operativo: {os_name}")
+        os_label.setStyleSheet("color: #93C5FD; font-size: 13px; font-weight: 500;")
+        pc_details_layout.addWidget(os_label)
+
+        # Removed HW ID and "Coerenza:" label as requested
 
         license_info_layout.addLayout(pc_details_layout)
         left_layout.addWidget(license_info_container)
@@ -280,10 +318,7 @@ class LoginView(QWidget):
         update_layout = QVBoxLayout()
         update_layout.setSpacing(10)
 
-        hw_id_label = QLabel(f"ID Hardware PC: {get_machine_id()}")
-        hw_id_label.setStyleSheet("color: #6B7280; font-size: 11px; font-weight: 500;")
-        hw_id_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        update_layout.addWidget(hw_id_label)
+        # Removed HW ID Label here
 
         self.update_btn = QPushButton("Aggiorna Licenza")
         self.update_btn.setFixedHeight(35)
@@ -354,25 +389,24 @@ class LoginView(QWidget):
 
         if success:
             if "già aggiornata" in message:
-                msg_box = QMessageBox(self)
-                msg_box.setIcon(QMessageBox.Icon.Information)
-                msg_box.setText("La licenza risulta aggiornata.")
-                msg_box.setWindowTitle("Info Licenza")
-                msg_box.addButton("OK", QMessageBox.ButtonRole.AcceptRole)
-                msg_box.exec()
+                CustomMessageDialog.show_info(self, "Info Licenza", "La licenza risulta aggiornata.")
             else:
                 from desktop_app.main import restart_app
-                msg_box = QMessageBox(self)
-                msg_box.setIcon(QMessageBox.Icon.Information)
-                msg_box.setText(f"{message}\n\nÈ necessario riavviare l'applicazione per applicare le modifiche.")
-                msg_box.setWindowTitle("Successo")
-                restart_button = msg_box.addButton("Riavvia Ora", QMessageBox.ButtonRole.AcceptRole)
-                msg_box.exec()
+                # For this specific case (Restart), CustomMessageDialog isn't perfectly mapped since it only has "OK".
+                # But the standard flow is Info -> Click OK -> (Maybe restart code was inside OK block?)
+                # The original code had:
+                # restart_button = msg_box.addButton("Riavvia Ora", ...)
+                # if clicked == restart_button: restart()
 
-                if msg_box.clickedButton() == restart_button:
-                    restart_app()
+                # The requirement says: "Info Licenza" text "OK".
+                # But here it's asking to restart.
+                # I should probably just show info and then restart automatically or when they click OK.
+                # "È necessario riavviare...". Click OK -> Restart.
+
+                CustomMessageDialog.show_info(self, "Successo", f"{message}\n\nÈ necessario riavviare l'applicazione per applicare le modifiche.")
+                restart_app()
         else:
-            QMessageBox.critical(self, "Errore Aggiornamento", message)
+            CustomMessageDialog.show_error(self, "Errore Aggiornamento", message)
 
         self.thread.quit()
         self.thread.wait()
@@ -394,7 +428,6 @@ class LoginView(QWidget):
 
     def read_license_info(self):
         data = LicenseManager.get_license_data()
-        hw_id = get_machine_id()
 
         if not data:
             return "Dettagli licenza non disponibili. Procedere con l'aggiornamento.", None
@@ -427,7 +460,7 @@ class LoginView(QWidget):
 
         if not username or not password:
             self.shake_window()
-            QMessageBox.warning(self, "Errore", "Inserisci nome utente e password.")
+            CustomMessageDialog.show_warning(self, "Errore", "Inserisci nome utente e password.")
             return
 
         _, license_data = self.read_license_info()
@@ -435,7 +468,7 @@ class LoginView(QWidget):
             stored_hw_id = license_data["Hardware ID"]
             current_hw_id = get_machine_id()
             if stored_hw_id != current_hw_id:
-                QMessageBox.critical(self, "Errore di Licenza",
+                CustomMessageDialog.show_error(self, "Errore di Licenza",
                                      "L'Hardware ID della licenza non corrisponde a quello di questa macchina.\n"
                                      "Contattare il supporto per una nuova licenza.")
                 return
@@ -455,7 +488,6 @@ class LoginView(QWidget):
         error_msg = "Credenziali non valide o errore del server."
 
         # Extract detail from requests exception if available
-        # Value is the exception object
         e = value
         if hasattr(e, 'response') and e.response is not None:
              try:
@@ -463,7 +495,7 @@ class LoginView(QWidget):
                  if detail: error_msg = detail
              except: pass
 
-        QMessageBox.critical(self, "Errore di Accesso", error_msg)
+        CustomMessageDialog.show_error(self, "Errore di Accesso", error_msg)
 
     def _on_login_success_internal(self, response):
         try:
@@ -472,30 +504,30 @@ class LoginView(QWidget):
 
             if user_info.get("require_password_change"):
                 if user_info.get("read_only"):
-                     QMessageBox.warning(self, "Attenzione", "È richiesto il cambio password, ma il database è in sola lettura. Riprova più tardi.")
+                     CustomMessageDialog.show_warning(self, "Attenzione", "È richiesto il cambio password, ma il database è in sola lettura. Riprova più tardi.")
                 else:
                     while True:
                         dialog = ForcePasswordChangeDialog(self)
                         if dialog.exec():
                             new_pw, confirm_pw = dialog.get_data()
                             if not new_pw:
-                                QMessageBox.warning(self, "Errore", "Password vuota.")
+                                CustomMessageDialog.show_warning(self, "Errore", "Password vuota.")
                                 continue
                             if new_pw != confirm_pw:
-                                QMessageBox.warning(self, "Errore", "Le password non coincidono.")
+                                CustomMessageDialog.show_warning(self, "Errore", "Le password non coincidono.")
                                 continue
 
                             try:
                                 # This is sync, but acceptable for modal dialog
                                 self.api_client.change_password("primoaccesso", new_pw)
-                                QMessageBox.information(self, "Successo", "Password aggiornata. Procedi pure.")
+                                CustomMessageDialog.show_info(self, "Successo", "Password aggiornata. Procedi pure.")
                                 break
                             except Exception as e:
                                 err = str(e)
                                 if hasattr(e, 'response'):
                                     try: err = e.response.json()['detail']
                                     except: pass
-                                QMessageBox.critical(self, "Errore", f"Errore cambio password: {err}")
+                                CustomMessageDialog.show_error(self, "Errore", f"Errore cambio password: {err}")
                         else:
                             self.api_client.logout()
                             self.login_btn.set_loading(False)
@@ -509,7 +541,7 @@ class LoginView(QWidget):
                 msg += f"PID: {owner.get('pid', 'N/A')}\n\n"
                 msg += "L'applicazione si avvierà in modalità SOLA LETTURA.\n"
                 msg += "Non sarà possibile salvare nuove modifiche."
-                QMessageBox.warning(self, "Modalità Sola Lettura", msg)
+                CustomMessageDialog.show_warning(self, "Modalità Sola Lettura", msg)
 
             self.login_success.emit(self.api_client.user_info)
 

@@ -1,5 +1,5 @@
 
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QMessageBox, QStyledItemDelegate, QLineEdit, QLabel, QMenu, QProgressBar
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QStyledItemDelegate, QLineEdit, QLabel, QMenu, QProgressBar
 from PyQt6.QtCore import QAbstractTableModel, Qt, pyqtSignal, QUrl, QThreadPool
 from PyQt6.QtGui import QDesktopServices, QAction
 import pandas as pd
@@ -9,6 +9,7 @@ from .edit_dialog import EditCertificatoDialog
 from app.services.document_locator import find_document
 from ..workers.data_worker import FetchCertificatesWorker, DeleteCertificatesWorker, ValidateCertificatesWorker
 from ..components.animated_widgets import LoadingOverlay
+from ..components.custom_dialog import CustomMessageDialog
 import subprocess
 import os
 
@@ -157,7 +158,7 @@ class ValidationView(QWidget):
 
         selected_ids = self.get_selected_ids()
         if not selected_ids or len(selected_ids) > 1:
-            QMessageBox.warning(self, "Selezione Invalida", "Seleziona una singola riga da modificare.")
+            CustomMessageDialog.show_warning(self, "Selezione Invalida", "Seleziona una singola riga da modificare.")
             return
 
         cert_id = selected_ids[0]
@@ -172,10 +173,10 @@ class ValidationView(QWidget):
                 updated_data = dialog.get_data()
                 update_response = requests.put(f"{self.api_client.base_url}/certificati/{cert_id}", json=updated_data, headers=self.api_client._get_headers())
                 update_response.raise_for_status()
-                QMessageBox.information(self, "Successo", "Certificato aggiornato con successo.")
+                CustomMessageDialog.show_info(self, "Successo", "Certificato aggiornato con successo.")
                 self.load_data()
         except requests.exceptions.RequestException as e:
-            QMessageBox.critical(self, "Errore", f"Impossibile modificare il certificato: {e}")
+            CustomMessageDialog.show_error(self, "Errore", f"Impossibile modificare il certificato: {e}")
 
     def load_data(self):
         self.set_loading(True)
@@ -186,7 +187,7 @@ class ValidationView(QWidget):
         self.threadpool.start(worker)
 
     def _on_error(self, message):
-        QMessageBox.critical(self, "Errore di Connessione", f"Impossibile caricare i dati da validare: {message}")
+        CustomMessageDialog.show_error(self, "Errore di Connessione", f"Impossibile caricare i dati da validare: {message}")
         self._on_data_loaded([])
 
     def _on_data_loaded(self, data):
@@ -256,10 +257,7 @@ class ValidationView(QWidget):
         selected_ids = self.get_selected_ids()
         if not selected_ids: return
 
-        reply = QMessageBox.question(self, 'Conferma Cancellazione', f'Sei sicuro di voler cancellare {len(selected_ids)} certificati?',
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
-
-        if reply == QMessageBox.StandardButton.Yes:
+        if CustomMessageDialog.show_question(self, 'Conferma Cancellazione', f'Sei sicuro di voler cancellare {len(selected_ids)} certificati?'):
             self.perform_action("delete", selected_ids)
 
     def validate_selected(self):
@@ -267,10 +265,7 @@ class ValidationView(QWidget):
         selected_ids = self.get_selected_ids()
         if not selected_ids: return
 
-        reply = QMessageBox.question(self, 'Conferma Validazione', f'Sei sicuro di voler validare {len(selected_ids)} certificati?',
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
-
-        if reply == QMessageBox.StandardButton.Yes:
+        if CustomMessageDialog.show_question(self, 'Conferma Validazione', f'Sei sicuro di voler validare {len(selected_ids)} certificati?'):
             self.perform_action("validate", selected_ids)
 
     def perform_action(self, action_type, ids):
@@ -286,7 +281,7 @@ class ValidationView(QWidget):
 
         worker.signals.progress.connect(lambda cur, tot: self.loading_overlay.show_progress(cur, tot, f"{action_text} {cur} di {tot}..."))
         worker.signals.result.connect(lambda res: self._on_action_completed(res, action_type))
-        worker.signals.error.connect(lambda err: QMessageBox.critical(self, "Errore", f"Errore durante l'operazione: {err}"))
+        worker.signals.error.connect(lambda err: CustomMessageDialog.show_error(self, "Errore", f"Errore durante l'operazione: {err}"))
         worker.signals.finished.connect(self.loading_overlay.stop)
 
         self.threadpool.start(worker)
@@ -296,11 +291,11 @@ class ValidationView(QWidget):
         errors = result.get("errors", [])
 
         if errors:
-            QMessageBox.warning(self, "Operazione Parzialmente Riuscita",
+            CustomMessageDialog.show_warning(self, "Operazione Parzialmente Riuscita",
                                 f"{success} operazioni riuscite.\n"
                                 f"Errori su {len(errors)} elementi:\n" + "\n".join(errors))
         else:
-            QMessageBox.information(self, "Successo", f"Operazione completata con successo su {success} elementi.")
+            CustomMessageDialog.show_info(self, "Successo", f"Operazione completata con successo su {success} elementi.")
 
         if success > 0 and action_type == "validate":
             self.validation_completed.emit()
@@ -351,6 +346,6 @@ class ValidationView(QWidget):
                 else:
                      QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
             else:
-                 QMessageBox.warning(self, "Non Trovato", "Il file PDF non è stato trovato nel percorso previsto.")
+                 CustomMessageDialog.show_warning(self, "Non Trovato", "Il file PDF non è stato trovato nel percorso previsto.")
         except Exception as e:
-            QMessageBox.critical(self, "Errore", f"Impossibile eseguire l'operazione: {e}")
+            CustomMessageDialog.show_error(self, "Errore", f"Impossibile eseguire l'operazione: {e}")

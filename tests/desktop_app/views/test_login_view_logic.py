@@ -49,7 +49,7 @@ class TestLoginViewLogic:
         login_view.password_input.text.return_value = "wrong"
 
         with patch("desktop_app.views.login_view.Worker") as MockWorker, \
-             patch("desktop_app.views.login_view.QMessageBox") as MockBox:
+             patch("desktop_app.views.login_view.CustomMessageDialog") as MockDialog:
 
             mock_worker_instance = MockWorker.return_value
             mock_worker_instance.signals = MagicMock()
@@ -60,13 +60,13 @@ class TestLoginViewLogic:
             error_tuple = (Exception, Exception("Fail"), None)
 
             error_callback(error_tuple)
-            MockBox.critical.assert_called()
+            MockDialog.show_error.assert_called()
 
     def test_handle_login_empty(self, login_view):
         login_view.username_input.text.return_value = ""
         login_view.password_input.text.return_value = ""
 
-        with patch("desktop_app.views.login_view.QMessageBox") as MockBox:
+        with patch("desktop_app.views.login_view.CustomMessageDialog") as MockDialog:
             login_view.handle_login()
-            MockBox.warning.assert_called()
+            MockDialog.show_warning.assert_called()
             login_view.api_client.login.assert_not_called()

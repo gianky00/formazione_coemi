@@ -2,7 +2,7 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGraphicsView, QGraphicsScene,
                              QSplitter, QTreeWidget, QTreeWidgetItem, QGraphicsRectItem,
                              QGraphicsTextItem, QGraphicsLineItem, QPushButton, QHBoxLayout,
-                             QScrollBar, QTreeWidgetItemIterator, QMessageBox, QFileDialog, QComboBox,
+                             QScrollBar, QTreeWidgetItemIterator, QFileDialog, QComboBox,
                              QProgressBar)
 from PyQt6.QtCore import Qt, QDate, QRectF, QVariantAnimation, QEasingCurve, pyqtSignal, QThreadPool
 from PyQt6.QtGui import QColor, QBrush, QPen, QFont, QLinearGradient, QPainterPath, QPainter, QPageLayout, QPageSize, QImage
@@ -10,6 +10,7 @@ from PyQt6.QtPrintSupport import QPrinter
 import requests
 from ..api_client import APIClient
 from ..components.animated_widgets import AnimatedButton, LoadingOverlay
+from ..components.custom_dialog import CustomMessageDialog
 from ..workers.data_worker import FetchCertificatesWorker
 from ..workers.worker import Worker
 from collections import defaultdict
@@ -179,7 +180,7 @@ class ScadenzarioView(QWidget):
         self._assign_category_colors()
         self.populate_tree()
         self.redraw_gantt_scene()
-        QMessageBox.warning(self, "Errore Caricamento", f"Impossibile caricare lo scadenzario:\n{message}")
+        CustomMessageDialog.show_warning(self, "Errore Caricamento", f"Impossibile caricare lo scadenzario:\n{message}")
 
     def _on_data_loaded(self, all_data):
         if not all_data:
@@ -354,11 +355,11 @@ class ScadenzarioView(QWidget):
 
     def _on_email_sent(self, response):
         if response.status_code == 200:
-            QMessageBox.information(self, "Successo", "Richiesta di invio email inviata con successo.")
+            CustomMessageDialog.show_info(self, "Successo", "Richiesta di invio email inviata con successo.")
         else:
             error_data = response.json()
             error_detail = error_data.get("detail", "Errore sconosciuto dal server.")
-            QMessageBox.critical(self, "Errore Invio Email", f"Impossibile inviare l'email:\n{error_detail}")
+            CustomMessageDialog.show_error(self, "Errore Invio Email", f"Impossibile inviare l'email:\n{error_detail}")
 
     def refresh_data(self):
         self.load_data()
@@ -384,12 +385,12 @@ class ScadenzarioView(QWidget):
             try:
                 with open(path, 'wb') as f:
                     f.write(response.content)
-                QMessageBox.information(self, "Esportazione Riuscita", f"Report esportato con successo in {path}")
+                CustomMessageDialog.show_info(self, "Esportazione Riuscita", f"Report esportato con successo in {path}")
             except Exception as e:
-                QMessageBox.critical(self, "Errore", f"Impossibile salvare il file: {e}")
+                CustomMessageDialog.show_error(self, "Errore", f"Impossibile salvare il file: {e}")
         else:
-            QMessageBox.critical(self, "Errore", f"Errore durante l'esportazione: {response.text}")
+            CustomMessageDialog.show_error(self, "Errore", f"Errore durante l'esportazione: {response.text}")
 
     def _on_generic_error(self, error_tuple, title):
         exctype, value, tb = error_tuple
-        QMessageBox.critical(self, title, f"{value}")
+        CustomMessageDialog.show_error(self, title, f"{value}")
