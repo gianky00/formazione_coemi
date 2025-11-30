@@ -2,7 +2,7 @@ import os
 import json
 import logging
 from cryptography.fernet import Fernet
-from app.core.license_security import LICENSE_SECRET_KEY
+from app.core.license_security import get_license_secret_key
 from desktop_app.services.path_service import get_license_dir, get_app_install_dir
 from datetime import datetime, timedelta
 from desktop_app.services.time_service import get_secure_date
@@ -28,7 +28,7 @@ class LicenseManager:
             with open(file_path, "rb") as f:
                 encrypted_data = f.read()
 
-            cipher = Fernet(LICENSE_SECRET_KEY)
+            cipher = Fernet(get_license_secret_key())
             decrypted_data = cipher.decrypt(encrypted_data)
 
             data = json.loads(decrypted_data.decode('utf-8'))

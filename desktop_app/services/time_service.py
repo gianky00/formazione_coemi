@@ -6,7 +6,7 @@ import struct
 import time
 from datetime import datetime, timedelta
 from cryptography.fernet import Fernet
-from app.core.license_security import LICENSE_SECRET_KEY
+from app.core.license_security import get_license_secret_key
 from desktop_app.services.path_service import get_license_dir
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ class SecureTimeStorage:
                 "last_execution": last_execution.isoformat()
             }
             json_data = json.dumps(data)
-            cipher = Fernet(LICENSE_SECRET_KEY)
+            cipher = Fernet(get_license_secret_key())
             encrypted_data = cipher.encrypt(json_data.encode('utf-8'))
 
             with open(SecureTimeStorage._get_file_path(), 'wb') as f:
@@ -49,7 +49,7 @@ class SecureTimeStorage:
             with open(fpath, 'rb') as f:
                 encrypted_data = f.read()
 
-            cipher = Fernet(LICENSE_SECRET_KEY)
+            cipher = Fernet(get_license_secret_key())
             decrypted_data = cipher.decrypt(encrypted_data)
             data = json.loads(decrypted_data.decode('utf-8'))
 

@@ -175,6 +175,13 @@ def main():
 
     # CONTROLLO SICUREZZA (VM, Debugger, Tools)
     from desktop_app.services.security_service import is_virtual_environment, is_debugger_active, is_analysis_tool_running
+    from desktop_app.services.integrity_service import verify_critical_components
+
+    # 0. Runtime Integrity Check (Anti-Tamper)
+    is_intact, int_msg = verify_critical_components()
+    if not is_intact:
+        QMessageBox.critical(None, "Errore Fatale", f"Integrità del sistema compromessa.\n{int_msg}")
+        sys.exit(1)
 
     # 1. Debugger Check
     is_dbg, dbg_msg = is_debugger_active()
