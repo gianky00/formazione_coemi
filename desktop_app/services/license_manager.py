@@ -2,9 +2,10 @@ import os
 import json
 import logging
 from cryptography.fernet import Fernet
-from app.core.license_security import LICENSE_SECRET_KEY
+from app.core.license_security import get_license_secret_key
 from desktop_app.services.path_service import get_license_dir, get_app_install_dir
 from datetime import datetime, timedelta
+from desktop_app.services.time_service import get_secure_date
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -27,7 +28,7 @@ class LicenseManager:
             with open(file_path, "rb") as f:
                 encrypted_data = f.read()
 
-            cipher = Fernet(LICENSE_SECRET_KEY)
+            cipher = Fernet(get_license_secret_key())
             decrypted_data = cipher.decrypt(encrypted_data)
 
             data = json.loads(decrypted_data.decode('utf-8'))
@@ -77,8 +78,8 @@ class LicenseManager:
             return False
 
         try:
-            expiry_date = datetime.strptime(license_data["Scadenza Licenza"], "%d/%m/%Y")
-            now = datetime.now()
-            return now < expiry_date < now + timedelta(days=days)
+            expiry_date = datetime.strptime(license_data["Scadenza Licenza"], "%d/%m/%Y").date()
+            today = get_secure_date()
+            return today < expiry_date < today + timedelta(days=days)
         except (ValueError, TypeError):
             return False

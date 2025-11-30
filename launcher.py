@@ -173,10 +173,38 @@ def main():
         QMessageBox.critical(None, "Errore Avvio", f"Errore generico: {e}")
         sys.exit(1)
 
+    # CONTROLLO SICUREZZA (VM, Debugger, Tools)
+    from desktop_app.services.security_service import is_virtual_environment, is_debugger_active, is_analysis_tool_running
+    from desktop_app.services.integrity_service import verify_critical_components
+
+    # 0. Runtime Integrity Check (Anti-Tamper)
+    is_intact, int_msg = verify_critical_components()
+    if not is_intact:
+        QMessageBox.critical(None, "Errore Fatale", f"Integrità del sistema compromessa.\n{int_msg}")
+        sys.exit(1)
+
+    # 1. Debugger Check
+    is_dbg, dbg_msg = is_debugger_active()
+    if is_dbg:
+        QMessageBox.critical(None, "Violazione Sicurezza", dbg_msg)
+        sys.exit(1)
+
+    # 2. Analysis Tools Check
+    is_tool, tool_msg = is_analysis_tool_running()
+    if is_tool:
+        QMessageBox.critical(None, "Violazione Sicurezza", tool_msg)
+        sys.exit(1)
+
+    # 3. VM Check
+    is_vm, vm_msg = is_virtual_environment()
+    if is_vm:
+        QMessageBox.critical(None, "Ambiente Non Supportato", vm_msg)
+        sys.exit(1)
+
     # CONTROLLO LICENZA
     license_ok, license_error = verify_license()
 
-    # CONTROLLO OROLOGIO DI SISTEMA
+    # CONTROLLO OROLOGIO DI SISTEMA (Secure NTP + Offline Buffer)
     from desktop_app.services.time_service import check_system_clock
     clock_ok, clock_error = check_system_clock()
     if not clock_ok:
