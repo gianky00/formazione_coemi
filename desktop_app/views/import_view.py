@@ -502,7 +502,6 @@ class ImportView(QWidget):
     def on_processing_finished(self):
         self.status_label.setText("Elaborazione completata.")
         self.etr_label.setText("")
-        self.stop_button.setEnabled(False)
-        self.stop_button.setText("Stop")
+        self.stop_button.setVisible(False)
         self.scanner.setVisible(False) # Hide Hologram
         self.import_completed.emit()

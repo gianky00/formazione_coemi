@@ -102,9 +102,10 @@ class HolographicScanner(QWidget):
         painter.drawLine(db_x, db_y + 60, db_x + 60, db_y + 60)
 
         # 4. Particles (Flying Data)
-        font = QFont("Inter", 8, QFont.Weight.Bold)
+        font = QFont("Inter", 9, QFont.Weight.Bold)
         painter.setFont(font)
 
         for p in self.particles:
-            painter.setPen(QColor("#FFFFFF"))
+            # Use Dark Blue for visibility on light background
+            painter.setPen(QColor("#1E3A8A"))
             painter.drawText(QPointF(p['x'], p['y']), p['text'])

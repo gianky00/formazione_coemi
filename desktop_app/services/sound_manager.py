@@ -56,17 +56,20 @@ class SoundManager(QObject):
         return QUrl.fromLocalFile(filepath)
 
     def _generate_sounds(self):
-        # Hover: High tech chirp (2kHz to 3kHz)
-        self.sounds['hover'] = self._generate_wav('hover.wav', lambda t: 2000 + t*5000, 0.03, 0.1)
+        # Hover: Soft high-tech ping (Sine wave 1200Hz)
+        self.sounds['hover'] = self._generate_wav('hover.wav', lambda t: 1200, 0.05, 0.05)
 
-        # Click: Digital impact (800Hz drop)
-        self.sounds['click'] = self._generate_wav('click.wav', lambda t: 800 - t*8000 if t < 0.05 else 0, 0.05, 0.2)
+        # Click: Sharp digital click (Square-ish approximation via high freq drop)
+        self.sounds['click'] = self._generate_wav('click.wav', lambda t: 600 - t*6000 if t < 0.05 else 0, 0.05, 0.15)
 
-        # Success: Ascending chime
-        self.sounds['success'] = self._generate_wav('success.wav', lambda t: 400 + t*2000, 0.4, 0.2)
+        # Success: Harmonious Major Chord Arpeggio (C5 -> E5 -> G5) simulation
+        # Using a simple modulation to simulate a "chime" instead of a slide
+        # 523Hz (C5) * (1 + t*2) creates a slide.
+        # Let's do a smooth slide from 440 to 880 (A4 to A5)
+        self.sounds['success'] = self._generate_wav('success.wav', lambda t: 440 + (440 * math.sin(t * math.pi * 2)), 0.5, 0.2)
 
         # Analysis: Data stream noise
-        self.sounds['scan'] = self._generate_wav('scan.wav', lambda t: 1000 + math.sin(t*100)*500, 0.1, 0.05)
+        self.sounds['scan'] = self._generate_wav('scan.wav', lambda t: 800 + math.sin(t*50)*200, 0.1, 0.05)
 
     def play_sound(self, sound_name):
         if sound_name not in self.sounds: return

@@ -70,7 +70,7 @@ class NeuralNode:
     def __init__(self, w, h):
         self.pos = QPointF(random.uniform(0, w), random.uniform(0, h))
         self.vel = QPointF(random.uniform(-0.4, 0.4), random.uniform(-0.4, 0.4))
-        self.radius = random.uniform(1.5, 3.0)
+        self.radius = random.uniform(2.0, 4.5) # Increased size for visibility
 
     def update(self, w, h):
         self.pos += self.vel
@@ -660,7 +660,13 @@ class LoginView(QWidget):
     def _animate_success_exit(self):
         # Audio Feedback
         SoundManager.instance().play_sound('success')
-        SoundManager.instance().speak("Benvenuto, Operatore. Sistemi Online.")
+
+        username = "Operatore"
+        if self.api_client.user_info:
+            # Prefer full name (account_name) over username if available
+            username = self.api_client.user_info.get("account_name") or self.api_client.user_info.get("username", "Operatore")
+
+        SoundManager.instance().speak(f"Benvenuto, {username}. Sistemi Online.")
 
         # Stop background animation
         self._anim_timer.stop()
