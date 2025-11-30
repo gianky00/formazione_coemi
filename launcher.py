@@ -261,13 +261,15 @@ def main():
             sys.exit(1)
 
         # --- LOAD APPLICATION ---
-        splash.update_status("Avvio Interfaccia...", 95)
+        splash.update_status("Inizializzazione Moduli...", 93) # Added Step
 
         try:
             print("[DEBUG] Importing ApplicationController and setup_styles...")
             from desktop_app.main import ApplicationController, setup_styles
             print("[DEBUG] Running setup_styles...")
             setup_styles(qt_app)
+
+            splash.update_status("Avvio Interfaccia...", 97) # Updated Step
 
             # Instantiate Controller
             print("[DEBUG] Instantiating ApplicationController...")

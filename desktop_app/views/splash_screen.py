@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QProgressBar, QFrame,
-                             QGraphicsDropShadowEffect, QPushButton, QApplication)
+                             QGraphicsDropShadowEffect, QPushButton, QApplication, QHBoxLayout)
 from PyQt6.QtCore import Qt, QSize, QEventLoop, QTimer
 from PyQt6.QtGui import QColor, QPixmap
 from desktop_app.utils import get_asset_path
@@ -34,9 +34,9 @@ class CustomSplashScreen(QWidget):
         self.container.setGraphicsEffect(shadow)
 
         self.container_layout = QVBoxLayout(self.container)
-        self.container_layout.setContentsMargins(40, 40, 40, 40)
+        self.container_layout.setContentsMargins(40, 40, 40, 30)
         self.container_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.container_layout.setSpacing(20)
+        self.container_layout.setSpacing(15)
 
         # Logo
         self.logo_label = QLabel()
@@ -44,40 +44,59 @@ class CustomSplashScreen(QWidget):
         logo_path = get_asset_path("desktop_app/assets/logo.png")
         if logo_path:
             pixmap = QPixmap(logo_path)
-            scaled = pixmap.scaled(QSize(400, 200), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            # Slightly larger logo
+            scaled = pixmap.scaled(QSize(450, 220), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             self.logo_label.setPixmap(scaled)
         else:
             self.logo_label.setText("INTELLEO")
-            self.logo_label.setStyleSheet("font-size: 40px; font-weight: bold; color: #1E3A8A;")
+            self.logo_label.setStyleSheet("font-size: 48px; font-weight: bold; color: #1E3A8A;")
 
         self.container_layout.addWidget(self.logo_label)
+        self.container_layout.addSpacing(10)
 
         # Status Label
         self.status_label = QLabel("Avvio sistema...")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.status_label.setStyleSheet("color: #4B5563; font-size: 14px; font-weight: 500;")
+        self.status_label.setStyleSheet("color: #374151; font-size: 15px; font-weight: 600;")
         self.container_layout.addWidget(self.status_label)
 
         # Progress Bar
         self.progress_bar = QProgressBar()
-        self.progress_bar.setFixedWidth(300)
+        self.progress_bar.setFixedWidth(350)
         self.progress_bar.setTextVisible(False)
-        self.progress_bar.setFixedHeight(6)
+        self.progress_bar.setFixedHeight(4) # Thinner
         self.progress_bar.setStyleSheet("""
             QProgressBar {
-                background-color: #E5E7EB;
-                border-radius: 3px;
+                background-color: #F3F4F6;
+                border-radius: 2px;
             }
             QProgressBar::chunk {
-                background-color: #1D4ED8;
-                border-radius: 3px;
+                background-color: #2563EB; /* Bright Blue */
+                border-radius: 2px;
             }
         """)
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.container_layout.addWidget(self.progress_bar)
 
-        # Error Button (Hidden by default)
+        self.container_layout.addSpacing(20)
+
+        # Footer (Copyright & Version)
+        footer_layout = QHBoxLayout()
+
+        self.copyright_label = QLabel("© 2025 Intelleo Security")
+        self.copyright_label.setStyleSheet("color: #9CA3AF; font-size: 11px;")
+        footer_layout.addWidget(self.copyright_label, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        footer_layout.addStretch()
+
+        self.version_label = QLabel("v1.0.0")
+        self.version_label.setStyleSheet("color: #9CA3AF; font-size: 11px; font-weight: 500;")
+        footer_layout.addWidget(self.version_label, alignment=Qt.AlignmentFlag.AlignRight)
+
+        self.container_layout.addLayout(footer_layout)
+
+        # Error Button (Hidden by default, replaces progress if error)
         self.exit_btn = AnimatedButton("Chiudi")
         self.exit_btn.setFixedSize(120, 40)
         self.exit_btn.set_colors("#DC2626", "#B91C1C", "#991B1B", text="#FFFFFF")
@@ -86,7 +105,7 @@ class CustomSplashScreen(QWidget):
         self.container_layout.addWidget(self.exit_btn, alignment=Qt.AlignmentFlag.AlignCenter)
 
         self.main_layout.addWidget(self.container)
-        self.resize(600, 400) # Initial size
+        self.resize(650, 450) # Adjusted size
 
     def update_status(self, message, progress=None):
         self.status_label.setText(message)
