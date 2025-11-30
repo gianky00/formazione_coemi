@@ -3,7 +3,6 @@ import sys
 import socket
 import platform
 import math
-import requests # Added for direct API call
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QFrame, QMessageBox, QHBoxLayout,
                              QGraphicsDropShadowEffect, QApplication, QPushButton,
                              QDialog, QLineEdit, QDialogButtonBox)
@@ -81,8 +80,8 @@ class LoginView(QWidget):
         self.mouse_pos_norm = (0.0, 0.0) # Normalized -1 to 1
 
         # Initialize 3D Engine
-        # num_nodes increased to 160 for richer visuals thanks to optimization
-        self.neural_engine = NeuralNetwork3D(num_nodes=160, connect_distance=280)
+        # num_nodes increased to 120 for richer visuals thanks to optimization
+        self.neural_engine = NeuralNetwork3D(num_nodes=120, connect_distance=280)
 
         self._anim_timer = QTimer(self)
         self._anim_timer.timeout.connect(self._animate_background)
@@ -649,40 +648,36 @@ class LoginView(QWidget):
             self.login_btn.set_loading(False)
 
     def _animate_success_exit(self):
-        # Audio Feedback
+        # Audio Feedback - Removed 'success' (sirena) sound per user request
+        # try:
+        #    SoundManager.instance().play_sound('success')
+        # except: pass
+
         username = "Operatore"
         gender = None
         if self.api_client.user_info:
+            # Prefer full name (account_name) over username if available
             username = self.api_client.user_info.get("account_name") or self.api_client.user_info.get("username", "Operatore")
             gender = self.api_client.user_info.get("gender")
 
         welcome_word = "Bentornata" if gender == 'F' else "Bentornato"
-        base_msg = f"Ciao {username}, {welcome_word} in Intellèo."
 
-        # Fetch pending validation count (Async/Non-blocking preferred, but using requests here inside main thread for simplicity before exit)
-        # Ideally, this should be in a worker, but since we are animating exit, a small delay is acceptable or we do it quickly.
         try:
-             # Use the API client to fetch count
-             # Using a direct request here because the Worker architecture is async and we want to fire-and-forget speech
-             # But let's do it properly with a worker to avoid UI freeze if network is slow
-
-             # Create a worker for fetching count and speaking
-             worker = Worker(self._fetch_and_speak, base_msg)
-             self.threadpool.start(worker)
-
+            # Modified speech with gender awareness and accent on Intellèo
+            SoundManager.instance().speak(f"Ciao {username}, {welcome_word} in Intellèo.")
         except Exception:
-             # Fallback
-             SoundManager.instance().speak(base_msg)
+            pass # Fail silently if audio/TTS fails
 
         # Stop background animation
         self._anim_timer.stop()
 
-        # Slide Down & Fade
+        # Slide Down & Fade (Fade via MasterWindow transition mostly)
+        # But we can Slide Down here for effect
         self.anim_exit = QPropertyAnimation(self.container, b"pos")
         self.anim_exit.setDuration(400)
         
         current_pos = self.container.pos()
-        target_pos = QPoint(current_pos.x(), current_pos.y() + 50)
+        target_pos = QPoint(current_pos.x(), current_pos.y() + 50) # Slide down slightly
 
         self.anim_exit.setStartValue(current_pos)
         self.anim_exit.setEndValue(target_pos)
@@ -695,37 +690,3 @@ class LoginView(QWidget):
 
         self.anim_exit.finished.connect(on_anim_finished)
         self.anim_exit.start()
-
-    def _fetch_and_speak(self, base_msg):
-        # This runs in a background thread
-        try:
-            url = f"{self.api_client.base_url}/certificati/?validated=false"
-            headers = self.api_client._get_headers()
-            resp = requests.get(url, headers=headers, timeout=2) # Short timeout
-
-            if resp.status_code == 200:
-                data = resp.json()
-                count = len(data)
-
-                final_msg = base_msg
-                if count == 1:
-                    final_msg += " C'è 1 documento da convalidare."
-                elif count > 1:
-                    final_msg += f" Ci sono {count} documenti da convalidare."
-
-                # Speak dynamic message
-                # Use QMetaObject.invokeMethod to call SoundManager on main thread?
-                # SoundManager.speak uses QThread internally so it is safe to call?
-                # Actually SoundManager uses QMediaPlayer which must be on Main Thread or created there.
-                # Since SoundManager is a singleton created on Main Thread, calling its methods from worker thread *might* be risky if they touch QObjects.
-                # However, speak() just starts a QThread (SpeechWorker).
-                # But QMediaPlayer.play() in _on_speech_ready must run on Main Thread.
-                # The SpeechWorker emits a signal connected to _on_speech_ready.
-                # Signals across threads are queued, so _on_speech_ready will run on Main Thread (where SoundManager lives).
-                # So this is safe.
-                SoundManager.instance().speak(final_msg)
-            else:
-                SoundManager.instance().speak(base_msg)
-        except Exception as e:
-            print(f"TTS Logic Error: {e}")
-            SoundManager.instance().speak(base_msg)
