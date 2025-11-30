@@ -11,7 +11,7 @@ from PyQt6.QtCore import Qt
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from desktop_app.api_client import APIClient
-from desktop_app.main_window_ui import MasterWindow, MainDashboardWidget
+from desktop_app.main_window_ui import MainDashboardWidget
 from desktop_app.views.login_view import LoginView
 from desktop_app.components.custom_dialog import CustomMessageDialog
 from desktop_app.ipc_bridge import IPCBridge
@@ -294,7 +294,7 @@ def exception_hook(exctype, value, tb):
     traceback.print_exception(exctype, value, tb)
     err_msg = "".join(traceback.format_exception(exctype, value, tb))
     print(f"CRITICAL ERROR: {err_msg}")
-
+    
     # Try to show dialog if App is running
     app = QApplication.instance()
     if app:
@@ -309,20 +309,20 @@ def exception_hook(exctype, value, tb):
 
 if __name__ == "__main__":
     sys.excepthook = exception_hook
-
+    
     # Check for duplicate instance (simple port bind check or lock file is better, but here we assume Launcher did it)
     # Launcher handles port selection.
-
+    
     app = QApplication(sys.argv)
     setup_styles(app)
 
     # Check license
     # We should probably do this in a Splash Screen or Controller
     # But for now, Controller handles it via LoginView params
-
+    
     # NOTE: In frozen build, we might need to check license existence here if we want to block startup?
     # But current design passes checks to Controller/LoginView.
-
+    
     # Determine license status for initial UI
     license_ok = True
     license_error = ""

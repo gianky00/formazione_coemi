@@ -94,7 +94,7 @@ class NeuralNetwork3D:
         mask_x_low = self.points[:, 0] < -limit
         self.velocities[mask_x_high, 0] *= -1
         self.velocities[mask_x_low, 0] *= -1
-
+        
         # Check Y Axis (column 1)
         mask_y_high = self.points[:, 1] > limit
         mask_y_low = self.points[:, 1] < -limit
@@ -248,10 +248,10 @@ class NeuralNetwork3D:
             else: tex_key = 64
             # Add 128 check
             if final_size >= 64: tex_key = 128
-
+            
             if tex_key not in self.star_textures:
                 tex_key = 64 # Fallback
-
+            
             tex = self.star_textures[tex_key]
 
             x = x_2d[i] - (tex.width() / 2)

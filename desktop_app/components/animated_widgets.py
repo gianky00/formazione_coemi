@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QPushButton, QLineEdit, QFrame, QGraphicsOpacityEffect, QWidget, QVBoxLayout, QLabel, QProgressBar, QSizePolicy
+from PyQt6.QtWidgets import QPushButton, QLineEdit, QFrame, QGraphicsOpacityEffect, QWidget, QVBoxLayout, QLabel, QProgressBar, QSizePolicy, QStackedWidget
 from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve, pyqtProperty, QRect, QSize, QTimer, QPoint, QObject, pyqtSignal, QParallelAnimationGroup, QPointF
 from PyQt6.QtGui import QColor, QPalette, QPainter, QBrush, QPen
 from desktop_app.services.sound_manager import SoundManager
@@ -445,3 +445,15 @@ class MagneticButton(AnimatedButton):
             self._current_offset += diff * 0.15
             self._paint_offset = self._current_offset
             self.update()
+
+class AnimatedStackedWidget(QStackedWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.fade_anim = QPropertyAnimation(self, b"windowOpacity")
+        self.fade_anim.setDuration(300)
+        self._next_index = 0
+
+    def fade_in(self, index):
+        self._next_index = index
+        # Simple switch for now
+        self.setCurrentIndex(index)

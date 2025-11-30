@@ -386,7 +386,7 @@ class LoginView(QWidget):
     def _animate_background(self):
         # Update physics
         self.neural_engine.update(self.mouse_pos_norm[0], self.mouse_pos_norm[1])
-
+        
         # Use simple update() if we are not closing
         # To avoid painting on destroyed widget
         if self.isVisible():
@@ -419,9 +419,9 @@ class LoginView(QWidget):
 
     def paintEvent(self, event):
         # Safety check for QPainter crash "Cannot destroy paint device that is being painted"
-        # This often happens if an animation triggers a repaint while another is active,
+        # This often happens if an animation triggers a repaint while another is active, 
         # or if children widgets update in a way that conflicts.
-
+        
         painter = QPainter(self)
         if not painter.isActive():
             return
@@ -678,7 +678,7 @@ class LoginView(QWidget):
              # Connect result to main thread handler
              worker.signals.result.connect(self._on_speech_ready)
              self.threadpool.start(worker)
-
+             
         except Exception:
              # Fallback
              SoundManager.instance().speak(base_msg)
@@ -692,7 +692,7 @@ class LoginView(QWidget):
         self.anim_exit.setDuration(400)
         
         current_pos = self.container.pos()
-        target_pos = QPoint(current_pos.x(), current_pos.y() + 50)
+        target_pos = QPoint(current_pos.x(), current_pos.y() + 50) 
 
         self.anim_exit.setStartValue(current_pos)
         self.anim_exit.setEndValue(target_pos)
@@ -710,17 +710,17 @@ class LoginView(QWidget):
             url = f"{self.api_client.base_url}/certificati/?validated=false"
             headers = self.api_client._get_headers()
             resp = requests.get(url, headers=headers, timeout=2) # Short timeout
-
+            
             if resp.status_code == 200:
                 data = resp.json()
                 count = len(data)
-
+                
                 final_msg = base_msg
                 if count == 1:
                     final_msg += " C'è 1 documento da convalidare."
                 elif count > 1:
                     final_msg += f" Ci sono {count} documenti da convalidare."
-
+                
                 return final_msg
             else:
                 return base_msg
