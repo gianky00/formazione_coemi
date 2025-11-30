@@ -13,6 +13,7 @@ import random
 from desktop_app.components.animated_widgets import AnimatedButton, AnimatedInput
 from desktop_app.components.custom_dialog import CustomMessageDialog
 from desktop_app.services.license_manager import LicenseManager
+from desktop_app.services.sound_manager import SoundManager
 from desktop_app.services.license_updater_service import LicenseUpdaterService
 from desktop_app.services.hardware_id_service import get_machine_id
 from desktop_app.workers.worker import Worker
@@ -657,6 +658,10 @@ class LoginView(QWidget):
             self.login_btn.set_loading(False)
 
     def _animate_success_exit(self):
+        # Audio Feedback
+        SoundManager.instance().play_sound('success')
+        SoundManager.instance().speak("Benvenuto, Operatore. Sistemi Online.")
+
         # Stop background animation
         self._anim_timer.stop()
 

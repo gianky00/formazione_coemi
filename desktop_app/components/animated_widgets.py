@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import QPushButton, QLineEdit, QFrame, QGraphicsOpacityEffect, QWidget, QVBoxLayout, QLabel, QProgressBar, QSizePolicy
-from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve, pyqtProperty, QRect, QSize, QTimer, QPoint, QObject, pyqtSignal, QParallelAnimationGroup
+from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve, pyqtProperty, QRect, QSize, QTimer, QPoint, QObject, pyqtSignal, QParallelAnimationGroup, QPointF
 from PyQt6.QtGui import QColor, QPalette, QPainter, QBrush, QPen
+from desktop_app.services.sound_manager import SoundManager
 
 class AnimatedButton(QPushButton):
     def __init__(self, text="", parent=None):
@@ -12,6 +13,7 @@ class AnimatedButton(QPushButton):
         self.default_bg = QColor("#1D4ED8")
         self.hover_bg = QColor("#1E40AF")
         self.pressed_bg = QColor("#1E3A8A")
+        self._paint_offset = QPointF(0, 0) # For magnetic effect
 
         # Loading State
         self._is_loading = False
@@ -67,6 +69,7 @@ class AnimatedButton(QPushButton):
         self.update()
 
     def enterEvent(self, event):
+        SoundManager.instance().play_sound('hover')
         if not self._is_loading:
             self._color_anim.stop()
             self._color_anim.setEndValue(self.hover_bg)
@@ -81,6 +84,7 @@ class AnimatedButton(QPushButton):
         super().leaveEvent(event)
 
     def mousePressEvent(self, event):
+        SoundManager.instance().play_sound('click')
         if not self._is_loading:
             self._start_ripple(event.pos())
             self._bg_color = self.pressed_bg
@@ -114,6 +118,7 @@ class AnimatedButton(QPushButton):
             return
 
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.translate(self._paint_offset)
 
         # Draw Background
         bg_color = self._bg_color
@@ -387,3 +392,39 @@ class LoadingOverlay(QWidget):
 
         painter.setPen(QPen(QColor("#3B82F6"), 4, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
         painter.drawArc(spinner_center.x() - radius, spinner_center.y() - radius, radius * 2, radius * 2, -self.angle * 16, 270 * 16)
+
+class MagneticButton(AnimatedButton):
+    def __init__(self, text="", parent=None):
+        super().__init__(text, parent)
+        self.setMouseTracking(True)
+        self._target_offset = QPointF(0, 0)
+        self._current_offset = QPointF(0, 0)
+
+        self._magnet_timer = QTimer(self)
+        self._magnet_timer.setInterval(16)
+        self._magnet_timer.timeout.connect(self._update_magnet)
+        self._magnet_timer.start()
+
+    def mouseMoveEvent(self, event):
+        # Calculate attraction
+        center = QPointF(self.width()/2, self.height()/2)
+        pos = QPointF(event.pos())
+
+        # Attraction factor
+        dist_x = pos.x() - center.x()
+        dist_y = pos.y() - center.y()
+
+        self._target_offset = QPointF(dist_x * 0.3, dist_y * 0.3)
+        super().mouseMoveEvent(event)
+
+    def leaveEvent(self, event):
+        self._target_offset = QPointF(0, 0)
+        super().leaveEvent(event)
+
+    def _update_magnet(self):
+        # Smooth spring physics
+        diff = self._target_offset - self._current_offset
+        if diff.manhattanLength() > 0.1:
+            self._current_offset += diff * 0.15
+            self._paint_offset = self._current_offset
+            self.update()

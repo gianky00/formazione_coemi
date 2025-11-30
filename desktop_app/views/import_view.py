@@ -8,6 +8,7 @@ import shutil
 from datetime import datetime
 from ..api_client import APIClient
 from ..components.animated_widgets import LoadingOverlay
+from ..components.visuals import HolographicScanner
 
 import time
 from collections import deque
@@ -356,7 +357,12 @@ class ImportView(QWidget):
         description.setStyleSheet("font-size: 16px; color: #6B7280;")
         self.layout.addWidget(description)
 
-        # --- Progress Area ---
+        # --- Holographic Scanner Area ---
+        self.scanner = HolographicScanner(self)
+        self.scanner.setVisible(False)
+        self.layout.addWidget(self.scanner)
+
+        # --- Control & Progress Area ---
         self.progress_frame = QFrame()
         progress_layout = QHBoxLayout(self.progress_frame)
         progress_layout.setContentsMargins(10, 5, 10, 5)
@@ -458,6 +464,7 @@ class ImportView(QWidget):
         self.stop_button.setText("Stop")
         self.stop_button.setEnabled(True)
         self.progress_frame.setVisible(True)
+        self.scanner.setVisible(True) # Show Hologram
 
         self.thread = QThread()
         self.worker = PdfWorker(file_paths, self.api_client, output_folder)
@@ -497,4 +504,5 @@ class ImportView(QWidget):
         self.etr_label.setText("")
         self.stop_button.setEnabled(False)
         self.stop_button.setText("Stop")
+        self.scanner.setVisible(False) # Hide Hologram
         self.import_completed.emit()
