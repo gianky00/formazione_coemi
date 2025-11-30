@@ -140,6 +140,12 @@ class DummyQWidget:
         pass
     def resize(self, w, h):
         pass
+    def setGeometry(self, *args):
+        pass
+    def geometry(self):
+        return MagicMock()
+    def move(self, x, y):
+        pass
     def setObjectName(self, name):
         pass
     def setFixedWidth(self, width):
