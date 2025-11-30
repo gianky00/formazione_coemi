@@ -73,6 +73,7 @@ class LoginView(QWidget):
         super().__init__()
         self.api_client = api_client
         self.threadpool = QThreadPool()
+        self._stop_3d_rendering = False # Flag to safely stop 3D engine before view transition
         
         # --- Interactive Neural Background Setup ---
         self.setMouseTracking(True)
@@ -425,9 +426,17 @@ class LoginView(QWidget):
         grad.setColorAt(1, QColor("#0F172A")) # Slate 900
         painter.fillRect(self.rect(), grad)
         
+        # Check if we should skip 3D rendering (e.g. during view transitions)
+        if self._stop_3d_rendering:
+            return
+
         # 2. Render 3D Engine
         # The engine handles projection, connections, pulses, and drawing
-        self.neural_engine.project_and_render(painter, self.width(), self.height())
+        try:
+            self.neural_engine.project_and_render(painter, self.width(), self.height())
+        except Exception as e:
+            # Prevent crash during resize or close
+            print(f"3D Render Error: {e}")
 
     def _auto_update_if_needed(self):
         from desktop_app.services.path_service import get_license_dir
@@ -487,6 +496,8 @@ class LoginView(QWidget):
         self.login_btn.setEnabled(True)
         self.login_btn.set_loading(False)
         self.password_input.clear()
+
+        self._stop_3d_rendering = False # Re-enable rendering
 
         # Ensure background animation is running
         if not self._anim_timer.isActive():
@@ -668,5 +679,10 @@ class LoginView(QWidget):
         self.anim_exit.setEndValue(target_pos)
         self.anim_exit.setEasingCurve(QEasingCurve.Type.InBack)
 
-        self.anim_exit.finished.connect(lambda: self.login_success.emit(self.api_client.user_info))
+        def on_anim_finished():
+            # Safely stop rendering 3D scene before view transition
+            self._stop_3d_rendering = True
+            self.login_success.emit(self.api_client.user_info)
+
+        self.anim_exit.finished.connect(on_anim_finished)
         self.anim_exit.start()
