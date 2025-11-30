@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QProgressBar, QFrame,
 from PyQt6.QtCore import Qt, QSize, QEventLoop, QTimer, QPropertyAnimation, QEasingCurve, QRectF, QParallelAnimationGroup, QSequentialAnimationGroup, QPointF
 from PyQt6.QtGui import QColor, QPixmap, QPainter, QLinearGradient, QBrush, QFont, QRadialGradient, QPen
 from desktop_app.utils import get_asset_path, load_colored_icon
+from desktop_app.components.neural_3d import NeuralNetwork3D
 import random
 
 class ChecklistItem(QWidget):
@@ -207,6 +208,13 @@ class CustomSplashScreen(QWidget):
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
+        # Initialize 3D Engine for Background
+        # Less nodes than login screen for performance during load, but enough for effect
+        self.neural_engine = NeuralNetwork3D(num_nodes=80, connect_distance=280)
+        self._anim_timer = QTimer(self)
+        self._anim_timer.timeout.connect(self._animate_background)
+        self._anim_timer.start(16)
+
         # Main Layout
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(10, 10, 10, 10)
@@ -215,7 +223,7 @@ class CustomSplashScreen(QWidget):
         self.container = QFrame()
         self.container.setStyleSheet("""
             QFrame#splash_container {
-                background-color: #FFFFFF;
+                background-color: rgba(255, 255, 255, 0.92); /* Slightly transparent to see 3D effect blur */
                 border-radius: 16px;
                 border: 1px solid #E5E7EB;
             }
@@ -251,20 +259,14 @@ class CustomSplashScreen(QWidget):
             self.logo_label.setText("INTELLEO")
             self.logo_label.setStyleSheet("font-size: 56px; font-weight: 800; color: #1E3A8A; font-family: 'Inter'; letter-spacing: -1px;")
 
-        # Logo Animation Effects
-        # REMOVED QGraphicsOpacityEffect to prevent QPainter errors and threading issues.
-        # We rely on Window Opacity for entrance.
-
         self.container_layout.addWidget(self.logo_label)
-        self.container_layout.addSpacing(40) # Increased spacing to prevent overlap
+        self.container_layout.addSpacing(40)
 
         # Status Label (Main Step)
-        self.status_label = QLabel("") # Empty initial text to prevent ghost artifacts
+        self.status_label = QLabel("")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_label.setStyleSheet("color: #111827; font-size: 20px; font-weight: 600; font-family: 'Inter';")
         self.container_layout.addWidget(self.status_label)
-
-        # REMOVED Status Opacity Effect
 
         # Detail Label (Technical sub-steps)
         self.detail_label = QLabel("Caricamento configurazione")
@@ -346,6 +348,33 @@ class CustomSplashScreen(QWidget):
         self.detail_timer.timeout.connect(self.next_detail)
         self.current_details = []
         self.detail_index = 0
+
+    def _animate_background(self):
+        # Auto-drift for splash screen
+        # Normalized mouse input (0,0) as we don't track mouse here
+        # But we can add a slight wobble
+        import math
+        t = QTimer.remainingTime(self._anim_timer) or 0
+        # Just use a static slight rotation for the splash
+        self.neural_engine.update(0.1, 0.1)
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        if not painter.isActive():
+            return
+
+        # 1. Dark Blue Gradient Background (matches Login)
+        grad = QLinearGradient(0, 0, 0, self.height())
+        grad.setColorAt(0, QColor("#1E3A8A")) # Dark Blue
+        grad.setColorAt(1, QColor("#0F172A")) # Slate 900
+        painter.fillRect(self.rect(), grad)
+
+        # 2. Render 3D Engine
+        try:
+            self.neural_engine.project_and_render(painter, self.width(), self.height())
+        except Exception:
+            pass
 
     def showEvent(self, event):
         super().showEvent(event)

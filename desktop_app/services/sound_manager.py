@@ -32,10 +32,11 @@ class SpeechWorker(QThread):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             
+            # Use hash of text for caching
             filename = f"speech_{hash(self.text)}.mp3"
             filepath = os.path.join(self.output_dir, filename)
             
-            # Use cached file if it exists to save bandwidth/time
+            # Check cache
             if os.path.exists(filepath):
                 self.finished.emit(filepath)
                 return
@@ -69,10 +70,15 @@ class SoundManager(QObject):
         self.media_player.setAudioOutput(self.audio_output)
         
         try:
-            self.temp_dir = tempfile.mkdtemp()
+            # Use a persistent cache directory if possible, fallback to temp
+            from desktop_app.services.path_service import get_user_data_dir
+            cache_dir = os.path.join(get_user_data_dir(), "audio_cache")
+            os.makedirs(cache_dir, exist_ok=True)
+            self.cache_dir = cache_dir
             self._generate_sounds()
         except Exception as e:
-            print(f"[SoundManager] Generation Error: {e}")
+            print(f"[SoundManager] Init Error: {e}")
+            self.cache_dir = tempfile.gettempdir()
 
     def _generate_wav(self, filename, freq_func, duration=0.1, volume=0.5):
         sample_rate = 44100
@@ -86,16 +92,18 @@ class SoundManager(QObject):
             value = int(volume * 32767.0 * math.sin(2.0 * math.pi * freq * t))
             data.extend(struct.pack('<h', value))
             
-        filepath = os.path.join(self.temp_dir, filename)
-        with open(filepath, 'wb') as f:
-            # WAV Header
-            f.write(b'RIFF')
-            f.write(struct.pack('<I', 36 + len(data)))
-            f.write(b'WAVEfmt ')
-            f.write(struct.pack('<IHHIIHH', 16, 1, 1, sample_rate, sample_rate * 2, 2, 16))
-            f.write(b'data')
-            f.write(struct.pack('<I', len(data)))
-            f.write(data)
+        filepath = os.path.join(self.cache_dir, filename)
+        # Only generate if not exists
+        if not os.path.exists(filepath):
+            with open(filepath, 'wb') as f:
+                # WAV Header
+                f.write(b'RIFF')
+                f.write(struct.pack('<I', 36 + len(data)))
+                f.write(b'WAVEfmt ')
+                f.write(struct.pack('<IHHIIHH', 16, 1, 1, sample_rate, sample_rate * 2, 2, 16))
+                f.write(b'data')
+                f.write(struct.pack('<I', len(data)))
+                f.write(data)
         
         return QUrl.fromLocalFile(filepath)
 
@@ -107,7 +115,6 @@ class SoundManager(QObject):
         self.sounds['click'] = self._generate_wav('click.wav', lambda t: 600 - t*6000 if t < 0.05 else 0, 0.05, 0.15)
         
         # Success: Harmonious Major Chord Arpeggio (C5 -> E5 -> G5) simulation
-        # Using a simple modulation to simulate a "chime" instead of a slide
         self.sounds['success'] = self._generate_wav('success.wav', lambda t: 440 + (440 * math.sin(t * math.pi * 2)), 0.5, 0.2)
         
         # Analysis: Data stream noise
@@ -132,13 +139,13 @@ class SoundManager(QObject):
     def speak(self, text):
         """
         Uses Edge-TTS to generate an MP3 and plays it using QMediaPlayer.
-        Fails silently/logs error if offline.
+        Uses persistent local cache to support offline mode after first generation.
         """
         # Stop any current playback
         if self.media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
             self.media_player.stop()
 
-        self.worker = SpeechWorker(text, self.temp_dir)
+        self.worker = SpeechWorker(text, self.cache_dir)
         self.worker.finished.connect(self._on_speech_ready)
         self.worker.error.connect(self._on_speech_error)
         self.worker.start()
@@ -152,5 +159,4 @@ class SoundManager(QObject):
             print(f"[SoundManager] Playback Error: {e}")
 
     def _on_speech_error(self, error_msg):
-        print(f"[SoundManager] TTS Failed (Offline?): {error_msg}")
-        # Optionally play a fallback beep here if desired, but user requested silent fail if offline.
+        print(f"[SoundManager] TTS Failed: {error_msg}")
