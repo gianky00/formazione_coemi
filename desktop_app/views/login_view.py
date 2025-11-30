@@ -6,9 +6,10 @@ import math
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QFrame, QMessageBox, QHBoxLayout,
                              QGraphicsDropShadowEffect, QApplication, QPushButton,
                              QDialog, QLineEdit, QDialogButtonBox)
-from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPropertyAnimation, QPoint, QEasingCurve, QTimer, QObject, QThread, QThreadPool, QRect
-from PyQt6.QtGui import QPixmap, QColor, QFont, QPainter, QLinearGradient
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPropertyAnimation, QPoint, QPointF, QEasingCurve, QTimer, QObject, QThread, QThreadPool, QRect
+from PyQt6.QtGui import QPixmap, QColor, QFont, QPainter, QLinearGradient, QPen, QBrush
 from desktop_app.utils import get_asset_path
+import random
 from desktop_app.components.animated_widgets import AnimatedButton, AnimatedInput
 from desktop_app.components.custom_dialog import CustomMessageDialog
 from desktop_app.services.license_manager import LicenseManager
@@ -64,6 +65,18 @@ class LicenseUpdateWorker(QObject):
         self.finished.emit(success, message)
 
 
+class NeuralNode:
+    def __init__(self, w, h):
+        self.pos = QPointF(random.uniform(0, w), random.uniform(0, h))
+        self.vel = QPointF(random.uniform(-0.4, 0.4), random.uniform(-0.4, 0.4))
+        self.radius = random.uniform(1.5, 3.0)
+
+    def update(self, w, h):
+        self.pos += self.vel
+        # Bounce
+        if self.pos.x() < 0 or self.pos.x() > w: self.vel.setX(-self.vel.x())
+        if self.pos.y() < 0 or self.pos.y() > h: self.vel.setY(-self.vel.y())
+
 class LoginView(QWidget):
     login_success = pyqtSignal(dict) # Emits user_info dict
 
@@ -72,11 +85,15 @@ class LoginView(QWidget):
         self.api_client = api_client
         self.threadpool = QThreadPool()
 
-        # --- Animated Gradient Background Setup ---
-        self._gradient_shift = 0
-        self._gradient_timer = QTimer(self)
-        self._gradient_timer.timeout.connect(self._update_gradient)
-        self._gradient_timer.start(50) # 20 FPS is enough for slow background
+        # --- Interactive Neural Background Setup ---
+        self.setMouseTracking(True)
+        self.nodes = [NeuralNode(1280, 800) for _ in range(70)]
+        self.mouse_pos = QPointF(0, 0)
+        self.center_pos = QPoint(0, 0)
+
+        self._anim_timer = QTimer(self)
+        self._anim_timer.timeout.connect(self._animate_background)
+        self._anim_timer.start(25) # 40 FPS
 
         # Container Card (Split View) - Manual Positioning for Animation
         self.container = QFrame(self)
@@ -373,11 +390,33 @@ class LoginView(QWidget):
 
         self._auto_update_if_needed()
 
-    def _update_gradient(self):
-        self._gradient_shift += 0.005
-        if self._gradient_shift > 1:
-            self._gradient_shift = 0
+    def _animate_background(self):
+        w, h = self.width(), self.height()
+        for node in self.nodes:
+            node.update(w, h)
         self.update()
+
+    def mouseMoveEvent(self, event):
+        self.mouse_pos = QPointF(event.pos())
+
+        # --- 3D Tilt / Parallax Effect ---
+        center = self.rect().center()
+        dx = (self.mouse_pos.x() - center.x()) / (self.width() / 2) # -1 to 1
+        dy = (self.mouse_pos.y() - center.y()) / (self.height() / 2) # -1 to 1
+
+        # 1. Move Shadow (Opposite direction simulates light source/tilt)
+        shadow = self.container.graphicsEffect()
+        if isinstance(shadow, QGraphicsDropShadowEffect):
+            shadow.setXOffset(int(-15 * dx))
+            shadow.setYOffset(int(10 - (10 * dy)))
+
+        # 2. Move Container (Parallax - floats slightly following mouse)
+        # Only apply if not entrance-animating
+        if not (hasattr(self, 'anim_slide') and self.anim_slide.state() == QPropertyAnimation.State.Running):
+            # Calculate new target position relative to base center
+            target_x = self.center_pos.x() + (12 * dx)
+            target_y = self.center_pos.y() + (12 * dy)
+            self.container.move(int(target_x), int(target_y))
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -386,22 +425,43 @@ class LoginView(QWidget):
 
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Draw Animated Gradient
-        width = self.width()
-        height = self.height()
+        # 1. Deep Space Background
+        grad = QLinearGradient(0, 0, 0, self.height())
+        grad.setColorAt(0, QColor("#1E3A8A")) # Dark Blue
+        grad.setColorAt(1, QColor("#0F172A")) # Slate 900
+        painter.fillRect(self.rect(), grad)
 
-        # Oscillate color factor based on shift
-        factor = (math.sin(self._gradient_shift * 2 * math.pi) + 1) / 2 # 0 to 1
+        # 2. Draw Neural Network
+        # Apply parallax to nodes (background moves opposite to mouse -> depth)
+        center = QPointF(self.width()/2, self.height()/2)
+        parallax_offset = (self.mouse_pos - center) * 0.03
 
-        c1 = QColor("#F0F8FF") # Alice Blue
-        c2 = QColor("#DBEAFE") # Blue 100
+        drawn_nodes = []
+        for n in self.nodes:
+            draw_pos = n.pos - parallax_offset
+            drawn_nodes.append(draw_pos)
 
-        # Interpolate
-        r = int(c1.red() + (c2.red() - c1.red()) * factor)
-        g = int(c1.green() + (c2.green() - c1.green()) * factor)
-        b = int(c1.blue() + (c2.blue() - c1.blue()) * factor)
+            # Draw Node
+            painter.setBrush(QBrush(QColor(255, 255, 255, 150)))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawEllipse(draw_pos, n.radius, n.radius)
 
-        painter.fillRect(self.rect(), QColor(r, g, b))
+        # Draw Connections
+        painter.setPen(QPen(QColor(147, 197, 253, 30), 1)) # Blue-300, low alpha
+
+        # Simple distance check optimization
+        node_count = len(drawn_nodes)
+        for i in range(node_count):
+            for j in range(i + 1, node_count):
+                p1 = drawn_nodes[i]
+                p2 = drawn_nodes[j]
+                # Distance squared check (avoid sqrt)
+                dx = p1.x() - p2.x()
+                dy = p1.y() - p2.y()
+                dist_sq = dx*dx + dy*dy
+
+                if dist_sq < 22500: # 150px
+                    painter.drawLine(p1, p2)
 
     def _auto_update_if_needed(self):
         from desktop_app.services.path_service import get_license_dir
@@ -444,14 +504,15 @@ class LoginView(QWidget):
         super().resizeEvent(event)
         # Keep container centered
         if hasattr(self, 'container'):
-            x = (self.width() - self.container.width()) // 2
-            y = (self.height() - self.container.height()) // 2
+            cx = (self.width() - self.container.width()) // 2
+            cy = (self.height() - self.container.height()) // 2
+            self.center_pos = QPoint(cx, cy)
 
             # If animating, update target to new center
             if hasattr(self, 'anim_slide') and self.anim_slide.state() == QPropertyAnimation.State.Running:
-                self.anim_slide.setEndValue(QPoint(x, y))
+                self.anim_slide.setEndValue(QPoint(cx, cy))
             else:
-                self.container.move(x, y)
+                self.container.move(cx, cy)
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -597,7 +658,7 @@ class LoginView(QWidget):
 
     def _animate_success_exit(self):
         # Stop background animation
-        self._gradient_timer.stop()
+        self._anim_timer.stop()
 
         # Slide Down & Fade (Fade via MasterWindow transition mostly)
         # But we can Slide Down here for effect
