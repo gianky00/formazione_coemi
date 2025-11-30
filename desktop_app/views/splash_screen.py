@@ -1,24 +1,61 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QProgressBar, QFrame,
                              QGraphicsDropShadowEffect, QPushButton, QApplication, QHBoxLayout,
                              QGraphicsOpacityEffect)
-from PyQt6.QtCore import Qt, QSize, QEventLoop, QTimer, QPropertyAnimation, QEasingCurve, QRectF, QParallelAnimationGroup, QSequentialAnimationGroup
-from PyQt6.QtGui import QColor, QPixmap, QPainter, QLinearGradient, QBrush, QFont, QRadialGradient
+from PyQt6.QtCore import Qt, QSize, QEventLoop, QTimer, QPropertyAnimation, QEasingCurve, QRectF, QParallelAnimationGroup, QSequentialAnimationGroup, QPointF
+from PyQt6.QtGui import QColor, QPixmap, QPainter, QLinearGradient, QBrush, QFont, QRadialGradient, QPen
 from desktop_app.utils import get_asset_path
+import random
+
+class Particle:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.vx = random.uniform(0.5, 2.5) # Move forward
+        self.vy = random.uniform(-1.0, 1.0) # Spread vertical
+        self.life = 1.0
+        self.decay = random.uniform(0.03, 0.08)
+        self.size = random.uniform(1.5, 3.5)
+
+    def update(self):
+        self.x += self.vx
+        self.y += self.vy
+        self.life -= self.decay
+        return self.life > 0
 
 class DynamicProgressBar(QProgressBar):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedHeight(24)
+        self.setFixedHeight(32)
         self.setTextVisible(False)
         self._shimmer_offset = 0
-        self._shimmer_timer = QTimer(self)
-        self._shimmer_timer.timeout.connect(self._update_shimmer)
-        self._shimmer_timer.start(30) # ~33 FPS
+        self.particles = []
 
-    def _update_shimmer(self):
-        self._shimmer_offset += 2
-        if self._shimmer_offset > self.width() + 100:
-            self._shimmer_offset = -100
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._animate)
+        self._timer.start(16) # ~60 FPS for fluid particles
+
+    def _animate(self):
+        # Update Shimmer
+        self._shimmer_offset += 4
+        if self._shimmer_offset > self.width() + 150:
+            self._shimmer_offset = -150
+
+        # Emit Particles (only if moving and not full)
+        val = self.value()
+        max_val = self.maximum()
+        if val > 0 and val < max_val:
+             ratio = val / max_val
+             tip_x = self.width() * ratio
+             # Emit near the vertical center with some spread
+             tip_y = self.height() / 2 + random.uniform(-5, 5)
+
+             # Emit multiple particles for density
+             if random.random() < 0.4:
+                 self.particles.append(Particle(tip_x, tip_y))
+
+        # Update existing particles
+        self.particles = [p for p in self.particles if p.update()]
+
         self.update()
 
     def paintEvent(self, event):
@@ -33,12 +70,12 @@ class DynamicProgressBar(QProgressBar):
         height = rect.height()
         radius = height / 2
 
-        # 1. Background (Grey)
+        # 1. Track Background
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor("#F3F4F6"))
+        painter.setBrush(QColor("#F1F5F9")) # Light Slate
         painter.drawRoundedRect(QRectF(rect), radius, radius)
 
-        # 2. Chunk (Blue Gradient)
+        # 2. Fill (Electric Gradient)
         val = self.value()
         max_val = self.maximum()
         ratio = val / max_val if max_val > 0 else 0
@@ -46,36 +83,55 @@ class DynamicProgressBar(QProgressBar):
         progress_width = width * ratio
 
         if progress_width > 0:
+            # Main Beam Gradient
             gradient = QLinearGradient(0, 0, progress_width, 0)
-            gradient.setColorAt(0, QColor("#2563EB"))
-            gradient.setColorAt(1, QColor("#1D4ED8"))
+            gradient.setColorAt(0, QColor("#3B82F6"))   # Blue-500
+            gradient.setColorAt(0.5, QColor("#60A5FA")) # Blue-400
+            gradient.setColorAt(1, QColor("#8B5CF6"))   # Violet-500 (Energy Tip)
 
             painter.setBrush(QBrush(gradient))
+            fill_rect = QRectF(0, 0, progress_width, height)
+            painter.drawRoundedRect(fill_rect, radius, radius)
 
-            chunk_rect = QRectF(0, 0, progress_width, height)
-            painter.drawRoundedRect(chunk_rect, radius, radius)
-
-            # 2.1 Shimmer Effect
-            painter.setClipRect(chunk_rect)
-            shimmer_grad = QLinearGradient(self._shimmer_offset, 0, self._shimmer_offset + 50, 0)
+            # 3. High-Speed Shimmer
+            painter.save()
+            painter.setClipRect(fill_rect)
+            shimmer_grad = QLinearGradient(self._shimmer_offset, 0, self._shimmer_offset + 80, 0)
             shimmer_grad.setColorAt(0, QColor(255, 255, 255, 0))
-            shimmer_grad.setColorAt(0.5, QColor(255, 255, 255, 120))
+            shimmer_grad.setColorAt(0.5, QColor(255, 255, 255, 160)) # Bright streak
             shimmer_grad.setColorAt(1, QColor(255, 255, 255, 0))
             painter.setBrush(QBrush(shimmer_grad))
-            painter.drawRect(chunk_rect)
-            painter.setClipping(False)
+            painter.drawRect(fill_rect)
+            painter.restore()
 
-        # 3. Text (Dynamic Contrast)
+            # 4. Tip Glow (Energy Ball)
+            # Draw a soft white glow at the leading edge
+            glow_radius = height * 1.5
+            glow = QRadialGradient(progress_width, height/2, glow_radius)
+            glow.setColorAt(0, QColor(255, 255, 255, 180))
+            glow.setColorAt(1, QColor(255, 255, 255, 0))
+            painter.setBrush(QBrush(glow))
+            painter.drawEllipse(QPointF(progress_width, height/2), glow_radius, glow_radius)
+
+        # 5. Particles Rendering
+        for p in self.particles:
+            alpha = int(255 * p.life)
+            # Fade from Violet to Transparent
+            color = QColor("#A78BFA")
+            color.setAlpha(alpha)
+            painter.setBrush(QBrush(color))
+            painter.drawEllipse(QPointF(p.x, p.y), p.size, p.size)
+
+        # 6. Text (Modern Overlay)
         text = f"{int(ratio * 100)}%"
-        font = QFont("Inter", 10, QFont.Weight.Bold)
-        font.setStyleHint(QFont.StyleHint.SansSerif)
+        font = QFont("Inter", 11, QFont.Weight.Bold)
         painter.setFont(font)
 
-        # Draw Base Text (Dark)
-        painter.setPen(QColor("#1F2937"))
+        # Draw Base Text (Dark Grey)
+        painter.setPen(QColor("#374151"))
         painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, text)
 
-        # Draw Overlay Text (White)
+        # Draw Overlay Text (White) for contrast over the bar
         if progress_width > 0:
             painter.save()
             painter.setClipRect(0, 0, int(progress_width), int(height))
