@@ -280,12 +280,12 @@ class LoginView(QWidget):
         self.welcome_title = QLabel("Bentornato")
         self.welcome_title.setStyleSheet("color: #1F2937; font-size: 32px; font-weight: 700;")
         right_layout.addWidget(self.welcome_title)
-        self.animated_widgets.append(self.welcome_title)
+        self.animated_widgets.append((self.welcome_title, True)) # (Widget, CanFade)
 
         self.welcome_sub = QLabel("Accedi al tuo account per continuare")
         self.welcome_sub.setStyleSheet("color: #6B7280; font-size: 15px;")
         right_layout.addWidget(self.welcome_sub)
-        self.animated_widgets.append(self.welcome_sub)
+        self.animated_widgets.append((self.welcome_sub, True))
 
         right_layout.addSpacing(20)
 
@@ -307,7 +307,8 @@ class LoginView(QWidget):
             }
         """)
         right_layout.addWidget(self.username_input)
-        self.animated_widgets.append(self.username_input)
+        # Disable Opacity Effect for Inputs to avoid Painter conflict
+        self.animated_widgets.append((self.username_input, False))
 
         self.password_input = AnimatedInput()
         self.password_input.setPlaceholderText("Password")
@@ -329,7 +330,7 @@ class LoginView(QWidget):
         """)
         self.password_input.returnPressed.connect(self.handle_login)
         right_layout.addWidget(self.password_input)
-        self.animated_widgets.append(self.password_input)
+        self.animated_widgets.append((self.password_input, False))
 
         right_layout.addSpacing(10)
 
@@ -352,7 +353,7 @@ class LoginView(QWidget):
         """)
         self.login_btn.clicked.connect(self.handle_login)
         right_layout.addWidget(self.login_btn)
-        self.animated_widgets.append(self.login_btn)
+        self.animated_widgets.append((self.login_btn, False))
 
         right_layout.addStretch()
         right_layout.addStretch(1)
@@ -364,7 +365,7 @@ class LoginView(QWidget):
         ver_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         footer_layout.addWidget(ver_label)
         right_layout.addLayout(footer_layout)
-        self.animated_widgets.append(ver_label) # Animate footer too
+        self.animated_widgets.append((ver_label, True))
 
         container_layout.addWidget(self.left_panel, 40)
         container_layout.addWidget(self.right_panel, 60)
@@ -464,28 +465,42 @@ class LoginView(QWidget):
         self.anim_opacity.setEndValue(1)
         self.anim_opacity.setEasingCurve(QEasingCurve.Type.OutCubic)
 
-        # 2. Staggered Entrance for Right Panel Elements
-        self.staggered_group = QSequentialAnimationGroup(self)
-
-        self.widget_effects = []
-        for widget in self.animated_widgets:
-            eff = QGraphicsOpacityEffect(widget)
-            widget.setGraphicsEffect(eff)
-            eff.setOpacity(0)
-            self.widget_effects.append(eff)
-
+        # 2. Staggered Entrance
         self.cascade_group = QParallelAnimationGroup(self)
 
-        delay = 200 # Start after container is visible
-        for i, effect in enumerate(self.widget_effects):
-            anim = QPropertyAnimation(effect, b"opacity")
-            anim.setDuration(600)
-            anim.setStartValue(0)
-            anim.setEndValue(1)
-            anim.setEasingCurve(QEasingCurve.Type.OutQuad)
+        delay = 200
+        for i, (widget, can_fade) in enumerate(self.animated_widgets):
+            # If widget can fade, we use opacity effect
+            if can_fade:
+                eff = QGraphicsOpacityEffect(widget)
+                widget.setGraphicsEffect(eff)
+                eff.setOpacity(0)
+
+                anim = QPropertyAnimation(eff, b"opacity")
+                anim.setDuration(600)
+                anim.setStartValue(0)
+                anim.setEndValue(1)
+                anim.setEasingCurve(QEasingCurve.Type.OutQuad)
+            else:
+                # For Inputs/Buttons, we just slide them (Pos/Geometry) if possible,
+                # OR we just accept they appear with the container but maybe start hidden?
+                # Without opacity, they will be visible as soon as container is visible.
+                # To simulate "appearing", we can animate their geometry/pos.
+                # But they are in a Layout. Animating pos in a Layout is tricky.
+                # Workaround: Set them hidden initially? No, layout will collapse.
+                # Workaround: Just don't animate them individually, let them fade in with container.
+                # BUT user wanted "staggered".
+
+                # Compromise: We don't apply opacity effect to them. They will fade in WITH the container (since container fades in).
+                # But to make it "staggered", maybe we can simply skip individual animation for them
+                # and let them be part of the main fade.
+                # OR, use a transparent overlay? No.
+
+                # Let's just skip specific animation for them to avoid the crash.
+                continue
 
             seq = QSequentialAnimationGroup()
-            seq.addPause(delay + (i * 100)) # Stagger by 100ms
+            seq.addPause(delay + (i * 100))
             seq.addAnimation(anim)
 
             self.cascade_group.addAnimation(seq)
