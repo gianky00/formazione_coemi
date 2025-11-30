@@ -1,9 +1,72 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QProgressBar, QFrame,
                              QGraphicsDropShadowEffect, QPushButton, QApplication, QHBoxLayout,
                              QGraphicsOpacityEffect)
-from PyQt6.QtCore import Qt, QSize, QEventLoop, QTimer, QPropertyAnimation, QEasingCurve
-from PyQt6.QtGui import QColor, QPixmap
+from PyQt6.QtCore import Qt, QSize, QEventLoop, QTimer, QPropertyAnimation, QEasingCurve, QRectF
+from PyQt6.QtGui import QColor, QPixmap, QPainter, QLinearGradient, QBrush, QFont
 from desktop_app.utils import get_asset_path
+
+class DynamicProgressBar(QProgressBar):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(24)
+        self.setTextVisible(False) # We draw text manually
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        rect = self.rect()
+        width = rect.width()
+        height = rect.height()
+        radius = height / 2
+
+        # 1. Background (Grey)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor("#F3F4F6"))
+        painter.drawRoundedRect(QRectF(rect), radius, radius)
+
+        # 2. Chunk (Blue Gradient)
+        val = self.value()
+        max_val = self.maximum()
+        ratio = val / max_val if max_val > 0 else 0
+
+        progress_width = width * ratio
+
+        if progress_width > 0:
+            gradient = QLinearGradient(0, 0, progress_width, 0)
+            gradient.setColorAt(0, QColor("#2563EB"))
+            gradient.setColorAt(1, QColor("#1D4ED8"))
+
+            painter.setBrush(QBrush(gradient))
+
+            # Draw rounded rect for chunk
+            chunk_rect = QRectF(0, 0, progress_width, height)
+            painter.drawRoundedRect(chunk_rect, radius, radius)
+
+        # 3. Text (Dynamic Contrast)
+        text = f"{int(ratio * 100)}%"
+        # Use generic font if Inter not found, but try Inter
+        font = QFont("Inter", 10, QFont.Weight.Bold)
+        font.setStyleHint(QFont.StyleHint.SansSerif)
+        painter.setFont(font)
+
+        # Center alignment
+        # We need to explicitly cast rect to integer QRect for drawText if strict,
+        # but PyQt handles it.
+
+        # Draw Base Text (Dark - for the grey part)
+        painter.setPen(QColor("#1F2937")) # Dark blue-grey for better harmony
+        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, text)
+
+        # Draw Overlay Text (White - for the blue part)
+        # We set the clip rect to the progress chunk
+        if progress_width > 0:
+            # Save painter state before clipping
+            painter.save()
+            painter.setClipRect(0, 0, int(progress_width), int(height))
+            painter.setPen(QColor("#FFFFFF"))
+            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, text)
+            painter.restore()
 
 class CustomSplashScreen(QWidget):
     def __init__(self):
@@ -75,28 +138,8 @@ class CustomSplashScreen(QWidget):
 
         self.container_layout.addSpacing(10)
 
-        # Progress Bar
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.progress_bar.setFixedHeight(24) # Taller
-        # Show percentage inside
-        self.progress_bar.setTextVisible(True)
-        self.progress_bar.setFormat("%p%")
-        self.progress_bar.setStyleSheet("""
-            QProgressBar {
-                background-color: #F3F4F6;
-                border-radius: 12px;
-                color: #FFFFFF; /* Text color inside chunk */
-                font-weight: bold;
-                font-family: 'Inter';
-                font-size: 12px;
-                text-align: center;
-            }
-            QProgressBar::chunk {
-                background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:0, stop:0 #2563EB, stop:1 #1D4ED8);
-                border-radius: 12px;
-            }
-        """)
+        # Progress Bar (Dynamic)
+        self.progress_bar = DynamicProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.container_layout.addWidget(self.progress_bar)
