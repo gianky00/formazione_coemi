@@ -11,6 +11,11 @@ try:
 except ImportError:
     pyttsx3 = None
 
+try:
+    import pythoncom
+except ImportError:
+    pythoncom = None
+
 class SoundManager(QObject):
     _instance = None
 
@@ -88,14 +93,29 @@ class SoundManager(QObject):
 
         def _run():
             try:
+                if pythoncom:
+                    pythoncom.CoInitialize()
+
                 # Initialize engine locally in thread
                 engine = pyttsx3.init()
-                # Try to set a robotic voice if available?
-                # voices = engine.getProperty('voices')
-                # engine.setProperty('rate', 150)
+
+                # Attempt to humanize voice (Select Italian, slow down)
+                try:
+                    voices = engine.getProperty('voices')
+                    for voice in voices:
+                        if "italian" in voice.name.lower() or "it-it" in voice.id.lower():
+                            engine.setProperty('voice', voice.id)
+                            break
+                    engine.setProperty('rate', 145)
+                except Exception:
+                    pass # Fallback to default
+
                 engine.say(text)
                 engine.runAndWait()
             except Exception as e:
                 print(f"[SoundManager] TTS Error: {e}")
+            finally:
+                if pythoncom:
+                    pythoncom.CoUninitialize()
 
         threading.Thread(target=_run, daemon=True).start()
