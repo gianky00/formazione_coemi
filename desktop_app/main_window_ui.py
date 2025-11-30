@@ -416,6 +416,9 @@ class MainDashboardWidget(QWidget):
             self.views["config"] = ConfigView(self.api_client)
             self.stacked_widget.addWidget(self.views["config"])
 
+        # Connect signals now that views exist
+        self._connect_cross_view_signals()
+
         # Step 3: Schedule Guide (Heaviest) after secondary views
         QTimer.singleShot(800, self._load_guide_view)
 
@@ -457,36 +460,34 @@ class MainDashboardWidget(QWidget):
                 self.views["config"] = ConfigView(self.api_client)
                 self.stacked_widget.addWidget(self.views["config"])
 
-        self._connect_view_signals(key)
+        self._connect_cross_view_signals()
 
-    def _connect_view_signals(self, key):
-        # We need to reconnect signals involving this key.
-        if key == "import" and self.views["validation"]:
-            try: self.views["import"].import_completed.disconnect()
+    def _connect_cross_view_signals(self):
+        # Refresh logic across views
+        imp = self.views.get("import")
+        val = self.views.get("validation")
+        db = self.views.get("database")
+        scad = self.views.get("scadenzario")
+
+        if imp and val:
+            try: imp.import_completed.disconnect(val.refresh_data)
             except: pass
-            self.views["import"].import_completed.connect(self.views["validation"].refresh_data)
+            imp.import_completed.connect(val.refresh_data)
 
-        if key == "validation":
-            if self.views["import"]:
-                try: self.views["import"].import_completed.disconnect()
-                except: pass
-                self.views["import"].import_completed.connect(self.views["validation"].refresh_data)
+        if val and db:
+            try: val.validation_completed.disconnect(db.load_data)
+            except: pass
+            val.validation_completed.connect(db.load_data)
+        
+        if val and scad:
+            try: val.validation_completed.disconnect(scad.refresh_data)
+            except: pass
+            val.validation_completed.connect(scad.refresh_data)
 
-            if self.views["database"]:
-                try: self.views["validation"].validation_completed.disconnect()
-                except: pass
-                self.views["validation"].validation_completed.connect(self.views["database"].load_data)
-
-            if self.views["scadenzario"]:
-                try: self.views["validation"].validation_completed.disconnect()
-                except: pass
-                self.views["validation"].validation_completed.connect(self.views["database"].load_data)
-                self.views["validation"].validation_completed.connect(self.views["scadenzario"].refresh_data)
-
-        if key == "database" and self.views["scadenzario"]:
-             try: self.views["database"].database_changed.disconnect()
+        if db and scad:
+             try: db.database_changed.disconnect(scad.refresh_data)
              except: pass
-             self.views["database"].database_changed.connect(self.views["scadenzario"].refresh_data)
+             db.database_changed.connect(scad.refresh_data)
 
     def _connect_signals(self):
         # Sidebar connections (Always safe)
