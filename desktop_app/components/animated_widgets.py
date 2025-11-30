@@ -110,6 +110,9 @@ class AnimatedButton(QPushButton):
 
     def paintEvent(self, event):
         painter = QPainter(self)
+        if not painter.isActive():
+            return
+
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         # Draw Background
@@ -222,6 +225,9 @@ class AnimatedInput(QLineEdit):
     def paintEvent(self, event):
         super().paintEvent(event)
         painter = QPainter(self)
+        if not painter.isActive():
+            return
+
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         pen = QPen(self._border_color)
@@ -352,6 +358,9 @@ class LoadingOverlay(QWidget):
 
     def paintEvent(self, event):
         painter = QPainter(self)
+        if not painter.isActive():
+            return
+
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         # Semi-transparent background

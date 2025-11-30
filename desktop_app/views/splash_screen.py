@@ -23,6 +23,9 @@ class DynamicProgressBar(QProgressBar):
 
     def paintEvent(self, event):
         painter = QPainter(self)
+        if not painter.isActive():
+            return
+
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         rect = self.rect()
@@ -130,7 +133,7 @@ class CustomSplashScreen(QWidget):
             self.logo_label.setText("INTELLEO")
             self.logo_label.setStyleSheet("font-size: 56px; font-weight: 800; color: #1E3A8A; font-family: 'Inter'; letter-spacing: -1px;")
 
-        # Logo Animation Effects
+        # Logo Animation Effects (Nested Effect on Child is fine)
         self.logo_opacity = QGraphicsOpacityEffect(self.logo_label)
         self.logo_label.setGraphicsEffect(self.logo_opacity)
         self.logo_opacity.setOpacity(0) # Start invisible
@@ -210,12 +213,11 @@ class CustomSplashScreen(QWidget):
         self.main_layout.addWidget(self.container)
         self.resize(800, 550)
 
-        # Container Entrance Animation
-        self.opacity_effect = QGraphicsOpacityEffect(self.container)
-        self.container.setGraphicsEffect(self.opacity_effect)
-        self.opacity_effect.setOpacity(0)
+        # Window Entrance Animation (Animating Window Opacity instead of Container Effect)
+        # This preserves the shadow on the container.
+        self.setWindowOpacity(0)
 
-        self.anim_opacity = QPropertyAnimation(self.opacity_effect, b"opacity")
+        self.anim_opacity = QPropertyAnimation(self, b"windowOpacity")
         self.anim_opacity.setDuration(1000)
         self.anim_opacity.setStartValue(0)
         self.anim_opacity.setEndValue(1)
@@ -237,7 +239,6 @@ class CustomSplashScreen(QWidget):
     def showEvent(self, event):
         super().showEvent(event)
         self.anim_opacity.start()
-        # Delay logo animation slightly
         QTimer.singleShot(200, self.anim_logo.start)
 
     def next_detail(self):
@@ -251,13 +252,11 @@ class CustomSplashScreen(QWidget):
     def update_status(self, message, progress=None):
         clean_message = message.rstrip('.')
 
-        # Animate Text Change if different
         if self.status_label.text() != clean_message:
             self._animate_text_change(clean_message)
         else:
              self.status_label.setText(clean_message)
 
-        # Sub-details logic
         new_details = []
         msg_lower = message.lower()
         if "integrità" in msg_lower:
@@ -292,9 +291,6 @@ class CustomSplashScreen(QWidget):
         QApplication.processEvents()
 
     def _animate_text_change(self, new_text):
-        # Create a sequential animation: Fade Out -> Change Text -> Fade In
-        # Note: We reuse the same label, so we just animate opacity.
-
         def fade_in():
             self.status_label.setText(new_text)
             self.anim_text_in = QPropertyAnimation(self.status_opacity, b"opacity")
@@ -331,11 +327,8 @@ class CustomSplashScreen(QWidget):
         self.close()
 
     def finish(self, window):
-        # Zoom Out and Fade Out Animation before closing
-        # We need to re-assign opacity effect to container because it might be used by entrance
-        # But we already have self.opacity_effect on container
-
-        self.anim_exit_opacity = QPropertyAnimation(self.opacity_effect, b"opacity")
+        # Animate Window Opacity instead of effect
+        self.anim_exit_opacity = QPropertyAnimation(self, b"windowOpacity")
         self.anim_exit_opacity.setDuration(500)
         self.anim_exit_opacity.setStartValue(1)
         self.anim_exit_opacity.setEndValue(0)

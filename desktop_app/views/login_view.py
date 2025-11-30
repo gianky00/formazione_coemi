@@ -83,6 +83,12 @@ class LoginView(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
+        # Content Wrapper (To apply Opacity during entrance without killing Shadow later)
+        self.content_wrapper = QWidget()
+        self.content_wrapper.setFixedSize(960, 600)
+        wrapper_layout = QVBoxLayout(self.content_wrapper)
+        wrapper_layout.setContentsMargins(0, 0, 0, 0)
+
         # Container Card (Split View)
         self.container = QFrame()
         self.container.setFixedSize(960, 600)
@@ -93,6 +99,7 @@ class LoginView(QWidget):
             }
         """)
 
+        # Shadow (Permanently on self.container)
         shadow = QGraphicsDropShadowEffect(self)
         shadow.setBlurRadius(50)
         shadow.setXOffset(0)
@@ -362,7 +369,8 @@ class LoginView(QWidget):
         container_layout.addWidget(self.left_panel, 40)
         container_layout.addWidget(self.right_panel, 60)
 
-        main_layout.addWidget(self.container)
+        wrapper_layout.addWidget(self.container)
+        main_layout.addWidget(self.content_wrapper)
 
         self.setup_entrance_animation()
 
@@ -385,6 +393,9 @@ class LoginView(QWidget):
 
     def paintEvent(self, event):
         painter = QPainter(self)
+        if not painter.isActive():
+            return
+
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         # Draw Animated Gradient
@@ -442,9 +453,9 @@ class LoginView(QWidget):
         self.thread.wait()
 
     def setup_entrance_animation(self):
-        # 1. Main Container Entrance
-        self.opacity_effect = QGraphicsOpacityEffect(self.container)
-        self.container.setGraphicsEffect(self.opacity_effect)
+        # 1. Main Container Entrance (Opacity on WRAPPER)
+        self.opacity_effect = QGraphicsOpacityEffect(self.content_wrapper)
+        self.content_wrapper.setGraphicsEffect(self.opacity_effect)
         self.opacity_effect.setOpacity(0)
 
         self.anim_opacity = QPropertyAnimation(self.opacity_effect, b"opacity")
@@ -456,7 +467,6 @@ class LoginView(QWidget):
         # 2. Staggered Entrance for Right Panel Elements
         self.staggered_group = QSequentialAnimationGroup(self)
 
-        # Prepare widgets for animation
         self.widget_effects = []
         for widget in self.animated_widgets:
             eff = QGraphicsOpacityEffect(widget)
@@ -464,16 +474,7 @@ class LoginView(QWidget):
             eff.setOpacity(0)
             self.widget_effects.append(eff)
 
-        # Add animations to group with small delays
-        # But QSequential runs one after another.
-        # If we want overlap (cascade), we use QParallel with delays?
-        # Or simpler: QTimer triggers?
-        # QSequential is fine if durations are short.
-        # Let's use a Parallel group where each animation has a StartDelay.
-
         self.cascade_group = QParallelAnimationGroup(self)
-
-        # Add Container animation to the mix? No, separate start.
 
         delay = 200 # Start after container is visible
         for i, effect in enumerate(self.widget_effects):
@@ -482,11 +483,6 @@ class LoginView(QWidget):
             anim.setStartValue(0)
             anim.setEndValue(1)
             anim.setEasingCurve(QEasingCurve.Type.OutQuad)
-
-            # Since QPropertyAnimation doesn't have setStartDelay (only in AnimationGroup via pausing?),
-            # Wait, QAnimationGroup has no setStartDelay for children easily.
-            # We can pause the animation?
-            # Actually, standard way is creating a Sequential Group [Pause(delay), Anim].
 
             seq = QSequentialAnimationGroup()
             seq.addPause(delay + (i * 100)) # Stagger by 100ms
@@ -521,12 +517,6 @@ class LoginView(QWidget):
         animation.setLoopCount(3)
         animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
         current_pos = self.container.pos()
-
-        # Create keyframes relative to current position
-        # But if container moves (resize), current_pos is stale?
-        # QPropertyAnimation on pos works in global coords usually or parent coords.
-        # Here parent is "self" (centered).
-        # Better to animate property "geometry"? Or just use the existing logic.
 
         animation.setKeyValueAt(0, current_pos)
         animation.setKeyValueAt(0.25, current_pos + QPoint(-5, 0))
@@ -635,14 +625,12 @@ class LoginView(QWidget):
         self._gradient_timer.stop()
 
         # Fly Out Animation
-        # We animate opacity out and maybe scale up or down
-
+        # We animate opacity out on the wrapper
         self.anim_exit = QPropertyAnimation(self.opacity_effect, b"opacity")
         self.anim_exit.setDuration(500)
         self.anim_exit.setStartValue(1)
         self.anim_exit.setEndValue(0)
         self.anim_exit.setEasingCurve(QEasingCurve.Type.InBack)
 
-        # Connect finished signal to actual emit
         self.anim_exit.finished.connect(lambda: self.login_success.emit(self.api_client.user_info))
         self.anim_exit.start()
