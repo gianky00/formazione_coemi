@@ -9,6 +9,7 @@ from .main_window_ui import MainDashboardWidget
 from .views.login_view import LoginView
 from .api_client import APIClient
 from .components.animated_stacked_widget import AnimatedStackedWidget
+from .components.custom_dialog import CustomMessageDialog
 from .ipc_bridge import IPCBridge
 import os
 
@@ -397,7 +398,7 @@ class ApplicationController:
                 except:
                     detail = response.text
 
-                QMessageBox.critical(self.master_window, "Errore Critico Database", f"Impossibile avviare l'applicazione:\n\n{detail}")
+                CustomMessageDialog.show_error(self.master_window, "Errore Critico Database", f"Impossibile avviare l'applicazione:\n\n{detail}")
                 sys.exit(1)
 
         except Exception as e:
@@ -434,7 +435,7 @@ class ApplicationController:
         Triggers analysis (file or folder).
         """
         if self.dashboard and getattr(self.dashboard, 'is_read_only', False):
-            QMessageBox.warning(self.master_window, "Sola Lettura", "Impossibile avviare l'analisi in modalità Sola Lettura.")
+            CustomMessageDialog.show_warning(self.master_window, "Sola Lettura", "Impossibile avviare l'analisi in modalità Sola Lettura.")
             return
 
         if self.dashboard:
@@ -447,7 +448,7 @@ class ApplicationController:
         Triggers CSV import logic.
         """
         if self.dashboard and getattr(self.dashboard, 'is_read_only', False):
-            QMessageBox.warning(self.master_window, "Sola Lettura", "Impossibile importare CSV in modalità Sola Lettura.")
+            CustomMessageDialog.show_warning(self.master_window, "Sola Lettura", "Impossibile importare CSV in modalità Sola Lettura.")
             return
 
         if not self.dashboard:
@@ -469,7 +470,7 @@ class ApplicationController:
                 if len(warnings) > 5:
                     msg_text += f"\n...e altri {len(warnings)-5}"
 
-            QMessageBox.information(self.master_window, "Importazione Completata", msg_text)
+            CustomMessageDialog.show_info(self.master_window, "Importazione Completata", msg_text)
 
             # Refresh data if needed (Dashboard usually auto-refreshes on tab switch, but we can force it)
             if self.dashboard:
@@ -477,7 +478,7 @@ class ApplicationController:
                 pass
 
         except Exception as e:
-            QMessageBox.critical(self.master_window, "Errore Importazione", f"Impossibile importare il file:\n{e}")
+            CustomMessageDialog.show_error(self.master_window, "Errore Importazione", f"Impossibile importare il file:\n{e}")
 
     def on_login_success(self, user_info):
         # Create Dashboard if not exists
@@ -518,7 +519,7 @@ class ApplicationController:
         # Handle deferred action
         if self.pending_action:
             if is_read_only:
-                QMessageBox.warning(self.master_window, "Sola Lettura",
+                CustomMessageDialog.show_warning(self.master_window, "Sola Lettura",
                                     "L'azione richiesta è stata annullata perché il database è in modalità Sola Lettura.")
             else:
                 action = self.pending_action.get("action")

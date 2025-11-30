@@ -3,13 +3,14 @@ import sys
 from datetime import date, datetime
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
                              QPushButton, QStackedWidget, QLabel, QFrame, QSizePolicy,
-                             QScrollArea, QLayout, QApplication, QMessageBox)
+                             QScrollArea, QLayout, QApplication)
 from PyQt6.QtCore import Qt, QSize, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup, pyqtSignal, QPoint, pyqtProperty, QRect, QTimer
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QBrush, QPen
 
 # Import Utils
 from .utils import get_asset_path, load_colored_icon
 from .services.license_manager import LicenseManager
+from .components.custom_dialog import CustomMessageDialog
 
 class SidebarButton(QPushButton):
     def __init__(self, text, icon_name, parent=None):
@@ -532,7 +533,7 @@ class MainDashboardWidget(QWidget):
             status = self.api_client.get_lock_status()
             is_read_only = status.get("read_only", False)
             if is_read_only and not getattr(self, 'is_read_only', False):
-                QMessageBox.warning(self, "Connessione Persa", "L'applicazione è passata in modalità Sola Lettura.")
+                CustomMessageDialog.show_warning(self, "Connessione Persa", "L'applicazione è passata in modalità Sola Lettura.")
                 self.set_read_only_mode(True)
         except Exception as e:
             print(f"System check failed: {e}")
@@ -550,7 +551,7 @@ class MainDashboardWidget(QWidget):
         try:
             expiry_date = datetime.strptime(license_data["Scadenza Licenza"], "%d/%m/%Y").date()
             if date.today() > expiry_date:
-                QMessageBox.warning(self, "Licenza Scaduta", "La licenza è scaduta.")
+                CustomMessageDialog.show_warning(self, "Licenza Scaduta", "La licenza è scaduta.")
                 self.logout_requested.emit()
         except:
             self.logout_requested.emit()

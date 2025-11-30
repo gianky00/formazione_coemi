@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QTableView, QHeaderView, QHBoxLayout,
-    QComboBox, QLabel, QFileDialog, QMessageBox, QListView, QFrame,
+    QComboBox, QLabel, QFileDialog, QListView, QFrame,
     QMenu, QProgressBar
 )
 from PyQt6.QtCore import QAbstractTableModel, Qt, pyqtSignal, QTimer, QUrl
@@ -10,6 +10,7 @@ from ..view_models.database_view_model import DatabaseViewModel
 from ..api_client import APIClient
 from ..components.animated_widgets import AnimatedButton, AnimatedInput, CardWidget
 from ..components.cascade_delegate import CascadeDelegate
+from ..components.custom_dialog import CustomMessageDialog
 from app.services.document_locator import find_document
 import requests
 import pandas as pd
@@ -375,10 +376,10 @@ class DatabaseView(QWidget):
             self.table_view.selectRow(row_to_select)
 
     def _show_error_message(self, message):
-        QMessageBox.critical(self, "Errore", message)
+        CustomMessageDialog.show_error(self, "Errore", message)
 
     def _show_success_message(self, message):
-        QMessageBox.information(self, "Successo", message)
+        CustomMessageDialog.show_info(self, "Successo", message)
 
     def edit_data(self):
         if getattr(self, 'is_read_only', False):
@@ -386,7 +387,7 @@ class DatabaseView(QWidget):
 
         selection_info = self._get_selection_info()
         if selection_info['mode'] == 'none' or len(self.table_view.selectionModel().selectedRows()) > 1:
-            QMessageBox.warning(self, "Selezione Invalida", "Seleziona una singola riga da modificare.")
+            CustomMessageDialog.show_warning(self, "Selezione Invalida", "Seleziona una singola riga da modificare.")
             return
 
         cert_id_to_edit = selection_info.get('id')
@@ -417,24 +418,21 @@ class DatabaseView(QWidget):
 
         selected_ids = [self.model.index(r.row(), self.model._data.columns.get_loc('id')).data() for r in self.table_view.selectionModel().selectedRows()]
 
-        reply = QMessageBox.question(self, 'Conferma Cancellazione', f'Sei sicuro di voler cancellare {len(selected_ids)} certificati?',
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
-
-        if reply == QMessageBox.StandardButton.Yes:
+        if CustomMessageDialog.show_question(self, 'Conferma Cancellazione', f'Sei sicuro di voler cancellare {len(selected_ids)} certificati?'):
             self._current_selection = self._get_selection_info()
             self.view_model.delete_certificates(selected_ids)
             self.database_changed.emit()
 
     def export_to_csv(self):
         if self.model is None or self.model.rowCount() == 0:
-            QMessageBox.warning(self, "Nessun Dato", "Non ci sono dati da esportare.")
+            CustomMessageDialog.show_warning(self, "Nessun Dato", "Non ci sono dati da esportare.")
             return
 
         path, _ = QFileDialog.getSaveFileName(self, "Salva CSV", "certificati.csv", "CSV Files (*.csv)")
         if path:
             try:
                 self.model._data.to_csv(path, index=False)
-                QMessageBox.information(self, "Esportazione Riuscita", f"Dati esportati con successo in {path}")
+                CustomMessageDialog.show_info(self, "Esportazione Riuscita", f"Dati esportati con successo in {path}")
             except Exception as e:
                 self._show_error_message(f"Impossibile salvare il file: {e}")
 
@@ -494,7 +492,7 @@ class DatabaseView(QWidget):
                 else:
                      QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
             else:
-                 QMessageBox.warning(self, "Non Trovato", "Il file PDF non è stato trovato nel percorso previsto.\n\nPotrebbe essere stato spostato, rinominato manualmente o non ancora archiviato.")
+                 CustomMessageDialog.show_warning(self, "Non Trovato", "Il file PDF non è stato trovato nel percorso previsto.\n\nPotrebbe essere stato spostato, rinominato manualmente o non ancora archiviato.")
 
         except Exception as e:
-            QMessageBox.critical(self, "Errore", f"Impossibile eseguire l'operazione: {e}")
+            CustomMessageDialog.show_error(self, "Errore", f"Impossibile eseguire l'operazione: {e}")

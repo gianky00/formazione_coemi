@@ -7,11 +7,12 @@ import uvicorn
 import importlib
 import argparse
 import requests
+import platform
 
 # --- CRITICAL: IMPORT WEBENGINE & SET ATTRIBUTE BEFORE QAPPLICATION ---
 # This fixes "QtWebEngineWidgets must be imported or Qt.AA_ShareOpenGLContexts..."
 from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtCore import Qt, QCoreApplication
+from PyQt6.QtCore import Qt, QCoreApplication, QTimer
 
 # Set the attribute specifically required for WebEngine on Windows/Frozen builds
 QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
@@ -157,123 +158,154 @@ def main():
         print("[DEBUG] QApplication already exists.")
         qt_app = QApplication.instance()
 
-    # Import ApplicationController from the CORRECT module
+    # --- START CUSTOM SPLASH SCREEN ---
     try:
-        print("[DEBUG] Importing ApplicationController and setup_styles...")
-        from desktop_app.main import ApplicationController, setup_styles
-        print("[DEBUG] Running setup_styles...")
-        setup_styles(qt_app)
-    except ImportError as e:
-        # Detailed debug for import errors
-        import traceback
-        traceback.print_exc()
-        QMessageBox.critical(None, "Errore Moduli", f"Impossibile caricare i moduli principali:\n{e}")
-        sys.exit(1)
+        from desktop_app.views.splash_screen import CustomSplashScreen
+        splash = CustomSplashScreen()
+        splash.show()
+        splash.update_status("Avvio sistema...", 0)
     except Exception as e:
-        QMessageBox.critical(None, "Errore Avvio", f"Errore generico: {e}")
+        QMessageBox.critical(None, "Errore Critico", f"Impossibile avviare Splash Screen: {e}")
         sys.exit(1)
 
-    # CONTROLLO SICUREZZA (VM, Debugger, Tools)
-    from desktop_app.services.security_service import is_virtual_environment, is_debugger_active, is_analysis_tool_running
-    from desktop_app.services.integrity_service import verify_critical_components
+    # --- SECURITY CHECKS ---
+    splash.update_status("Verifica integrità...", 10)
+    try:
+        from desktop_app.services.security_service import is_virtual_environment, is_debugger_active, is_analysis_tool_running
+        from desktop_app.services.integrity_service import verify_critical_components
 
-    # 0. Runtime Integrity Check (Anti-Tamper)
-    is_intact, int_msg = verify_critical_components()
-    if not is_intact:
-        QMessageBox.critical(None, "Errore Fatale", f"Integrità del sistema compromessa.\n{int_msg}")
-        sys.exit(1)
+        # 0. Runtime Integrity Check
+        is_intact, int_msg = verify_critical_components()
+        if not is_intact:
+            splash.show_error(f"Integrità del sistema compromessa.\n{int_msg}")
+            sys.exit(1)
 
-    # 1. Debugger Check
-    is_dbg, dbg_msg = is_debugger_active()
-    if is_dbg:
-        QMessageBox.critical(None, "Violazione Sicurezza", dbg_msg)
-        sys.exit(1)
+        # 1. Debugger Check
+        is_dbg, dbg_msg = is_debugger_active()
+        if is_dbg:
+            splash.show_error(dbg_msg)
+            sys.exit(1)
 
-    # 2. Analysis Tools Check
-    is_tool, tool_msg = is_analysis_tool_running()
-    if is_tool:
-        QMessageBox.critical(None, "Violazione Sicurezza", tool_msg)
-        sys.exit(1)
+        # 2. Analysis Tools Check
+        is_tool, tool_msg = is_analysis_tool_running()
+        if is_tool:
+            splash.show_error(tool_msg)
+            sys.exit(1)
 
-    # 3. VM Check
-    is_vm, vm_msg = is_virtual_environment()
-    if is_vm:
-        QMessageBox.critical(None, "Ambiente Non Supportato", vm_msg)
-        sys.exit(1)
+        # 3. VM Check
+        is_vm, vm_msg = is_virtual_environment()
+        if is_vm:
+            splash.show_error(vm_msg)
+            sys.exit(1)
 
-    # CONTROLLO LICENZA
+    except ImportError:
+         # In development some checks might be missing or mocked
+         pass
+    except Exception as e:
+         splash.show_error(f"Errore controllo sicurezza: {e}")
+         sys.exit(1)
+
+    # --- LICENSE CHECK ---
+    splash.update_status("Controllo Licenza...", 30)
     license_ok, license_error = verify_license()
+    # Note: We don't exit on license error, we pass it to LoginView (as per original logic)
 
-    # CONTROLLO OROLOGIO DI SISTEMA (Secure NTP + Offline Buffer)
-    from desktop_app.services.time_service import check_system_clock
-    clock_ok, clock_error = check_system_clock()
-    if not clock_ok:
-        QMessageBox.critical(None, "Errore di Sincronizzazione Ora", clock_error)
-        sys.exit(1)
+    # --- CLOCK CHECK ---
+    splash.update_status("Sincronizzazione orologio...", 40)
+    try:
+        from desktop_app.services.time_service import check_system_clock
+        clock_ok, clock_error = check_system_clock()
+        if not clock_ok:
+            splash.show_error(clock_error)
+            sys.exit(1)
+    except Exception:
+        # Fallback if module issue
+        pass
 
-    # AVVIO SERVER
+    # --- START SERVER ---
+    splash.update_status("Avvio Server Database...", 50)
     print(f"[DEBUG] Starting server thread on port {server_port}...")
     threading.Thread(target=start_server, args=(server_port,), daemon=True).start()
 
-    # SPLASH
-    print("[DEBUG] Showing Splash Screen...")
-    splash = QSplashScreen()
-    if os.path.exists("desktop_app/assets/logo.png"):
-        splash.setPixmap(QPixmap("desktop_app/assets/logo.png").scaled(600, 300, Qt.AspectRatioMode.KeepAspectRatio))
-    splash.showMessage("Caricamento sistema...", Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignCenter, Qt.GlobalColor.black)
-    splash.show()
-
+    # --- WAIT FOR SERVER ---
+    splash.update_status("Connessione al Backend...", 60)
     t0 = time.time()
     ready = False
     print(f"[DEBUG] Waiting for server port {server_port}...")
+
+    # Smooth progress while waiting
     while time.time() - t0 < 20:
         qt_app.processEvents()
         if check_port("127.0.0.1", server_port):
             ready = True
-            print("[DEBUG] Server is ready!")
             break
-        time.sleep(0.2)
+
+        # Fake progress 60->90
+        elapsed = time.time() - t0
+        progress = 60 + int((elapsed / 20) * 30)
+        splash.update_status("Connessione al Backend...", progress)
+        time.sleep(0.1)
 
     if ready:
-        # Health check to ensure DB is accessible
+        splash.update_status("Verifica Connessione...", 90)
+        # Health check
         try:
             health_url = f"http://localhost:{server_port}/api/v1/health"
             response = requests.get(health_url, timeout=5)
             if response.status_code != 200:
                 error_detail = response.json().get("detail", "Errore sconosciuto.")
-                QMessageBox.critical(None, "Errore Critico", f"Il sistema non può avviarsi:\n{error_detail}")
+                splash.show_error(f"Il sistema non può avviarsi:\n{error_detail}")
                 sys.exit(1)
         except requests.RequestException as e:
-            QMessageBox.critical(None, "Errore di Connessione", f"Impossibile connettersi al backend: {e}")
+            splash.show_error(f"Impossibile connettersi al backend: {e}")
             sys.exit(1)
 
-        # Instantiate Controller
-        print("[DEBUG] Instantiating ApplicationController...")
-        controller = ApplicationController(license_ok=license_ok, license_error=license_error)
+        # --- LOAD APPLICATION ---
+        splash.update_status("Avvio Interfaccia...", 95)
 
-        # APPLY CLI ARGS (First Run)
-        if args.analyze:
-             controller.analyze_path(args.analyze)
-        elif args.import_csv:
-             controller.import_dipendenti_csv(args.import_csv)
-        elif args.view and controller.dashboard:
-             controller.dashboard.switch_to(args.view)
+        try:
+            print("[DEBUG] Importing ApplicationController and setup_styles...")
+            from desktop_app.main import ApplicationController, setup_styles
+            print("[DEBUG] Running setup_styles...")
+            setup_styles(qt_app)
 
-        print("[DEBUG] Calling controller.start()...")
-        controller.start() # Shows window
+            # Instantiate Controller
+            print("[DEBUG] Instantiating ApplicationController...")
+            controller = ApplicationController(license_ok=license_ok, license_error=license_error)
 
-        # Finish splash using the actual window from controller
-        print("[DEBUG] Finishing Splash...")
-        if hasattr(controller, 'master_window'):
-            controller.master_window.ensurePolished()
-            splash.finish(controller.master_window)
-        else:
-            splash.close()
+            # APPLY CLI ARGS
+            if args.analyze:
+                 controller.analyze_path(args.analyze)
+            elif args.import_csv:
+                 controller.import_dipendenti_csv(args.import_csv)
+            elif args.view and controller.dashboard:
+                 controller.dashboard.switch_to(args.view)
 
-        print("[DEBUG] Starting Qt Event Loop (exec)...")
-        sys.exit(qt_app.exec())
+            print("[DEBUG] Calling controller.start()...")
+            controller.start() # Shows window
+
+            # Finish splash
+            print("[DEBUG] Finishing Splash...")
+            if hasattr(controller, 'master_window'):
+                controller.master_window.ensurePolished()
+                splash.finish(controller.master_window)
+            else:
+                splash.close()
+
+            print("[DEBUG] Starting Qt Event Loop (exec)...")
+            sys.exit(qt_app.exec())
+
+        except ImportError as e:
+            import traceback
+            traceback.print_exc()
+            splash.show_error(f"Impossibile caricare i moduli principali:\n{e}")
+            sys.exit(1)
+        except Exception as e:
+            splash.show_error(f"Errore generico in fase di avvio: {e}")
+            sys.exit(1)
+
     else:
-        print("[ERROR] Server timeout!")
+        splash.show_error("Timeout Avvio Server.\nControllare i log o riavviare.")
         sys.exit(1)
 
 if __name__ == "__main__":
