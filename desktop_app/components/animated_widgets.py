@@ -71,16 +71,22 @@ class AnimatedButton(QPushButton):
     def enterEvent(self, event):
         SoundManager.instance().play_sound('hover')
         if not self._is_loading:
-            self._color_anim.stop()
-            self._color_anim.setEndValue(self.hover_bg)
-            self._color_anim.start()
+            try:
+                self._color_anim.stop()
+                self._color_anim.setEndValue(self.hover_bg)
+                self._color_anim.start()
+            except RuntimeError:
+                pass # Animation object deleted
         super().enterEvent(event)
 
     def leaveEvent(self, event):
         if not self._is_loading:
-            self._color_anim.stop()
-            self._color_anim.setEndValue(self.default_bg)
-            self._color_anim.start()
+            try:
+                self._color_anim.stop()
+                self._color_anim.setEndValue(self.default_bg)
+                self._color_anim.start()
+            except RuntimeError:
+                pass
         super().leaveEvent(event)
 
     def mousePressEvent(self, event):
@@ -93,9 +99,12 @@ class AnimatedButton(QPushButton):
 
     def mouseReleaseEvent(self, event):
         if not self._is_loading:
-            self._color_anim.stop()
-            self._color_anim.setEndValue(self.hover_bg if self.underMouse() else self.default_bg)
-            self._color_anim.start()
+            try:
+                self._color_anim.stop()
+                self._color_anim.setEndValue(self.hover_bg if self.underMouse() else self.default_bg)
+                self._color_anim.start()
+            except RuntimeError:
+                pass
             super().mouseReleaseEvent(event)
 
     def _start_ripple(self, pos):
@@ -195,36 +204,44 @@ class AnimatedInput(QLineEdit):
 
     def enterEvent(self, event):
         if not self.hasFocus():
-            self._anim_color.stop()
-            self._anim_color.setEndValue(self.hover_border)
-            self._anim_color.start()
+            try:
+                self._anim_color.stop()
+                self._anim_color.setEndValue(self.hover_border)
+                self._anim_color.start()
+            except RuntimeError: pass
         super().enterEvent(event)
 
     def leaveEvent(self, event):
         if not self.hasFocus():
-            self._anim_color.stop()
-            self._anim_color.setEndValue(self.default_border)
-            self._anim_color.start()
+            try:
+                self._anim_color.stop()
+                self._anim_color.setEndValue(self.default_border)
+                self._anim_color.start()
+            except RuntimeError: pass
         super().leaveEvent(event)
 
     def focusInEvent(self, event):
-        self._anim_color.stop()
-        self._anim_color.setEndValue(self.focus_border)
-        self._anim_color.start()
+        try:
+            self._anim_color.stop()
+            self._anim_color.setEndValue(self.focus_border)
+            self._anim_color.start()
 
-        self._anim_width.stop()
-        self._anim_width.setEndValue(2.0)
-        self._anim_width.start()
+            self._anim_width.stop()
+            self._anim_width.setEndValue(2.0)
+            self._anim_width.start()
+        except RuntimeError: pass
         super().focusInEvent(event)
 
     def focusOutEvent(self, event):
-        self._anim_color.stop()
-        self._anim_color.setEndValue(self.default_border)
-        self._anim_color.start()
+        try:
+            self._anim_color.stop()
+            self._anim_color.setEndValue(self.default_border)
+            self._anim_color.start()
 
-        self._anim_width.stop()
-        self._anim_width.setEndValue(1.0)
-        self._anim_width.start()
+            self._anim_width.stop()
+            self._anim_width.setEndValue(1.0)
+            self._anim_width.start()
+        except RuntimeError: pass
         super().focusOutEvent(event)
 
     def paintEvent(self, event):
