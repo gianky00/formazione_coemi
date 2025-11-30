@@ -233,6 +233,8 @@ class DummyQWidget:
         pass
     def setStyleSheet(self, style):
         pass
+    def styleSheet(self):
+        return ""
     def setGraphicsEffect(self, effect):
         pass
     def setChecked(self, checked):
