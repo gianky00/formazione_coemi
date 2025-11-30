@@ -164,6 +164,7 @@ class UserManagementWidget(QFrame):
         self.delete_btn.setObjectName("destructive")
         self.delete_btn.clicked.connect(self.delete_user)
         actions_layout.addWidget(self.delete_btn)
+        admin_layout.addLayout(actions_layout)
 
         self.layout.addWidget(self.admin_container)
 
