@@ -3,6 +3,7 @@ import sys
 import socket
 import platform
 import math
+import requests
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QFrame, QMessageBox, QHBoxLayout,
                              QGraphicsDropShadowEffect, QApplication, QPushButton,
                              QDialog, QLineEdit, QDialogButtonBox)
@@ -80,8 +81,8 @@ class LoginView(QWidget):
         self.mouse_pos_norm = (0.0, 0.0) # Normalized -1 to 1
 
         # Initialize 3D Engine
-        # num_nodes increased to 120 for richer visuals thanks to optimization
-        self.neural_engine = NeuralNetwork3D(num_nodes=120, connect_distance=280)
+        # num_nodes increased to 160 for richer visuals thanks to optimization
+        self.neural_engine = NeuralNetwork3D(num_nodes=160, connect_distance=280)
 
         self._anim_timer = QTimer(self)
         self._anim_timer.timeout.connect(self._animate_background)
@@ -385,8 +386,11 @@ class LoginView(QWidget):
     def _animate_background(self):
         # Update physics
         self.neural_engine.update(self.mouse_pos_norm[0], self.mouse_pos_norm[1])
-        # Trigger repaint
-        self.update()
+
+        # Use simple update() if we are not closing
+        # To avoid painting on destroyed widget
+        if self.isVisible():
+            self.update()
 
     def mouseMoveEvent(self, event):
         pos = event.pos()
@@ -414,6 +418,10 @@ class LoginView(QWidget):
             self.container.move(int(target_x), int(target_y))
 
     def paintEvent(self, event):
+        # Safety check for QPainter crash "Cannot destroy paint device that is being painted"
+        # This often happens if an animation triggers a repaint while another is active,
+        # or if children widgets update in a way that conflicts.
+
         painter = QPainter(self)
         if not painter.isActive():
             return
@@ -433,7 +441,11 @@ class LoginView(QWidget):
         # 2. Render 3D Engine
         # The engine handles projection, connections, pulses, and drawing
         try:
+            # We must save/restore state because child widgets (like AnimatedButton) might be painting too
+            # although paintEvent here is for the Widget background itself.
+            painter.save()
             self.neural_engine.project_and_render(painter, self.width(), self.height())
+            painter.restore()
         except Exception as e:
             # Prevent crash during resize or close
             print(f"3D Render Error: {e}")
@@ -648,45 +660,74 @@ class LoginView(QWidget):
             self.login_btn.set_loading(False)
 
     def _animate_success_exit(self):
-        # Audio Feedback - Removed 'success' (sirena) sound per user request
-        # try:
-        #    SoundManager.instance().play_sound('success')
-        # except: pass
-
+        # Audio Feedback
         username = "Operatore"
         gender = None
         if self.api_client.user_info:
-            # Prefer full name (account_name) over username if available
             username = self.api_client.user_info.get("account_name") or self.api_client.user_info.get("username", "Operatore")
             gender = self.api_client.user_info.get("gender")
 
         welcome_word = "Bentornata" if gender == 'F' else "Bentornato"
+        base_msg = f"Ciao {username}, {welcome_word} in Intellèo."
 
+        # Fetch pending validation count asynchronously
         try:
-            # Modified speech with gender awareness and accent on Intellèo
-            SoundManager.instance().speak(f"Ciao {username}, {welcome_word} in Intellèo.")
+             # Create a worker for fetching count and producing message
+             # We pass base_msg to it
+             worker = Worker(self._fetch_and_prepare_speech, base_msg)
+             # Connect result to main thread handler
+             worker.signals.result.connect(self._on_speech_ready)
+             self.threadpool.start(worker)
+
         except Exception:
-            pass # Fail silently if audio/TTS fails
+             # Fallback
+             SoundManager.instance().speak(base_msg)
 
-        # Stop background animation
+        # Stop background animation to save resources and prevent paint conflicts
         self._anim_timer.stop()
+        self._stop_3d_rendering = True # Explicitly stop painting
 
-        # Slide Down & Fade (Fade via MasterWindow transition mostly)
-        # But we can Slide Down here for effect
+        # Slide Down & Fade
         self.anim_exit = QPropertyAnimation(self.container, b"pos")
         self.anim_exit.setDuration(400)
         
         current_pos = self.container.pos()
-        target_pos = QPoint(current_pos.x(), current_pos.y() + 50) # Slide down slightly
+        target_pos = QPoint(current_pos.x(), current_pos.y() + 50)
 
         self.anim_exit.setStartValue(current_pos)
         self.anim_exit.setEndValue(target_pos)
         self.anim_exit.setEasingCurve(QEasingCurve.Type.InBack)
 
         def on_anim_finished():
-            # Safely stop rendering 3D scene before view transition
-            self._stop_3d_rendering = True
             self.login_success.emit(self.api_client.user_info)
 
         self.anim_exit.finished.connect(on_anim_finished)
         self.anim_exit.start()
+
+    def _fetch_and_prepare_speech(self, base_msg):
+        # This runs in a background thread. Return the final string.
+        try:
+            url = f"{self.api_client.base_url}/certificati/?validated=false"
+            headers = self.api_client._get_headers()
+            resp = requests.get(url, headers=headers, timeout=2) # Short timeout
+
+            if resp.status_code == 200:
+                data = resp.json()
+                count = len(data)
+
+                final_msg = base_msg
+                if count == 1:
+                    final_msg += " C'è 1 documento da convalidare."
+                elif count > 1:
+                    final_msg += f" Ci sono {count} documenti da convalidare."
+
+                return final_msg
+            else:
+                return base_msg
+        except Exception as e:
+            print(f"TTS Logic Error: {e}")
+            return base_msg
+
+    def _on_speech_ready(self, msg):
+        # This runs on Main Thread via Signal
+        SoundManager.instance().speak(msg)
