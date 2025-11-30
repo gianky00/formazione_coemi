@@ -48,6 +48,7 @@ def create_user(
         username=user_in.username,
         hashed_password=security.get_password_hash(default_password),
         account_name=user_in.account_name,
+        gender=user_in.gender,
         is_admin=user_in.is_admin,
     )
     db.add(user)

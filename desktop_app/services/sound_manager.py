@@ -40,7 +40,7 @@ class SpeechWorker(QThread):
                 self.finished.emit(filepath)
                 return
 
-            communicate = edge_tts.Communicate(self.text, "it-IT-ElsaNeural")
+            communicate = edge_tts.Communicate(self.text, "it-IT-IrmaNeural")
             loop.run_until_complete(communicate.save(filepath))
             
             self.finished.emit(filepath)
