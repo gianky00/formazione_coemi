@@ -111,3 +111,10 @@ class CustomSplashScreen(QWidget):
         # Also connect close event? No, simple button click is enough.
         loop.exec()
         self.close()
+
+    def finish(self, window):
+        """
+        Mimics QSplashScreen.finish(window).
+        Closes the splash screen when the main window is ready.
+        """
+        self.close()
