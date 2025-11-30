@@ -29,4 +29,4 @@ python-jose[cryptography]
 geoip2
 user-agents
 wmi
-pyttsx3
+edge-tts

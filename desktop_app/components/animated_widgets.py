@@ -399,7 +399,7 @@ class MagneticButton(AnimatedButton):
         self.setMouseTracking(True)
         self._target_offset = QPointF(0, 0)
         self._current_offset = QPointF(0, 0)
-
+        
         self._magnet_timer = QTimer(self)
         self._magnet_timer.setInterval(16)
         self._magnet_timer.timeout.connect(self._update_magnet)
@@ -409,11 +409,11 @@ class MagneticButton(AnimatedButton):
         # Calculate attraction
         center = QPointF(self.width()/2, self.height()/2)
         pos = QPointF(event.pos())
-
+        
         # Attraction factor
         dist_x = pos.x() - center.x()
         dist_y = pos.y() - center.y()
-
+        
         self._target_offset = QPointF(dist_x * 0.3, dist_y * 0.3)
         super().mouseMoveEvent(event)
 

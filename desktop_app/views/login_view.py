@@ -85,7 +85,7 @@ class LoginView(QWidget):
         super().__init__()
         self.api_client = api_client
         self.threadpool = QThreadPool()
-
+        
         # --- Interactive Neural Background Setup ---
         self.setMouseTracking(True)
         self.nodes = [NeuralNode(1280, 800) for _ in range(70)]
@@ -399,18 +399,18 @@ class LoginView(QWidget):
 
     def mouseMoveEvent(self, event):
         self.mouse_pos = QPointF(event.pos())
-
+        
         # --- 3D Tilt / Parallax Effect ---
         center = self.rect().center()
         dx = (self.mouse_pos.x() - center.x()) / (self.width() / 2) # -1 to 1
         dy = (self.mouse_pos.y() - center.y()) / (self.height() / 2) # -1 to 1
-
+        
         # 1. Move Shadow (Opposite direction simulates light source/tilt)
         shadow = self.container.graphicsEffect()
         if isinstance(shadow, QGraphicsDropShadowEffect):
             shadow.setXOffset(int(-15 * dx))
             shadow.setYOffset(int(10 - (10 * dy)))
-
+            
         # 2. Move Container (Parallax - floats slightly following mouse)
         # Only apply if not entrance-animating
         if not (hasattr(self, 'anim_slide') and self.anim_slide.state() == QPropertyAnimation.State.Running):
@@ -431,25 +431,25 @@ class LoginView(QWidget):
         grad.setColorAt(0, QColor("#1E3A8A")) # Dark Blue
         grad.setColorAt(1, QColor("#0F172A")) # Slate 900
         painter.fillRect(self.rect(), grad)
-
+        
         # 2. Draw Neural Network
         # Apply parallax to nodes (background moves opposite to mouse -> depth)
         center = QPointF(self.width()/2, self.height()/2)
         parallax_offset = (self.mouse_pos - center) * 0.03
-
+        
         drawn_nodes = []
         for n in self.nodes:
             draw_pos = n.pos - parallax_offset
             drawn_nodes.append(draw_pos)
-
+            
             # Draw Node
             painter.setBrush(QBrush(QColor(255, 255, 255, 150)))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawEllipse(draw_pos, n.radius, n.radius)
-
+            
         # Draw Connections
         painter.setPen(QPen(QColor(147, 197, 253, 30), 1)) # Blue-300, low alpha
-
+        
         # Simple distance check optimization
         node_count = len(drawn_nodes)
         for i in range(node_count):
@@ -460,7 +460,7 @@ class LoginView(QWidget):
                 dx = p1.x() - p2.x()
                 dy = p1.y() - p2.y()
                 dist_sq = dx*dx + dy*dy
-
+                
                 if dist_sq < 22500: # 150px
                     painter.drawLine(p1, p2)
 
@@ -508,7 +508,7 @@ class LoginView(QWidget):
             cx = (self.width() - self.container.width()) // 2
             cy = (self.height() - self.container.height()) // 2
             self.center_pos = QPoint(cx, cy)
-
+            
             # If animating, update target to new center
             if hasattr(self, 'anim_slide') and self.anim_slide.state() == QPropertyAnimation.State.Running:
                 self.anim_slide.setEndValue(QPoint(cx, cy))
@@ -517,7 +517,7 @@ class LoginView(QWidget):
 
     def showEvent(self, event):
         super().showEvent(event)
-
+        
         # Stable "Slide Up" Entrance Animation
         x = (self.width() - self.container.width()) // 2
         final_y = (self.height() - self.container.height()) // 2
@@ -660,7 +660,7 @@ class LoginView(QWidget):
     def _animate_success_exit(self):
         # Audio Feedback
         SoundManager.instance().play_sound('success')
-
+        
         username = "Operatore"
         if self.api_client.user_info:
             # Prefer full name (account_name) over username if available
@@ -675,7 +675,7 @@ class LoginView(QWidget):
         # But we can Slide Down here for effect
         self.anim_exit = QPropertyAnimation(self.container, b"pos")
         self.anim_exit.setDuration(400)
-
+        
         current_pos = self.container.pos()
         target_pos = QPoint(current_pos.x(), current_pos.y() + 50) # Slide down slightly
 

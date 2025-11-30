@@ -478,7 +478,7 @@ class MainDashboardWidget(QWidget):
             try: val.validation_completed.disconnect(db.load_data)
             except: pass
             val.validation_completed.connect(db.load_data)
-
+        
         if val and scad:
             try: val.validation_completed.disconnect(scad.refresh_data)
             except: pass

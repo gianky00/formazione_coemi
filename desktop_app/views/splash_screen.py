@@ -11,31 +11,31 @@ class ChecklistItem(QWidget):
         super().__init__(parent)
         self.active = False
         self.target_color = color
-
+        
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0,0,0,0)
         layout.setSpacing(8)
-
+        
         self.icon_label = QLabel()
         self.icon_label.setFixedSize(20, 20)
-
+        
         # Load inactive icon (Grey)
         self.inactive_icon = load_colored_icon(icon_name, "#9CA3AF") # Gray-400
         self.icon_label.setPixmap(self.inactive_icon.pixmap(20, 20))
-
+        
         self.text_label = QLabel(label)
         self.text_label.setStyleSheet("color: #9CA3AF; font-size: 13px; font-weight: 500; font-family: 'Inter';")
-
+        
         layout.addWidget(self.icon_label)
         layout.addWidget(self.text_label)
-
+        
         # Preload active icon
         self.active_icon = load_colored_icon(icon_name, self.target_color)
 
     def activate(self):
         if self.active: return
         self.active = True
-
+        
         self.icon_label.setPixmap(self.active_icon.pixmap(20, 20))
         self.text_label.setStyleSheet(f"color: {self.target_color}; font-size: 13px; font-weight: 700; font-family: 'Inter';")
 
@@ -46,16 +46,16 @@ class HolographicChecklist(QWidget):
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setSpacing(25)
         layout.setContentsMargins(0, 10, 0, 10)
-
+        
         # Icons available: settings, file-text, database
         self.item_security = ChecklistItem("settings.svg", "Sistema", "#10B981") # Green
         self.item_license = ChecklistItem("file-text.svg", "Licenza", "#3B82F6") # Blue
         self.item_ai = ChecklistItem("database.svg", "Intelligenza", "#8B5CF6") # Purple
-
+        
         layout.addWidget(self.item_security)
         layout.addWidget(self.item_license)
         layout.addWidget(self.item_ai)
-
+        
     def update_state(self, status_text):
         lower = status_text.lower()
         if "integrità" in lower or "avvio" in lower:
@@ -91,7 +91,7 @@ class DynamicProgressBar(QProgressBar):
         self.setTextVisible(False)
         self._shimmer_offset = 0
         self.particles = []
-
+        
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._animate)
         self._timer.start(16) # ~60 FPS for fluid particles
@@ -101,7 +101,7 @@ class DynamicProgressBar(QProgressBar):
         self._shimmer_offset += 4
         if self._shimmer_offset > self.width() + 150:
             self._shimmer_offset = -150
-
+        
         # Emit Particles (only if moving and not full)
         val = self.value()
         max_val = self.maximum()
@@ -110,14 +110,14 @@ class DynamicProgressBar(QProgressBar):
              tip_x = self.width() * ratio
              # Emit near the vertical center with some spread
              tip_y = self.height() / 2 + random.uniform(-5, 5)
-
+             
              # Emit multiple particles for density
              if random.random() < 0.4:
                  self.particles.append(Particle(tip_x, tip_y))
 
         # Update existing particles
         self.particles = [p for p in self.particles if p.update()]
-
+        
         self.update()
 
     def paintEvent(self, event):
@@ -179,7 +179,7 @@ class DynamicProgressBar(QProgressBar):
         for p in self.particles:
             alpha = int(255 * p.life)
             # Fade from Violet to Transparent
-            color = QColor("#A78BFA")
+            color = QColor("#A78BFA") 
             color.setAlpha(alpha)
             painter.setBrush(QBrush(color))
             painter.drawEllipse(QPointF(p.x, p.y), p.size, p.size)
@@ -366,7 +366,7 @@ class CustomSplashScreen(QWidget):
             self._animate_text_change(clean_message)
         else:
              self.status_label.setText(clean_message)
-
+        
         # Update Checklist
         if hasattr(self, 'checklist'):
             self.checklist.update_state(clean_message)
