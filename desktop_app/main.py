@@ -308,7 +308,7 @@ class MasterWindow(QMainWindow):
     def __init__(self, controller, license_ok, license_error):
         super().__init__()
         self.controller = controller
-        self.setWindowTitle("Intelleo - Predict. Validate. Automate")
+        self.setWindowTitle("Intelleo")
         self.resize(1280, 800)
 
         self.stack = AnimatedStackedWidget()
@@ -365,6 +365,8 @@ class ApplicationController:
     def start(self):
         print("[DEBUG] ApplicationController.start called. Showing Max Window.")
         self.master_window.showMaximized()
+        self.master_window.activateWindow()
+        self.master_window.raise_()
         self.setup_jumplist()
 
         # Check Backend Health to catch Startup Errors (e.g. DB Lock)

@@ -227,7 +227,7 @@ class LoginView(QWidget):
 
         # Update License Button (Moved to Left Panel)
         self.update_btn = QPushButton("Aggiorna Licenza")
-        self.update_btn.setFixedHeight(35)
+        self.update_btn.setFixedHeight(48)
         self.update_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.update_btn.setStyleSheet("""
             QPushButton {
