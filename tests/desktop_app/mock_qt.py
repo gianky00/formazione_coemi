@@ -168,6 +168,8 @@ class DummyQWidget:
         pass
     def setCursor(self, cursor):
         pass
+    def setMouseTracking(self, enable):
+        pass
     def setTextInteractionFlags(self, flags):
         pass
     def setWordWrap(self, on):

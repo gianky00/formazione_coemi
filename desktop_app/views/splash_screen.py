@@ -3,8 +3,70 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QProgressBar, QFrame,
                              QGraphicsOpacityEffect)
 from PyQt6.QtCore import Qt, QSize, QEventLoop, QTimer, QPropertyAnimation, QEasingCurve, QRectF, QParallelAnimationGroup, QSequentialAnimationGroup, QPointF
 from PyQt6.QtGui import QColor, QPixmap, QPainter, QLinearGradient, QBrush, QFont, QRadialGradient, QPen
-from desktop_app.utils import get_asset_path
+from desktop_app.utils import get_asset_path, load_colored_icon
 import random
+
+class ChecklistItem(QWidget):
+    def __init__(self, icon_name, label, color, parent=None):
+        super().__init__(parent)
+        self.active = False
+        self.target_color = color
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0,0,0,0)
+        layout.setSpacing(8)
+
+        self.icon_label = QLabel()
+        self.icon_label.setFixedSize(20, 20)
+
+        # Load inactive icon (Grey)
+        self.inactive_icon = load_colored_icon(icon_name, "#9CA3AF") # Gray-400
+        self.icon_label.setPixmap(self.inactive_icon.pixmap(20, 20))
+
+        self.text_label = QLabel(label)
+        self.text_label.setStyleSheet("color: #9CA3AF; font-size: 13px; font-weight: 500; font-family: 'Inter';")
+
+        layout.addWidget(self.icon_label)
+        layout.addWidget(self.text_label)
+
+        # Preload active icon
+        self.active_icon = load_colored_icon(icon_name, self.target_color)
+
+    def activate(self):
+        if self.active: return
+        self.active = True
+
+        self.icon_label.setPixmap(self.active_icon.pixmap(20, 20))
+        self.text_label.setStyleSheet(f"color: {self.target_color}; font-size: 13px; font-weight: 700; font-family: 'Inter';")
+
+class HolographicChecklist(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(25)
+        layout.setContentsMargins(0, 10, 0, 10)
+
+        # Icons available: settings, file-text, database
+        self.item_security = ChecklistItem("settings.svg", "Sistema", "#10B981") # Green
+        self.item_license = ChecklistItem("file-text.svg", "Licenza", "#3B82F6") # Blue
+        self.item_ai = ChecklistItem("database.svg", "Intelligenza", "#8B5CF6") # Purple
+
+        layout.addWidget(self.item_security)
+        layout.addWidget(self.item_license)
+        layout.addWidget(self.item_ai)
+
+    def update_state(self, status_text):
+        lower = status_text.lower()
+        if "integrità" in lower or "avvio" in lower:
+            self.item_security.activate()
+        if "licenza" in lower:
+            self.item_security.activate()
+            self.item_license.activate()
+        if "database" in lower or "backend" in lower or "risorse" in lower:
+            self.item_security.activate()
+            self.item_license.activate()
+            self.item_ai.activate()
 
 class Particle:
     def __init__(self, x, y):
@@ -211,7 +273,11 @@ class CustomSplashScreen(QWidget):
         self.detail_label.setStyleSheet("color: #6B7280; font-size: 14px; font-weight: 500; font-family: 'Inter';")
         self.container_layout.addWidget(self.detail_label)
 
-        self.container_layout.addSpacing(10)
+        # Holographic Checklist
+        self.checklist = HolographicChecklist()
+        self.container_layout.addWidget(self.checklist)
+
+        self.container_layout.addSpacing(5)
 
         # Progress Bar (Dynamic)
         self.progress_bar = DynamicProgressBar()
@@ -300,6 +366,10 @@ class CustomSplashScreen(QWidget):
             self._animate_text_change(clean_message)
         else:
              self.status_label.setText(clean_message)
+
+        # Update Checklist
+        if hasattr(self, 'checklist'):
+            self.checklist.update_state(clean_message)
 
         new_details = []
         msg_lower = message.lower()
