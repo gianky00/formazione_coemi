@@ -2,11 +2,12 @@ import os
 import sys
 import socket
 import platform
+import math
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QFrame, QMessageBox, QHBoxLayout,
-                             QGraphicsOpacityEffect, QGraphicsDropShadowEffect, QApplication, QPushButton,
+                             QGraphicsDropShadowEffect, QApplication, QPushButton,
                              QDialog, QLineEdit, QDialogButtonBox)
-from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPropertyAnimation, QPoint, QEasingCurve, QTimer, QObject, QThread, QThreadPool
-from PyQt6.QtGui import QPixmap, QColor, QFont
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPropertyAnimation, QPoint, QEasingCurve, QTimer, QObject, QThread, QThreadPool, QRect
+from PyQt6.QtGui import QPixmap, QColor, QFont, QPainter, QLinearGradient
 from desktop_app.utils import get_asset_path
 from desktop_app.components.animated_widgets import AnimatedButton, AnimatedInput
 from desktop_app.components.custom_dialog import CustomMessageDialog
@@ -70,15 +71,15 @@ class LoginView(QWidget):
         super().__init__()
         self.api_client = api_client
         self.threadpool = QThreadPool()
-        self.setStyleSheet("background-color: #F0F8FF;")
 
-        # Main Layout (Centering the Container)
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # --- Animated Gradient Background Setup ---
+        self._gradient_shift = 0
+        self._gradient_timer = QTimer(self)
+        self._gradient_timer.timeout.connect(self._update_gradient)
+        self._gradient_timer.start(50) # 20 FPS is enough for slow background
 
-        # Container Card (Split View)
-        self.container = QFrame()
+        # Container Card (Split View) - Manual Positioning for Animation
+        self.container = QFrame(self)
         self.container.setFixedSize(960, 600)
         self.container.setStyleSheet("""
             QFrame {
@@ -87,6 +88,7 @@ class LoginView(QWidget):
             }
         """)
 
+        # Shadow (Permanently on self.container)
         shadow = QGraphicsDropShadowEffect(self)
         shadow.setBlurRadius(50)
         shadow.setXOffset(0)
@@ -225,7 +227,7 @@ class LoginView(QWidget):
 
         left_layout.addSpacing(20)
 
-        # Update License Button (Moved to Left Panel)
+        # Update License Button
         self.update_btn = QPushButton("Aggiorna Licenza")
         self.update_btn.setFixedHeight(48)
         self.update_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -261,13 +263,18 @@ class LoginView(QWidget):
 
         right_layout.addStretch()
 
-        welcome_title = QLabel("Bentornato")
-        welcome_title.setStyleSheet("color: #1F2937; font-size: 32px; font-weight: 700;")
-        right_layout.addWidget(welcome_title)
+        # We hold references to these widgets for animation
+        self.animated_widgets = []
 
-        welcome_sub = QLabel("Accedi al tuo account per continuare")
-        welcome_sub.setStyleSheet("color: #6B7280; font-size: 15px;")
-        right_layout.addWidget(welcome_sub)
+        self.welcome_title = QLabel("Bentornato")
+        self.welcome_title.setStyleSheet("color: #1F2937; font-size: 32px; font-weight: 700;")
+        right_layout.addWidget(self.welcome_title)
+        self.animated_widgets.append((self.welcome_title, True)) # (Widget, CanFade)
+
+        self.welcome_sub = QLabel("Accedi al tuo account per continuare")
+        self.welcome_sub.setStyleSheet("color: #6B7280; font-size: 15px;")
+        right_layout.addWidget(self.welcome_sub)
+        self.animated_widgets.append((self.welcome_sub, True))
 
         right_layout.addSpacing(20)
 
@@ -289,6 +296,8 @@ class LoginView(QWidget):
             }
         """)
         right_layout.addWidget(self.username_input)
+        # Disable Opacity Effect for Inputs to avoid Painter conflict
+        self.animated_widgets.append((self.username_input, False))
 
         self.password_input = AnimatedInput()
         self.password_input.setPlaceholderText("Password")
@@ -310,6 +319,7 @@ class LoginView(QWidget):
         """)
         self.password_input.returnPressed.connect(self.handle_login)
         right_layout.addWidget(self.password_input)
+        self.animated_widgets.append((self.password_input, False))
 
         right_layout.addSpacing(10)
 
@@ -332,11 +342,10 @@ class LoginView(QWidget):
         """)
         self.login_btn.clicked.connect(self.handle_login)
         right_layout.addWidget(self.login_btn)
+        self.animated_widgets.append((self.login_btn, False))
 
         right_layout.addStretch()
         right_layout.addStretch(1)
-
-        # Removed update_layout from Right Panel
 
         footer_text = "v1.0.0 • Intelleo Security"
         footer_layout = QVBoxLayout()
@@ -345,13 +354,13 @@ class LoginView(QWidget):
         ver_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         footer_layout.addWidget(ver_label)
         right_layout.addLayout(footer_layout)
+        self.animated_widgets.append((ver_label, True))
 
         container_layout.addWidget(self.left_panel, 40)
         container_layout.addWidget(self.right_panel, 60)
 
-        main_layout.addWidget(self.container)
-
-        self.setup_entrance_animation()
+        # REMOVED setup_entrance_animation (staggered fades) to fix QPainter crashes
+        # We use showEvent for a stable Slide Up animation
 
         if not license_ok:
             self.username_input.setEnabled(False)
@@ -363,6 +372,36 @@ class LoginView(QWidget):
             right_layout.insertWidget(5, error_label)
 
         self._auto_update_if_needed()
+
+    def _update_gradient(self):
+        self._gradient_shift += 0.005
+        if self._gradient_shift > 1:
+            self._gradient_shift = 0
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        if not painter.isActive():
+            return
+
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # Draw Animated Gradient
+        width = self.width()
+        height = self.height()
+
+        # Oscillate color factor based on shift
+        factor = (math.sin(self._gradient_shift * 2 * math.pi) + 1) / 2 # 0 to 1
+
+        c1 = QColor("#F0F8FF") # Alice Blue
+        c2 = QColor("#DBEAFE") # Blue 100
+
+        # Interpolate
+        r = int(c1.red() + (c2.red() - c1.red()) * factor)
+        g = int(c1.green() + (c2.green() - c1.green()) * factor)
+        b = int(c1.blue() + (c2.blue() - c1.blue()) * factor)
+
+        painter.fillRect(self.rect(), QColor(r, g, b))
 
     def _auto_update_if_needed(self):
         from desktop_app.services.path_service import get_license_dir
@@ -393,17 +432,6 @@ class LoginView(QWidget):
                 CustomMessageDialog.show_info(self, "Info Licenza", "La licenza risulta aggiornata.")
             else:
                 from desktop_app.main import restart_app
-                # For this specific case (Restart), CustomMessageDialog isn't perfectly mapped since it only has "OK".
-                # But the standard flow is Info -> Click OK -> (Maybe restart code was inside OK block?)
-                # The original code had:
-                # restart_button = msg_box.addButton("Riavvia Ora", ...)
-                # if clicked == restart_button: restart()
-
-                # The requirement says: "Info Licenza" text "OK".
-                # But here it's asking to restart.
-                # I should probably just show info and then restart automatically or when they click OK.
-                # "È necessario riavviare...". Click OK -> Restart.
-
                 CustomMessageDialog.show_info(self, "Successo", f"{message}\n\nÈ necessario riavviare l'applicazione per applicare le modifiche.")
                 restart_app()
         else:
@@ -412,20 +440,35 @@ class LoginView(QWidget):
         self.thread.quit()
         self.thread.wait()
 
-    def setup_entrance_animation(self):
-        self.opacity_effect = QGraphicsOpacityEffect(self.container)
-        self.container.setGraphicsEffect(self.opacity_effect)
-        self.opacity_effect.setOpacity(0)
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # Keep container centered
+        if hasattr(self, 'container'):
+            x = (self.width() - self.container.width()) // 2
+            y = (self.height() - self.container.height()) // 2
 
-        self.anim_opacity = QPropertyAnimation(self.opacity_effect, b"opacity")
-        self.anim_opacity.setDuration(800)
-        self.anim_opacity.setStartValue(0)
-        self.anim_opacity.setEndValue(1)
-        self.anim_opacity.setEasingCurve(QEasingCurve.Type.OutCubic)
+            # If animating, update target to new center
+            if hasattr(self, 'anim_slide') and self.anim_slide.state() == QPropertyAnimation.State.Running:
+                self.anim_slide.setEndValue(QPoint(x, y))
+            else:
+                self.container.move(x, y)
 
     def showEvent(self, event):
         super().showEvent(event)
-        self.anim_opacity.start()
+
+        # Stable "Slide Up" Entrance Animation
+        x = (self.width() - self.container.width()) // 2
+        final_y = (self.height() - self.container.height()) // 2
+        start_y = final_y + 60 # Start lower
+
+        self.container.move(x, start_y)
+
+        self.anim_slide = QPropertyAnimation(self.container, b"pos")
+        self.anim_slide.setDuration(800)
+        self.anim_slide.setStartValue(QPoint(x, start_y))
+        self.anim_slide.setEndValue(QPoint(x, final_y))
+        self.anim_slide.setEasingCurve(QEasingCurve.Type.OutBack) # Modern bouncy feel
+        self.anim_slide.start()
 
     def read_license_info(self):
         data = LicenseManager.get_license_data()
@@ -449,6 +492,7 @@ class LoginView(QWidget):
         animation.setLoopCount(3)
         animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
         current_pos = self.container.pos()
+
         animation.setKeyValueAt(0, current_pos)
         animation.setKeyValueAt(0.25, current_pos + QPoint(-5, 0))
         animation.setKeyValueAt(0.75, current_pos + QPoint(5, 0))
@@ -544,9 +588,28 @@ class LoginView(QWidget):
                 msg += "Non sarà possibile salvare nuove modifiche."
                 CustomMessageDialog.show_warning(self, "Modalità Sola Lettura", msg)
 
-            self.login_success.emit(self.api_client.user_info)
+            # Trigger Fly-Out Animation before emitting success
+            self._animate_success_exit()
 
         except Exception as e:
             self._on_login_error((type(e), e, None))
-        finally:
             self.login_btn.set_loading(False)
+
+    def _animate_success_exit(self):
+        # Stop background animation
+        self._gradient_timer.stop()
+
+        # Slide Down & Fade (Fade via MasterWindow transition mostly)
+        # But we can Slide Down here for effect
+        self.anim_exit = QPropertyAnimation(self.container, b"pos")
+        self.anim_exit.setDuration(400)
+
+        current_pos = self.container.pos()
+        target_pos = QPoint(current_pos.x(), current_pos.y() + 50) # Slide down slightly
+
+        self.anim_exit.setStartValue(current_pos)
+        self.anim_exit.setEndValue(target_pos)
+        self.anim_exit.setEasingCurve(QEasingCurve.Type.InBack)
+
+        self.anim_exit.finished.connect(lambda: self.login_success.emit(self.api_client.user_info))
+        self.anim_exit.start()

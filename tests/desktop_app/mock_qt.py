@@ -557,7 +557,29 @@ def mock_qt_modules():
     mock_core.QObject = DummyQObject
     mock_core.QAbstractTableModel = DummyQAbstractTableModel
     mock_core.QTimer = MagicMock()
-    mock_core.QPropertyAnimation = MagicMock()
+
+    class DummyQPropertyAnimation(MagicMock):
+        def __init__(self, target=None, prop_name=None, parent=None, **kwargs):
+            super().__init__(**kwargs)
+            self._finished = DummySignal()
+
+        @property
+        def finished(self):
+            return self._finished
+
+        def setStartValue(self, v): pass
+        def setEndValue(self, v): pass
+        def setDuration(self, d): pass
+        def setEasingCurve(self, c): pass
+        def state(self): return 0 # Stopped
+
+        def start(self):
+            # Auto-finish for tests
+            self._finished.emit()
+
+        def stop(self): pass
+
+    mock_core.QPropertyAnimation = DummyQPropertyAnimation
     mock_core.QEasingCurve = MagicMock()
     mock_core.pyqtSignal = DummyPyQtSignal
     mock_core.QThreadPool = MagicMock()
