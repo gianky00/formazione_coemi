@@ -8,7 +8,7 @@ from datetime import date, timedelta
 @pytest.fixture
 def mock_settings():
     with patch("app.services.file_maintenance.settings") as mock:
-        mock.DATABASE_PATH = "/mock/db/path"
+        mock.DATABASE_PATH = os.path.join("mock", "db", "path")
         yield mock
 
 @pytest.fixture
@@ -30,9 +30,18 @@ def test_organize_expired_files_move_success(mock_settings, mock_db_session):
 
     mock_db_session.query.return_value.filter.return_value.all.return_value = [cert]
 
+    # Use OS-specific paths
+    base_path = os.path.join("mock", "db", "path")
+    # Note: find_document result is usually absolute.
+    # We construct a path that matches what find_document returns (mocked) and what logic expects.
+
+    src_path = os.path.join(base_path, "DIP", "SICUREZZA", "ATTIVO", "file.pdf")
+    # Target structure: .../Category/STORICO/file.pdf
+    dst_path = os.path.join(base_path, "DIP", "SICUREZZA", "STORICO", "file.pdf")
+
     # Mocks
     with patch("app.services.file_maintenance.certificate_logic.get_certificate_status", return_value="scaduto"), \
-         patch("app.services.file_maintenance.find_document", return_value="/mock/db/path/DIP/SICUREZZA/ATTIVO/file.pdf"), \
+         patch("app.services.file_maintenance.find_document", return_value=src_path), \
          patch("os.path.exists") as mock_exists, \
          patch("os.path.isfile", return_value=True), \
          patch("os.makedirs") as mock_makedirs, \
@@ -40,7 +49,9 @@ def test_organize_expired_files_move_success(mock_settings, mock_db_session):
 
          # os.path.exists side effect: True for DB path, False for STORICO dir (so it creates it)
          def exists_side_effect(path):
-             if path == "/mock/db/path": return True
+             # Normalize for comparison
+             path = os.path.normpath(path)
+             if path == os.path.normpath(base_path): return True
              if "STORICO" in path: return False
              return True
          mock_exists.side_effect = exists_side_effect
@@ -48,17 +59,16 @@ def test_organize_expired_files_move_success(mock_settings, mock_db_session):
          file_maintenance.organize_expired_files(mock_db_session)
 
          mock_makedirs.assert_called() # Should create STORICO
-         mock_move.assert_called_with(
-             "/mock/db/path/DIP/SICUREZZA/ATTIVO/file.pdf",
-             "/mock/db/path/DIP/SICUREZZA/STORICO/file.pdf"
-         )
+         mock_move.assert_called_with(src_path, dst_path)
 
 def test_organize_expired_files_already_archived(mock_settings, mock_db_session):
     cert = Certificato(data_scadenza_calcolata=date.today() - timedelta(days=1))
     mock_db_session.query.return_value.filter.return_value.all.return_value = [cert]
 
+    path = os.path.join("mock", "db", "path", "DIP", "SICUREZZA", "STORICO", "file.pdf")
+
     with patch("app.services.file_maintenance.certificate_logic.get_certificate_status", return_value="scaduto"), \
-         patch("app.services.file_maintenance.find_document", return_value="/mock/db/path/DIP/SICUREZZA/STORICO/file.pdf"), \
+         patch("app.services.file_maintenance.find_document", return_value=path), \
          patch("os.path.exists", return_value=True), \
          patch("os.path.isfile", return_value=True), \
          patch("shutil.move") as mock_move:

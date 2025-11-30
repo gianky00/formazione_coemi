@@ -29,7 +29,10 @@ class TestPathService:
     def test_get_user_data_dir_linux(self):
         with patch("os.name", "posix"), patch("sys.platform", "linux"):
             with patch("os.path.expanduser", return_value="/home/user"), patch("os.makedirs"):
-                assert path_service.get_user_data_dir() == "/home/user/.local/share/Intelleo"
+                expected = "/home/user/.local/share/Intelleo"
+                result = path_service.get_user_data_dir()
+                # Normalize to forward slashes for cross-platform test consistency
+                assert result.replace("\\", "/") == expected
 
 class TestHardwareIdService:
     def test_get_machine_id_windows_wmi(self):

@@ -22,11 +22,12 @@ class TestLicenseManagerFull:
 
                  data = LicenseManager.get_license_data()
                  assert data["Cliente"] == "Test"
-                 # Check it looked in user dir first (normpath handles separators if needed, but here simple string check)
-                 # os.path.join uses OS separator. On linux /user/lic/config.dat
-                 # On windows \user\lic\config.dat
-                 # Since we run on linux in sandbox:
-                 mock_file.assert_called_with("/user/lic/config.dat", "rb")
+
+                 # Check it looked in user dir first
+                 # Normalize for cross-platform
+                 args, _ = mock_file.call_args
+                 path_arg = args[0].replace("\\", "/")
+                 assert path_arg == "/user/lic/config.dat"
 
     def test_get_license_data_fallback(self):
         with patch.dict(sys.modules, mock_modules):
