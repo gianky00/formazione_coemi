@@ -17,6 +17,7 @@ from desktop_app.services.sound_manager import SoundManager
 from desktop_app.services.license_updater_service import LicenseUpdaterService
 from desktop_app.services.hardware_id_service import get_machine_id
 from desktop_app.workers.worker import Worker
+from desktop_app.components.neural_3d import NeuralNetwork3D
 
 class ForcePasswordChangeDialog(QDialog):
     def __init__(self, parent=None):
@@ -65,19 +66,6 @@ class LicenseUpdateWorker(QObject):
         success, message = updater.update_license(hw_id)
         self.finished.emit(success, message)
 
-
-class NeuralNode:
-    def __init__(self, w, h):
-        self.pos = QPointF(random.uniform(0, w), random.uniform(0, h))
-        self.vel = QPointF(random.uniform(-0.4, 0.4), random.uniform(-0.4, 0.4))
-        self.radius = random.uniform(2.0, 4.5) # Increased size for visibility
-
-    def update(self, w, h):
-        self.pos += self.vel
-        # Bounce
-        if self.pos.x() < 0 or self.pos.x() > w: self.vel.setX(-self.vel.x())
-        if self.pos.y() < 0 or self.pos.y() > h: self.vel.setY(-self.vel.y())
-
 class LoginView(QWidget):
     login_success = pyqtSignal(dict) # Emits user_info dict
 
@@ -85,16 +73,19 @@ class LoginView(QWidget):
         super().__init__()
         self.api_client = api_client
         self.threadpool = QThreadPool()
+        self._stop_3d_rendering = False # Flag to safely stop 3D engine before view transition
         
         # --- Interactive Neural Background Setup ---
         self.setMouseTracking(True)
-        self.nodes = [NeuralNode(1280, 800) for _ in range(70)]
-        self.mouse_pos = QPointF(0, 0)
-        self.center_pos = QPoint(0, 0)
+        self.mouse_pos_norm = (0.0, 0.0) # Normalized -1 to 1
+
+        # Initialize 3D Engine
+        # num_nodes increased to 120 for richer visuals thanks to optimization
+        self.neural_engine = NeuralNetwork3D(num_nodes=120, connect_distance=280)
 
         self._anim_timer = QTimer(self)
         self._anim_timer.timeout.connect(self._animate_background)
-        self._anim_timer.start(25) # 40 FPS
+        self._anim_timer.start(16) # ~60 FPS target for smooth 3D rotation
 
         # Container Card (Split View) - Manual Positioning for Animation
         self.container = QFrame(self)
@@ -392,31 +383,34 @@ class LoginView(QWidget):
         self._auto_update_if_needed()
 
     def _animate_background(self):
-        w, h = self.width(), self.height()
-        for node in self.nodes:
-            node.update(w, h)
+        # Update physics
+        self.neural_engine.update(self.mouse_pos_norm[0], self.mouse_pos_norm[1])
+        # Trigger repaint
         self.update()
 
     def mouseMoveEvent(self, event):
-        self.mouse_pos = QPointF(event.pos())
+        pos = event.pos()
+        # Normalized coordinates (-1.0 to 1.0) for 3D engine rotation
+        w_half = self.width() / 2
+        h_half = self.height() / 2
         
-        # --- 3D Tilt / Parallax Effect ---
-        center = self.rect().center()
-        dx = (self.mouse_pos.x() - center.x()) / (self.width() / 2) # -1 to 1
-        dy = (self.mouse_pos.y() - center.y()) / (self.height() / 2) # -1 to 1
-        
-        # 1. Move Shadow (Opposite direction simulates light source/tilt)
+        nx = (pos.x() - w_half) / w_half
+        ny = (pos.y() - h_half) / h_half
+        self.mouse_pos_norm = (nx, ny)
+
+        # --- 3D Tilt / Parallax Effect for the Login Card ---
+        # 1. Move Shadow
         shadow = self.container.graphicsEffect()
         if isinstance(shadow, QGraphicsDropShadowEffect):
-            shadow.setXOffset(int(-15 * dx))
-            shadow.setYOffset(int(10 - (10 * dy)))
+            shadow.setXOffset(int(-15 * nx))
+            shadow.setYOffset(int(10 - (10 * ny)))
             
-        # 2. Move Container (Parallax - floats slightly following mouse)
+        # 2. Move Container (Parallax)
         # Only apply if not entrance-animating
         if not (hasattr(self, 'anim_slide') and self.anim_slide.state() == QPropertyAnimation.State.Running):
             # Calculate new target position relative to base center
-            target_x = self.center_pos.x() + (12 * dx)
-            target_y = self.center_pos.y() + (12 * dy)
+            target_x = self.center_pos.x() + (12 * nx)
+            target_y = self.center_pos.y() + (12 * ny)
             self.container.move(int(target_x), int(target_y))
 
     def paintEvent(self, event):
@@ -424,7 +418,7 @@ class LoginView(QWidget):
         if not painter.isActive():
             return
 
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True) # Enable AA for smooth lines
 
         # 1. Deep Space Background
         grad = QLinearGradient(0, 0, 0, self.height())
@@ -432,37 +426,17 @@ class LoginView(QWidget):
         grad.setColorAt(1, QColor("#0F172A")) # Slate 900
         painter.fillRect(self.rect(), grad)
         
-        # 2. Draw Neural Network
-        # Apply parallax to nodes (background moves opposite to mouse -> depth)
-        center = QPointF(self.width()/2, self.height()/2)
-        parallax_offset = (self.mouse_pos - center) * 0.03
-        
-        drawn_nodes = []
-        for n in self.nodes:
-            draw_pos = n.pos - parallax_offset
-            drawn_nodes.append(draw_pos)
-            
-            # Draw Node
-            painter.setBrush(QBrush(QColor(255, 255, 255, 150)))
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawEllipse(draw_pos, n.radius, n.radius)
-            
-        # Draw Connections
-        painter.setPen(QPen(QColor(147, 197, 253, 30), 1)) # Blue-300, low alpha
-        
-        # Simple distance check optimization
-        node_count = len(drawn_nodes)
-        for i in range(node_count):
-            for j in range(i + 1, node_count):
-                p1 = drawn_nodes[i]
-                p2 = drawn_nodes[j]
-                # Distance squared check (avoid sqrt)
-                dx = p1.x() - p2.x()
-                dy = p1.y() - p2.y()
-                dist_sq = dx*dx + dy*dy
-                
-                if dist_sq < 22500: # 150px
-                    painter.drawLine(p1, p2)
+        # Check if we should skip 3D rendering (e.g. during view transitions)
+        if self._stop_3d_rendering:
+            return
+
+        # 2. Render 3D Engine
+        # The engine handles projection, connections, pulses, and drawing
+        try:
+            self.neural_engine.project_and_render(painter, self.width(), self.height())
+        except Exception as e:
+            # Prevent crash during resize or close
+            print(f"3D Render Error: {e}")
 
     def _auto_update_if_needed(self):
         from desktop_app.services.path_service import get_license_dir
@@ -523,9 +497,11 @@ class LoginView(QWidget):
         self.login_btn.set_loading(False)
         self.password_input.clear()
 
+        self._stop_3d_rendering = False # Re-enable rendering
+
         # Ensure background animation is running
         if not self._anim_timer.isActive():
-            self._anim_timer.start(25)
+            self._anim_timer.start(16)
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -703,5 +679,10 @@ class LoginView(QWidget):
         self.anim_exit.setEndValue(target_pos)
         self.anim_exit.setEasingCurve(QEasingCurve.Type.InBack)
 
-        self.anim_exit.finished.connect(lambda: self.login_success.emit(self.api_client.user_info))
+        def on_anim_finished():
+            # Safely stop rendering 3D scene before view transition
+            self._stop_3d_rendering = True
+            self.login_success.emit(self.api_client.user_info)
+
+        self.anim_exit.finished.connect(on_anim_finished)
         self.anim_exit.start()
