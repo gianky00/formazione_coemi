@@ -18,6 +18,7 @@ class APIClient:
             "id": token_data.get("user_id"),
             "username": token_data.get("username"),
             "account_name": token_data.get("account_name"),
+            "gender": token_data.get("gender"),
             "is_admin": token_data.get("is_admin"),
             "read_only": token_data.get("read_only", False),
             "lock_owner": token_data.get("lock_owner"),
@@ -119,13 +120,14 @@ class APIClient:
         response.raise_for_status()
         return response.json()
 
-    def create_user(self, username, password, account_name=None, is_admin=False):
+    def create_user(self, username, password, account_name=None, is_admin=False, gender=None):
         url = f"{self.base_url}/users/"
         payload = {
             "username": username,
             "password": password,
             "account_name": account_name,
-            "is_admin": is_admin
+            "is_admin": is_admin,
+            "gender": gender
         }
         response = requests.post(url, json=payload, headers=self._get_headers())
         response.raise_for_status()

@@ -84,6 +84,7 @@ class CertificatoAggiornamentoSchema(BaseModel):
 class UserBase(BaseModel):
     username: str
     account_name: Optional[str] = None
+    gender: Optional[str] = None # 'M', 'F', or None
     is_admin: bool = False
 
 class UserCreate(UserBase):
@@ -97,6 +98,7 @@ class UserUpdate(BaseModel):
     username: Optional[str] = None
     account_name: Optional[str] = None
     password: Optional[str] = None
+    gender: Optional[str] = None
     is_admin: Optional[bool] = None
 
 class User(UserBase):
@@ -113,6 +115,7 @@ class Token(BaseModel):
     user_id: int
     username: str
     account_name: Optional[str] = None
+    gender: Optional[str] = None
     is_admin: bool
     previous_login: Optional[datetime] = None
     read_only: bool = False

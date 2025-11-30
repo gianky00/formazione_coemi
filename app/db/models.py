@@ -31,6 +31,7 @@ class User(Base):
     is_admin = Column(Boolean, default=False)
     last_login = Column(DateTime, nullable=True)
     previous_login = Column(DateTime, nullable=True)
+    gender = Column(String, nullable=True) # 'M', 'F', or None
     created_at = Column(DateTime, default=utc_now)
 
 class BlacklistedToken(Base):

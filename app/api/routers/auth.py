@@ -120,6 +120,7 @@ def login_access_token(
         "user_id": user.id,
         "username": user.username,
         "account_name": user.account_name,
+        "gender": user.gender,
         "is_admin": user.is_admin,
         "previous_login": user.previous_login,
         "read_only": not success,

@@ -54,6 +54,11 @@ class UserDialog(QDialog):
         form_layout = QFormLayout()
         self.username_input = QLineEdit()
         self.account_name_input = QLineEdit()
+        self.gender_combo = QComboBox()
+        self.gender_combo.addItem("Non specificato", None)
+        self.gender_combo.addItem("Uomo", "M")
+        self.gender_combo.addItem("Donna", "F")
+
         # self.password_input removed as per requirement for Create
         self.is_admin_check = QCheckBox("Amministratore")
 
@@ -64,6 +69,11 @@ class UserDialog(QDialog):
             self.username_input.setText(user_data.get('username', ''))
             self.account_name_input.setText(user_data.get('account_name', ''))
             self.is_admin_check.setChecked(user_data.get('is_admin', False))
+
+            gender = user_data.get('gender')
+            index = self.gender_combo.findData(gender)
+            if index >= 0:
+                self.gender_combo.setCurrentIndex(index)
 
             # For editing existing users (admin override), we might want to allow password reset
             # But the requirement says "first password is ALWAYS primoaccesso" for NEW accounts.
@@ -79,6 +89,7 @@ class UserDialog(QDialog):
 
         form_layout.addRow("Nome Utente:", self.username_input)
         form_layout.addRow("Nome Account (es. Mario Rossi):", self.account_name_input)
+        form_layout.addRow("Sesso:", self.gender_combo)
 
         if user_data:
             form_layout.addRow("Nuova Password (Admin Reset):", self.password_input)
@@ -97,6 +108,7 @@ class UserDialog(QDialog):
         data = {
             "username": self.username_input.text(),
             "account_name": self.account_name_input.text(),
+            "gender": self.gender_combo.currentData(),
             "is_admin": self.is_admin_check.isChecked()
         }
         if self.user_data:
@@ -185,7 +197,9 @@ class UserManagementWidget(QFrame):
                 users = self.api_client.get_users()
                 self.table.setRowCount(len(users))
                 for i, user in enumerate(users):
-                    self.table.setItem(i, 0, QTableWidgetItem(str(user['id'])))
+                    id_item = QTableWidgetItem(str(user['id']))
+                    id_item.setData(Qt.ItemDataRole.UserRole, user) # Store full object
+                    self.table.setItem(i, 0, id_item)
                     self.table.setItem(i, 1, QTableWidgetItem(str(user['username'])))
                     self.table.setItem(i, 2, QTableWidgetItem(str(user.get('account_name', ''))))
                     self.table.setItem(i, 3, QTableWidgetItem("Sì" if user['is_admin'] else "No"))
@@ -201,9 +215,11 @@ class UserManagementWidget(QFrame):
                 return
             try:
                 # Password is None (default "primoaccesso" handled by backend)
+                # create_user signature might need update or passing **kwargs
+                # Assuming api_client.create_user supports gender or kwargs
                 self.api_client.create_user(
                     data['username'], data['password'],
-                    data['account_name'], data['is_admin']
+                    data['account_name'], data['is_admin'], data['gender']
                 )
                 self.refresh_users()
             except Exception as e:
@@ -219,18 +235,17 @@ class UserManagementWidget(QFrame):
         if not user_id: return
         current_user_id = self.api_client.user_info.get("id")
 
-        user_data = {
-            "username": self.table.item(self.table.currentRow(), 1).text(),
-            "account_name": self.table.item(self.table.currentRow(), 2).text(),
-            "is_admin": self.table.item(self.table.currentRow(), 3).text() == "Sì"
-        }
+        # Retrieve full data from table item
+        user_data = self.table.item(self.table.currentRow(), 0).data(Qt.ItemDataRole.UserRole)
+        if not user_data: return
 
         dialog = UserDialog(self, user_data)
         if dialog.exec():
             data = dialog.get_data()
             update_payload = {}
             if data['username'] != user_data['username']: update_payload['username'] = data['username']
-            if data['account_name'] != user_data['account_name']: update_payload['account_name'] = data['account_name']
+            if data['account_name'] != user_data.get('account_name'): update_payload['account_name'] = data['account_name']
+            if data['gender'] != user_data.get('gender'): update_payload['gender'] = data['gender']
             if data['is_admin'] != user_data['is_admin']: update_payload['is_admin'] = data['is_admin']
             if data.get('password'): update_payload['password'] = data['password']
 

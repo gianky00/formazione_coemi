@@ -654,13 +654,17 @@ class LoginView(QWidget):
         # except: pass
         
         username = "Operatore"
+        gender = None
         if self.api_client.user_info:
             # Prefer full name (account_name) over username if available
             username = self.api_client.user_info.get("account_name") or self.api_client.user_info.get("username", "Operatore")
+            gender = self.api_client.user_info.get("gender")
+
+        welcome_word = "Bentornata" if gender == 'F' else "Bentornato"
 
         try:
-            # Modified speech: Removed "Sistemi Online"
-            SoundManager.instance().speak(f"Benvenuto, {username}.")
+            # Modified speech with gender awareness and accent on Intellèo
+            SoundManager.instance().speak(f"Ciao {username}, {welcome_word} in Intellèo.")
         except Exception:
             pass # Fail silently if audio/TTS fails
 
