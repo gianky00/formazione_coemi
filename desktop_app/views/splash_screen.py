@@ -6,38 +6,6 @@ from PyQt6.QtGui import QColor, QPixmap
 from desktop_app.utils import get_asset_path
 from desktop_app.components.animated_widgets import AnimatedButton
 
-class FadeLabel(QLabel):
-    """
-    A QLabel that animates text changes with a fade effect.
-    """
-    def __init__(self, text="", parent=None):
-        super().__init__(text, parent)
-        self.opacity_effect = QGraphicsOpacityEffect(self)
-        self.setGraphicsEffect(self.opacity_effect)
-
-        self.anim = QPropertyAnimation(self.opacity_effect, b"opacity")
-        self.anim.setDuration(300)
-        self.anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-
-    def setText(self, text):
-        # If text is the same, do nothing
-        if text == self.text():
-            return
-
-        # Stop any running animation
-        self.anim.stop()
-
-        # Reset opacity to 0
-        self.opacity_effect.setOpacity(0)
-
-        # Update text
-        super().setText(text)
-
-        # Animate to 1
-        self.anim.setStartValue(0)
-        self.anim.setEndValue(1)
-        self.anim.start()
-
 class CustomSplashScreen(QWidget):
     def __init__(self):
         super().__init__()
@@ -91,8 +59,8 @@ class CustomSplashScreen(QWidget):
         self.container_layout.addWidget(self.logo_label)
         self.container_layout.addSpacing(15)
 
-        # Status Label (FadeLabel)
-        self.status_label = FadeLabel("Avvio sistema...")
+        # Status Label (Standard QLabel for reliability)
+        self.status_label = QLabel("Avvio sistema...")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_label.setStyleSheet("color: #4B5563; font-size: 16px; font-weight: 500; border: none;")
         self.container_layout.addWidget(self.status_label)
@@ -164,6 +132,8 @@ class CustomSplashScreen(QWidget):
 
     def update_status(self, message, progress=None):
         self.status_label.setText(message)
+        # Force repaint to ensure text updates even if main loop is busy
+        self.status_label.repaint()
         if progress is not None:
             self.progress_bar.setValue(progress)
         QApplication.processEvents()

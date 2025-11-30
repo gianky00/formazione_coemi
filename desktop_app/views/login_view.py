@@ -234,7 +234,7 @@ class LoginView(QWidget):
                 background-color: rgba(255, 255, 255, 0.1);
                 color: white;
                 font-weight: 600;
-                font-size: 12px;
+                font-size: 15px;
                 border-radius: 6px;
                 border: 1px solid #60A5FA;
             }
