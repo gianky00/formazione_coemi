@@ -144,6 +144,8 @@ class DummyQWidget:
         pass
     def geometry(self):
         return MagicMock()
+    def pos(self):
+        return MagicMock()
     def move(self, x, y):
         pass
     def setObjectName(self, name):
