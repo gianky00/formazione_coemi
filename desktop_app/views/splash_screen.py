@@ -133,24 +133,20 @@ class CustomSplashScreen(QWidget):
             self.logo_label.setText("INTELLEO")
             self.logo_label.setStyleSheet("font-size: 56px; font-weight: 800; color: #1E3A8A; font-family: 'Inter'; letter-spacing: -1px;")
 
-        # Logo Animation Effects (Nested Effect on Child is fine)
-        self.logo_opacity = QGraphicsOpacityEffect(self.logo_label)
-        self.logo_label.setGraphicsEffect(self.logo_opacity)
-        self.logo_opacity.setOpacity(0) # Start invisible
+        # Logo Animation Effects
+        # REMOVED QGraphicsOpacityEffect to prevent QPainter errors and threading issues.
+        # We rely on Window Opacity for entrance.
 
         self.container_layout.addWidget(self.logo_label)
-        self.container_layout.addSpacing(10)
+        self.container_layout.addSpacing(40) # Increased spacing to prevent overlap
 
         # Status Label (Main Step)
-        self.status_label = QLabel("Inizializzazione Sistema")
+        self.status_label = QLabel("") # Empty initial text to prevent ghost artifacts
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_label.setStyleSheet("color: #111827; font-size: 20px; font-weight: 600; font-family: 'Inter';")
         self.container_layout.addWidget(self.status_label)
 
-        # Status Label Animation Effects
-        self.status_opacity = QGraphicsOpacityEffect(self.status_label)
-        self.status_label.setGraphicsEffect(self.status_opacity)
-        self.status_opacity.setOpacity(1)
+        # REMOVED Status Opacity Effect
 
         # Detail Label (Technical sub-steps)
         self.detail_label = QLabel("Caricamento configurazione")
@@ -223,13 +219,6 @@ class CustomSplashScreen(QWidget):
         self.anim_opacity.setEndValue(1)
         self.anim_opacity.setEasingCurve(QEasingCurve.Type.OutCubic)
 
-        # Logo Entrance
-        self.anim_logo = QPropertyAnimation(self.logo_opacity, b"opacity")
-        self.anim_logo.setDuration(1200)
-        self.anim_logo.setStartValue(0)
-        self.anim_logo.setEndValue(1)
-        self.anim_logo.setEasingCurve(QEasingCurve.Type.OutQuad)
-
         # Detail Animation Timer
         self.detail_timer = QTimer(self)
         self.detail_timer.timeout.connect(self.next_detail)
@@ -239,7 +228,6 @@ class CustomSplashScreen(QWidget):
     def showEvent(self, event):
         super().showEvent(event)
         self.anim_opacity.start()
-        QTimer.singleShot(200, self.anim_logo.start)
 
     def next_detail(self):
         if self.current_details and self.detail_index < len(self.current_details) - 1:
@@ -291,22 +279,8 @@ class CustomSplashScreen(QWidget):
         QApplication.processEvents()
 
     def _animate_text_change(self, new_text):
-        def fade_in():
-            self.status_label.setText(new_text)
-            self.anim_text_in = QPropertyAnimation(self.status_opacity, b"opacity")
-            self.anim_text_in.setDuration(300)
-            self.anim_text_in.setStartValue(0)
-            self.anim_text_in.setEndValue(1)
-            self.anim_text_in.setEasingCurve(QEasingCurve.Type.OutQuad)
-            self.anim_text_in.start()
-
-        self.anim_text_out = QPropertyAnimation(self.status_opacity, b"opacity")
-        self.anim_text_out.setDuration(200)
-        self.anim_text_out.setStartValue(1)
-        self.anim_text_out.setEndValue(0)
-        self.anim_text_out.setEasingCurve(QEasingCurve.Type.InQuad)
-        self.anim_text_out.finished.connect(fade_in)
-        self.anim_text_out.start()
+        # Simplified text change without Opacity Effect
+        self.status_label.setText(new_text)
 
     def show_error(self, message):
         self.detail_timer.stop()

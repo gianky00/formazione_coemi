@@ -4,9 +4,9 @@ import socket
 import platform
 import math
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QFrame, QMessageBox, QHBoxLayout,
-                             QGraphicsOpacityEffect, QGraphicsDropShadowEffect, QApplication, QPushButton,
+                             QGraphicsDropShadowEffect, QApplication, QPushButton,
                              QDialog, QLineEdit, QDialogButtonBox)
-from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPropertyAnimation, QPoint, QEasingCurve, QTimer, QObject, QThread, QThreadPool, QParallelAnimationGroup, QSequentialAnimationGroup, QRect
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPropertyAnimation, QPoint, QEasingCurve, QTimer, QObject, QThread, QThreadPool, QRect
 from PyQt6.QtGui import QPixmap, QColor, QFont, QPainter, QLinearGradient
 from desktop_app.utils import get_asset_path
 from desktop_app.components.animated_widgets import AnimatedButton, AnimatedInput
@@ -78,19 +78,8 @@ class LoginView(QWidget):
         self._gradient_timer.timeout.connect(self._update_gradient)
         self._gradient_timer.start(50) # 20 FPS is enough for slow background
 
-        # Main Layout (Centering the Container)
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        # Content Wrapper (To apply Opacity during entrance without killing Shadow later)
-        self.content_wrapper = QWidget()
-        self.content_wrapper.setFixedSize(960, 600)
-        wrapper_layout = QVBoxLayout(self.content_wrapper)
-        wrapper_layout.setContentsMargins(0, 0, 0, 0)
-
-        # Container Card (Split View)
-        self.container = QFrame()
+        # Container Card (Split View) - Manual Positioning for Animation
+        self.container = QFrame(self)
         self.container.setFixedSize(960, 600)
         self.container.setStyleSheet("""
             QFrame {
@@ -370,10 +359,8 @@ class LoginView(QWidget):
         container_layout.addWidget(self.left_panel, 40)
         container_layout.addWidget(self.right_panel, 60)
 
-        wrapper_layout.addWidget(self.container)
-        main_layout.addWidget(self.content_wrapper)
-
-        self.setup_entrance_animation()
+        # REMOVED setup_entrance_animation (staggered fades) to fix QPainter crashes
+        # We use showEvent for a stable Slide Up animation
 
         if not license_ok:
             self.username_input.setEnabled(False)
@@ -453,62 +440,35 @@ class LoginView(QWidget):
         self.thread.quit()
         self.thread.wait()
 
-    def setup_entrance_animation(self):
-        # 1. Main Container Entrance (Opacity on WRAPPER)
-        self.opacity_effect = QGraphicsOpacityEffect(self.content_wrapper)
-        self.content_wrapper.setGraphicsEffect(self.opacity_effect)
-        self.opacity_effect.setOpacity(0)
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # Keep container centered
+        if hasattr(self, 'container'):
+            x = (self.width() - self.container.width()) // 2
+            y = (self.height() - self.container.height()) // 2
 
-        self.anim_opacity = QPropertyAnimation(self.opacity_effect, b"opacity")
-        self.anim_opacity.setDuration(1000)
-        self.anim_opacity.setStartValue(0)
-        self.anim_opacity.setEndValue(1)
-        self.anim_opacity.setEasingCurve(QEasingCurve.Type.OutCubic)
-
-        # 2. Staggered Entrance
-        self.cascade_group = QParallelAnimationGroup(self)
-
-        delay = 200
-        for i, (widget, can_fade) in enumerate(self.animated_widgets):
-            # If widget can fade, we use opacity effect
-            if can_fade:
-                eff = QGraphicsOpacityEffect(widget)
-                widget.setGraphicsEffect(eff)
-                eff.setOpacity(0)
-
-                anim = QPropertyAnimation(eff, b"opacity")
-                anim.setDuration(600)
-                anim.setStartValue(0)
-                anim.setEndValue(1)
-                anim.setEasingCurve(QEasingCurve.Type.OutQuad)
+            # If animating, update target to new center
+            if hasattr(self, 'anim_slide') and self.anim_slide.state() == QPropertyAnimation.State.Running:
+                self.anim_slide.setEndValue(QPoint(x, y))
             else:
-                # For Inputs/Buttons, we just slide them (Pos/Geometry) if possible,
-                # OR we just accept they appear with the container but maybe start hidden?
-                # Without opacity, they will be visible as soon as container is visible.
-                # To simulate "appearing", we can animate their geometry/pos.
-                # But they are in a Layout. Animating pos in a Layout is tricky.
-                # Workaround: Set them hidden initially? No, layout will collapse.
-                # Workaround: Just don't animate them individually, let them fade in with container.
-                # BUT user wanted "staggered".
-
-                # Compromise: We don't apply opacity effect to them. They will fade in WITH the container (since container fades in).
-                # But to make it "staggered", maybe we can simply skip individual animation for them
-                # and let them be part of the main fade.
-                # OR, use a transparent overlay? No.
-
-                # Let's just skip specific animation for them to avoid the crash.
-                continue
-
-            seq = QSequentialAnimationGroup()
-            seq.addPause(delay + (i * 100))
-            seq.addAnimation(anim)
-
-            self.cascade_group.addAnimation(seq)
+                self.container.move(x, y)
 
     def showEvent(self, event):
         super().showEvent(event)
-        self.anim_opacity.start()
-        self.cascade_group.start()
+
+        # Stable "Slide Up" Entrance Animation
+        x = (self.width() - self.container.width()) // 2
+        final_y = (self.height() - self.container.height()) // 2
+        start_y = final_y + 60 # Start lower
+
+        self.container.move(x, start_y)
+
+        self.anim_slide = QPropertyAnimation(self.container, b"pos")
+        self.anim_slide.setDuration(800)
+        self.anim_slide.setStartValue(QPoint(x, start_y))
+        self.anim_slide.setEndValue(QPoint(x, final_y))
+        self.anim_slide.setEasingCurve(QEasingCurve.Type.OutBack) # Modern bouncy feel
+        self.anim_slide.start()
 
     def read_license_info(self):
         data = LicenseManager.get_license_data()
@@ -639,12 +599,16 @@ class LoginView(QWidget):
         # Stop background animation
         self._gradient_timer.stop()
 
-        # Fly Out Animation
-        # We animate opacity out on the wrapper
-        self.anim_exit = QPropertyAnimation(self.opacity_effect, b"opacity")
-        self.anim_exit.setDuration(500)
-        self.anim_exit.setStartValue(1)
-        self.anim_exit.setEndValue(0)
+        # Slide Down & Fade (Fade via MasterWindow transition mostly)
+        # But we can Slide Down here for effect
+        self.anim_exit = QPropertyAnimation(self.container, b"pos")
+        self.anim_exit.setDuration(400)
+
+        current_pos = self.container.pos()
+        target_pos = QPoint(current_pos.x(), current_pos.y() + 50) # Slide down slightly
+
+        self.anim_exit.setStartValue(current_pos)
+        self.anim_exit.setEndValue(target_pos)
         self.anim_exit.setEasingCurve(QEasingCurve.Type.InBack)
 
         self.anim_exit.finished.connect(lambda: self.login_success.emit(self.api_client.user_info))
