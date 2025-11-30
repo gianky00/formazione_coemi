@@ -1,5 +1,6 @@
 import os
 import sys
+import traceback
 from datetime import date, datetime
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
                              QPushButton, QStackedWidget, QLabel, QFrame, QSizePolicy,
@@ -41,16 +42,20 @@ class SidebarButton(QPushButton):
 
     def enterEvent(self, event):
         if not self.isChecked():
-            self._anim.stop()
-            self._anim.setEndValue(self.hover_bg)
-            self._anim.start()
+            try:
+                self._anim.stop()
+                self._anim.setEndValue(self.hover_bg)
+                self._anim.start()
+            except RuntimeError: pass
         super().enterEvent(event)
 
     def leaveEvent(self, event):
         if not self.isChecked():
-            self._anim.stop()
-            self._anim.setEndValue(self.default_bg)
-            self._anim.start()
+            try:
+                self._anim.stop()
+                self._anim.setEndValue(self.default_bg)
+                self._anim.start()
+            except RuntimeError: pass
         super().leaveEvent(event)
 
     def paintEvent(self, event):
@@ -369,8 +374,13 @@ class MainDashboardWidget(QWidget):
         self._connect_signals()
 
         # Step 1: Load Essential View (Database) immediately
-        self._load_essential_views()
-        self.switch_to("database")
+        # Wrapped in try-except to prevent init crashes
+        try:
+            self._load_essential_views()
+            self.switch_to("database")
+        except Exception as e:
+            traceback.print_exc()
+            CustomMessageDialog.show_error(self, "Errore Inizializzazione", f"Errore nel caricamento della vista principale:\n{e}")
 
         # Step 2: Schedule Background Views
         QTimer.singleShot(200, self._load_background_views)
@@ -379,88 +389,96 @@ class MainDashboardWidget(QWidget):
         QTimer.singleShot(5000, self.trigger_background_maintenance)
 
     def _load_essential_views(self):
-        from .views.database_view import DatabaseView
-        if not self.views["database"]:
-            self.views["database"] = DatabaseView()
-            self.views["database"].api_client = self.api_client
-            if hasattr(self.views["database"], 'view_model'):
-                 self.views["database"].view_model.api_client = self.api_client
-            self.stacked_widget.addWidget(self.views["database"])
+        try:
+            from .views.database_view import DatabaseView
+            if not self.views["database"]:
+                self.views["database"] = DatabaseView()
+                self.views["database"].api_client = self.api_client
+                if hasattr(self.views["database"], 'view_model'):
+                     self.views["database"].view_model.api_client = self.api_client
+                self.stacked_widget.addWidget(self.views["database"])
+        except Exception as e:
+            traceback.print_exc()
+            raise e # Re-raise to be caught by init
 
     def _load_background_views(self):
-        # Load secondary views
-        from .views.import_view import ImportView
-        from .views.validation_view import ValidationView
-        from .views.scadenzario_view import ScadenzarioView
-        from .views.config_view import ConfigView
+        try:
+            # Load secondary views
+            from .views.import_view import ImportView
+            from .views.validation_view import ValidationView
+            from .views.scadenzario_view import ScadenzarioView
+            from .views.config_view import ConfigView
 
-        # We load them but don't force show. Only add to stack.
-        # This keeps the UI responsive.
+            if not self.views["import"]:
+                self.views["import"] = ImportView()
+                self.views["import"].api_client = self.api_client
+                self.stacked_widget.addWidget(self.views["import"])
 
-        if not self.views["import"]:
-            self.views["import"] = ImportView()
-            self.views["import"].api_client = self.api_client
-            self.stacked_widget.addWidget(self.views["import"])
+            if not self.views["validation"]:
+                self.views["validation"] = ValidationView()
+                self.views["validation"].api_client = self.api_client
+                self.stacked_widget.addWidget(self.views["validation"])
 
-        if not self.views["validation"]:
-            self.views["validation"] = ValidationView()
-            self.views["validation"].api_client = self.api_client
-            self.stacked_widget.addWidget(self.views["validation"])
+            if not self.views["scadenzario"]:
+                self.views["scadenzario"] = ScadenzarioView()
+                self.views["scadenzario"].api_client = self.api_client
+                self.stacked_widget.addWidget(self.views["scadenzario"])
 
-        if not self.views["scadenzario"]:
-            self.views["scadenzario"] = ScadenzarioView()
-            self.views["scadenzario"].api_client = self.api_client
-            self.stacked_widget.addWidget(self.views["scadenzario"])
+            if not self.views["config"]:
+                self.views["config"] = ConfigView(self.api_client)
+                self.stacked_widget.addWidget(self.views["config"])
 
-        if not self.views["config"]:
-            self.views["config"] = ConfigView(self.api_client)
-            self.stacked_widget.addWidget(self.views["config"])
+            # Connect signals now that views exist
+            self._connect_cross_view_signals()
 
-        # Connect signals now that views exist
-        self._connect_cross_view_signals()
-
-        # Step 3: Schedule Guide (Heaviest) after secondary views
-        QTimer.singleShot(800, self._load_guide_view)
+            # Step 3: Schedule Guide (Heaviest) after secondary views
+            QTimer.singleShot(800, self._load_guide_view)
+        except Exception as e:
+            print(f"[ERROR] Background View Load Failed: {e}")
 
     def _load_guide_view(self):
-        from .views.modern_guide_view import ModernGuideView
-        if not self.views["guide"]:
-            self.views["guide"] = ModernGuideView()
-            # Handle close signal from the guide (triggered by JS via QWebChannel)
-            self.views["guide"].bridge.closeRequested.connect(lambda: self.switch_to("database"))
-            self.stacked_widget.addWidget(self.views["guide"])
+        try:
+            from .views.modern_guide_view import ModernGuideView
+            if not self.views["guide"]:
+                self.views["guide"] = ModernGuideView()
+                # Handle close signal from the guide (triggered by JS via QWebChannel)
+                self.views["guide"].bridge.closeRequested.connect(lambda: self.switch_to("database"))
+                self.stacked_widget.addWidget(self.views["guide"])
+        except Exception as e:
+            print(f"[ERROR] Guide View Load Failed: {e}")
 
     def _ensure_view_loaded(self, key):
         """Fallback to load a view immediately if user clicks before background load finishes."""
         if self.views.get(key) is not None:
             return
 
-        if key == "database": self._load_essential_views()
-        elif key == "guide": self._load_guide_view()
-        elif key in ["import", "validation", "scadenzario", "config"]:
-            # Load all secondary or just the specific one?
-            # Loading just the specific one is safer for responsiveness.
-            if key == "import":
-                from .views.import_view import ImportView
-                self.views["import"] = ImportView()
-                self.views["import"].api_client = self.api_client
-                self.stacked_widget.addWidget(self.views["import"])
-            elif key == "validation":
-                from .views.validation_view import ValidationView
-                self.views["validation"] = ValidationView()
-                self.views["validation"].api_client = self.api_client
-                self.stacked_widget.addWidget(self.views["validation"])
-            elif key == "scadenzario":
-                from .views.scadenzario_view import ScadenzarioView
-                self.views["scadenzario"] = ScadenzarioView()
-                self.views["scadenzario"].api_client = self.api_client
-                self.stacked_widget.addWidget(self.views["scadenzario"])
-            elif key == "config":
-                from .views.config_view import ConfigView
-                self.views["config"] = ConfigView(self.api_client)
-                self.stacked_widget.addWidget(self.views["config"])
+        try:
+            if key == "database": self._load_essential_views()
+            elif key == "guide": self._load_guide_view()
+            elif key in ["import", "validation", "scadenzario", "config"]:
+                if key == "import":
+                    from .views.import_view import ImportView
+                    self.views["import"] = ImportView()
+                    self.views["import"].api_client = self.api_client
+                    self.stacked_widget.addWidget(self.views["import"])
+                elif key == "validation":
+                    from .views.validation_view import ValidationView
+                    self.views["validation"] = ValidationView()
+                    self.views["validation"].api_client = self.api_client
+                    self.stacked_widget.addWidget(self.views["validation"])
+                elif key == "scadenzario":
+                    from .views.scadenzario_view import ScadenzarioView
+                    self.views["scadenzario"] = ScadenzarioView()
+                    self.views["scadenzario"].api_client = self.api_client
+                    self.stacked_widget.addWidget(self.views["scadenzario"])
+                elif key == "config":
+                    from .views.config_view import ConfigView
+                    self.views["config"] = ConfigView(self.api_client)
+                    self.stacked_widget.addWidget(self.views["config"])
 
-        self._connect_cross_view_signals()
+            self._connect_cross_view_signals()
+        except Exception as e:
+            CustomMessageDialog.show_error(self, "Errore Caricamento", f"Impossibile caricare la vista {key}:\n{e}")
 
     def _connect_cross_view_signals(self):
         # Refresh logic across views
