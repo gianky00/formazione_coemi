@@ -51,6 +51,7 @@ class SpeechWorker(QThread):
 
 class SoundManager(QObject):
     _instance = None
+    SOUND_ENABLED = True  # GLOBAL SWITCH TO DISABLE AUDIO TO PREVENT CRASHES
 
     @staticmethod
     def instance():
@@ -61,12 +62,20 @@ class SoundManager(QObject):
     def __init__(self):
         super().__init__()
         self.sounds = {}
-        self.effects_cache = [] # Keep references to playing sounds (QSoundEffect)
+        self.effects_cache = []
         
+        if not self.SOUND_ENABLED:
+            return
+
         # Player for TTS (MP3 support)
-        self.media_player = QMediaPlayer()
-        self.audio_output = QAudioOutput()
-        self.media_player.setAudioOutput(self.audio_output)
+        try:
+            self.media_player = QMediaPlayer()
+            self.audio_output = QAudioOutput()
+            self.media_player.setAudioOutput(self.audio_output)
+        except Exception as e:
+            print(f"[SoundManager] Init Error: {e}")
+            self.SOUND_ENABLED = False
+            return
         
         try:
             self.temp_dir = tempfile.mkdtemp()
@@ -114,6 +123,7 @@ class SoundManager(QObject):
         self.sounds['scan'] = self._generate_wav('scan.wav', lambda t: 800 + math.sin(t*50)*200, 0.1, 0.05)
 
     def play_sound(self, sound_name):
+        if not self.SOUND_ENABLED: return
         if sound_name not in self.sounds: return
         
         try:
@@ -130,6 +140,7 @@ class SoundManager(QObject):
             print(f"[SoundManager] Play Sound Error: {e}")
 
     def speak(self, text):
+        if not self.SOUND_ENABLED: return
         """
         Uses Edge-TTS to generate an MP3 and plays it using QMediaPlayer.
         Fails silently/logs error if offline.

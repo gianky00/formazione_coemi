@@ -22,24 +22,35 @@ class TestLoginViewLogic:
         login_view.username_input.text.return_value = "user"
         login_view.password_input.text.return_value = "pass"
 
-        with patch("desktop_app.views.login_view.Worker") as MockWorker:
-            mock_worker_instance = MockWorker.return_value
-            mock_worker_instance.signals = MagicMock()
+        with patch("desktop_app.views.login_view.LoginWorker") as MockLoginWorker:
+            mock_worker_instance = MockLoginWorker.return_value
+            mock_worker_instance.finished_success = MagicMock()
+            mock_worker_instance.finished_error = MagicMock()
 
             login_view.handle_login()
 
-            MockWorker.assert_called_with(login_view.api_client.login, username="user", password="pass")
-            login_view.threadpool.start.assert_called_with(mock_worker_instance)
+            MockLoginWorker.assert_called_with(login_view.api_client, "user", "pass")
+            mock_worker_instance.start.assert_called()
 
-            success_callback = mock_worker_instance.signals.result.connect.call_args_list[0][0][0]
+            mock_worker_instance.finished_success.connect.assert_called_with(login_view.on_login_success)
+            mock_worker_instance.finished_error.connect.assert_called_with(login_view._on_login_error)
+
             response_data = {"username": "user", "access_token": "token"}
             login_view.api_client.user_info = response_data
+
+            # Mock the certificates API call for pending count
+            login_view.api_client.get.return_value = []
 
             mock_signal = MagicMock()
             login_view.login_success.connect(mock_signal)
 
-            success_callback(response_data)
+            # Manually call success handler
+            login_view.on_login_success(response_data)
+
             login_view.api_client.set_token.assert_called_with(response_data)
+
+            # Verify get was called
+            login_view.api_client.get.assert_called_with("certificati", params={"validated": "false"})
 
             # mock_signal is the slot. It is called directly.
             mock_signal.assert_called_with(response_data)
@@ -48,19 +59,22 @@ class TestLoginViewLogic:
         login_view.username_input.text.return_value = "user"
         login_view.password_input.text.return_value = "wrong"
 
-        with patch("desktop_app.views.login_view.Worker") as MockWorker, \
+        with patch("desktop_app.views.login_view.LoginWorker") as MockLoginWorker, \
              patch("desktop_app.views.login_view.CustomMessageDialog") as MockDialog:
 
-            mock_worker_instance = MockWorker.return_value
-            mock_worker_instance.signals = MagicMock()
+            mock_worker_instance = MockLoginWorker.return_value
+            mock_worker_instance.finished_success = MagicMock()
+            mock_worker_instance.finished_error = MagicMock()
 
             login_view.handle_login()
 
-            error_callback = mock_worker_instance.signals.error.connect.call_args_list[0][0][0]
-            error_tuple = (Exception, Exception("Fail"), None)
+            mock_worker_instance.finished_error.connect.assert_called_with(login_view._on_login_error)
 
-            error_callback(error_tuple)
-            MockDialog.show_error.assert_called()
+            # Manually call error handler
+            error_msg = "Fail"
+            login_view._on_login_error(error_msg)
+
+            MockDialog.show_error.assert_called_with(login_view, "Errore di Accesso", error_msg)
 
     def test_handle_login_empty(self, login_view):
         login_view.username_input.text.return_value = ""

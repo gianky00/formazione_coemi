@@ -16,7 +16,6 @@ from desktop_app.services.license_manager import LicenseManager
 from desktop_app.services.sound_manager import SoundManager
 from desktop_app.services.license_updater_service import LicenseUpdaterService
 from desktop_app.services.hardware_id_service import get_machine_id
-from desktop_app.workers.worker import Worker
 from desktop_app.components.neural_3d import NeuralNetwork3D
 
 class ForcePasswordChangeDialog(QDialog):
@@ -48,6 +47,29 @@ class ForcePasswordChangeDialog(QDialog):
     def get_data(self):
         return self.new_password.text(), self.confirm_password.text()
 
+class LoginWorker(QThread):
+    finished_success = pyqtSignal(dict)
+    finished_error = pyqtSignal(str)
+
+    def __init__(self, api_client, username, password):
+        super().__init__()
+        self.api_client = api_client
+        self.username = username
+        self.password = password
+
+    def run(self):
+        try:
+            response = self.api_client.login(self.username, self.password)
+            self.finished_success.emit(response)
+        except Exception as e:
+            error_msg = str(e)
+            if hasattr(e, 'response') and e.response is not None:
+                 try:
+                     detail = e.response.json().get('detail')
+                     if detail: error_msg = detail
+                 except: pass
+            self.finished_error.emit(error_msg)
+
 class LicenseUpdateWorker(QObject):
     """Worker to run license update in a separate thread."""
     finished = pyqtSignal(bool, str)
@@ -74,7 +96,8 @@ class LoginView(QWidget):
         self.api_client = api_client
         self.threadpool = QThreadPool()
         self._stop_3d_rendering = False # Flag to safely stop 3D engine before view transition
-        
+        self.pending_count = 0 # To store the count of documents to validate
+
         # --- Interactive Neural Background Setup ---
         self.setMouseTracking(True)
         self.mouse_pos_norm = (0.0, 0.0) # Normalized -1 to 1
@@ -572,29 +595,18 @@ class LoginView(QWidget):
 
         # Start Threaded Login
         self.login_btn.set_loading(True)
-        worker = Worker(self.api_client.login, username=username, password=password)
-        worker.signals.result.connect(self._on_login_success_internal)
-        worker.signals.error.connect(self._on_login_error)
-        self.threadpool.start(worker)
 
-    def _on_login_error(self, error_tuple):
+        self.login_worker = LoginWorker(self.api_client, username, password)
+        self.login_worker.finished_success.connect(self.on_login_success)
+        self.login_worker.finished_error.connect(self._on_login_error)
+        self.login_worker.start()
+
+    def _on_login_error(self, error_msg):
         self.login_btn.set_loading(False)
         self.shake_window()
-
-        exctype, value, tb = error_tuple
-        error_msg = "Credenziali non valide o errore del server."
-
-        # Extract detail from requests exception if available
-        e = value
-        if hasattr(e, 'response') and e.response is not None:
-             try:
-                 detail = e.response.json().get('detail')
-                 if detail: error_msg = detail
-             except: pass
-
         CustomMessageDialog.show_error(self, "Errore di Accesso", error_msg)
 
-    def _on_login_success_internal(self, response):
+    def on_login_success(self, response):
         try:
             self.api_client.set_token(response)
             user_info = self.api_client.user_info
@@ -640,11 +652,21 @@ class LoginView(QWidget):
                 msg += "Non sarà possibile salvare nuove modifiche."
                 CustomMessageDialog.show_warning(self, "Modalità Sola Lettura", msg)
 
+            # Fetch pending documents count
+            try:
+                # Fetch only if not in Read-Only mode (or even if Read-Only, info is useful)
+                # validated=False means ValidationStatus.AUTOMATIC (pending)
+                cert_list = self.api_client.get("certificati", params={"validated": "false"})
+                self.pending_count = len(cert_list)
+            except Exception as e:
+                print(f"[LoginView] Error fetching pending count: {e}")
+                self.pending_count = 0
+
             # Trigger Fly-Out Animation before emitting success
             self._animate_success_exit()
 
         except Exception as e:
-            self._on_login_error((type(e), e, None))
+            self._on_login_error(str(e))
             self.login_btn.set_loading(False)
 
     def _animate_success_exit(self):
@@ -662,11 +684,18 @@ class LoginView(QWidget):
 
         welcome_word = "Bentornata" if gender == 'F' else "Bentornato"
 
-        try:
-            # Modified speech with gender awareness and accent on Intellèo
-            SoundManager.instance().speak(f"Ciao {username}, {welcome_word} in Intellèo.")
-        except Exception:
-            pass # Fail silently if audio/TTS fails
+        # Base message
+        speech_text = f"Ciao {username}, {welcome_word} in Intellèo."
+
+        # Add document count info
+        if self.pending_count == 1:
+            speech_text += " C'è un documento da convalidare."
+        elif self.pending_count > 1:
+            speech_text += f" Ci sono {self.pending_count} documenti da convalidare."
+
+        # Pass speech text to controller for playback after transition to avoid crash
+        if self.api_client.user_info:
+            self.api_client.user_info["welcome_speech"] = speech_text
 
         # Stop background animation
         self._anim_timer.stop()
@@ -686,6 +715,11 @@ class LoginView(QWidget):
         def on_anim_finished():
             # Safely stop rendering 3D scene before view transition
             self._stop_3d_rendering = True
+
+            # Pass pending count via user_info dict
+            if self.api_client.user_info:
+                self.api_client.user_info["pending_documents_count"] = self.pending_count
+
             self.login_success.emit(self.api_client.user_info)
 
         self.anim_exit.finished.connect(on_anim_finished)
