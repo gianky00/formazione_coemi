@@ -355,6 +355,10 @@ external 'SetTimer@user32.dll stdcall';
 function KillTimer(hWnd: LongWord; nIDEvent: LongWord): BOOL;
 external 'KillTimer@user32.dll stdcall';
 
+// ADDED: PostMessage for Maximize
+function PostMessage(hWnd: LongWord; Msg: LongWord; wParam: LongWord; lParam: LongWord): BOOL;
+external 'PostMessageA@user32.dll stdcall';
+
 var
   SlideIndex: Integer;
   TextIndex: Integer;
@@ -387,7 +391,8 @@ begin
   // --- VISUAL OVERHAUL: LIGHT THEME & FULL SCREEN ---
 
   // 1. Force Full Screen
-  WizardForm.WindowState := wsMaximized;
+  // Use PostMessage (WM_SYSCOMMAND, SC_MAXIMIZE, 0)
+  PostMessage(WizardForm.Handle, 274, 61488, 0);
 
   // 2. Setup Anchors for Resizable Window
   // Keep Small Image on Top Right
