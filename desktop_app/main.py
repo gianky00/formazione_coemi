@@ -2,7 +2,7 @@ import sys
 import requests
 from PyQt6.QtWidgets import QApplication, QMainWindow, QMessageBox
 from PyQt6.QtGui import QFont
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 
 # --- IMPORT FONDAMENTALE ---
 from .main_window_ui import MainDashboardWidget
@@ -10,6 +10,7 @@ from .views.login_view import LoginView
 from .api_client import APIClient
 from .components.animated_stacked_widget import AnimatedStackedWidget
 from .components.custom_dialog import CustomMessageDialog
+from .components.toast import ToastNotification
 from .ipc_bridge import IPCBridge
 import os
 
@@ -517,6 +518,23 @@ class ApplicationController:
 
         # Transition
         self.master_window.show_dashboard(self.dashboard)
+
+        # Check for pending documents notification
+        pending_count = user_info.get("pending_documents_count", 0)
+        if pending_count > 0:
+            msg_title = "Convalida Dati"
+            if pending_count == 1:
+                msg_text = "C'è un documento da convalidare."
+            else:
+                msg_text = f"Ci sono {pending_count} documenti da convalidare."
+
+            # Delay toast slightly to allow dashboard transition to complete
+            QTimer.singleShot(800, lambda: ToastNotification(
+                self.master_window,
+                msg_title,
+                msg_text,
+                icon_name="file-text.svg"
+            ).show_toast())
 
         # Handle deferred action
         if self.pending_action:

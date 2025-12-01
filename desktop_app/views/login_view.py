@@ -74,7 +74,8 @@ class LoginView(QWidget):
         self.api_client = api_client
         self.threadpool = QThreadPool()
         self._stop_3d_rendering = False # Flag to safely stop 3D engine before view transition
-        
+        self.pending_count = 0 # To store the count of documents to validate
+
         # --- Interactive Neural Background Setup ---
         self.setMouseTracking(True)
         self.mouse_pos_norm = (0.0, 0.0) # Normalized -1 to 1
@@ -640,6 +641,16 @@ class LoginView(QWidget):
                 msg += "Non sarà possibile salvare nuove modifiche."
                 CustomMessageDialog.show_warning(self, "Modalità Sola Lettura", msg)
 
+            # Fetch pending documents count
+            try:
+                # Fetch only if not in Read-Only mode (or even if Read-Only, info is useful)
+                # validated=False means ValidationStatus.AUTOMATIC (pending)
+                cert_list = self.api_client.get("certificati", params={"validated": "false"})
+                self.pending_count = len(cert_list)
+            except Exception as e:
+                print(f"[LoginView] Error fetching pending count: {e}")
+                self.pending_count = 0
+
             # Trigger Fly-Out Animation before emitting success
             self._animate_success_exit()
 
@@ -662,9 +673,18 @@ class LoginView(QWidget):
 
         welcome_word = "Bentornata" if gender == 'F' else "Bentornato"
 
+        # Base message
+        speech_text = f"Ciao {username}, {welcome_word} in Intellèo."
+
+        # Add document count info
+        if self.pending_count == 1:
+            speech_text += " C'è un documento da convalidare."
+        elif self.pending_count > 1:
+            speech_text += f" Ci sono {self.pending_count} documenti da convalidare."
+
         try:
             # Modified speech with gender awareness and accent on Intellèo
-            SoundManager.instance().speak(f"Ciao {username}, {welcome_word} in Intellèo.")
+            SoundManager.instance().speak(speech_text)
         except Exception:
             pass # Fail silently if audio/TTS fails
 
@@ -686,6 +706,11 @@ class LoginView(QWidget):
         def on_anim_finished():
             # Safely stop rendering 3D scene before view transition
             self._stop_3d_rendering = True
+
+            # Pass pending count via user_info dict
+            if self.api_client.user_info:
+                self.api_client.user_info["pending_documents_count"] = self.pending_count
+
             self.login_success.emit(self.api_client.user_info)
 
         self.anim_exit.finished.connect(on_anim_finished)

@@ -35,11 +35,17 @@ class TestLoginViewLogic:
             response_data = {"username": "user", "access_token": "token"}
             login_view.api_client.user_info = response_data
 
+            # Mock the certificates API call for pending count
+            login_view.api_client.get.return_value = []
+
             mock_signal = MagicMock()
             login_view.login_success.connect(mock_signal)
 
             success_callback(response_data)
             login_view.api_client.set_token.assert_called_with(response_data)
+
+            # Verify get was called
+            login_view.api_client.get.assert_called_with("certificati", params={"validated": "false"})
 
             # mock_signal is the slot. It is called directly.
             mock_signal.assert_called_with(response_data)
