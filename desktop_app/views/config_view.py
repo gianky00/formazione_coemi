@@ -357,8 +357,34 @@ class GeneralSettingsWidget(QFrame):
         self.alert_threshold_visite_input.setPlaceholderText("Default: 30")
         self.form_layout.addRow(QLabel("Soglia Avviso Visite Mediche (giorni):"), self.alert_threshold_visite_input)
 
+        # Maintenance Section
+        maint_separator = QFrame()
+        maint_separator.setFrameShape(QFrame.Shape.HLine)
+        maint_separator.setFrameShadow(QFrame.Shadow.Sunken)
+        self.form_layout.addRow(maint_separator)
+
+        self.optimize_btn = QPushButton("Ottimizza Database Ora")
+        self.optimize_btn.setToolTip("Esegue VACUUM e ANALYZE per recuperare spazio e migliorare le prestazioni.")
+        self.optimize_btn.clicked.connect(self.optimize_db)
+        self.form_layout.addRow(QLabel("Manutenzione:"), self.optimize_btn)
+
         self.layout.addLayout(self.form_layout)
         self.layout.addStretch()
+
+    def optimize_db(self):
+        if CustomMessageDialog.show_question(self, "Conferma Ottimizzazione", "Questa operazione potrebbe richiedere alcuni secondi. Continuare?"):
+            try:
+                import requests
+                url = f"{self.api_client.base_url}/system/optimize"
+                headers = self.api_client._get_headers()
+                response = requests.post(url, headers=headers)
+
+                if response.status_code == 200:
+                    CustomMessageDialog.show_info(self, "Successo", "Database ottimizzato correttamente.")
+                else:
+                    CustomMessageDialog.show_error(self, "Errore", f"Errore server: {response.text}")
+            except Exception as e:
+                CustomMessageDialog.show_error(self, "Errore", str(e))
 
 class AuditLogWidget(QFrame):
     def __init__(self, api_client, parent=None):

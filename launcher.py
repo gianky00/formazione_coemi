@@ -141,7 +141,10 @@ def check_database_recovery(splash):
             file_path, _ = QFileDialog.getOpenFileName(None, "Seleziona Database o Backup", str(get_user_data_dir()), "Database Files (*.db *.bak)")
 
             if file_path:
+                # Normalize path separators for consistency
+                file_path = os.path.normpath(file_path)
                 path_obj = Path(file_path)
+
                 if path_obj.suffix.lower() == ".bak":
                     # RESTORE LOGIC
                     reply = QMessageBox.question(None, "Ripristino Backup", f"Vuoi ripristinare il database dal backup:\n{path_obj.name}?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
@@ -149,32 +152,36 @@ def check_database_recovery(splash):
                         try:
                             splash.update_status("Ripristino in corso...")
                             QApplication.processEvents()
-                            # We need to set db_path in security manager to target location first?
-                            # DBSecurityManager is initialized with settings.DATABASE_PATH.
-                            # restore_from_backup uses self.db_path.
-                            # So it restores TO the current configured location.
-                            # Which is 'target'. Correct.
-
-                            # Note: DBSecurityManager is a singleton initialized on import.
-                            # If settings changed, we might need to update its path?
-                            # DBSecurityManager.__init__ reads settings.
-                            # But it's already instantiated.
-                            # We can manually set db_security.db_path = target
+                            # Manually set db_path in security manager to ensure it targets the expected location
                             db_security.db_path = target
+                            db_security.data_dir = target.parent # Ensure data_dir matches for backups
 
                             db_security.restore_from_backup(path_obj)
-                            continue # Loop again to verify
+                            continue
                         except Exception as e:
                             QMessageBox.critical(None, "Errore Ripristino", f"Fallito: {e}")
                 else:
                     # Update Settings (Standard .db selection)
                     try:
+                        # 1. Update Settings
                         settings.save_mutable_settings({"DATABASE_PATH": file_path})
-                        # Update singleton path too for verification in next loop
-                        db_security.db_path = Path(file_path)
+
+                        # 2. Verify Persistence
+                        # Reload settings from disk to ensure it was written
+                        from app.core.config import MutableSettings
+                        check_settings = MutableSettings(settings.mutable.settings_path)
+                        saved_path = check_settings.get("DATABASE_PATH")
+
+                        if saved_path != file_path:
+                            raise Exception(f"Verifica salvataggio fallita. Letto: {saved_path}")
+
+                        # 3. Update Runtime Singletons
+                        db_security.db_path = path_obj
+                        db_security.data_dir = path_obj.parent
+
                         splash.update_status("Database aggiornato. Riavvio controllo...")
                     except Exception as e:
-                         QMessageBox.critical(None, "Errore", f"Impossibile salvare impostazioni: {e}")
+                         QMessageBox.critical(None, "Errore Salvataggio", f"Impossibile salvare le impostazioni:\n{e}\n\nControlla i permessi della cartella AppData.")
 
         elif clicked == create_btn:
              try:

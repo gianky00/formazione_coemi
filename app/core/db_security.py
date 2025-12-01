@@ -419,6 +419,29 @@ class DBSecurityManager:
             logger.error(f"Integrity verification error: {e}")
             return False
 
+    def optimize_database(self):
+        """Runs VACUUM and ANALYZE on the in-memory database."""
+        if not self.active_connection:
+            return
+
+        if self.is_read_only:
+            logger.warning("Attempted optimization in READ-ONLY mode. Operation ignored.")
+            return
+
+        try:
+            logger.info("Starting database optimization (VACUUM)...")
+            # VACUUM in sqlite usually requires no active transaction.
+            # We execute on the raw connection.
+            self.active_connection.execute("VACUUM")
+            self.active_connection.execute("ANALYZE")
+            logger.info("Database optimization completed.")
+
+            # Save the optimized DB to disk
+            self.save_to_disk()
+        except Exception as e:
+            logger.error(f"Optimization failed: {e}")
+            raise
+
     def restore_from_backup(self, backup_path: Path):
         """Restores the database from a backup file."""
         if not backup_path.exists():

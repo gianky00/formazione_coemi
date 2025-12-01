@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.api import main as api_router
 from app.api.routers import notifications as notifications_router
-from app.api.routers import auth, users, audit, config, system, app_config
+from app.api.routers import auth, users, audit, config, system, app_config, stats
 from app.db.session import engine
 from app.db.models import Base
 from app.core.config import settings
@@ -129,6 +129,7 @@ app.include_router(audit.router, prefix="/api/v1/audit", tags=["Audit"])
 app.include_router(config.router, prefix="/api/v1/config", tags=["Configuration"])
 app.include_router(system.router, prefix="/api/v1/system", tags=["System"])
 app.include_router(app_config.router, prefix="/api/v1/app_config", tags=["App Config"])
+app.include_router(stats.router, prefix="/api/v1/stats", tags=["Statistics"])
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

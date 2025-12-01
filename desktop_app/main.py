@@ -2,7 +2,7 @@ import sys
 import requests
 from PyQt6.QtWidgets import QApplication, QMainWindow, QMessageBox
 from PyQt6.QtGui import QFont
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QObject, pyqtSignal, QEvent
 
 # --- IMPORT FONDAMENTALE ---
 from .main_window_ui import MainDashboardWidget
@@ -14,6 +14,14 @@ from .components.toast import ToastNotification
 from .ipc_bridge import IPCBridge
 import os
 from app.core.db_security import db_security
+
+class InactivityFilter(QObject):
+    reset_timer = pyqtSignal()
+
+    def eventFilter(self, obj, event):
+        if event.type() in (QEvent.Type.MouseMove, QEvent.Type.KeyPress, QEvent.Type.MouseButtonPress):
+            self.reset_timer.emit()
+        return False
 
 def setup_styles(app: QApplication):
     """
@@ -503,6 +511,17 @@ class ApplicationController:
             self.dashboard = MainDashboardWidget(self.api_client)
             self.dashboard.logout_requested.connect(self.on_logout)
 
+        # Start Inactivity Timer (1 hour)
+        self.inactivity_timer = QTimer()
+        self.inactivity_timer.setInterval(3600 * 1000) # 1 hour
+        self.inactivity_timer.timeout.connect(self.on_session_timeout)
+        self.inactivity_timer.start()
+
+        # Install Event Filter
+        self.inactivity_filter = InactivityFilter()
+        self.inactivity_filter.reset_timer.connect(self.reset_inactivity_timer)
+        QApplication.instance().installEventFilter(self.inactivity_filter)
+
         # Propagate Read-Only State
         is_read_only = user_info.get("read_only", False)
         self.dashboard.set_read_only_mode(is_read_only)
@@ -589,7 +608,20 @@ class ApplicationController:
 
             self.pending_action = None
 
+    def reset_inactivity_timer(self):
+        if hasattr(self, 'inactivity_timer') and self.inactivity_timer.isActive():
+            self.inactivity_timer.start() # Reset
+
+    def on_session_timeout(self):
+        CustomMessageDialog.show_warning(self.master_window, "Sessione Scaduta", "Sei stato disconnesso per inattività.")
+        self.on_logout()
+
     def on_logout(self):
+        if hasattr(self, 'inactivity_timer'):
+            self.inactivity_timer.stop()
+        if hasattr(self, 'inactivity_filter'):
+            QApplication.instance().removeEventFilter(self.inactivity_filter)
+
         self.api_client.logout()
         self.master_window.show_login()
         # Optional: Destroy dashboard to reset state completely
