@@ -1,5 +1,8 @@
 import json
 import os
+import shutil
+import tempfile
+import platformdirs
 from pathlib import Path
 import logging
 from app.utils.security import reveal_string
@@ -22,18 +25,44 @@ LICENSE_REPO_NAME = "intelleo-licenses"
 # --- Mutable User Configuration ---
 
 def get_user_data_dir() -> Path:
-    """Determines the appropriate user-specific data directory based on the OS."""
-    if os.name == 'nt':
-        app_data = os.getenv('LOCALAPPDATA')
-        if not app_data:
-            app_data = os.path.expanduser("~\\AppData\\Local")
-        base_dir = Path(app_data) / "Intelleo"
-    else:
-        # Fallback for Linux/macOS for development/testing
-        base_dir = Path.home() / ".local" / "share" / "Intelleo"
-
+    """
+    Determines the appropriate user-specific data directory based on the OS.
+    Uses platformdirs to ensure compliance with OS standards.
+    Windows: %LOCALAPPDATA%/Intelleo
+    """
+    base_dir = Path(platformdirs.user_data_dir("Intelleo", "Intelleo"))
     base_dir.mkdir(parents=True, exist_ok=True)
     return base_dir
+
+def migrate_legacy_settings(target_path: Path):
+    """
+    Checks for settings.json in legacy temporary locations and moves it to the target path.
+    1. %TEMP%/settings.json
+    2. %TEMP%/Intelleo/settings.json
+    """
+    if target_path.exists():
+        return
+
+    temp_dir = Path(tempfile.gettempdir())
+
+    # Priority 1: Direct in Temp
+    legacy_path_1 = temp_dir / "settings.json"
+
+    # Priority 2: Temp/Intelleo
+    legacy_path_2 = temp_dir / "Intelleo" / "settings.json"
+
+    source = None
+    if legacy_path_1.exists():
+        source = legacy_path_1
+    elif legacy_path_2.exists():
+        source = legacy_path_2
+
+    if source:
+        try:
+            logging.info(f"Migrating settings from {source} to {target_path}")
+            shutil.move(str(source), str(target_path))
+        except Exception as e:
+            logging.error(f"Failed to migrate settings: {e}")
 
 class MutableSettings:
     """
@@ -41,6 +70,10 @@ class MutableSettings:
     """
     def __init__(self, settings_path: Path):
         self.settings_path = settings_path
+
+        # Run Migration Check before loading
+        migrate_legacy_settings(self.settings_path)
+
         self._defaults = {
             "DATABASE_PATH": None,
             "FIRST_RUN_ADMIN_PASSWORD": "prova",

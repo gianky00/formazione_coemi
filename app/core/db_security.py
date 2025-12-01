@@ -32,12 +32,22 @@ class DBSecurityManager:
     def __init__(self, db_name: str = "database_documenti.db"):
         # Resolve DB path using the custom path from settings if available
         custom_path_str = settings.DATABASE_PATH
-        if custom_path_str and Path(custom_path_str).is_dir():
-            self.data_dir = Path(custom_path_str)
+        if custom_path_str:
+            path_obj = Path(custom_path_str)
+            if path_obj.is_dir():
+                self.data_dir = path_obj
+                self.db_path = self.data_dir / db_name
+            elif path_obj.suffix.lower() == ".db":
+                # User selected the file directly
+                self.db_path = path_obj
+                self.data_dir = path_obj.parent
+            else:
+                # Fallback if configured path is invalid or weird
+                self.data_dir = get_user_data_dir()
+                self.db_path = self.data_dir / db_name
         else:
             self.data_dir = get_user_data_dir()
-
-        self.db_path = self.data_dir / db_name
+            self.db_path = self.data_dir / db_name
         self.lock_path = self.data_dir / f".{db_name}.lock"
 
         # RECOVERY: Check for Stale Locks (Zombie Processes)

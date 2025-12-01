@@ -15,7 +15,7 @@ from PyQt6.QtCore import Qt, QCoreApplication, QTimer, QThread, pyqtSignal, QObj
 
 QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
 
-from PyQt6.QtWidgets import QApplication, QSplashScreen, QMessageBox
+from PyQt6.QtWidgets import QApplication, QSplashScreen, QMessageBox, QFileDialog
 from PyQt6.QtGui import QPixmap
 
 # --- CONFIGURAZIONE AMBIENTE ---
@@ -76,6 +76,62 @@ def check_port(host, port):
         s.close()
         return result
     except: return False
+
+def check_database_recovery(splash):
+    """
+    Checks if the configured database file exists.
+    If not, enters a blocking Recovery Loop to prompt the user.
+    """
+    try:
+        # Import dynamically to ensure environment is ready
+        from app.core.config import settings, get_user_data_dir
+        from pathlib import Path
+    except ImportError as e:
+        QMessageBox.critical(None, "Errore Critico", f"Impossibile caricare configurazione: {e}")
+        sys.exit(1)
+
+    while True:
+        db_path_str = settings.DATABASE_PATH
+        if db_path_str:
+             db_path = Path(db_path_str)
+             if db_path.is_dir():
+                 target = db_path / "database_documenti.db"
+             else:
+                 target = db_path
+        else:
+             target = get_user_data_dir() / "database_documenti.db"
+
+        if target.exists():
+            break
+
+        # Notify User
+        splash.update_status(f"Database mancante: {target.name}")
+
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Icon.Warning)
+        msg.setWindowTitle("Database Non Trovato")
+        msg.setText("Il file del database non è stato trovato.")
+        msg.setInformativeText(f"Percorso atteso:\n{target}\n\nSeleziona 'Sfoglia' per localizzare il file .db esistente.")
+        browse_btn = msg.addButton("Sfoglia...", QMessageBox.ButtonRole.ActionRole)
+        exit_btn = msg.addButton("Esci", QMessageBox.ButtonRole.RejectRole)
+
+        # Ensure dialog is top-most
+        msg.setWindowFlags(msg.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
+        msg.exec()
+
+        if msg.clickedButton() == browse_btn:
+            file_path, _ = QFileDialog.getOpenFileName(None, "Seleziona Database", str(get_user_data_dir()), "SQLite Database (*.db)")
+
+            if file_path:
+                # Update Settings
+                try:
+                    settings.save_mutable_settings({"DATABASE_PATH": file_path})
+                    splash.update_status("Database aggiornato. Riavvio controllo...")
+                except Exception as e:
+                     QMessageBox.critical(None, "Errore", f"Impossibile salvare impostazioni: {e}")
+        else:
+            sys.exit(1)
+
 
 def verify_license():
     from desktop_app.services.path_service import get_license_dir, get_app_install_dir
@@ -211,6 +267,16 @@ def main():
         splash.update_status("Avvio sistema...", 0)
     except Exception as e:
         QMessageBox.critical(None, "Errore", f"Splash Error: {e}")
+        sys.exit(1)
+
+    # RECOVERY LOOP: Check Database Existence
+    try:
+        splash.update_status("Controllo Database...", 5)
+        # Ensure splash updates before blocking loop
+        QApplication.processEvents()
+        check_database_recovery(splash)
+    except Exception as e:
+        QMessageBox.critical(None, "Errore Recovery", f"Errore durante il controllo del database: {e}")
         sys.exit(1)
 
     # Worker Setup
