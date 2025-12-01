@@ -53,6 +53,18 @@ def get_lock_status():
     from app.core.db_security import db_security
     return {"read_only": db_security.is_read_only}
 
+@router.post("/optimize", dependencies=[Depends(deps.get_current_active_admin)])
+def optimize_system():
+    """
+    Triggers database optimization (VACUUM & ANALYZE).
+    """
+    from app.core.db_security import db_security
+    try:
+        db_security.optimize_database()
+        return {"message": "Ottimizzazione database completata."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Optimization failed: {e}")
+
 @router.post("/open-action")
 def open_action(action_request: SystemAction):
     """

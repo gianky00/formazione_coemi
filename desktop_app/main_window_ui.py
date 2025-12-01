@@ -173,6 +173,7 @@ class Sidebar(QFrame):
         self.add_button("import", "Analisi Documenti", "file-text.svg")
         self.add_button("validation", "Convalida Dati", "database.svg")
         self.add_button("scadenzario", "Scadenzario", "calendar.svg")
+        self.add_button("stats", "Statistiche", "bar-chart.svg")
         self.add_button("database", "Database", "layout-dashboard.svg")
 
         line = QFrame()
@@ -363,6 +364,7 @@ class MainDashboardWidget(QWidget):
             "import": None,
             "validation": None,
             "scadenzario": None,
+            "stats": None,
             "config": None,
             "guide": None
         }
@@ -414,6 +416,11 @@ class MainDashboardWidget(QWidget):
             self.views["scadenzario"].api_client = self.api_client
             self.stacked_widget.addWidget(self.views["scadenzario"])
 
+        if not self.views["stats"]:
+            from .views.stats_view import StatsView
+            self.views["stats"] = StatsView(self.api_client)
+            self.stacked_widget.addWidget(self.views["stats"])
+
         if not self.views["config"]:
             self.views["config"] = ConfigView(self.api_client)
             self.stacked_widget.addWidget(self.views["config"])
@@ -458,6 +465,10 @@ class MainDashboardWidget(QWidget):
                 self.views["scadenzario"] = ScadenzarioView()
                 self.views["scadenzario"].api_client = self.api_client
                 self.stacked_widget.addWidget(self.views["scadenzario"])
+            elif key == "stats":
+                from .views.stats_view import StatsView
+                self.views["stats"] = StatsView(self.api_client)
+                self.stacked_widget.addWidget(self.views["stats"])
             elif key == "config":
                 from .views.config_view import ConfigView
                 self.views["config"] = ConfigView(self.api_client)
@@ -498,6 +509,7 @@ class MainDashboardWidget(QWidget):
         self.sidebar.buttons["validation"].clicked.connect(lambda: self.switch_to("validation"))
         self.sidebar.buttons["database"].clicked.connect(lambda: self.switch_to("database"))
         self.sidebar.buttons["scadenzario"].clicked.connect(lambda: self.switch_to("scadenzario"))
+        self.sidebar.buttons["stats"].clicked.connect(lambda: self.switch_to("stats"))
         self.sidebar.buttons["config"].clicked.connect(lambda: self.switch_to("config"))
         self.sidebar.buttons["guide"].clicked.connect(lambda: self.switch_to("guide"))
 
