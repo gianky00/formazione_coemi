@@ -2,7 +2,7 @@ import sys
 import os
 import random
 import math
-from PyQt6.QtGui import QImage, QPainter, QColor, QPixmap, QLinearGradient, QPen, QBrush, QRadialGradient, QPainterPath
+from PyQt6.QtGui import QImage, QPainter, QColor, QPixmap, QLinearGradient, QPen, QBrush, QRadialGradient, QPainterPath, QFont
 from PyQt6.QtCore import Qt, QSize, QPointF, QRectF
 from PyQt6.QtWidgets import QApplication
 
@@ -127,6 +127,48 @@ def draw_white_container(painter, x, y, w, h):
     painter.setBrush(QColor(255, 255, 255, 255)) # Solid White
     painter.drawRoundedRect(QRectF(rect_x, rect_y, rect_w, rect_h), radius, radius)
 
+def create_slide(filepath, text, subtext, width=800, height=600, logo_pixmap=None):
+    """Generates a slide image with Deep Space background and text."""
+    image = QImage(width, height, QImage.Format.Format_ARGB32)
+    painter = QPainter(image)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+    # Background
+    draw_neural_background(painter, width, height)
+
+    # Logo (Top Right or Centered Watermark?)
+    # Let's put a watermark logo in the corner
+    if logo_pixmap:
+        scaled_logo = logo_pixmap.scaledToWidth(100, Qt.TransformationMode.SmoothTransformation)
+        painter.drawPixmap(width - 130, 30, scaled_logo)
+
+    # Text
+    # Center text
+    font_main = QFont("Segoe UI", 48, QFont.Weight.Bold)
+    font_sub = QFont("Segoe UI", 24, QFont.Weight.Light)
+
+    painter.setPen(QColor(255, 255, 255))
+    painter.setFont(font_main)
+
+    # Draw Main Text Centered
+    rect_main = painter.fontMetrics().boundingRect(text)
+    x_main = (width - rect_main.width()) // 2
+    y_main = (height // 2) - 40
+    painter.drawText(x_main, y_main, text)
+
+    # Draw Sub Text
+    painter.setFont(font_sub)
+    painter.setPen(QColor(147, 197, 253)) # Light blue
+    rect_sub = painter.fontMetrics().boundingRect(subtext)
+    x_sub = (width - rect_sub.width()) // 2
+    y_sub = y_main + rect_main.height() + 20
+    painter.drawText(x_sub, y_sub, subtext)
+
+    painter.end()
+    image.save(filepath, "BMP")
+    print(f"Created Slide: {filepath}")
+
+
 def create_assets():
     # QApplication is required to use QPixmap/QPainter
     app = QApplication(sys.argv)
@@ -141,6 +183,11 @@ def create_assets():
 
     print(f"Generating Premium Assets from {logo_path}...")
 
+    # Load Logo
+    logo = None
+    if os.path.exists(logo_path):
+        logo = QPixmap(logo_path)
+
     # --- 1. Wizard Image (Side Banner) ---
     wiz_size = QSize(328, 628)
     wiz_img = QImage(wiz_size, QImage.Format.Format_ARGB32)
@@ -152,21 +199,15 @@ def create_assets():
     draw_neural_background(painter, wiz_size.width(), wiz_size.height())
 
     # Draw Logo Centered
-    if os.path.exists(logo_path):
-        logo = QPixmap(logo_path)
-        if not logo.isNull():
-            # Scale logo
-            target_width = 240
-            scaled_logo = logo.scaledToWidth(target_width, Qt.TransformationMode.SmoothTransformation)
+    if logo and not logo.isNull():
+        target_width = 240
+        scaled_logo = logo.scaledToWidth(target_width, Qt.TransformationMode.SmoothTransformation)
 
-            x = (wiz_size.width() - scaled_logo.width()) // 2
-            y = (wiz_size.height() - scaled_logo.height()) // 2
+        x = (wiz_size.width() - scaled_logo.width()) // 2
+        y = (wiz_size.height() - scaled_logo.height()) // 2
 
-            # Draw White Container
-            draw_white_container(painter, x, y, scaled_logo.width(), scaled_logo.height())
-
-            # Draw Logo
-            painter.drawPixmap(x, y, scaled_logo)
+        draw_white_container(painter, x, y, scaled_logo.width(), scaled_logo.height())
+        painter.drawPixmap(x, y, scaled_logo)
     else:
          painter.setPen(QColor("white"))
          painter.setFont(painter.font())
@@ -190,36 +231,53 @@ def create_assets():
     draw_neural_background(painter, small_size.width(), small_size.height())
 
     # Draw Logo
-    if os.path.exists(logo_path):
-        logo = QPixmap(logo_path)
-        if not logo.isNull():
-            # Smaller logo for header
-            scaled_logo = logo.scaled(70, 70, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            x = (small_size.width() - scaled_logo.width()) // 2
-            y = (small_size.height() - scaled_logo.height()) // 2
+    if logo and not logo.isNull():
+        scaled_logo = logo.scaled(70, 70, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        x = (small_size.width() - scaled_logo.width()) // 2
+        y = (small_size.height() - scaled_logo.height()) // 2
 
-            # Draw White Container (Smaller padding for header)
-            # Custom logic for small icon: circular or smaller rect
-            padding = 10
-            rect_size = max(scaled_logo.width(), scaled_logo.height()) + padding * 2
-            cx = x + scaled_logo.width() / 2
-            cy = y + scaled_logo.height() / 2
+        padding = 10
+        rect_size = max(scaled_logo.width(), scaled_logo.height()) + padding * 2
+        cx = x + scaled_logo.width() / 2
+        cy = y + scaled_logo.height() / 2
 
-            # Shadow
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QColor(0, 0, 0, 60))
-            painter.drawEllipse(QPointF(cx+2, cy+3), rect_size/2, rect_size/2)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(0, 0, 0, 60))
+        painter.drawEllipse(QPointF(cx+2, cy+3), rect_size/2, rect_size/2)
 
-            # White Circle
-            painter.setBrush(QColor(255, 255, 255, 255))
-            painter.drawEllipse(QPointF(cx, cy), rect_size/2, rect_size/2)
+        painter.setBrush(QColor(255, 255, 255, 255))
+        painter.drawEllipse(QPointF(cx, cy), rect_size/2, rect_size/2)
 
-            painter.drawPixmap(x, y, scaled_logo)
+        painter.drawPixmap(x, y, scaled_logo)
 
     painter.end()
     small_path = os.path.join(assets_dir, "installer_small.bmp")
     small_img.save(small_path, "BMP")
     print(f"Created {small_path}")
+
+    # --- 3. Slideshow Images ---
+    # We create 3 slides with the Deep Space theme
+    # Slide 1: PREDICT
+    create_slide(
+        os.path.join(assets_dir, "slide_1.bmp"),
+        "PREDICT",
+        "AI-Powered Risk Analysis",
+        width=800, height=600, logo_pixmap=logo
+    )
+    # Slide 2: VALIDATE
+    create_slide(
+        os.path.join(assets_dir, "slide_2.bmp"),
+        "VALIDATE",
+        "Automated Compliance Checks",
+        width=800, height=600, logo_pixmap=logo
+    )
+    # Slide 3: AUTOMATE
+    create_slide(
+        os.path.join(assets_dir, "slide_3.bmp"),
+        "AUTOMATE",
+        "Seamless Workflow Integration",
+        width=800, height=600, logo_pixmap=logo
+    )
 
 if __name__ == "__main__":
     create_assets()
