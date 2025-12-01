@@ -3,7 +3,7 @@ import os
 import random
 import math
 from PyQt6.QtGui import QImage, QPainter, QColor, QPixmap, QLinearGradient, QPen, QBrush, QRadialGradient, QPainterPath, QFont, QConicalGradient
-from PyQt6.QtCore import Qt, QSize, QPointF, QRectF
+from PyQt6.QtCore import Qt, QSize, QPointF, QRectF, QRect
 from PyQt6.QtWidgets import QApplication
 
 def draw_spectacular_background(painter, width, height, is_dark=True):
@@ -148,36 +148,59 @@ def create_slide(filepath, text, subtext, width=800, height=600, logo_pixmap=Non
 
     draw_spectacular_background(painter, width, height, is_dark=True)
 
-    # Logo Watermark
+    # Logo Watermark with WHITE BACKGROUND
     if logo_pixmap:
-        scaled_logo = logo_pixmap.scaledToWidth(140, Qt.TransformationMode.SmoothTransformation)
-        painter.setOpacity(0.9)
-        painter.drawPixmap(width - 160, 40, scaled_logo)
-        painter.setOpacity(1.0)
+        target_w = 140
+        scaled_logo = logo_pixmap.scaledToWidth(target_w, Qt.TransformationMode.SmoothTransformation)
+
+        # Position top right
+        margin_right = 40
+        margin_top = 40
+        x = width - margin_right - scaled_logo.width()
+        y = margin_top
+
+        # Draw White Rounded Box
+        padding = 15
+        box_rect = QRectF(x - padding, y - padding, scaled_logo.width() + padding*2, scaled_logo.height() + padding*2)
+
+        # Shadow
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(0, 0, 0, 80))
+        painter.drawRoundedRect(box_rect.translated(4, 4), 15, 15)
+
+        # Box
+        painter.setBrush(QColor(255, 255, 255, 255))
+        painter.drawRoundedRect(box_rect, 15, 15)
+
+        # Logo
+        painter.drawPixmap(x, y, scaled_logo)
 
     # Text Styling
-    font_main = QFont("Segoe UI", 52, QFont.Weight.Bold)
-    font_sub = QFont("Segoe UI", 26, QFont.Weight.Light)
+    font_main = QFont("Segoe UI", 48, QFont.Weight.Bold) # Reduced slightly for better wrapping
+    font_sub = QFont("Segoe UI", 24, QFont.Weight.Light)
 
-    # Shadow for text
-    painter.setPen(QColor(0, 0, 0, 150))
+    # Define Areas
+    # Center Vertically
+    center_y = height // 2
+
+    # Main Text Area
     painter.setFont(font_main)
-    rect_main = painter.fontMetrics().boundingRect(text)
-    x_main = (width - rect_main.width()) // 2
-    y_main = (height // 2) - 40
-    painter.drawText(x_main + 4, y_main + 4, text)
+    rect_main = QRect(40, center_y - 120, width - 80, 240) # Large band in middle
 
-    # Main Text (White with subtle cyan glow)
+    # Draw Shadow
+    painter.setPen(QColor(0, 0, 0, 150))
+    painter.drawText(rect_main.translated(4, 4), Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap, text)
+
+    # Draw Main Text
     painter.setPen(QColor(255, 255, 255))
-    painter.drawText(x_main, y_main, text)
+    painter.drawText(rect_main, Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap, text)
 
-    # Subtext
+    # Subtext (Below Main Text)
+    # We need to measure where the main text ended, but for simplicity, we put subtext lower
     painter.setFont(font_sub)
     painter.setPen(QColor(125, 211, 252)) # Light sky blue
-    rect_sub = painter.fontMetrics().boundingRect(subtext)
-    x_sub = (width - rect_sub.width()) // 2
-    y_sub = y_main + rect_main.height() + 20
-    painter.drawText(x_sub, y_sub, subtext)
+    rect_sub = QRect(40, center_y + 80, width - 80, 100)
+    painter.drawText(rect_sub, Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap, subtext)
 
     painter.end()
     image.save(filepath, "BMP")
@@ -251,14 +274,14 @@ def create_assets():
     painter.end()
     small_img.save(os.path.join(assets_dir, "installer_small.bmp"), "BMP")
 
-    # 3. Slides (Italian & Expanded)
+    # 3. Slides (Realist & Humble)
     slides_data = [
-        ("slide_1.bmp", "INTELLIGENZA ARTIFICIALE", "Analisi Documentale con Gemini Pro"),
-        ("slide_2.bmp", "SCADENZARIO PREDITTIVO", "Anticipa le Scadenze Critiche"),
-        ("slide_3.bmp", "VALIDAZIONE DATI", "Controllo Conformità Automatizzato"),
-        ("slide_4.bmp", "CLOUD SICURO", "Crittografia AES-256 e Backup"),
-        ("slide_5.bmp", "NOTIFICHE SMART", "Report Periodici e Alert Email"),
-        ("slide_6.bmp", "AUTOMAZIONE TOTALE", "Efficienza Operativa Massimizzata")
+        ("slide_1.bmp", "INTELLIGENZA ARTIFICIALE", "Supporto all'Estrazione Dati"),
+        ("slide_2.bmp", "SCADENZARIO", "Monitoraggio Scadenze"),
+        ("slide_3.bmp", "VALIDAZIONE DATI", "Controllo Conformità"),
+        ("slide_4.bmp", "ARCHIVIAZIONE", "Salvataggio Sicuro"),
+        ("slide_5.bmp", "NOTIFICHE", "Avvisi di Scadenza"),
+        ("slide_6.bmp", "FLUSSO DI LAVORO", "Gestione Semplificata")
     ]
 
     for filename, title, subtitle in slides_data:

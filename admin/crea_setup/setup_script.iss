@@ -46,19 +46,21 @@ SetupIconFile=..\..\desktop_app\icons\icon.ico
 Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"
 
 [Messages]
-; === PROFESSIONAL COPYWRITING ===
-WelcomeLabel1=Benvenuto in Intelleo Enterprise Suite
-WelcomeLabel2=Stai per installare la soluzione leader per la gestione della sicurezza aziendale basata su Intelligenza Artificiale.%n%nPredict. Validate. Automate.%n%nIntelleo trasforma i processi di conformità in flussi di lavoro intelligenti ed automatizzati, garantendo sicurezza e precisione senza precedenti.
-ClickNext=Clicca su Avanti per avviare la procedura di installazione guidata.
+; === HUMBLE & REALISTIC COPYWRITING ===
+WelcomeLabel1=Benvenuto in Intelleo
+WelcomeLabel2=Stai per installare Intelleo sul tuo computer.%n%nSoluzione software per la gestione dei processi di conformità e sicurezza aziendale.%n%nIl programma installerà i componenti necessari per l'utilizzo della piattaforma.
+ClickNext=Clicca su Avanti per continuare.
 FinishedHeadingLabel=Installazione Completata
-FinishedLabel=Intelleo Enterprise è stato installato con successo.%n%nIl sistema è pronto per analizzare i tuoi documenti e proteggere la tua azienda.%n%nClicca Fine per accedere alla Dashboard.
-StatusExtractFiles=Estrazione componenti Core AI...
-StatusInstalling=Configurazione ambiente neurale in corso...
+FinishedLabel=L'installazione di Intelleo è terminata correttamente.%n%nÈ possibile avviare l'applicazione utilizzando l'icona sul desktop o dal menu Start.%n%nClicca Fine per uscire.
+StatusExtractFiles=Estrazione file in corso...
+StatusInstalling=Installazione componenti...
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 Name: "startup"; Description: "Avvia Intelleo automaticamente all'avvio di Windows"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
-Name: "cleancache"; Description: "Esegui pulizia profonda della cache (Consigliato per aggiornamenti)"; GroupDescription: "Manutenzione:"; Flags: unchecked
+Name: "cleancache"; Description: "Esegui pulizia della cache (Consigliato per aggiornamenti)"; GroupDescription: "Manutenzione:"; Flags: unchecked
+Name: "contextpdf"; Description: "Aggiungi 'Analizza con Intelleo' al menu contestuale dei PDF"; GroupDescription: "Integrazione Esplora Risorse:"; Flags: unchecked
+Name: "contextcsv"; Description: "Aggiungi 'Importa in Intelleo' al menu contestuale dei CSV"; GroupDescription: "Integrazione Esplora Risorse:"; Flags: unchecked
 
 [Dirs]
 ; === CREAZIONE FORZATA CARTELLE ===
@@ -74,19 +76,19 @@ Root: HKCR; Subkey: "Directory\shell\IntelleoAnalyze"; ValueType: string; ValueN
 Root: HKCR; Subkey: "Directory\shell\IntelleoAnalyze"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekey
 Root: HKCR; Subkey: "Directory\shell\IntelleoAnalyze\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" --analyze ""%1"""; Flags: uninsdeletekey
 
-; Menu contestuale "Analizza con Intelleo" (PDF Singolo)
-Root: HKCR; Subkey: "SystemFileAssociations\.pdf\shell\IntelleoAnalyze"; ValueType: string; ValueName: ""; ValueData: "Analizza con Intelleo"; Flags: uninsdeletekey
-Root: HKCR; Subkey: "SystemFileAssociations\.pdf\shell\IntelleoAnalyze"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekey
-Root: HKCR; Subkey: "SystemFileAssociations\.pdf\shell\IntelleoAnalyze\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" --analyze ""%1"""; Flags: uninsdeletekey
+; Menu contestuale "Analizza con Intelleo" (PDF Singolo) - LEGATO A TASK
+Root: HKCR; Subkey: "SystemFileAssociations\.pdf\shell\IntelleoAnalyze"; ValueType: string; ValueName: ""; ValueData: "Analizza con Intelleo"; Flags: uninsdeletekey; Tasks: contextpdf
+Root: HKCR; Subkey: "SystemFileAssociations\.pdf\shell\IntelleoAnalyze"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekey; Tasks: contextpdf
+Root: HKCR; Subkey: "SystemFileAssociations\.pdf\shell\IntelleoAnalyze\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" --analyze ""%1"""; Flags: uninsdeletekey; Tasks: contextpdf
 
-; Menu contestuale "Importa Anagrafica" (CSV)
-Root: HKCR; Subkey: "SystemFileAssociations\.csv\shell\IntelleoImport"; ValueType: string; ValueName: ""; ValueData: "Importa Anagrafica Dipendenti da Intelleo"; Flags: uninsdeletekey
-Root: HKCR; Subkey: "SystemFileAssociations\.csv\shell\IntelleoImport"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekey
-Root: HKCR; Subkey: "SystemFileAssociations\.csv\shell\IntelleoImport\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" --import-csv ""%1"""; Flags: uninsdeletekey
+; Menu contestuale "Importa Anagrafica" (CSV) - LEGATO A TASK
+Root: HKCR; Subkey: "SystemFileAssociations\.csv\shell\IntelleoImport"; ValueType: string; ValueName: ""; ValueData: "Importa Anagrafica Dipendenti da Intelleo"; Flags: uninsdeletekey; Tasks: contextcsv
+Root: HKCR; Subkey: "SystemFileAssociations\.csv\shell\IntelleoImport"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekey; Tasks: contextcsv
+Root: HKCR; Subkey: "SystemFileAssociations\.csv\shell\IntelleoImport\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" --import-csv ""%1"""; Flags: uninsdeletekey; Tasks: contextcsv
 
 [Files]
 ; === ESEGUIBILE E DIPENDENZE PYTHON ===
-Source: "{#BuildDir}\*"; DestDir: "{app}"; Excludes: "Intelleo_Setup_*.exe,Licenza"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#BuildDir}\*"; DestDir: "{app}"; Excludes: "Intelleo_Setup_*.exe,Licenza,docs"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; === LICENZA ===
 Source: "{#BuildDir}\Licenza\*"; DestDir: "{app}\Licenza"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
@@ -97,9 +99,6 @@ Source: "..\..\desktop_app\icons\*"; DestDir: "{app}\desktop_app\icons"; Flags: 
 
 ; === SLIDESHOW ===
 Source: "..\..\desktop_app\assets\slide_*.bmp"; DestDir: "{tmp}"; Flags: dontcopy
-
-; === DOCUMENTAZIONE JULES ===
-Source: "..\..\docs\*"; DestDir: "{app}\docs"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 [UninstallDelete]
 ; === PULIZIA AGGRESSIVA ===
@@ -146,9 +145,7 @@ const
   SW_MAXIMIZE = 3;
 
 var
-  ConfigPage1: TInputQueryWizardPage;
-  ConfigPage2: TInputQueryWizardPage;
-  ConfigPage3: TInputQueryWizardPage;
+  ConfigPage: TInputQueryWizardPage;
   TipsLabel: TNewStaticText;
 
   // Slideshow components
@@ -162,7 +159,7 @@ var
 begin
   if IdEvent = SlideTimerID then
   begin
-    SlideIndex := (SlideIndex + 1) mod 3;
+    SlideIndex := (SlideIndex + 1) mod 6;
     FileName := 'slide_' + IntToStr(SlideIndex + 1) + '.bmp';
     SlideImage.Bitmap.LoadFromFile(ExpandConstant('{tmp}\' + FileName));
   end;
@@ -173,63 +170,56 @@ var
   I: Integer;
 begin
   // --- FULLSCREEN & RESIZABLE FIX ---
-  // Enable Maximize button so user can restore it if minimized/restored
   WizardForm.BorderIcons := [biSystemMenu, biMinimize, biMaximize];
   WizardForm.BorderStyle := bsSizeable;
-
-  // Start Maximized
   ShowWindow(WizardForm.Handle, SW_MAXIMIZE);
 
   // --- PRE-EXTRACT SLIDES ---
-  for I := 1 to 3 do
+  for I := 1 to 6 do
     ExtractTemporaryFile('slide_' + IntToStr(I) + '.bmp');
 
-  // Page 1: AI & Cloud
-  ConfigPage1 := CreateInputQueryPage(wpSelectTasks,
-    'Configurazione Cloud', 'Parametri AI & Cloud Integration',
-    'Intelleo utilizza la potenza del Cloud per elaborare i documenti. Configura le chiavi di accesso.');
-  ConfigPage1.Add('Gemini API Key:', False);
-  ConfigPage1.Add('Google Cloud Project ID:', False);
-  ConfigPage1.Add('GCS Bucket Name:', False);
+  // --- SINGLE CONFIG PAGE ---
+  ConfigPage := CreateInputQueryPage(wpSelectTasks,
+    'Configurazione Generale', 'Parametri Cloud e Notifiche',
+    'Inserisci i parametri necessari per il funzionamento del software.');
 
-  // Page 2: SMTP
-  ConfigPage2 := CreateInputQueryPage(ConfigPage1.ID,
-    'Configurazione Notifiche', 'Server SMTP (Posta in Uscita)',
-    'Configura il server per l''invio automatico degli avvisi di scadenza.');
-  ConfigPage2.Add('SMTP Host:', False);
-  ConfigPage2.Add('SMTP Port:', False);
-  ConfigPage2.Add('SMTP User:', False);
-  ConfigPage2.Add('SMTP Password:', True);
+  // 0-2: Cloud
+  ConfigPage.Add('Gemini API Key:', False);
+  ConfigPage.Add('Google Cloud Project ID:', False);
+  ConfigPage.Add('GCS Bucket Name:', False);
 
-  // Page 3: Email Recipients
-  ConfigPage3 := CreateInputQueryPage(ConfigPage2.ID,
-    'Destinatari Avvisi', 'Canali di Comunicazione',
-    'Definisci chi riceverà i report settimanali e gli alert critici.');
-  ConfigPage3.Add('Destinatari (A):', False);
-  ConfigPage3.Add('Destinatari in copia (CC):', False);
+  // 3-6: SMTP
+  ConfigPage.Add('SMTP Host:', False);
+  ConfigPage.Add('SMTP Port:', False);
+  ConfigPage.Add('SMTP User:', False);
+  ConfigPage.Add('SMTP Password:', True);
 
-  // Optimize Logo Layout (White Background Friendly)
-  WizardForm.WizardSmallBitmapImage.Width := ScaleX(55);
-  WizardForm.WizardSmallBitmapImage.Height := ScaleY(55);
-  WizardForm.WizardSmallBitmapImage.Left := WizardForm.ClientWidth - ScaleX(65);
-  WizardForm.WizardSmallBitmapImage.Top := ScaleY(10);
+  // 7-8: Recipients
+  ConfigPage.Add('Destinatari (A):', False);
+  ConfigPage.Add('Destinatari in copia (CC):', False);
 
-  // Professional Tips
+  // Optimize Logo Layout
+  WizardForm.WizardSmallBitmapImage.Width := ScaleX(150);
+  WizardForm.WizardSmallBitmapImage.Height := ScaleY(57);
+  WizardForm.WizardSmallBitmapImage.Left := WizardForm.ClientWidth - ScaleX(160);
+  WizardForm.WizardSmallBitmapImage.Top := ScaleY(5);
+
+  // Tips Label (Italian & Elegant)
   TipsLabel := TNewStaticText.Create(WizardForm);
   TipsLabel.Parent := WizardForm.InstallingPage;
   TipsLabel.Visible := False;
   TipsLabel.WordWrap := True;
-  TipsLabel.Caption := 'System Initialization:' + #13#10 + #13#10 +
-                       '- Bootstrapping Neural Engine...' + #13#10 +
-                       '- Encrypting Local Database (AES-256)...' + #13#10 +
-                       '- Configuring Intelligent Scheduler...' + #13#10 +
-                       '- Verifying Notification Modules...' + #13#10 +
-                       '- Initializing Dashboard...' + #13#10 + #13#10 +
-                       'Please wait while we prepare your secure environment.';
+  TipsLabel.Caption := 'Inizializzazione del sistema in corso...' + #13#10 + #13#10 +
+                       '- Attivazione motore di elaborazione...' + #13#10 +
+                       '- Configurazione database locale crittografato...' + #13#10 +
+                       '- Predisposizione modulo notifiche...' + #13#10 +
+                       '- Verifica integrità componenti...' + #13#10 +
+                       '- Preparazione ambiente utente...' + #13#10 + #13#10 +
+                       'Attendere prego. Stiamo approntando il tuo ambiente di lavoro.';
   TipsLabel.Font.Style := [fsItalic];
   TipsLabel.Font.Color := clWindowText;
   TipsLabel.Font.Name := 'Segoe UI';
-  TipsLabel.Font.Size := 10;
+  TipsLabel.Font.Size := 12;
 
   // Initialize Slideshow Image
   SlideImage := TBitmapImage.Create(WizardForm);
@@ -323,7 +313,6 @@ var
 begin
   if CurStep = ssInstall then
   begin
-     // CLEAN CACHE TASK
      if IsTaskSelected('cleancache') then
      begin
         DelTree(ExpandConstant('{localappdata}\Intelleo\cache'), True, True, True);
@@ -340,20 +329,18 @@ begin
     if not LoadStringsFromFile(EnvPath, Lines) then
       SetArrayLength(Lines, 0);
 
-    // Page 1
-    Val := ConfigPage1.Values[0]; if Val <> '' then UpdateEnvVar(Lines, 'GEMINI_API_KEY', '"' + Val + '"');
-    Val := ConfigPage1.Values[1]; if Val <> '' then UpdateEnvVar(Lines, 'GOOGLE_CLOUD_PROJECT', '"' + Val + '"');
-    Val := ConfigPage1.Values[2]; if Val <> '' then UpdateEnvVar(Lines, 'GCS_BUCKET_NAME', '"' + Val + '"');
+    // Read from SINGLE ConfigPage (Indices 0-8)
+    Val := ConfigPage.Values[0]; if Val <> '' then UpdateEnvVar(Lines, 'GEMINI_API_KEY', '"' + Val + '"');
+    Val := ConfigPage.Values[1]; if Val <> '' then UpdateEnvVar(Lines, 'GOOGLE_CLOUD_PROJECT', '"' + Val + '"');
+    Val := ConfigPage.Values[2]; if Val <> '' then UpdateEnvVar(Lines, 'GCS_BUCKET_NAME', '"' + Val + '"');
 
-    // Page 2
-    Val := ConfigPage2.Values[0]; if Val <> '' then UpdateEnvVar(Lines, 'SMTP_HOST', '"' + Val + '"');
-    Val := ConfigPage2.Values[1]; if Val <> '' then UpdateEnvVar(Lines, 'SMTP_PORT', Val);
-    Val := ConfigPage2.Values[2]; if Val <> '' then UpdateEnvVar(Lines, 'SMTP_USER', '"' + Val + '"');
-    Val := ConfigPage2.Values[3]; if Val <> '' then UpdateEnvVar(Lines, 'SMTP_PASSWORD', '"' + Val + '"');
+    Val := ConfigPage.Values[3]; if Val <> '' then UpdateEnvVar(Lines, 'SMTP_HOST', '"' + Val + '"');
+    Val := ConfigPage.Values[4]; if Val <> '' then UpdateEnvVar(Lines, 'SMTP_PORT', Val);
+    Val := ConfigPage.Values[5]; if Val <> '' then UpdateEnvVar(Lines, 'SMTP_USER', '"' + Val + '"');
+    Val := ConfigPage.Values[6]; if Val <> '' then UpdateEnvVar(Lines, 'SMTP_PASSWORD', '"' + Val + '"');
 
-    // Page 3
-    Val := ConfigPage3.Values[0]; if Val <> '' then UpdateEnvVar(Lines, 'EMAIL_RECIPIENTS_TO', '"' + Val + '"');
-    Val := ConfigPage3.Values[1]; if Val <> '' then UpdateEnvVar(Lines, 'EMAIL_RECIPIENTS_CC', '"' + Val + '"');
+    Val := ConfigPage.Values[7]; if Val <> '' then UpdateEnvVar(Lines, 'EMAIL_RECIPIENTS_TO', '"' + Val + '"');
+    Val := ConfigPage.Values[8]; if Val <> '' then UpdateEnvVar(Lines, 'EMAIL_RECIPIENTS_CC', '"' + Val + '"');
 
     SaveStringsToFile(EnvPath, Lines, False);
   end;
