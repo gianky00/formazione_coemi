@@ -251,6 +251,9 @@ class DBSecurityManager:
             self.initial_bytes = None # Will create empty in get_connection
             return
 
+        # BACKUP ON STARTUP (Rolling Backup)
+        self.create_backup()
+
         try:
             with open(self.db_path, "rb") as f:
                 content = f.read()
@@ -334,6 +337,102 @@ class DBSecurityManager:
         except Exception as e:
             logger.error(f"Failed to save database: {e}")
             return False
+
+    def create_backup(self):
+        """Creates a timestamped backup of the database file."""
+        if not self.db_path.exists():
+            return
+
+        backup_dir = self.data_dir / "Backups"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+
+        timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
+        backup_name = f"{self.db_path.stem}_{timestamp}.bak"
+        backup_path = backup_dir / backup_name
+
+        try:
+            shutil.copy2(self.db_path, backup_path)
+            logger.info(f"Backup created: {backup_path}")
+            self.rotate_backups(backup_dir)
+        except Exception as e:
+            logger.error(f"Backup failed: {e}")
+
+    def rotate_backups(self, backup_dir: Path, keep: int = 5):
+        """Keeps only the recent N backups."""
+        try:
+            # Find all .bak files matching the pattern
+            backups = sorted(backup_dir.glob("*.bak"), key=lambda f: f.stat().st_mtime, reverse=True)
+
+            # Remove older ones
+            for old_backup in backups[keep:]:
+                try:
+                    old_backup.unlink()
+                    logger.info(f"Deleted old backup: {old_backup.name}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete old backup {old_backup.name}: {e}")
+        except Exception as e:
+             logger.error(f"Rotation failed: {e}")
+
+    def verify_integrity(self, file_path: Path = None) -> bool:
+        """
+        Verifies the integrity of a database file (encrypted or plain).
+        If encrypted, it attempts to decrypt first.
+        """
+        target = file_path or self.db_path
+        if not target.exists():
+            return False
+
+        try:
+            with open(target, "rb") as f:
+                content = f.read()
+
+            if content.startswith(self._HEADER):
+                # Decrypt
+                try:
+                    raw_data = self.fernet.decrypt(content[len(self._HEADER):])
+                except Exception:
+                    logger.warning(f"Integrity Check: Decryption failed for {target.name}")
+                    return False
+            else:
+                raw_data = content
+
+            # Test SQLite Integrity
+            conn = sqlite3.connect(':memory:')
+            try:
+                conn.deserialize(raw_data)
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA integrity_check")
+                result = cursor.fetchone()
+                conn.close()
+
+                if result and result[0] == "ok":
+                    return True
+                else:
+                    logger.warning(f"Integrity Check Failed for {target.name}: {result}")
+                    return False
+            except Exception as e:
+                logger.warning(f"Integrity Check Exception for {target.name}: {e}")
+                conn.close()
+                return False
+
+        except Exception as e:
+            logger.error(f"Integrity verification error: {e}")
+            return False
+
+    def restore_from_backup(self, backup_path: Path):
+        """Restores the database from a backup file."""
+        if not backup_path.exists():
+            raise FileNotFoundError(f"Backup not found: {backup_path}")
+
+        # Backup current state before overwriting (Safety net)
+        self.create_backup()
+
+        try:
+            shutil.copy2(backup_path, self.db_path)
+            logger.info(f"Restored database from {backup_path}")
+        except Exception as e:
+            logger.error(f"Restore failed: {e}")
+            raise
 
     def cleanup(self):
         """

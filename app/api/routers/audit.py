@@ -1,6 +1,7 @@
 from typing import Any, List, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, Body, HTTPException, Request
+from fastapi.responses import Response
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from app.db.session import get_db
@@ -8,6 +9,8 @@ from app.api import deps
 from app.db.models import AuditLog, User as UserModel
 from app.schemas.schemas import AuditLogSchema
 from app.utils.audit import log_security_action
+import pandas as pd
+from io import BytesIO
 
 router = APIRouter()
 
@@ -22,6 +25,43 @@ def read_audit_categories(
     categories = db.query(AuditLog.category).distinct().filter(AuditLog.category.isnot(None)).all()
     # Flatten list of tuples
     return sorted([c[0] for c in categories if c[0]])
+
+@router.get("/export", response_class=Response)
+def export_audit_logs(
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_active_admin),
+) -> Any:
+    """
+    Export all audit logs as CSV.
+    """
+    query = db.query(AuditLog).order_by(AuditLog.timestamp.desc())
+    logs = query.all()
+
+    data = []
+    for log in logs:
+        data.append({
+            "Timestamp": log.timestamp.isoformat() if log.timestamp else "",
+            "Category": log.category,
+            "Action": log.action,
+            "User": log.username or (f"ID {log.user_id}" if log.user_id else "System"),
+            "Details": log.details,
+            "IP Address": log.ip_address,
+            "Severity": log.severity,
+            "Device ID": log.device_id
+        })
+
+    df = pd.DataFrame(data)
+    output = BytesIO()
+    # UTF-8 with BOM for Excel compatibility
+    df.to_csv(output, index=False, encoding='utf-8-sig', sep=';')
+
+    filename = f"audit_logs_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 @router.get("/", response_model=List[AuditLogSchema])
 def read_audit_logs(

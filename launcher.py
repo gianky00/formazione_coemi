@@ -79,12 +79,13 @@ def check_port(host, port):
 
 def check_database_recovery(splash):
     """
-    Checks if the configured database file exists.
+    Checks if the configured database file exists and is valid.
     If not, enters a blocking Recovery Loop to prompt the user.
     """
     try:
         # Import dynamically to ensure environment is ready
         from app.core.config import settings, get_user_data_dir
+        from app.core.db_security import db_security
         from pathlib import Path
     except ImportError as e:
         QMessageBox.critical(None, "Errore Critico", f"Impossibile caricare configurazione: {e}")
@@ -101,34 +102,98 @@ def check_database_recovery(splash):
         else:
              target = get_user_data_dir() / "database_documenti.db"
 
-        if target.exists():
+        # 1. Check Existence
+        exists = target.exists()
+
+        # 2. Check Integrity (if exists)
+        is_valid = False
+        if exists:
+            splash.update_status(f"Verifica integrità: {target.name}")
+            QApplication.processEvents()
+            is_valid = db_security.verify_integrity(target)
+
+        if exists and is_valid:
             break
 
-        # Notify User
-        splash.update_status(f"Database mancante: {target.name}")
-
+        # 3. Prompt User
         msg = QMessageBox()
-        msg.setIcon(QMessageBox.Icon.Warning)
-        msg.setWindowTitle("Database Non Trovato")
-        msg.setText("Il file del database non è stato trovato.")
-        msg.setInformativeText(f"Percorso atteso:\n{target}\n\nSeleziona 'Sfoglia' per localizzare il file .db esistente.")
-        browse_btn = msg.addButton("Sfoglia...", QMessageBox.ButtonRole.ActionRole)
+        msg.setIcon(QMessageBox.Icon.Critical if exists else QMessageBox.Icon.Warning)
+
+        if not exists:
+            msg.setWindowTitle("Database Non Trovato")
+            msg.setText("Il file del database non è stato trovato.")
+            msg.setInformativeText(f"Percorso atteso:\n{target}\n\nPuoi cercare il file, crearne uno nuovo, o ripristinare un backup.")
+        else:
+            msg.setWindowTitle("Database Corrotto")
+            msg.setText("Il file del database risulta danneggiato.")
+            msg.setInformativeText("È necessario ripristinare un backup o creare un nuovo database.")
+
+        browse_btn = msg.addButton("Sfoglia / Ripristina...", QMessageBox.ButtonRole.ActionRole)
+        create_btn = msg.addButton("Crea Nuovo Database", QMessageBox.ButtonRole.ActionRole)
         exit_btn = msg.addButton("Esci", QMessageBox.ButtonRole.RejectRole)
 
-        # Ensure dialog is top-most
         msg.setWindowFlags(msg.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
         msg.exec()
 
-        if msg.clickedButton() == browse_btn:
-            file_path, _ = QFileDialog.getOpenFileName(None, "Seleziona Database", str(get_user_data_dir()), "SQLite Database (*.db)")
+        clicked = msg.clickedButton()
+
+        if clicked == browse_btn:
+            file_path, _ = QFileDialog.getOpenFileName(None, "Seleziona Database o Backup", str(get_user_data_dir()), "Database Files (*.db *.bak)")
 
             if file_path:
-                # Update Settings
-                try:
-                    settings.save_mutable_settings({"DATABASE_PATH": file_path})
-                    splash.update_status("Database aggiornato. Riavvio controllo...")
-                except Exception as e:
-                     QMessageBox.critical(None, "Errore", f"Impossibile salvare impostazioni: {e}")
+                path_obj = Path(file_path)
+                if path_obj.suffix.lower() == ".bak":
+                    # RESTORE LOGIC
+                    reply = QMessageBox.question(None, "Ripristino Backup", f"Vuoi ripristinare il database dal backup:\n{path_obj.name}?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                    if reply == QMessageBox.StandardButton.Yes:
+                        try:
+                            splash.update_status("Ripristino in corso...")
+                            QApplication.processEvents()
+                            # We need to set db_path in security manager to target location first?
+                            # DBSecurityManager is initialized with settings.DATABASE_PATH.
+                            # restore_from_backup uses self.db_path.
+                            # So it restores TO the current configured location.
+                            # Which is 'target'. Correct.
+
+                            # Note: DBSecurityManager is a singleton initialized on import.
+                            # If settings changed, we might need to update its path?
+                            # DBSecurityManager.__init__ reads settings.
+                            # But it's already instantiated.
+                            # We can manually set db_security.db_path = target
+                            db_security.db_path = target
+
+                            db_security.restore_from_backup(path_obj)
+                            continue # Loop again to verify
+                        except Exception as e:
+                            QMessageBox.critical(None, "Errore Ripristino", f"Fallito: {e}")
+                else:
+                    # Update Settings (Standard .db selection)
+                    try:
+                        settings.save_mutable_settings({"DATABASE_PATH": file_path})
+                        # Update singleton path too for verification in next loop
+                        db_security.db_path = Path(file_path)
+                        splash.update_status("Database aggiornato. Riavvio controllo...")
+                    except Exception as e:
+                         QMessageBox.critical(None, "Errore", f"Impossibile salvare impostazioni: {e}")
+
+        elif clicked == create_btn:
+             try:
+                 # Reset to Default
+                 settings.save_mutable_settings({"DATABASE_PATH": None})
+
+                 # Move corrupt file if exists
+                 default_path = get_user_data_dir() / "database_documenti.db"
+                 if default_path.exists():
+                     timestamp = time.strftime("%Y%m%d_%H%M%S")
+                     backup_corrupt = default_path.with_suffix(f".corrupt_{timestamp}.db")
+                     default_path.rename(backup_corrupt)
+                     splash.update_status(f"Archiviato DB corrotto: {backup_corrupt.name}")
+
+                 splash.update_status("Creazione nuovo database...")
+                 return # Exit loop, backend will initialize fresh DB
+             except Exception as e:
+                 QMessageBox.critical(None, "Errore", f"Errore creazione: {e}")
+
         else:
             sys.exit(1)
 
