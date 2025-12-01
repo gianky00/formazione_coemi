@@ -33,3 +33,4 @@ wmi
 edge-tts
 psutil
 pytest-qt
+platformdirs
