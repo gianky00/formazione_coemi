@@ -16,7 +16,6 @@ from desktop_app.services.license_manager import LicenseManager
 from desktop_app.services.sound_manager import SoundManager
 from desktop_app.services.license_updater_service import LicenseUpdaterService
 from desktop_app.services.hardware_id_service import get_machine_id
-from desktop_app.workers.worker import Worker
 from desktop_app.components.neural_3d import NeuralNetwork3D
 
 class ForcePasswordChangeDialog(QDialog):
@@ -47,6 +46,29 @@ class ForcePasswordChangeDialog(QDialog):
 
     def get_data(self):
         return self.new_password.text(), self.confirm_password.text()
+
+class LoginWorker(QThread):
+    finished_success = pyqtSignal(dict)
+    finished_error = pyqtSignal(str)
+
+    def __init__(self, api_client, username, password):
+        super().__init__()
+        self.api_client = api_client
+        self.username = username
+        self.password = password
+
+    def run(self):
+        try:
+            response = self.api_client.login(self.username, self.password)
+            self.finished_success.emit(response)
+        except Exception as e:
+            error_msg = str(e)
+            if hasattr(e, 'response') and e.response is not None:
+                 try:
+                     detail = e.response.json().get('detail')
+                     if detail: error_msg = detail
+                 except: pass
+            self.finished_error.emit(error_msg)
 
 class LicenseUpdateWorker(QObject):
     """Worker to run license update in a separate thread."""
@@ -573,29 +595,18 @@ class LoginView(QWidget):
 
         # Start Threaded Login
         self.login_btn.set_loading(True)
-        worker = Worker(self.api_client.login, username=username, password=password)
-        worker.signals.result.connect(self._on_login_success_internal)
-        worker.signals.error.connect(self._on_login_error)
-        self.threadpool.start(worker)
 
-    def _on_login_error(self, error_tuple):
+        self.login_worker = LoginWorker(self.api_client, username, password)
+        self.login_worker.finished_success.connect(self.on_login_success)
+        self.login_worker.finished_error.connect(self._on_login_error)
+        self.login_worker.start()
+
+    def _on_login_error(self, error_msg):
         self.login_btn.set_loading(False)
         self.shake_window()
-
-        exctype, value, tb = error_tuple
-        error_msg = "Credenziali non valide o errore del server."
-
-        # Extract detail from requests exception if available
-        e = value
-        if hasattr(e, 'response') and e.response is not None:
-             try:
-                 detail = e.response.json().get('detail')
-                 if detail: error_msg = detail
-             except: pass
-
         CustomMessageDialog.show_error(self, "Errore di Accesso", error_msg)
 
-    def _on_login_success_internal(self, response):
+    def on_login_success(self, response):
         try:
             self.api_client.set_token(response)
             user_info = self.api_client.user_info
@@ -655,7 +666,7 @@ class LoginView(QWidget):
             self._animate_success_exit()
 
         except Exception as e:
-            self._on_login_error((type(e), e, None))
+            self._on_login_error(str(e))
             self.login_btn.set_loading(False)
 
     def _animate_success_exit(self):
