@@ -8,6 +8,7 @@ import sqlite3
 import socket
 import threading
 import uuid
+import psutil
 from typing import Dict, Optional, Tuple
 from pathlib import Path
 from cryptography.fernet import Fernet
@@ -39,6 +40,9 @@ class DBSecurityManager:
         self.db_path = self.data_dir / db_name
         self.lock_path = self.data_dir / f".{db_name}.lock"
 
+        # RECOVERY: Check for Stale Locks (Zombie Processes)
+        self._check_and_recover_stale_lock()
+
         # Migration: If DB exists in CWD (Install Dir) but not in Data Dir, copy it.
         # This handles the case where a DB is shipped with the installer or upgraded.
         cwd_db = Path.cwd() / db_name
@@ -65,6 +69,77 @@ class DBSecurityManager:
     def _derive_key(self) -> bytes:
         digest = hashlib.sha256(self._STATIC_SECRET.encode()).digest()
         return base64.urlsafe_b64encode(digest)
+
+    def _check_and_recover_stale_lock(self):
+        """
+        Detects if a lock file exists but belongs to a dead process.
+        If confirmed dead (PID check), it deletes the lock file automatically.
+        """
+        if not self.lock_path.exists():
+            return
+
+        try:
+            # We use LockManager to safely read metadata without locking
+            # We instantiate a temporary manager just for this check
+            temp_mgr = LockManager(str(self.lock_path))
+
+            # Since LockManager doesn't have a public 'read_only' method, we peek manually
+            # But we must be careful. The safer way is to trust standard logic,
+            # but standard logic is failing on Reboot.
+            # Let's read the file directly since we are in Recovery Mode.
+            with open(self.lock_path, 'rb') as f:
+                # Byte 0 is lock byte, Byte 1+ is JSON
+                f.seek(1)
+                data = f.read()
+                if not data: return # Empty file
+
+                import json
+                try:
+                    metadata = json.loads(data.decode('utf-8'))
+                except:
+                    # Corrupt JSON -> Force Clean
+                    logger.warning("Stale Lock Recovery: Corrupt lock file found. Deleting.")
+                    self._force_remove_lock()
+                    return
+
+                pid = metadata.get("pid")
+                if not pid:
+                    return # No PID to check
+
+                # CHECK PID EXISTENCE
+                if not psutil.pid_exists(pid):
+                    logger.warning(f"Stale Lock Recovery: PID {pid} is dead. Removing lock.")
+                    self._force_remove_lock()
+                else:
+                    # PID exists, but is it US or Python/Intelleo?
+                    try:
+                        proc = psutil.Process(pid)
+                        name = proc.name().lower()
+                        # If process is definitely NOT related to us (e.g. Chrome, System), kill lock
+                        # Common names: python.exe, Intelleo.exe, main.py
+                        valid_names = ["python", "intelleo", "main"]
+                        is_valid = any(v in name for v in valid_names)
+
+                        if not is_valid:
+                            logger.warning(f"Stale Lock Recovery: PID {pid} exists ({name}) but is not Intelleo. Removing lock.")
+                            self._force_remove_lock()
+                        else:
+                            logger.info(f"Lock file belongs to active process {pid} ({name}). Respecting lock.")
+
+                    except psutil.NoSuchProcess:
+                         # Process died during check
+                         self._force_remove_lock()
+
+        except Exception as e:
+            logger.error(f"Stale Lock Recovery failed: {e}")
+
+    def _force_remove_lock(self):
+        try:
+            if self.lock_path.exists():
+                os.remove(self.lock_path)
+                logger.info("Stale lock file removed successfully.")
+        except Exception as e:
+            logger.error(f"Failed to remove stale lock: {e}")
 
     def _start_heartbeat(self):
         """

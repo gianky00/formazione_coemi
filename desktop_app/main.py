@@ -603,7 +603,22 @@ def restart_app():
     QApplication.instance().quit()
     os.execv(sys.executable, [sys.executable] + sys.argv)
 
+def exception_hook(exctype, value, traceback):
+    """
+    Global exception handler to ensure database cleanup on crash.
+    """
+    print(f"[CRITICAL] Unhandled exception: {exctype}, {value}")
+    import traceback as tb
+    tb.print_tb(traceback)
+    try:
+        print("[CRITICAL] Attempting emergency DB cleanup...")
+        db_security.cleanup()
+    except Exception as e:
+        print(f"[CRITICAL] Emergency cleanup failed: {e}")
+    sys.exit(1)
+
 if __name__ == "__main__":
+    sys.excepthook = exception_hook
     app = QApplication(sys.argv)
     setup_styles(app)
 

@@ -58,6 +58,7 @@ class APIClient:
     def get(self, endpoint, params=None):
         """
         Performs a generic GET request to a given endpoint.
+        Gracefully handles network errors by returning an offline state.
         """
         # Ensure endpoint starts with a slash
         if not endpoint.startswith('/'):
@@ -65,18 +66,25 @@ class APIClient:
 
         url = f"{self.base_url}{endpoint}"
 
-        # Note: For public endpoints, _get_headers might be empty, which is fine.
-        response = requests.get(url, params=params, headers=self._get_headers())
-        response.raise_for_status()
-        return response.json()
+        try:
+            # Note: For public endpoints, _get_headers might be empty, which is fine.
+            response = requests.get(url, params=params, headers=self._get_headers(), timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+            # OFFLINE MODE / NETWORK ERROR
+            return {"error": "Network Unreachable", "offline_mode": True}
 
     def login(self, username, password):
         url = f"{self.base_url}/auth/login"
         data = {"username": username, "password": password}
-        # Using data=data sends as application/x-www-form-urlencoded which OAuth2PasswordRequestForm expects
-        response = requests.post(url, data=data)
-        response.raise_for_status()
-        return response.json()
+        try:
+            # Using data=data sends as application/x-www-form-urlencoded which OAuth2PasswordRequestForm expects
+            response = requests.post(url, data=data, timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+            raise Exception("Impossibile connettersi al server (Rete irraggiungibile).")
 
     def change_password(self, old_password, new_password):
         url = f"{self.base_url}/auth/change-password"
