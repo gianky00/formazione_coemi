@@ -260,7 +260,7 @@ def generate_installer_assets():
 
     log_and_print("Assets generated successfully.")
 
-def generate_iss_content(output_folder):
+def generate_iss_content(build_dir_relative):
     """Generates the Pascal Script Inno Setup file dynamically."""
 
     iss_content = fr"""
@@ -269,7 +269,8 @@ def generate_iss_content(output_folder):
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "Giancarlo Allegretti"
 #define MyAppExeName "{APP_NAME}.exe"
-#define BuildDir "{output_folder}"
+#define BuildDir "{build_dir_relative}"
+#define ProjectRoot "..\..\.."
 
 [Setup]
 AppId={{{{A1B2C3D4-E5F6-7890-1234-567890ABCDEF}}}}
@@ -292,9 +293,9 @@ BackColor2=clBlack
 WizardImageBackColor=clBlack
 
 ; IMAGES
-WizardImageFile={os.path.abspath(os.path.join(INSTALLER_ASSETS_DIR, 'slide_1.bmp'))}
-WizardSmallImageFile={os.path.join(ROOT_DIR, 'desktop_app', 'assets', 'installer_small.bmp')}
-SetupIconFile={os.path.join(ROOT_DIR, 'desktop_app', 'icons', 'icon.ico')}
+WizardImageFile=installer_assets\slide_1.bmp
+WizardSmallImageFile={{#ProjectRoot}}\desktop_app\assets\installer_small.bmp
+SetupIconFile={{#ProjectRoot}}\desktop_app\icons\icon.ico
 
 [Languages]
 Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"
@@ -310,11 +311,11 @@ Source: "{{#BuildDir}}\*"; DestDir: "{{app}}"; Excludes: "Intelleo_Setup_*.exe,L
 Source: "{{#BuildDir}}\Licenza\*"; DestDir: "{{app}}\Licenza"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 ; ASSETS
-Source: "{os.path.join(ROOT_DIR, 'desktop_app', 'assets')}\*"; DestDir: "{{app}}\\desktop_app\\assets"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{os.path.join(ROOT_DIR, 'desktop_app', 'icons')}\*"; DestDir: "{{app}}\\desktop_app\\icons"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{{#ProjectRoot}}\desktop_app\assets\*"; DestDir: "{{app}}\\desktop_app\\assets"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{{#ProjectRoot}}\desktop_app\icons\*"; DestDir: "{{app}}\\desktop_app\\icons"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; GENERATED SLIDES FOR ANIMATION (Stored but not installed)
-Source: "{os.path.abspath(os.path.join(INSTALLER_ASSETS_DIR, '*.bmp'))}"; DestDir: "{{tmp}}"; Flags: dontcopy
+Source: "installer_assets\*.bmp"; DestDir: "{{tmp}}"; Flags: dontcopy
 
 [Icons]
 Name: "{{autoprograms}}\{{#MyAppName}}"; Filename: "{{app}}\{{#MyAppExeName}}"
@@ -326,28 +327,39 @@ Name: "{{autoprograms}}\{{#MyAppName}} - Dashboard"; Filename: "{{app}}\{{#MyApp
 Filename: "{{app}}\{{#MyAppExeName}}"; Description: "{{cm:LaunchProgram,{{#MyAppName}}}}"; Flags: nowait postinstall skipifsilent
 
 [Code]
+// API Import for Timers
+function SetTimer(hWnd: LongWord; nIDEvent, uElapse: LongWord; lpTimerFunc: LongWord): LongWord;
+external 'SetTimer@user32.dll stdcall';
+
+function KillTimer(hWnd: LongWord; nIDEvent: LongWord): BOOL;
+external 'KillTimer@user32.dll stdcall';
+
 var
-  SlideTimer: TTimer;
-  StatusTimer: TTimer;
   SlideIndex: Integer;
   TextIndex: Integer;
   StatusPhrases: TArrayOfString;
+  // Timer IDs
+  SlideTimerID: LongWord;
+  StatusTimerID: LongWord;
 
-procedure OnSlideTimer(Sender: TObject);
+// Callback must match standard stdcall signature
+procedure TimerProc(H: LongWord; Msg: LongWord; IdEvent: LongWord; Time: LongWord);
 var
   FileName: String;
 begin
-  SlideIndex := (SlideIndex + 1) mod 3;
-  FileName := 'slide_' + IntToStr(SlideIndex + 1) + '.bmp';
-  ExtractTemporaryFile(FileName);
-  WizardForm.WizardBitmapImage.Bitmap.LoadFromFile(ExpandConstant('{{tmp}}\\' + FileName));
-end;
-
-procedure OnStatusTimer(Sender: TObject);
-begin
-  TextIndex := (TextIndex + 1) mod GetArrayLength(StatusPhrases);
-  WizardForm.StatusLabel.Caption := StatusPhrases[TextIndex];
-  WizardForm.StatusLabel.Invalidate;
+  if IdEvent = SlideTimerID then
+  begin
+    SlideIndex := (SlideIndex + 1) mod 3;
+    FileName := 'slide_' + IntToStr(SlideIndex + 1) + '.bmp';
+    ExtractTemporaryFile(FileName);
+    WizardForm.WizardBitmapImage.Bitmap.LoadFromFile(ExpandConstant('{{tmp}}\\' + FileName));
+  end
+  else if IdEvent = StatusTimerID then
+  begin
+    TextIndex := (TextIndex + 1) mod GetArrayLength(StatusPhrases);
+    WizardForm.StatusLabel.Caption := StatusPhrases[TextIndex];
+    WizardForm.StatusLabel.Invalidate;
+  end;
 end;
 
 procedure InitializeWizard;
@@ -385,9 +397,9 @@ begin
 
   // --- ANIMATION INIT ---
   SlideIndex := 0;
-  SlideTimer := TTimer.Create(WizardForm);
-  SlideTimer.Interval := 3000;
-  SlideTimer.OnTimer := @OnSlideTimer;
+  // Use CreateCallback for the TimerProc
+  // Note: SlideTimerID is arbitrary non-zero
+  SlideTimerID := SetTimer(0, 0, 3000, CreateCallback(@TimerProc));
 
   // --- DYNAMIC TEXT INIT ---
   SetArrayLength(StatusPhrases, 10);
@@ -403,9 +415,13 @@ begin
   StatusPhrases[9] := 'System Ready.';
 
   TextIndex := 0;
-  StatusTimer := TTimer.Create(WizardForm);
-  StatusTimer.Interval := 600;
-  StatusTimer.OnTimer := @OnStatusTimer;
+  StatusTimerID := SetTimer(0, 0, 600, CreateCallback(@TimerProc));
+end;
+
+procedure DeinitializeSetup();
+begin
+  if SlideTimerID <> 0 then KillTimer(0, SlideTimerID);
+  if StatusTimerID <> 0 then KillTimer(0, StatusTimerID);
 end;
 
 procedure CurPageChanged(CurPageID: Integer);
@@ -617,7 +633,8 @@ def build():
         log_and_print("\n--- Step 7/7: Compiling Installer with Inno Setup ---")
         
         # GENERATE ISS DYNAMICALLY
-        iss_content = generate_iss_content(output_folder)
+        # Pass APP_NAME (relative path from dist/) instead of absolute output_folder
+        iss_content = generate_iss_content(APP_NAME)
         iss_path = os.path.join(DIST_DIR, "setup_script_generated.iss")
         with open(iss_path, "w", encoding="utf-8") as f:
             f.write(iss_content)
