@@ -19,6 +19,8 @@ ENTRY_SCRIPT = "boot_loader.py"
 APP_NAME = "Intelleo"
 DIST_DIR = "dist"
 OBF_DIR = os.path.join(DIST_DIR, "obfuscated")
+# INSTALLER_ASSETS_DIR is no longer used for internal generation,
+# but we keep the variable if needed for cleanup or compatibility
 INSTALLER_ASSETS_DIR = os.path.join(DIST_DIR, "installer_assets")
 BUILD_LOG = "build_log.txt"
 
@@ -117,14 +119,9 @@ def verify_environment():
     log_and_print("--- Step 1/7: Environment Diagnostics ---")
     log_and_print(f"Running with Python: {sys.executable}")
 
-    # Check/Install Pillow for Asset Generation
-    try:
-        import PIL
-        log_and_print(f"Pillow verified: {PIL.__version__}")
-    except ImportError:
-        log_and_print("Pillow not found. Installing...", "WARNING")
-        run_command([sys.executable, "-m", "pip", "install", "Pillow"])
-        import PIL
+    # Check/Install Pillow for Asset Generation (Deprecated but kept if needed elsewhere)
+    # The new asset generator uses PyQt6, so Pillow is less critical here,
+    # but we verify PyInstaller which is critical.
 
     # Check PyInstaller
     try:
@@ -137,7 +134,6 @@ def verify_environment():
     req_path = os.path.join(ROOT_DIR, "requirements.txt")
     if os.path.exists(req_path):
         log_and_print(f"Checking dependencies from {req_path}...")
-        # ... (Dependency check logic omitted for brevity in merge, assuming functional env) ...
 
     iscc_path = shutil.which("ISCC.exe")
     possible_paths = [
@@ -181,273 +177,21 @@ def collect_submodules(base_dir):
                 modules.append(module_name)
     return modules
 
-def generate_installer_assets():
-    log_and_print("--- Step 1b: Generating Cyberpunk Installer Assets ---")
-    from PIL import Image, ImageDraw, ImageFont
-    import random
-
-    os.makedirs(INSTALLER_ASSETS_DIR, exist_ok=True)
-    width, height = 400, 800
-    bg_color = (0, 0, 0)
-
-    # Fonts
-    font = ImageFont.load_default()
-    large_font = ImageFont.load_default()
-    possible_fonts = [
-        "C:\\Windows\\Fonts\\arialbd.ttf", "arial.ttf", "segoeui.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-    ]
-    for f in possible_fonts:
-        if os.path.exists(f) or (os.name == 'nt' and os.path.exists(os.path.join(os.environ.get('WINDIR', 'C:\\Windows'), 'Fonts', f))):
-             try:
-                if os.name == 'nt' and not os.path.exists(f):
-                     f = os.path.join(os.environ.get('WINDIR'), 'Fonts', f)
-                font = ImageFont.truetype(f, 18)
-                large_font = ImageFont.truetype(f, 32)
-                break
-             except: continue
-
-    # Load Logo
-    logo_path = os.path.join(ROOT_DIR, "desktop_app", "assets", "logo.png")
-    logo = None
-    if os.path.exists(logo_path):
-        try:
-            logo = Image.open(logo_path).convert("RGBA")
-            logo.thumbnail((120, 120))
-        except: pass
-
-    # --- Slide 1: Cyan (Neural Core) ---
-    img1 = Image.new("RGB", (width, height), bg_color)
-    draw1 = ImageDraw.Draw(img1)
-    for _ in range(40):
-        draw1.line((random.randint(0, width), random.randint(0, height), random.randint(0, width), random.randint(0, height)), fill=(0, 50, 50), width=1)
-    if logo: img1.paste(logo, (width - 140, 20), logo)
-    txt1 = "INITIALIZING\nNEURAL CORE"
-    bbox1 = draw1.textbbox((0, 0), txt1, font=large_font)
-    draw1.text(((width - (bbox1[2]-bbox1[0]))//2, height//2), txt1, font=large_font, fill=(0, 255, 255), align="center")
-    img1.save(os.path.join(INSTALLER_ASSETS_DIR, "slide_1.bmp"))
-
-    # --- Slide 2: Green (Secure Vault) ---
-    img2 = Image.new("RGB", (width, height), bg_color)
-    draw2 = ImageDraw.Draw(img2)
-    for x in range(0, width, 20):
-        for y in range(0, height, 20):
-            if random.random() > 0.9:
-                draw2.text((x, y), str(random.randint(0,1)), font=font, fill=(0, 100, 0))
-    if logo: img2.paste(logo, (width - 140, 20), logo)
-    cx, cy = width//2, height//2 - 60
-    draw2.rectangle((cx-30, cy, cx+30, cy+50), outline=(0,255,0), width=3)
-    draw2.arc((cx-20, cy-30, cx+20, cy), 180, 0, fill=(0,255,0), width=3)
-    txt2 = "ENCRYPTING\nSECURE VAULT"
-    bbox2 = draw2.textbbox((0, 0), txt2, font=large_font)
-    draw2.text(((width - (bbox2[2]-bbox2[0]))//2, height//2), txt2, font=large_font, fill=(0, 255, 0), align="center")
-    img2.save(os.path.join(INSTALLER_ASSETS_DIR, "slide_2.bmp"))
-
-    # --- Slide 3: Purple (TensorFlow) ---
-    img3 = Image.new("RGB", (width, height), bg_color)
-    draw3 = ImageDraw.Draw(img3)
-    nodes = [(random.randint(20, width-20), random.randint(20, height-20)) for _ in range(20)]
-    for i in range(len(nodes)):
-        for j in range(i+1, len(nodes)):
-             if ((nodes[i][0]-nodes[j][0])**2 + (nodes[i][1]-nodes[j][1])**2)**0.5 < 150:
-                 draw3.line(nodes[i]+nodes[j], fill=(60,0,60), width=1)
-    for n in nodes: draw3.ellipse((n[0]-3, n[1]-3, n[0]+3, n[1]+3), fill=(180,0,180))
-    if logo: img3.paste(logo, (width - 140, 20), logo)
-    txt3 = "OPTIMIZING\nTENSORFLOW"
-    bbox3 = draw3.textbbox((0, 0), txt3, font=large_font)
-    draw3.text(((width - (bbox3[2]-bbox3[0]))//2, height//2), txt3, font=large_font, fill=(255, 0, 255), align="center")
-    img3.save(os.path.join(INSTALLER_ASSETS_DIR, "slide_3.bmp"))
-
-    log_and_print("Assets generated successfully.")
-
-def generate_iss_content(build_dir_relative):
-    """Generates the Pascal Script Inno Setup file dynamically."""
-
-    iss_content = fr"""
-; Script Generated Dynamically by build_dist.py for Intelleo (Cyberpunk Edition)
-#define MyAppName "{APP_NAME}"
-#define MyAppVersion "1.0.0"
-#define MyAppPublisher "Giancarlo Allegretti"
-#define MyAppExeName "{APP_NAME}.exe"
-#define BuildDir "{build_dir_relative}"
-#define ProjectRoot "..\..\.."
-
-[Setup]
-AppId={{{{A1B2C3D4-E5F6-7890-1234-567890ABCDEF}}}}
-AppName={{#MyAppName}}
-AppVersion={{#MyAppVersion}}
-AppPublisher={{#MyAppPublisher}}
-DefaultDirName={{autopf}}\{{#MyAppName}}
-DisableProgramGroupPage=yes
-OutputDir={os.path.join(ROOT_DIR, 'admin', 'offusca', DIST_DIR, 'Intelleo')}
-OutputBaseFilename=Intelleo_Setup_v{{#MyAppVersion}}
-Compression=lzma
-SolidCompression=yes
-WizardStyle=modern
-WizardSizePercent=120
-WizardResizable=no
-UninstallFilesDir={{app}}\Disinstalla
-; DARK THEME COLORS
-BackColor=clBlack
-BackColor2=clBlack
-WizardImageBackColor=clBlack
-
-; IMAGES
-WizardImageFile=installer_assets\slide_1.bmp
-WizardSmallImageFile={{#ProjectRoot}}\desktop_app\assets\installer_small.bmp
-SetupIconFile={{#ProjectRoot}}\desktop_app\icons\icon.ico
-
-[Languages]
-Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"
-
-[Tasks]
-Name: "desktopicon"; Description: "{{cm:CreateDesktopIcon}}"; GroupDescription: "{{cm:AdditionalIcons}}"; Flags: unchecked
-
-[Files]
-; MAIN APP FILES
-Source: "{{#BuildDir}}\*"; DestDir: "{{app}}"; Excludes: "Intelleo_Setup_*.exe,Licenza"; Flags: ignoreversion recursesubdirs createallsubdirs
-
-; LICENSE
-Source: "{{#BuildDir}}\Licenza\*"; DestDir: "{{app}}\Licenza"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
-
-; ASSETS
-Source: "{{#ProjectRoot}}\desktop_app\assets\*"; DestDir: "{{app}}\\desktop_app\\assets"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{{#ProjectRoot}}\desktop_app\icons\*"; DestDir: "{{app}}\\desktop_app\\icons"; Flags: ignoreversion recursesubdirs createallsubdirs
-
-; GENERATED SLIDES FOR ANIMATION (Stored but not installed)
-Source: "installer_assets\*.bmp"; DestDir: "{{tmp}}"; Flags: dontcopy
-
-[Icons]
-Name: "{{autoprograms}}\{{#MyAppName}}"; Filename: "{{app}}\{{#MyAppExeName}}"
-Name: "{{autodesktop}}\{{#MyAppName}}"; Filename: "{{app}}\{{#MyAppExeName}}"; Tasks: desktopicon
-; Shortcuts
-Name: "{{autoprograms}}\{{#MyAppName}} - Dashboard"; Filename: "{{app}}\{{#MyAppExeName}}"; Parameters: "--view dashboard"; IconFilename: "{{app}}\{{#MyAppExeName}}"
-
-[Run]
-Filename: "{{app}}\{{#MyAppExeName}}"; Description: "{{cm:LaunchProgram,{{#MyAppName}}}}"; Flags: nowait postinstall skipifsilent
-
-[Code]
-// API Import for Timers
-function SetTimer(hWnd: LongWord; nIDEvent, uElapse: LongWord; lpTimerFunc: LongWord): LongWord;
-external 'SetTimer@user32.dll stdcall';
-
-function KillTimer(hWnd: LongWord; nIDEvent: LongWord): BOOL;
-external 'KillTimer@user32.dll stdcall';
-
-var
-  SlideIndex: Integer;
-  TextIndex: Integer;
-  StatusPhrases: TArrayOfString;
-  // Timer IDs
-  SlideTimerID: LongWord;
-  StatusTimerID: LongWord;
-
-// Callback must match standard stdcall signature
-procedure TimerProc(H: LongWord; Msg: LongWord; IdEvent: LongWord; Time: LongWord);
-var
-  FileName: String;
-begin
-  if IdEvent = SlideTimerID then
-  begin
-    SlideIndex := (SlideIndex + 1) mod 3;
-    FileName := 'slide_' + IntToStr(SlideIndex + 1) + '.bmp';
-    ExtractTemporaryFile(FileName);
-    WizardForm.WizardBitmapImage.Bitmap.LoadFromFile(ExpandConstant('{{tmp}}\\' + FileName));
-  end
-  else if IdEvent = StatusTimerID then
-  begin
-    TextIndex := (TextIndex + 1) mod GetArrayLength(StatusPhrases);
-    WizardForm.StatusLabel.Caption := StatusPhrases[TextIndex];
-    WizardForm.StatusLabel.Invalidate;
-  end;
-end;
-
-procedure InitializeWizard;
-begin
-  // --- VISUAL OVERHAUL: DARK MODE & LOGO FIX ---
-
-  // 1. Force Black Backgrounds
-  WizardForm.Color := clBlack;
-  WizardForm.InnerPage.Color := clBlack;
-  WizardForm.MainPanel.Color := clBlack;
-
-  // 2. Text Colors
-  WizardForm.Font.Color := clWhite;
-  WizardForm.PageNameLabel.Font.Color := clAqua;
-  WizardForm.PageDescriptionLabel.Font.Color := clWhite;
-  WizardForm.WelcomeLabel1.Font.Color := clAqua;
-  WizardForm.WelcomeLabel2.Font.Color := clWhite;
-  WizardForm.FinishedHeadingLabel.Font.Color := clAqua;
-  WizardForm.FinishedLabel.Font.Color := clWhite;
-
-  // 3. Fix Logo Overlap
-  WizardForm.WizardSmallBitmapImage.Left := WizardForm.ClientWidth - ScaleX(60);
-  WizardForm.WizardSmallBitmapImage.Width := ScaleX(55);
-  WizardForm.WizardSmallBitmapImage.Height := ScaleY(55);
-  WizardForm.WizardSmallBitmapImage.Top := ScaleY(0);
-
-  // Shrink the labels
-  WizardForm.PageNameLabel.Width := WizardForm.WizardSmallBitmapImage.Left - ScaleX(20);
-  WizardForm.PageDescriptionLabel.Width := WizardForm.WizardSmallBitmapImage.Left - ScaleX(20);
-
-  // 4. Status Label Style
-  WizardForm.StatusLabel.Font.Color := $00FF00;
-  WizardForm.StatusLabel.Font.Style := [fsBold];
-  WizardForm.FileNameLabel.Font.Color := clGray;
-
-  // --- ANIMATION INIT ---
-  SlideIndex := 0;
-  // Use CreateCallback for the TimerProc
-  // Note: SlideTimerID is arbitrary non-zero
-  SlideTimerID := SetTimer(0, 0, 3000, CreateCallback(@TimerProc));
-
-  // --- DYNAMIC TEXT INIT ---
-  SetArrayLength(StatusPhrases, 10);
-  StatusPhrases[0] := 'Initializing Neural Core...';
-  StatusPhrases[1] := 'Optimizing Tensor Flow...';
-  StatusPhrases[2] := 'Encrypting Local Database (AES-256)...';
-  StatusPhrases[3] := 'Calibrating Optical Recognition...';
-  StatusPhrases[4] := 'Establishing Secure Environment...';
-  StatusPhrases[5] := 'Injecting Dependencies...';
-  StatusPhrases[6] := 'Compiling Neural Weights...';
-  StatusPhrases[7] := 'Verifying Integrity Checksums...';
-  StatusPhrases[8] := 'Allocating Memory Blocks...';
-  StatusPhrases[9] := 'System Ready.';
-
-  TextIndex := 0;
-  StatusTimerID := SetTimer(0, 0, 600, CreateCallback(@TimerProc));
-end;
-
-procedure DeinitializeSetup();
-begin
-  if SlideTimerID <> 0 then KillTimer(0, SlideTimerID);
-  if StatusTimerID <> 0 then KillTimer(0, StatusTimerID);
-end;
-
-procedure CurPageChanged(CurPageID: Integer);
-begin
-  if CurPageID = wpInstalling then
-  begin
-      WizardForm.WizardBitmapImage.Parent := WizardForm.InnerPage;
-      WizardForm.WizardBitmapImage.Left := WizardForm.InnerPage.Width - WizardForm.WizardBitmapImage.Width;
-      WizardForm.WizardBitmapImage.Visible := True;
-      WizardForm.WizardBitmapImage.BringToFront;
-  end;
-end;
-"""
-    return iss_content
-
 def build():
     try:
         log_and_print("Starting Build Process...")
 
-        log_and_print("\n--- Step 0/7: Generating Installer Assets ---")
+        log_and_print("\n--- Step 0/7: Generating Installer Assets (Deep Space Theme) ---")
 
         assets_script = os.path.join(ROOT_DIR, "tools", "prepare_installer_assets.py")
         if os.path.exists(assets_script):
             cmd = [sys.executable, assets_script]
-            if platform.system() == "Linux":
+            # Use offscreen platform for headless environments
+            if platform.system() == "Linux" or os.environ.get("HEADLESS_BUILD"):
                 cmd.extend(["-platform", "offscreen"])
+                # Also set env var to be safe
+                os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
             run_command(cmd)
         else:
             log_and_print(f"ERROR: Assets script not found at {assets_script}", "ERROR")
@@ -457,15 +201,9 @@ def build():
 
         iscc_exe, system_dlls = verify_environment()
 
-        # Step 1b: Generate Assets (Pillow)
-        generate_installer_assets()
-
         if os.path.exists(DIST_DIR):
             try:
                 shutil.rmtree(DIST_DIR)
-                # Re-create assets dir since we just nuked DIST_DIR
-                os.makedirs(INSTALLER_ASSETS_DIR, exist_ok=True)
-                generate_installer_assets() # Re-run to ensure they exist
             except PermissionError:
                 log_and_print("ERROR: File locked. Close Intelleo.exe or the dist folder.", "ERROR")
                 sys.exit(1)
@@ -632,20 +370,31 @@ def build():
 
         log_and_print("\n--- Step 7/7: Compiling Installer with Inno Setup ---")
         
-        # GENERATE ISS DYNAMICALLY
-        # Pass APP_NAME (relative path from dist/) instead of absolute output_folder
-        iss_content = generate_iss_content(APP_NAME)
-        iss_path = os.path.join(DIST_DIR, "setup_script_generated.iss")
-        with open(iss_path, "w", encoding="utf-8") as f:
-            f.write(iss_content)
+        # Use the MASTER ISS file in admin/crea_setup
+        iss_path = os.path.abspath(os.path.join(ROOT_DIR, "admin", "crea_setup", "setup_script.iss"))
 
-        log_and_print(f"Generated ISS at: {iss_path}")
+        # The BuildDir passed to Inno Setup must point to the PyInstaller output folder (output_folder)
+        # We pass it as an absolute path for safety
+        build_dir_abs = output_folder
+
+        log_and_print(f"Using Master ISS: {iss_path}")
+        log_and_print(f"Build Source Dir: {build_dir_abs}")
 
         if iscc_exe:
              log_and_print("Compiling with Inno Setup...")
-             run_command([iscc_exe, iss_path])
+             # Run ISCC from the directory where the ISS file lives, so relative paths in ISS (like OutputDir) work correctly
+             iss_cwd = os.path.dirname(iss_path)
+
+             cmd_iscc = [
+                 iscc_exe,
+                 f"/dBuildDir={build_dir_abs}",
+                 f"/dMyAppVersion=1.0.0",
+                 "setup_script.iss"
+             ]
+
+             run_command(cmd_iscc, cwd=iss_cwd)
         else:
-             log_and_print("Skipping compilation (ISCC not found/Linux). Check 'dist/setup_script_generated.iss'.")
+             log_and_print("Skipping compilation (ISCC not found/Linux).")
 
         log_and_print("="*60)
         log_and_print("BUILD AND PACKAGING COMPLETE SUCCESS!")

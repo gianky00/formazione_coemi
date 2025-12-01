@@ -90,6 +90,10 @@ Source: "{#BuildDir}\Licenza\*"; DestDir: "{app}\Licenza"; Flags: ignoreversion 
 Source: "..\..\desktop_app\assets\*"; DestDir: "{app}\desktop_app\assets"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\..\desktop_app\icons\*"; DestDir: "{app}\desktop_app\icons"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+; === SLIDESHOW ===
+; Include slides but do not copy to {app}, only extract to {tmp} for installer display
+Source: "..\..\desktop_app\assets\slide_*.bmp"; DestDir: "{tmp}"; Flags: dontcopy
+
 ; === DOCUMENTAZIONE JULES ===
 Source: "..\..\docs\*"; DestDir: "{app}\docs"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
@@ -136,14 +140,49 @@ Name: "{app}\AppDataIntelleo"; Filename: "{win}\explorer.exe"; Parameters: """{l
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
 
 [Code]
+// API Import for Timers
+function SetTimer(hWnd: LongWord; nIDEvent, uElapse: LongWord; lpTimerFunc: LongWord): LongWord;
+external 'SetTimer@user32.dll stdcall';
+
+function KillTimer(hWnd: LongWord; nIDEvent: LongWord): BOOL;
+external 'KillTimer@user32.dll stdcall';
+
 var
   ConfigPage1: TInputQueryWizardPage;
   ConfigPage2: TInputQueryWizardPage;
   ConfigPage3: TInputQueryWizardPage;
   TipsLabel: TNewStaticText;
 
-procedure InitializeWizard;
+  // Slideshow components
+  SlideImage: TBitmapImage;
+  SlideTimerID: LongWord;
+  SlideIndex: Integer;
+
+// Callback must match standard stdcall signature
+procedure TimerProc(H: LongWord; Msg: LongWord; IdEvent: LongWord; Time: LongWord);
+var
+  FileName: String;
 begin
+  if IdEvent = SlideTimerID then
+  begin
+    SlideIndex := (SlideIndex + 1) mod 3;
+    FileName := 'slide_' + IntToStr(SlideIndex + 1) + '.bmp';
+    // Files are already extracted to {tmp} in InitializeWizard
+    SlideImage.Bitmap.LoadFromFile(ExpandConstant('{tmp}\' + FileName));
+  end;
+end;
+
+procedure InitializeWizard;
+var
+  I: Integer;
+begin
+  // --- FULLSCREEN MODE ---
+  WizardForm.WindowState := wsMaximized;
+
+  // --- PRE-EXTRACT SLIDES (Performance Fix) ---
+  for I := 1 to 3 do
+    ExtractTemporaryFile('slide_' + IntToStr(I) + '.bmp');
+
   // Pagina 1: Impostazioni Cloud e AI
   ConfigPage1 := CreateInputQueryPage(wpSelectTasks,
     'Configurazione Cloud', 'Parametri AI & Cloud Integration',
@@ -189,19 +228,69 @@ begin
                        'Attendere prego. Stiamo preparando il tuo ambiente di lavoro.';
   TipsLabel.Font.Style := [fsItalic];
   TipsLabel.Font.Color := clWindowText;
+
+  // Initialize Slideshow Image (Hidden initially)
+  SlideImage := TBitmapImage.Create(WizardForm);
+  SlideImage.Parent := WizardForm.InstallingPage;
+  SlideImage.Visible := False;
+  SlideImage.Stretch := True;
+  SlideImage.Center := True;
+  // Load first image
+  SlideImage.Bitmap.LoadFromFile(ExpandConstant('{tmp}\slide_1.bmp'));
+  SlideIndex := 0;
 end;
 
 procedure CurPageChanged(CurPageID: Integer);
+var
+  InnerRect: TRect;
+  HalfWidth: Integer;
 begin
   if CurPageID = wpInstalling then
   begin
+    // --- LAYOUT RECALCULATION for Fullscreen ---
+    InnerRect := WizardForm.InstallingPage.ClientRect;
+    HalfWidth := InnerRect.Right div 2;
+
+    // LEFT COLUMN: Status, Progress, Tips
+    WizardForm.StatusLabel.Left := ScaleX(40);
+    WizardForm.StatusLabel.Width := HalfWidth - ScaleX(80);
+
+    WizardForm.FileNameLabel.Left := ScaleX(40);
+    WizardForm.FileNameLabel.Width := HalfWidth - ScaleX(80);
+
+    WizardForm.ProgressGauge.Left := ScaleX(40);
+    WizardForm.ProgressGauge.Width := HalfWidth - ScaleX(80);
+
     TipsLabel.Visible := True;
+    TipsLabel.Left := ScaleX(40);
+    TipsLabel.Width := HalfWidth - ScaleX(80);
     TipsLabel.Top := WizardForm.ProgressGauge.Top + WizardForm.ProgressGauge.Height + ScaleY(40);
-    TipsLabel.Left := 0;
-    TipsLabel.Width := WizardForm.InstallingPage.ClientWidth;
+
+    // RIGHT COLUMN: Slideshow
+    SlideImage.Visible := True;
+    SlideImage.Left := HalfWidth;
+    SlideImage.Top := ScaleY(40); // Add some top margin
+    SlideImage.Width := HalfWidth - ScaleX(40); // Margin on right
+    SlideImage.Height := InnerRect.Bottom - ScaleY(80); // Margin bottom
+
+    // START TIMER
+    SlideTimerID := SetTimer(0, 0, 3000, CreateCallback(@TimerProc));
   end
   else
+  begin
     TipsLabel.Visible := False;
+    SlideImage.Visible := False;
+    if SlideTimerID <> 0 then
+    begin
+        KillTimer(0, SlideTimerID);
+        SlideTimerID := 0;
+    end;
+  end;
+end;
+
+procedure DeinitializeSetup();
+begin
+  if SlideTimerID <> 0 then KillTimer(0, SlideTimerID);
 end;
 
 // Helper function to safely update environment variables in the Lines array
