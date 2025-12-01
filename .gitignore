@@ -1,5 +1,3 @@
-
-
 # Python
 __pycache__/
 *.py[cod]
@@ -103,15 +101,24 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
-# Intelleo specific
+# Intelleo specific - Database e file locali
 cliente/
 cache/
 *.db
 *.sqlite
-desktop_app/assets/installer_*.bmp
 .database_documenti.db.lock
+
+# Intelleo specific - Build output e Offuscamento
+# Ignora le cartelle di output della compilazione e i codici offuscati
+Intelleo/
+obfuscated/
+installer_assets/
+admin/offusca/dist/
+admin/offusca/build/
 admin/offusca/build_log.txt
+
+# Intelleo specific - Licenze e Token (File sensibili o generati)
+desktop_app/assets/installer_*.bmp
 /admin/crea_licenze/PC COEMI ALLEGRETTI
 admin/crea_licenze/seriale_disco.txt
-# Developer tools, should not be in version control
 admin/token_injector/
