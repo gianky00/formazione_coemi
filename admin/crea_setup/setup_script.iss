@@ -29,7 +29,7 @@ DisableProgramGroupPage=yes
 OutputDir=dist\Intelleo
 OutputBaseFilename=Intelleo_Setup_v{#MyAppVersion}
 
-Compression=lzma
+Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 WizardSizePercent=120
@@ -46,15 +46,19 @@ SetupIconFile=..\..\desktop_app\icons\icon.ico
 Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"
 
 [Messages]
-; === PREMIUM COPYWRITING ===
-WelcomeLabel1=Benvenuto nella Suite Intelleo
-WelcomeLabel2=Stai per installare Intelleo sul tuo computer.%n%nPredict. Validate. Automate.%nLa piattaforma definitiva per la gestione della sicurezza aziendale con Intelligenza Artificiale.%n%nPreparati a trasformare il modo in cui gestisci la conformità.
-ClickNext=Clicca su Avanti per iniziare il viaggio verso la sicurezza intelligente.
-FinishedHeadingLabel=Installazione Completata con Successo
-FinishedLabel=Intelleo è stato installato correttamente ed è pronto all'uso.%n%nIl sistema è configurato per analizzare, validare e proteggere i tuoi dati aziendali con la potenza dell'IA.%n%nClicca Fine per avviare la Dashboard.
+; === PROFESSIONAL COPYWRITING ===
+WelcomeLabel1=Benvenuto in Intelleo Enterprise Suite
+WelcomeLabel2=Stai per installare la soluzione leader per la gestione della sicurezza aziendale basata su Intelligenza Artificiale.%n%nPredict. Validate. Automate.%n%nIntelleo trasforma i processi di conformità in flussi di lavoro intelligenti ed automatizzati, garantendo sicurezza e precisione senza precedenti.
+ClickNext=Clicca su Avanti per avviare la procedura di installazione guidata.
+FinishedHeadingLabel=Installazione Completata
+FinishedLabel=Intelleo Enterprise è stato installato con successo.%n%nIl sistema è pronto per analizzare i tuoi documenti e proteggere la tua azienda.%n%nClicca Fine per accedere alla Dashboard.
+StatusExtractFiles=Estrazione componenti Core AI...
+StatusInstalling=Configurazione ambiente neurale in corso...
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "startup"; Description: "Avvia Intelleo automaticamente all'avvio di Windows"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "cleancache"; Description: "Esegui pulizia profonda della cache (Consigliato per aggiornamenti)"; GroupDescription: "Manutenzione:"; Flags: unchecked
 
 [Dirs]
 ; === CREAZIONE FORZATA CARTELLE ===
@@ -62,6 +66,9 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "{localappdata}\Intelleo"
 
 [Registry]
+; Avvio Automatico
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\{#MyAppExeName}"" --minimized"; Flags: uninsdeletevalue; Tasks: startup
+
 ; Menu contestuale "Analizza con Intelleo" (Cartelle)
 Root: HKCR; Subkey: "Directory\shell\IntelleoAnalyze"; ValueType: string; ValueName: ""; ValueData: "Analizza con Intelleo"; Flags: uninsdeletekey
 Root: HKCR; Subkey: "Directory\shell\IntelleoAnalyze"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekey
@@ -79,11 +86,9 @@ Root: HKCR; Subkey: "SystemFileAssociations\.csv\shell\IntelleoImport\command"; 
 
 [Files]
 ; === ESEGUIBILE E DIPENDENZE PYTHON ===
-; Escludiamo la cartella Licenza qui per gestirla esplicitamente sotto
 Source: "{#BuildDir}\*"; DestDir: "{app}"; Excludes: "Intelleo_Setup_*.exe,Licenza"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; === LICENZA ===
-; Copia la cartella Licenza preparata dallo script Python (che ora contiene la copia della cartella Licenza originale)
 Source: "{#BuildDir}\Licenza\*"; DestDir: "{app}\Licenza"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 ; === ASSET GRAFICI ===
@@ -91,7 +96,6 @@ Source: "..\..\desktop_app\assets\*"; DestDir: "{app}\desktop_app\assets"; Flags
 Source: "..\..\desktop_app\icons\*"; DestDir: "{app}\desktop_app\icons"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; === SLIDESHOW ===
-; Include slides but do not copy to {app}, only extract to {tmp} for installer display
 Source: "..\..\desktop_app\assets\slide_*.bmp"; DestDir: "{tmp}"; Flags: dontcopy
 
 ; === DOCUMENTAZIONE JULES ===
@@ -99,55 +103,42 @@ Source: "..\..\docs\*"; DestDir: "{app}\docs"; Flags: ignoreversion recursesubdi
 
 [UninstallDelete]
 ; === PULIZIA AGGRESSIVA ===
-; Cancella file specifici
 Type: files; Name: "{app}\.env"
 Type: files; Name: "{app}\database_documenti.db"
 Type: files; Name: "{app}\database.db"
 Type: files; Name: "{app}\scadenzario.db"
 Type: files; Name: "{app}\pyarmor.rkey"
 Type: files; Name: "{app}\*.log"
-
-; Cancella cartella Licenza
 Type: filesandordirs; Name: "{app}\Licenza"
-
-; Cancella dati utente in AppData
 Type: files; Name: "{localappdata}\Intelleo\*.env"
 Type: files; Name: "{localappdata}\Intelleo\*.db"
 Type: files; Name: "{localappdata}\Intelleo\*.lock"
 Type: files; Name: "{localappdata}\Intelleo\*.log"
-; Rimuove intera cartella dati utente se vuoi pulizia totale (decommentare riga sotto se vuoi cancellare proprio tutto in appdata)
 Type: filesandordirs; Name: "{localappdata}\Intelleo"
-
-; Cancella l'intera cartella di installazione alla fine
 Type: filesandordirs; Name: "{app}"
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
-; === SCORCIATOIE VISTE (Jumplist-like) ===
+; === SCORCIATOIE VISTE ===
 Name: "{autoprograms}\{#MyAppName} - Dashboard"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--view dashboard"; IconFilename: "{app}\{#MyAppExeName}"
 Name: "{autoprograms}\{#MyAppName} - Scadenzario"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--view scadenzario"; IconFilename: "{app}\{#MyAppExeName}"
 Name: "{autoprograms}\{#MyAppName} - Convalida Dati"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--view validation"; IconFilename: "{app}\{#MyAppExeName}"
 Name: "{autoprograms}\{#MyAppName} - Importa Documenti"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--view import"; IconFilename: "{app}\{#MyAppExeName}"
-
-; === COLLEGAMENTO DATI APPLICAZIONE FIXATO ===
-; Apre esplora risorse nel percorso AppData. Parametri senza virgolette triple per evitare errori di parsing.
 Name: "{app}\AppDataIntelleo"; Filename: "{win}\explorer.exe"; Parameters: """{localappdata}\Intelleo"""; IconFilename: "{win}\explorer.exe"
 
 [Run]
-; Avvia l'app dopo l'installazione
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
 
 [Code]
-// API Import for Timers
+// API Import for Timers & Window Control
 function SetTimer(hWnd: LongWord; nIDEvent, uElapse: LongWord; lpTimerFunc: LongWord): LongWord;
 external 'SetTimer@user32.dll stdcall';
 
 function KillTimer(hWnd: LongWord; nIDEvent: LongWord): BOOL;
 external 'KillTimer@user32.dll stdcall';
 
-// API for Fullscreen
 function ShowWindow(hWnd: HWND; nCmdShow: Integer): BOOL;
 external 'ShowWindow@user32.dll stdcall';
 
@@ -165,7 +156,6 @@ var
   SlideTimerID: LongWord;
   SlideIndex: Integer;
 
-// Callback must match standard stdcall signature
 procedure TimerProc(H: LongWord; Msg: LongWord; IdEvent: LongWord; Time: LongWord);
 var
   FileName: String;
@@ -174,7 +164,6 @@ begin
   begin
     SlideIndex := (SlideIndex + 1) mod 3;
     FileName := 'slide_' + IntToStr(SlideIndex + 1) + '.bmp';
-    // Files are already extracted to {tmp} in InitializeWizard
     SlideImage.Bitmap.LoadFromFile(ExpandConstant('{tmp}\' + FileName));
   end;
 end;
@@ -183,66 +172,71 @@ procedure InitializeWizard;
 var
   I: Integer;
 begin
-  // --- FULLSCREEN MODE ---
+  // --- FULLSCREEN & RESIZABLE FIX ---
+  // Enable Maximize button so user can restore it if minimized/restored
+  WizardForm.BorderIcons := [biSystemMenu, biMinimize, biMaximize];
+  WizardForm.BorderStyle := bsSizeable;
+
+  // Start Maximized
   ShowWindow(WizardForm.Handle, SW_MAXIMIZE);
 
-  // --- PRE-EXTRACT SLIDES (Performance Fix) ---
+  // --- PRE-EXTRACT SLIDES ---
   for I := 1 to 3 do
     ExtractTemporaryFile('slide_' + IntToStr(I) + '.bmp');
 
-  // Pagina 1: Impostazioni Cloud e AI
+  // Page 1: AI & Cloud
   ConfigPage1 := CreateInputQueryPage(wpSelectTasks,
     'Configurazione Cloud', 'Parametri AI & Cloud Integration',
     'Intelleo utilizza la potenza del Cloud per elaborare i documenti. Configura le chiavi di accesso.');
-
   ConfigPage1.Add('Gemini API Key:', False);
   ConfigPage1.Add('Google Cloud Project ID:', False);
   ConfigPage1.Add('GCS Bucket Name:', False);
 
-  // Pagina 2: Impostazioni Email (SMTP Server)
+  // Page 2: SMTP
   ConfigPage2 := CreateInputQueryPage(ConfigPage1.ID,
     'Configurazione Notifiche', 'Server SMTP (Posta in Uscita)',
     'Configura il server per l''invio automatico degli avvisi di scadenza.');
-
   ConfigPage2.Add('SMTP Host:', False);
   ConfigPage2.Add('SMTP Port:', False);
   ConfigPage2.Add('SMTP User:', False);
   ConfigPage2.Add('SMTP Password:', True);
 
-  // Pagina 3: Destinatari Email
+  // Page 3: Email Recipients
   ConfigPage3 := CreateInputQueryPage(ConfigPage2.ID,
     'Destinatari Avvisi', 'Canali di Comunicazione',
     'Definisci chi riceverà i report settimanali e gli alert critici.');
-
   ConfigPage3.Add('Destinatari (A):', False);
   ConfigPage3.Add('Destinatari in copia (CC):', False);
 
-  // Ingrandisci il logo in alto a destra
-  WizardForm.WizardSmallBitmapImage.Width := ScaleX(110);
-  WizardForm.WizardSmallBitmapImage.Left := WizardForm.ClientWidth - ScaleX(110);
+  // Optimize Logo Layout (White Background Friendly)
+  WizardForm.WizardSmallBitmapImage.Width := ScaleX(55);
+  WizardForm.WizardSmallBitmapImage.Height := ScaleY(55);
+  WizardForm.WizardSmallBitmapImage.Left := WizardForm.ClientWidth - ScaleX(65);
+  WizardForm.WizardSmallBitmapImage.Top := ScaleY(10);
 
-  // Suggerimenti Professionali
+  // Professional Tips
   TipsLabel := TNewStaticText.Create(WizardForm);
   TipsLabel.Parent := WizardForm.InstallingPage;
   TipsLabel.Visible := False;
   TipsLabel.WordWrap := True;
-  TipsLabel.Caption := 'Intelleo System Initialization:' + #13#10 + #13#10 +
-                       '- Attivazione Motore Neurale Gemini Pro...' + #13#10 +
-                       '- Configurazione Database Crittografato AES-256...' + #13#10 +
-                       '- Predisposizione Ambiente Scadenzario Intelligente...' + #13#10 +
-                       '- Verifica Moduli di Notifica Automatica...' + #13#10 +
-                       '- Inizializzazione Dashboard Interattiva...' + #13#10 + #13#10 +
-                       'Attendere prego. Stiamo preparando il tuo ambiente di lavoro.';
+  TipsLabel.Caption := 'System Initialization:' + #13#10 + #13#10 +
+                       '- Bootstrapping Neural Engine...' + #13#10 +
+                       '- Encrypting Local Database (AES-256)...' + #13#10 +
+                       '- Configuring Intelligent Scheduler...' + #13#10 +
+                       '- Verifying Notification Modules...' + #13#10 +
+                       '- Initializing Dashboard...' + #13#10 + #13#10 +
+                       'Please wait while we prepare your secure environment.';
   TipsLabel.Font.Style := [fsItalic];
   TipsLabel.Font.Color := clWindowText;
+  TipsLabel.Font.Name := 'Segoe UI';
+  TipsLabel.Font.Size := 10;
 
-  // Initialize Slideshow Image (Hidden initially)
+  // Initialize Slideshow Image
   SlideImage := TBitmapImage.Create(WizardForm);
   SlideImage.Parent := WizardForm.InstallingPage;
   SlideImage.Visible := False;
   SlideImage.Stretch := True;
   SlideImage.Center := True;
-  // Load first image
   SlideImage.Bitmap.LoadFromFile(ExpandConstant('{tmp}\slide_1.bmp'));
   SlideIndex := 0;
 end;
@@ -253,19 +247,19 @@ var
 begin
   if CurPageID = wpInstalling then
   begin
-    // --- LAYOUT RECALCULATION for Fullscreen ---
-    // InnerRect := WizardForm.InstallingPage.ClientRect; -> REMOVED
     HalfWidth := WizardForm.InstallingPage.ClientWidth div 2;
 
-    // LEFT COLUMN: Status, Progress, Tips
+    // LEFT COLUMN
     WizardForm.StatusLabel.Left := ScaleX(40);
     WizardForm.StatusLabel.Width := HalfWidth - ScaleX(80);
+    WizardForm.StatusLabel.Font.Size := 10;
 
     WizardForm.FileNameLabel.Left := ScaleX(40);
     WizardForm.FileNameLabel.Width := HalfWidth - ScaleX(80);
 
     WizardForm.ProgressGauge.Left := ScaleX(40);
     WizardForm.ProgressGauge.Width := HalfWidth - ScaleX(80);
+    WizardForm.ProgressGauge.Height := ScaleY(25);
 
     TipsLabel.Visible := True;
     TipsLabel.Left := ScaleX(40);
@@ -275,11 +269,10 @@ begin
     // RIGHT COLUMN: Slideshow
     SlideImage.Visible := True;
     SlideImage.Left := HalfWidth;
-    SlideImage.Top := ScaleY(40); // Add some top margin
-    SlideImage.Width := HalfWidth - ScaleX(40); // Margin on right
-    SlideImage.Height := WizardForm.InstallingPage.ClientHeight - ScaleY(80); // Margin bottom
+    SlideImage.Top := ScaleY(20);
+    SlideImage.Width := HalfWidth - ScaleX(40);
+    SlideImage.Height := WizardForm.InstallingPage.ClientHeight - ScaleY(40);
 
-    // START TIMER
     SlideTimerID := SetTimer(0, 0, 3000, CreateCallback(@TimerProc));
   end
   else
@@ -299,7 +292,6 @@ begin
   if SlideTimerID <> 0 then KillTimer(0, SlideTimerID);
 end;
 
-// Helper function to safely update environment variables in the Lines array
 procedure UpdateEnvVar(var Lines: TArrayOfString; Key, Value: String);
 var
   J: Integer;
@@ -329,9 +321,17 @@ var
   AppDataDir: String;
   Val: String;
 begin
+  if CurStep = ssInstall then
+  begin
+     // CLEAN CACHE TASK
+     if IsTaskSelected('cleancache') then
+     begin
+        DelTree(ExpandConstant('{localappdata}\Intelleo\cache'), True, True, True);
+     end;
+  end;
+
   if CurStep = ssPostInstall then
   begin
-    // Write configuration to User Local AppData to match Python's LOCALAPPDATA
     AppDataDir := ExpandConstant('{localappdata}\Intelleo');
     if not DirExists(AppDataDir) then ForceDirectories(AppDataDir);
 
@@ -340,18 +340,18 @@ begin
     if not LoadStringsFromFile(EnvPath, Lines) then
       SetArrayLength(Lines, 0);
 
-    // Page 1 Values
+    // Page 1
     Val := ConfigPage1.Values[0]; if Val <> '' then UpdateEnvVar(Lines, 'GEMINI_API_KEY', '"' + Val + '"');
     Val := ConfigPage1.Values[1]; if Val <> '' then UpdateEnvVar(Lines, 'GOOGLE_CLOUD_PROJECT', '"' + Val + '"');
     Val := ConfigPage1.Values[2]; if Val <> '' then UpdateEnvVar(Lines, 'GCS_BUCKET_NAME', '"' + Val + '"');
 
-    // Page 2 Values (Server)
+    // Page 2
     Val := ConfigPage2.Values[0]; if Val <> '' then UpdateEnvVar(Lines, 'SMTP_HOST', '"' + Val + '"');
     Val := ConfigPage2.Values[1]; if Val <> '' then UpdateEnvVar(Lines, 'SMTP_PORT', Val);
     Val := ConfigPage2.Values[2]; if Val <> '' then UpdateEnvVar(Lines, 'SMTP_USER', '"' + Val + '"');
     Val := ConfigPage2.Values[3]; if Val <> '' then UpdateEnvVar(Lines, 'SMTP_PASSWORD', '"' + Val + '"');
 
-    // Page 3 Values (Recipients)
+    // Page 3
     Val := ConfigPage3.Values[0]; if Val <> '' then UpdateEnvVar(Lines, 'EMAIL_RECIPIENTS_TO', '"' + Val + '"');
     Val := ConfigPage3.Values[1]; if Val <> '' then UpdateEnvVar(Lines, 'EMAIL_RECIPIENTS_CC', '"' + Val + '"');
 
