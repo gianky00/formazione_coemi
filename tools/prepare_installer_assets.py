@@ -2,82 +2,71 @@ import sys
 import os
 import random
 import math
-from PyQt6.QtGui import QImage, QPainter, QColor, QPixmap, QLinearGradient, QPen, QBrush, QRadialGradient, QPainterPath, QFont
+from PyQt6.QtGui import QImage, QPainter, QColor, QPixmap, QLinearGradient, QPen, QBrush, QRadialGradient, QPainterPath, QFont, QConicalGradient
 from PyQt6.QtCore import Qt, QSize, QPointF, QRectF
 from PyQt6.QtWidgets import QApplication
 
-def draw_neural_background(painter, width, height):
+def draw_spectacular_background(painter, width, height, is_dark=True):
     """
-    Draws the 'Deep Space' gradient and a procedural neural network pattern.
-    Matches the aesthetic of the LoginView.
+    Draws a 'Breathtaking' Deep Space background with nebulae, stars, and a tech grid.
     """
-    # 1. Deep Space Background Gradient
-    # Vertical gradient from Deep Blue to Slate Dark
-    grad = QLinearGradient(0, 0, 0, height)
-    grad.setColorAt(0, QColor("#1E3A8A")) # Primary Dark Blue
-    grad.setColorAt(1, QColor("#0F172A")) # Slate 900
-    painter.fillRect(0, 0, width, height, grad)
+    if is_dark:
+        # 1. Deep Space Base
+        grad = QLinearGradient(0, 0, width, height)
+        grad.setColorAt(0.0, QColor("#0B0F19")) # Deepest Blue/Black
+        grad.setColorAt(0.4, QColor("#111827")) # Slate 900
+        grad.setColorAt(1.0, QColor("#1E1B4B")) # Indigo 950
+        painter.fillRect(0, 0, width, height, grad)
 
-    # 2. Tech Grid Overlay (Futuristic effect)
-    draw_tech_grid(painter, width, height)
+        # 2. Nebula / Glow Effects (Spectacular!)
+        # Large Blue Glow (Bottom Left)
+        rad1 = QRadialGradient(0, height, width * 0.8)
+        rad1.setColorAt(0.0, QColor(59, 130, 246, 40)) # Blue 500 low opacity
+        rad1.setColorAt(1.0, QColor(0, 0, 0, 0))
+        painter.setBrush(QBrush(rad1))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawRect(0, 0, width, height)
 
-    # 3. Procedural Neural Network
-    # Use a fixed seed for consistent results across builds
-    random.seed(42)
+        # Large Purple Glow (Top Right)
+        rad2 = QRadialGradient(width, 0, width * 0.7)
+        rad2.setColorAt(0.0, QColor(147, 51, 234, 30)) # Purple 600 low opacity
+        rad2.setColorAt(1.0, QColor(0, 0, 0, 0))
+        painter.setBrush(QBrush(rad2))
+        painter.drawRect(0, 0, width, height)
 
-    num_nodes = int((width * height) / 2500) # Density based on area
-    nodes = []
+        # 3. Stars
+        random.seed(123)
+        painter.setPen(Qt.PenStyle.NoPen)
+        for _ in range(100):
+            x = random.uniform(0, width)
+            y = random.uniform(0, height)
+            s = random.uniform(0.5, 2.0)
+            opacity = random.randint(50, 200)
+            painter.setBrush(QColor(255, 255, 255, opacity))
+            painter.drawEllipse(QPointF(x, y), s, s)
 
-    # Generate Nodes
-    for _ in range(num_nodes):
-        x = random.uniform(0, width)
-        y = random.uniform(0, height)
-        size = random.uniform(2, 5)
-        nodes.append({"pos": QPointF(x, y), "size": size})
+    else:
+        # White background for Small Image
+        painter.fillRect(0, 0, width, height, Qt.GlobalColor.white)
 
-    # Draw Connections
-    pen = QPen(QColor(255, 255, 255, 30)) # Low opacity white
-    pen.setWidthF(0.8)
-    painter.setPen(pen)
+    # 4. Tech Grid (Subtle)
+    draw_tech_grid(painter, width, height, is_dark)
 
-    connect_dist = 100 # Max distance to connect
-    if width < 150: connect_dist = 40 # Adjust for small icons
+    if is_dark:
+        # 5. Neural Network (Enhanced)
+        draw_neural_network(painter, width, height)
 
-    for i, node_a in enumerate(nodes):
-        for j, node_b in enumerate(nodes):
-            if i >= j: continue # Avoid double checking
-
-            # Simple distance check
-            dx = node_a["pos"].x() - node_b["pos"].x()
-            dy = node_a["pos"].y() - node_b["pos"].y()
-            dist = math.sqrt(dx*dx + dy*dy)
-
-            if dist < connect_dist:
-                # Calculate opacity based on distance (closer = more opaque)
-                opacity = int((1 - dist / connect_dist) * 60)
-                pen.setColor(QColor(147, 197, 253, opacity)) # Light Blue tint
-                painter.setPen(pen)
-                painter.drawLine(node_a["pos"], node_b["pos"])
-
-    # Draw Nodes (Glowing dots)
-    painter.setPen(Qt.PenStyle.NoPen)
-    for node in nodes:
-        # Radial gradient for glow effect
-        r = node["size"]
-        rad_grad = QRadialGradient(node["pos"], r)
-        rad_grad.setColorAt(0, QColor(255, 255, 255, 200)) # Core
-        rad_grad.setColorAt(1, QColor(30, 58, 138, 0))   # Fade out
-
-        painter.setBrush(QBrush(rad_grad))
-        painter.drawEllipse(node["pos"], r, r)
-
-def draw_tech_grid(painter, width, height):
-    """Draws a subtle hexagonal grid for a futuristic look."""
-    size = 40
+def draw_tech_grid(painter, width, height, is_dark):
+    """Draws a subtle hexagonal grid."""
+    size = 50
     dx = size * 1.5
     dy = size * math.sqrt(3)
 
-    pen = QPen(QColor(0, 255, 255, 5)) # Very faint Cyan
+    if is_dark:
+        pen = QPen(QColor(255, 255, 255, 5)) # Very faint white
+    else:
+        pen = QPen(QColor(0, 0, 0, 5)) # Very faint black
+
     pen.setWidth(1)
     painter.setPen(pen)
     painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -92,7 +81,7 @@ def draw_tech_grid(painter, width, height):
             if i % 2 == 1:
                 y += dy / 2
 
-            # Draw Hexagon
+            # Hexagon
             path = QPainterPath()
             for k in range(6):
                 angle_deg = 60 * k
@@ -106,59 +95,73 @@ def draw_tech_grid(painter, width, height):
             path.closeSubpath()
             painter.drawPath(path)
 
-def draw_white_container(painter, x, y, w, h):
-    """Draws a solid white rounded rectangle with shadow behind the logo."""
-    padding_x = 30
-    padding_y = 20
+def draw_neural_network(painter, width, height):
+    """Draws glowing nodes and connections."""
+    random.seed(42) # Consistent
+    num_nodes = int((width * height) / 3000)
+    nodes = []
 
-    rect_x = x - padding_x
-    rect_y = y - padding_y
-    rect_w = w + padding_x * 2
-    rect_h = h + padding_y * 2
+    for _ in range(num_nodes):
+        x = random.uniform(0, width)
+        y = random.uniform(0, height)
+        nodes.append(QPointF(x, y))
 
-    radius = 16
+    # Connections
+    pen = QPen(QColor(147, 197, 253, 30)) # Blue light
+    painter.setPen(pen)
 
-    # Shadow
+    for i, p1 in enumerate(nodes):
+        for j, p2 in enumerate(nodes):
+            if i >= j: continue
+            dist = math.sqrt((p1.x()-p2.x())**2 + (p1.y()-p2.y())**2)
+            if dist < 80:
+                opacity = int((1 - dist/80) * 80)
+                pen.setColor(QColor(147, 197, 253, opacity))
+                painter.setPen(pen)
+                painter.drawLine(p1, p2)
+
+    # Nodes
     painter.setPen(Qt.PenStyle.NoPen)
-    painter.setBrush(QColor(0, 0, 0, 60))
-    painter.drawRoundedRect(QRectF(rect_x + 4, rect_y + 6, rect_w, rect_h), radius, radius)
-
-    # White Box
-    painter.setBrush(QColor(255, 255, 255, 255)) # Solid White
-    painter.drawRoundedRect(QRectF(rect_x, rect_y, rect_w, rect_h), radius, radius)
+    for p in nodes:
+        rad = QRadialGradient(p, 4)
+        rad.setColorAt(0, QColor(255, 255, 255, 200))
+        rad.setColorAt(1, QColor(59, 130, 246, 0))
+        painter.setBrush(QBrush(rad))
+        painter.drawEllipse(p, 4, 4)
 
 def create_slide(filepath, text, subtext, width=800, height=600, logo_pixmap=None):
-    """Generates a slide image with Deep Space background and text."""
     image = QImage(width, height, QImage.Format.Format_ARGB32)
     painter = QPainter(image)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
 
-    # Background
-    draw_neural_background(painter, width, height)
+    draw_spectacular_background(painter, width, height, is_dark=True)
 
-    # Logo (Top Right or Centered Watermark?)
-    # Let's put a watermark logo in the corner
+    # Logo Watermark
     if logo_pixmap:
-        scaled_logo = logo_pixmap.scaledToWidth(100, Qt.TransformationMode.SmoothTransformation)
-        painter.drawPixmap(width - 130, 30, scaled_logo)
+        scaled_logo = logo_pixmap.scaledToWidth(120, Qt.TransformationMode.SmoothTransformation)
+        painter.setOpacity(0.8)
+        painter.drawPixmap(width - 150, 40, scaled_logo)
+        painter.setOpacity(1.0)
 
-    # Text
-    # Center text
-    font_main = QFont("Segoe UI", 48, QFont.Weight.Bold)
-    font_sub = QFont("Segoe UI", 24, QFont.Weight.Light)
+    # Text Styling
+    font_main = QFont("Segoe UI", 56, QFont.Weight.Bold)
+    font_sub = QFont("Segoe UI", 28, QFont.Weight.Light)
 
-    painter.setPen(QColor(255, 255, 255))
+    # Shadow for text
+    painter.setPen(QColor(0, 0, 0, 100))
     painter.setFont(font_main)
-
-    # Draw Main Text Centered
     rect_main = painter.fontMetrics().boundingRect(text)
     x_main = (width - rect_main.width()) // 2
     y_main = (height // 2) - 40
+    painter.drawText(x_main + 4, y_main + 4, text)
+
+    painter.setPen(QColor(255, 255, 255))
     painter.drawText(x_main, y_main, text)
 
-    # Draw Sub Text
+    # Subtext
     painter.setFont(font_sub)
-    painter.setPen(QColor(147, 197, 253)) # Light blue
+    painter.setPen(QColor(147, 197, 253))
     rect_sub = painter.fontMetrics().boundingRect(subtext)
     x_sub = (width - rect_sub.width()) // 2
     y_sub = y_main + rect_main.height() + 20
@@ -166,14 +169,10 @@ def create_slide(filepath, text, subtext, width=800, height=600, logo_pixmap=Non
 
     painter.end()
     image.save(filepath, "BMP")
-    print(f"Created Slide: {filepath}")
-
+    print(f"Created {filepath}")
 
 def create_assets():
-    # QApplication is required to use QPixmap/QPainter
     app = QApplication(sys.argv)
-
-    # Paths
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     assets_dir = os.path.join(base_dir, "desktop_app", "assets")
     logo_path = os.path.join(assets_dir, "logo.png")
@@ -181,103 +180,68 @@ def create_assets():
     if not os.path.exists(assets_dir):
         os.makedirs(assets_dir)
 
-    print(f"Generating Premium Assets from {logo_path}...")
-
-    # Load Logo
     logo = None
     if os.path.exists(logo_path):
         logo = QPixmap(logo_path)
 
-    # --- 1. Wizard Image (Side Banner) ---
+    # 1. Wizard Image (Large Side)
     wiz_size = QSize(328, 628)
     wiz_img = QImage(wiz_size, QImage.Format.Format_ARGB32)
-
     painter = QPainter(wiz_img)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    draw_spectacular_background(painter, wiz_size.width(), wiz_size.height(), is_dark=True)
 
-    # Draw Background & Network
-    draw_neural_background(painter, wiz_size.width(), wiz_size.height())
+    # Draw Logo in a sleek glass container
+    if logo:
+        target_w = 200
+        scaled = logo.scaledToWidth(target_w, Qt.TransformationMode.SmoothTransformation)
+        x = (wiz_size.width() - scaled.width()) // 2
+        y = (wiz_size.height() - scaled.height()) // 2
 
-    # Draw Logo Centered
-    if logo and not logo.isNull():
-        target_width = 240
-        scaled_logo = logo.scaledToWidth(target_width, Qt.TransformationMode.SmoothTransformation)
+        # Glass backing
+        painter.setBrush(QColor(255, 255, 255, 20))
+        painter.setPen(QColor(255, 255, 255, 50))
+        painter.drawRoundedRect(x - 20, y - 20, scaled.width() + 40, scaled.height() + 40, 15, 15)
 
-        x = (wiz_size.width() - scaled_logo.width()) // 2
-        y = (wiz_size.height() - scaled_logo.height()) // 2
-
-        draw_white_container(painter, x, y, scaled_logo.width(), scaled_logo.height())
-        painter.drawPixmap(x, y, scaled_logo)
-    else:
-         painter.setPen(QColor("white"))
-         painter.setFont(painter.font())
-         painter.drawText(wiz_img.rect(), Qt.AlignmentFlag.AlignCenter, "INTELLEO")
+        painter.drawPixmap(x, y, scaled)
 
     painter.end()
+    wiz_img.save(os.path.join(assets_dir, "installer_wizard.bmp"), "BMP")
 
-    wiz_path = os.path.join(assets_dir, "installer_wizard.bmp")
-    wiz_img.save(wiz_path, "BMP")
-    print(f"Created {wiz_path}")
-
-
-    # --- 2. Small Image (Header) ---
-    small_size = QSize(110, 110)
+    # 2. Small Image (Top Right) - WHITE BACKGROUND FIX
+    # Inno Setup SmallImage is typically 55x55 (standard) but can be larger.
+    # The header is white. So we use white background.
+    small_size = QSize(55, 55)
     small_img = QImage(small_size, QImage.Format.Format_ARGB32)
-
     painter = QPainter(small_img)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-    # Draw Background & Network
-    draw_neural_background(painter, small_size.width(), small_size.height())
+    # Fill White
+    painter.fillRect(small_img.rect(), Qt.GlobalColor.white)
 
-    # Draw Logo
-    if logo and not logo.isNull():
-        scaled_logo = logo.scaled(70, 70, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-        x = (small_size.width() - scaled_logo.width()) // 2
-        y = (small_size.height() - scaled_logo.height()) // 2
+    # Draw Tech Grid (Subtle)
+    draw_tech_grid(painter, small_size.width(), small_size.height(), is_dark=False)
 
-        padding = 10
-        rect_size = max(scaled_logo.width(), scaled_logo.height()) + padding * 2
-        cx = x + scaled_logo.width() / 2
-        cy = y + scaled_logo.height() / 2
+    if logo:
+        # Draw Logo scaled nicely
+        scaled = logo.scaled(45, 45, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        x = (small_size.width() - scaled.width()) // 2
+        y = (small_size.height() - scaled.height()) // 2
 
+        # Add a soft shadow to pop from white
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(0, 0, 0, 60))
-        painter.drawEllipse(QPointF(cx+2, cy+3), rect_size/2, rect_size/2)
+        painter.setBrush(QColor(0, 0, 0, 30))
+        painter.drawEllipse(x + 2, y + 4, scaled.width(), scaled.height())
 
-        painter.setBrush(QColor(255, 255, 255, 255))
-        painter.drawEllipse(QPointF(cx, cy), rect_size/2, rect_size/2)
-
-        painter.drawPixmap(x, y, scaled_logo)
+        painter.drawPixmap(x, y, scaled)
 
     painter.end()
-    small_path = os.path.join(assets_dir, "installer_small.bmp")
-    small_img.save(small_path, "BMP")
-    print(f"Created {small_path}")
+    small_img.save(os.path.join(assets_dir, "installer_small.bmp"), "BMP")
 
-    # --- 3. Slideshow Images ---
-    # We create 3 slides with the Deep Space theme
-    # Slide 1: PREDICT
-    create_slide(
-        os.path.join(assets_dir, "slide_1.bmp"),
-        "PREDICT",
-        "AI-Powered Risk Analysis",
-        width=800, height=600, logo_pixmap=logo
-    )
-    # Slide 2: VALIDATE
-    create_slide(
-        os.path.join(assets_dir, "slide_2.bmp"),
-        "VALIDATE",
-        "Automated Compliance Checks",
-        width=800, height=600, logo_pixmap=logo
-    )
-    # Slide 3: AUTOMATE
-    create_slide(
-        os.path.join(assets_dir, "slide_3.bmp"),
-        "AUTOMATE",
-        "Seamless Workflow Integration",
-        width=800, height=600, logo_pixmap=logo
-    )
+    # 3. Slides
+    create_slide(os.path.join(assets_dir, "slide_1.bmp"), "PREDICT", "Advanced Risk Analysis", logo_pixmap=logo)
+    create_slide(os.path.join(assets_dir, "slide_2.bmp"), "VALIDATE", "Automated Compliance", logo_pixmap=logo)
+    create_slide(os.path.join(assets_dir, "slide_3.bmp"), "AUTOMATE", "Seamless Workflow", logo_pixmap=logo)
 
 if __name__ == "__main__":
     create_assets()
