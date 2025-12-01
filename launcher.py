@@ -105,7 +105,7 @@ def check_database_recovery(splash):
             break
 
         # Notify User
-        splash.showMessage(f"Database mancante: {target.name}", Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignCenter, Qt.GlobalColor.white)
+        splash.update_status(f"Database mancante: {target.name}")
 
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Icon.Warning)
@@ -126,7 +126,7 @@ def check_database_recovery(splash):
                 # Update Settings
                 try:
                     settings.save_mutable_settings({"DATABASE_PATH": file_path})
-                    splash.showMessage("Database aggiornato. Riavvio controllo...", Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignCenter, Qt.GlobalColor.white)
+                    splash.update_status("Database aggiornato. Riavvio controllo...")
                 except Exception as e:
                      QMessageBox.critical(None, "Errore", f"Impossibile salvare impostazioni: {e}")
         else:
