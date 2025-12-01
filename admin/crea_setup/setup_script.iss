@@ -147,6 +147,13 @@ external 'SetTimer@user32.dll stdcall';
 function KillTimer(hWnd: LongWord; nIDEvent: LongWord): BOOL;
 external 'KillTimer@user32.dll stdcall';
 
+// API for Fullscreen
+function ShowWindow(hWnd: HWND; nCmdShow: Integer): BOOL;
+external 'ShowWindow@user32.dll stdcall';
+
+const
+  SW_MAXIMIZE = 3;
+
 var
   ConfigPage1: TInputQueryWizardPage;
   ConfigPage2: TInputQueryWizardPage;
@@ -177,7 +184,7 @@ var
   I: Integer;
 begin
   // --- FULLSCREEN MODE ---
-  WizardForm.WindowState := wsMaximized;
+  ShowWindow(WizardForm.Handle, SW_MAXIMIZE);
 
   // --- PRE-EXTRACT SLIDES (Performance Fix) ---
   for I := 1 to 3 do
