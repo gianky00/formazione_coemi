@@ -31,3 +31,5 @@ geoip2
 user-agents
 wmi
 edge-tts
+psutil
+pytest-qt

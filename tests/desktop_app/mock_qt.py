@@ -258,6 +258,8 @@ class DummyQWidget:
         return len(self.widgets)
     def setEnabled(self, enabled):
         pass
+    def isEnabled(self):
+        return True
     def selectionModel(self):
         m = MagicMock()
         m.hasSelection.return_value = True
