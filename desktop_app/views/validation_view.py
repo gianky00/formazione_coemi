@@ -47,9 +47,9 @@ class SimpleTableModel(QAbstractTableModel):
 class ValidationView(QWidget):
     validation_completed = pyqtSignal()
 
-    def __init__(self):
+    def __init__(self, api_client=None):
         super().__init__()
-        self.api_client = APIClient()
+        self.api_client = api_client if api_client else APIClient()
         self.threadpool = QThreadPool()
 
         self.layout = QVBoxLayout(self)
@@ -109,7 +109,8 @@ class ValidationView(QWidget):
         self.loading_overlay = LoadingOverlay(self)
 
         # Initial Load
-        self.load_data()
+        if self.api_client.access_token:
+            self.load_data()
 
         if hasattr(self, 'model') and self.table_view.selectionModel():
             self.table_view.selectionModel().selectionChanged.connect(self.update_button_states)

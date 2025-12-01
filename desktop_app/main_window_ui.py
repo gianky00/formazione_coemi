@@ -407,8 +407,7 @@ class MainDashboardWidget(QWidget):
             self.stacked_widget.addWidget(self.views["import"])
 
         if not self.views["validation"]:
-            self.views["validation"] = ValidationView()
-            self.views["validation"].api_client = self.api_client
+            self.views["validation"] = ValidationView(self.api_client)
             self.stacked_widget.addWidget(self.views["validation"])
 
         if not self.views["scadenzario"]:
@@ -457,8 +456,7 @@ class MainDashboardWidget(QWidget):
                 self.stacked_widget.addWidget(self.views["import"])
             elif key == "validation":
                 from .views.validation_view import ValidationView
-                self.views["validation"] = ValidationView()
-                self.views["validation"].api_client = self.api_client
+                self.views["validation"] = ValidationView(self.api_client)
                 self.stacked_widget.addWidget(self.views["validation"])
             elif key == "scadenzario":
                 from .views.scadenzario_view import ScadenzarioView
