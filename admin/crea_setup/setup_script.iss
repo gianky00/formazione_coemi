@@ -45,6 +45,14 @@ SetupIconFile=..\..\desktop_app\icons\icon.ico
 [Languages]
 Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"
 
+[Messages]
+; === PREMIUM COPYWRITING ===
+WelcomeLabel1=Benvenuto nella Suite Intelleo
+WelcomeLabel2=Stai per installare Intelleo sul tuo computer.%n%nPredict. Validate. Automate.%nLa piattaforma definitiva per la gestione della sicurezza aziendale con Intelligenza Artificiale.%n%nPreparati a trasformare il modo in cui gestisci la conformità.
+ClickNext=Clicca su Avanti per iniziare il viaggio verso la sicurezza intelligente.
+FinishedHeadingLabel=Installazione Completata con Successo
+FinishedLabel=Intelleo è stato installato correttamente ed è pronto all'uso.%n%nIl sistema è configurato per analizzare, validare e proteggere i tuoi dati aziendali con la potenza dell'IA.%n%nClicca Fine per avviare la Dashboard.
+
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
@@ -138,8 +146,8 @@ procedure InitializeWizard;
 begin
   // Pagina 1: Impostazioni Cloud e AI
   ConfigPage1 := CreateInputQueryPage(wpSelectTasks,
-    'Configurazione Generale', 'Impostazioni Cloud e Intelligenza Artificiale',
-    'Inserisci i dati richiesti. Se lasciati vuoti, verranno mantenuti i valori esistenti.');
+    'Configurazione Cloud', 'Parametri AI & Cloud Integration',
+    'Intelleo utilizza la potenza del Cloud per elaborare i documenti. Configura le chiavi di accesso.');
 
   ConfigPage1.Add('Gemini API Key:', False);
   ConfigPage1.Add('Google Cloud Project ID:', False);
@@ -147,8 +155,8 @@ begin
 
   // Pagina 2: Impostazioni Email (SMTP Server)
   ConfigPage2 := CreateInputQueryPage(ConfigPage1.ID,
-    'Configurazione Server Email', 'Impostazioni SMTP per le notifiche (Server)',
-    'Configura il server di posta in uscita.');
+    'Configurazione Notifiche', 'Server SMTP (Posta in Uscita)',
+    'Configura il server per l''invio automatico degli avvisi di scadenza.');
 
   ConfigPage2.Add('SMTP Host:', False);
   ConfigPage2.Add('SMTP Port:', False);
@@ -157,11 +165,11 @@ begin
 
   // Pagina 3: Destinatari Email
   ConfigPage3 := CreateInputQueryPage(ConfigPage2.ID,
-    'Configurazione Destinatari', 'Indirizzi Email per le notifiche',
-    'Definisci chi riceverà gli avvisi di scadenza.');
+    'Destinatari Avvisi', 'Canali di Comunicazione',
+    'Definisci chi riceverà i report settimanali e gli alert critici.');
 
-  ConfigPage3.Add('Email A (separati da virgola):', False);
-  ConfigPage3.Add('Email CC (separati da virgola):', False);
+  ConfigPage3.Add('Destinatari (A):', False);
+  ConfigPage3.Add('Destinatari in copia (CC):', False);
 
   // Ingrandisci il logo in alto a destra
   WizardForm.WizardSmallBitmapImage.Width := ScaleX(110);
@@ -172,15 +180,14 @@ begin
   TipsLabel.Parent := WizardForm.InstallingPage;
   TipsLabel.Visible := False;
   TipsLabel.WordWrap := True;
-  TipsLabel.Caption := 'Funzionalit' + #224 + ' Professionali Avanzate:' + #13#10 + #13#10 +
-                       '- Analisi Documentale Avanzata con AI Gemini Pro Multimodale' + #13#10 +
-                       '- Estrazione Automatica Dati da PDF e Immagini' + #13#10 +
-                       '- Scadenzario Predittivo con Calcolo Validità Intelligente' + #13#10 +
-                       '- Sistema di Notifiche Email Configurabile e Automatico' + #13#10 +
-                       '- Gestione Sicura Crittografata (AES-256) dei Dati Aziendali' + #13#10 +
-                       '- Reportistica PDF Professionale e Dashboard Interattiva' + #13#10 +
-                       '- Architettura Resiliente con Database In-Memory';
-  TipsLabel.Font.Style := [fsBold, fsItalic];
+  TipsLabel.Caption := 'Intelleo System Initialization:' + #13#10 + #13#10 +
+                       '- Attivazione Motore Neurale Gemini Pro...' + #13#10 +
+                       '- Configurazione Database Crittografato AES-256...' + #13#10 +
+                       '- Predisposizione Ambiente Scadenzario Intelligente...' + #13#10 +
+                       '- Verifica Moduli di Notifica Automatica...' + #13#10 +
+                       '- Inizializzazione Dashboard Interattiva...' + #13#10 + #13#10 +
+                       'Attendere prego. Stiamo preparando il tuo ambiente di lavoro.';
+  TipsLabel.Font.Style := [fsItalic];
   TipsLabel.Font.Color := clWindowText;
 end;
 
