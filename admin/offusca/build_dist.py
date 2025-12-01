@@ -182,13 +182,17 @@ def collect_submodules(base_dir):
     return modules
 
 def generate_installer_assets():
-    log_and_print("--- Step 1b: Generating Cyberpunk Installer Assets ---")
+    log_and_print("--- Step 1b: Generating Clean Light Installer Assets ---")
     from PIL import Image, ImageDraw, ImageFont
     import random
 
     os.makedirs(INSTALLER_ASSETS_DIR, exist_ok=True)
     width, height = 400, 800
-    bg_color = (0, 0, 0)
+    # LIGHT THEME: White Background
+    bg_color = (255, 255, 255)
+    text_color = (31, 41, 55)  # Gray-800
+    accent_color = (29, 78, 216) # Blue-700
+    subtle_color = (229, 231, 235) # Gray-200
 
     # Fonts
     font = ImageFont.load_default()
@@ -216,46 +220,51 @@ def generate_installer_assets():
             logo.thumbnail((120, 120))
         except: pass
 
-    # --- Slide 1: Cyan (Neural Core) ---
+    # --- Slide 1: Blue Accent (Intelligent Core) ---
     img1 = Image.new("RGB", (width, height), bg_color)
     draw1 = ImageDraw.Draw(img1)
-    for _ in range(40):
-        draw1.line((random.randint(0, width), random.randint(0, height), random.randint(0, width), random.randint(0, height)), fill=(0, 50, 50), width=1)
+    # Subtle grid
+    for _ in range(20):
+        y = random.randint(0, height)
+        draw1.line((0, y, width, y), fill=subtle_color, width=1)
+
     if logo: img1.paste(logo, (width - 140, 20), logo)
-    txt1 = "INITIALIZING\nNEURAL CORE"
+    txt1 = "INITIALIZING\nINTELLIGENT CORE"
     bbox1 = draw1.textbbox((0, 0), txt1, font=large_font)
-    draw1.text(((width - (bbox1[2]-bbox1[0]))//2, height//2), txt1, font=large_font, fill=(0, 255, 255), align="center")
+    draw1.text(((width - (bbox1[2]-bbox1[0]))//2, height//2), txt1, font=large_font, fill=accent_color, align="center")
     img1.save(os.path.join(INSTALLER_ASSETS_DIR, "slide_1.bmp"))
 
-    # --- Slide 2: Green (Secure Vault) ---
+    # --- Slide 2: Green Accent (Secure Vault) ---
     img2 = Image.new("RGB", (width, height), bg_color)
     draw2 = ImageDraw.Draw(img2)
-    for x in range(0, width, 20):
-        for y in range(0, height, 20):
-            if random.random() > 0.9:
-                draw2.text((x, y), str(random.randint(0,1)), font=font, fill=(0, 100, 0))
+    # Subtle hex pattern simulation (circles)
+    for x in range(0, width, 40):
+        for y in range(0, height, 40):
+            draw2.ellipse((x, y, x+2, y+2), fill=subtle_color)
+
     if logo: img2.paste(logo, (width - 140, 20), logo)
     cx, cy = width//2, height//2 - 60
-    draw2.rectangle((cx-30, cy, cx+30, cy+50), outline=(0,255,0), width=3)
-    draw2.arc((cx-20, cy-30, cx+20, cy), 180, 0, fill=(0,255,0), width=3)
+    draw2.rectangle((cx-30, cy, cx+30, cy+50), outline=(16, 185, 129), width=3) # Green-500
+    draw2.arc((cx-20, cy-30, cx+20, cy), 180, 0, fill=(16, 185, 129), width=3)
     txt2 = "ENCRYPTING\nSECURE VAULT"
     bbox2 = draw2.textbbox((0, 0), txt2, font=large_font)
-    draw2.text(((width - (bbox2[2]-bbox2[0]))//2, height//2), txt2, font=large_font, fill=(0, 255, 0), align="center")
+    draw2.text(((width - (bbox2[2]-bbox2[0]))//2, height//2), txt2, font=large_font, fill=(16, 185, 129), align="center")
     img2.save(os.path.join(INSTALLER_ASSETS_DIR, "slide_2.bmp"))
 
-    # --- Slide 3: Purple (TensorFlow) ---
+    # --- Slide 3: Purple Accent (Optimization) ---
     img3 = Image.new("RGB", (width, height), bg_color)
     draw3 = ImageDraw.Draw(img3)
-    nodes = [(random.randint(20, width-20), random.randint(20, height-20)) for _ in range(20)]
+    # Subtle nodes
+    nodes = [(random.randint(20, width-20), random.randint(20, height-20)) for _ in range(15)]
     for i in range(len(nodes)):
         for j in range(i+1, len(nodes)):
              if ((nodes[i][0]-nodes[j][0])**2 + (nodes[i][1]-nodes[j][1])**2)**0.5 < 150:
-                 draw3.line(nodes[i]+nodes[j], fill=(60,0,60), width=1)
-    for n in nodes: draw3.ellipse((n[0]-3, n[1]-3, n[0]+3, n[1]+3), fill=(180,0,180))
+                 draw3.line(nodes[i]+nodes[j], fill=subtle_color, width=1)
+
     if logo: img3.paste(logo, (width - 140, 20), logo)
-    txt3 = "OPTIMIZING\nTENSORFLOW"
+    txt3 = "OPTIMIZING\nWORKFLOW"
     bbox3 = draw3.textbbox((0, 0), txt3, font=large_font)
-    draw3.text(((width - (bbox3[2]-bbox3[0]))//2, height//2), txt3, font=large_font, fill=(255, 0, 255), align="center")
+    draw3.text(((width - (bbox3[2]-bbox3[0]))//2, height//2), txt3, font=large_font, fill=(139, 92, 246), align="center") # Violet-500
     img3.save(os.path.join(INSTALLER_ASSETS_DIR, "slide_3.bmp"))
 
     log_and_print("Assets generated successfully.")
@@ -263,8 +272,23 @@ def generate_installer_assets():
 def generate_iss_content(build_dir_relative):
     """Generates the Pascal Script Inno Setup file dynamically."""
 
+    # DYNAMICALLY CALCULATE RELATIVE PATH FOR OUTPUTDIR
+    # Goal: admin/crea_setup/dist/Intelleo
+    # Source: admin/offusca/dist (where ISS is generated)
+
+    abs_output_target = os.path.join(ROOT_DIR, 'admin', 'crea_setup', 'dist', 'Intelleo')
+    abs_iss_location = os.path.join(ROOT_DIR, 'admin', 'offusca', DIST_DIR)
+
+    # Calculate relative path from ISS location to Target
+    # Result should be roughly "..\..\..\admin\crea_setup\dist\Intelleo"
+    try:
+        rel_output_dir = os.path.relpath(abs_output_target, abs_iss_location)
+    except Exception as e:
+        log_and_print(f"Warning: Could not calculate relative path: {e}. using absolute.", "WARNING")
+        rel_output_dir = abs_output_target
+
     iss_content = fr"""
-; Script Generated Dynamically by build_dist.py for Intelleo (Cyberpunk Edition)
+; Script Generated Dynamically by build_dist.py for Intelleo (Clean Edition)
 #define MyAppName "{APP_NAME}"
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "Giancarlo Allegretti"
@@ -279,18 +303,15 @@ AppVersion={{#MyAppVersion}}
 AppPublisher={{#MyAppPublisher}}
 DefaultDirName={{autopf}}\{{#MyAppName}}
 DisableProgramGroupPage=yes
-OutputDir={os.path.join(ROOT_DIR, 'admin', 'offusca', DIST_DIR, 'Intelleo')}
+; OUTPUT DIR MODIFIED DYNAMICALLY
+OutputDir={rel_output_dir}
 OutputBaseFilename=Intelleo_Setup_v{{#MyAppVersion}}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 WizardSizePercent=120
-WizardResizable=no
+WizardResizable=yes
 UninstallFilesDir={{app}}\Disinstalla
-; DARK THEME COLORS
-BackColor=clBlack
-BackColor2=clBlack
-WizardImageBackColor=clBlack
 
 ; IMAGES
 WizardImageFile=installer_assets\slide_1.bmp
@@ -358,64 +379,47 @@ begin
   begin
     TextIndex := (TextIndex + 1) mod GetArrayLength(StatusPhrases);
     WizardForm.StatusLabel.Caption := StatusPhrases[TextIndex];
-    WizardForm.StatusLabel.Invalidate;
   end;
 end;
 
 procedure InitializeWizard;
 begin
-  // --- VISUAL OVERHAUL: DARK MODE & LOGO FIX ---
+  // --- VISUAL OVERHAUL: LIGHT THEME & FULL SCREEN ---
 
-  // 1. Force Black Backgrounds
-  WizardForm.Color := clBlack;
-  WizardForm.InnerPage.Color := clBlack;
-  WizardForm.MainPanel.Color := clBlack;
+  // 1. Force Full Screen
+  WizardForm.WindowState := wsMaximized;
 
-  // 2. Text Colors
-  WizardForm.Font.Color := clWhite;
-  WizardForm.PageNameLabel.Font.Color := clAqua;
-  WizardForm.PageDescriptionLabel.Font.Color := clWhite;
-  WizardForm.WelcomeLabel1.Font.Color := clAqua;
-  WizardForm.WelcomeLabel2.Font.Color := clWhite;
-  WizardForm.FinishedHeadingLabel.Font.Color := clAqua;
-  WizardForm.FinishedLabel.Font.Color := clWhite;
+  // 2. Setup Anchors for Resizable Window
+  // Keep Small Image on Top Right
+  WizardForm.WizardSmallBitmapImage.Anchors := [akTop, akRight];
 
-  // 3. Fix Logo Overlap
-  WizardForm.WizardSmallBitmapImage.Left := WizardForm.ClientWidth - ScaleX(60);
-  WizardForm.WizardSmallBitmapImage.Width := ScaleX(55);
-  WizardForm.WizardSmallBitmapImage.Height := ScaleY(55);
-  WizardForm.WizardSmallBitmapImage.Top := ScaleY(0);
+  // 3. Fix Layout Overlap
+  // Ensure Description Text does not overlap with the Image
+  // We can't know width yet as it's not maximized until show, but anchors help.
+  // Note: PageNameLabel and PageDescriptionLabel are on InnerPage.
 
-  // Shrink the labels
-  WizardForm.PageNameLabel.Width := WizardForm.WizardSmallBitmapImage.Left - ScaleX(20);
-  WizardForm.PageDescriptionLabel.Width := WizardForm.WizardSmallBitmapImage.Left - ScaleX(20);
+  WizardForm.PageNameLabel.Anchors := [akLeft, akTop, akRight];
+  WizardForm.PageDescriptionLabel.Anchors := [akLeft, akTop, akRight];
 
-  // 4. Status Label Style
-  WizardForm.StatusLabel.Font.Color := $00FF00;
+  // 4. Status Label Style (Clean Dark Text)
+  WizardForm.StatusLabel.Font.Color := clBlack;
   WizardForm.StatusLabel.Font.Style := [fsBold];
   WizardForm.FileNameLabel.Font.Color := clGray;
 
   // --- ANIMATION INIT ---
   SlideIndex := 0;
-  // Use CreateCallback for the TimerProc
-  // Note: SlideTimerID is arbitrary non-zero
   SlideTimerID := SetTimer(0, 0, 3000, CreateCallback(@TimerProc));
 
   // --- DYNAMIC TEXT INIT ---
-  SetArrayLength(StatusPhrases, 10);
-  StatusPhrases[0] := 'Initializing Neural Core...';
-  StatusPhrases[1] := 'Optimizing Tensor Flow...';
-  StatusPhrases[2] := 'Encrypting Local Database (AES-256)...';
-  StatusPhrases[3] := 'Calibrating Optical Recognition...';
-  StatusPhrases[4] := 'Establishing Secure Environment...';
-  StatusPhrases[5] := 'Injecting Dependencies...';
-  StatusPhrases[6] := 'Compiling Neural Weights...';
-  StatusPhrases[7] := 'Verifying Integrity Checksums...';
-  StatusPhrases[8] := 'Allocating Memory Blocks...';
-  StatusPhrases[9] := 'System Ready.';
+  SetArrayLength(StatusPhrases, 5);
+  StatusPhrases[0] := 'Initializing Intelligent Core...';
+  StatusPhrases[1] := 'Verifying System Integrity...';
+  StatusPhrases[2] := 'Configuring Secure Environment...';
+  StatusPhrases[3] := 'Optimizing Database Structure...';
+  StatusPhrases[4] := 'Finalizing Setup...';
 
   TextIndex := 0;
-  StatusTimerID := SetTimer(0, 0, 600, CreateCallback(@TimerProc));
+  StatusTimerID := SetTimer(0, 0, 800, CreateCallback(@TimerProc));
 end;
 
 procedure DeinitializeSetup();
@@ -428,10 +432,25 @@ procedure CurPageChanged(CurPageID: Integer);
 begin
   if CurPageID = wpInstalling then
   begin
+      // Move Large Slide Image to Inner Page to act as a sidebar or background
+      // Note: WizardBitmapImage is normally hidden in wpInstalling.
+      // We reparent it to show it.
+
       WizardForm.WizardBitmapImage.Parent := WizardForm.InnerPage;
-      WizardForm.WizardBitmapImage.Left := WizardForm.InnerPage.Width - WizardForm.WizardBitmapImage.Width;
       WizardForm.WizardBitmapImage.Visible := True;
+
+      // Pin to Right side
+      WizardForm.WizardBitmapImage.Anchors := [akTop, akRight, akBottom];
+      WizardForm.WizardBitmapImage.Left := WizardForm.InnerPage.ClientWidth - WizardForm.WizardBitmapImage.Width;
+      WizardForm.WizardBitmapImage.Height := WizardForm.InnerPage.ClientHeight;
       WizardForm.WizardBitmapImage.BringToFront;
+
+      // Adjust Status Label to not overlap with the image on the right
+      WizardForm.StatusLabel.Anchors := [akLeft, akTop, akRight];
+      WizardForm.StatusLabel.Width := WizardForm.InnerPage.ClientWidth - WizardForm.WizardBitmapImage.Width - ScaleX(20);
+
+      WizardForm.FileNameLabel.Anchors := [akLeft, akTop, akRight];
+      WizardForm.FileNameLabel.Width := WizardForm.StatusLabel.Width;
   end;
 end;
 """
