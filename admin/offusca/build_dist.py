@@ -235,14 +235,18 @@ def build():
         log_and_print("Starting Build Process...")
 
         log_and_print("\n--- Step 0/7: Generating Installer Assets ---")
-        try:
-            assets_script = os.path.join(ROOT_DIR, "tools", "prepare_installer_assets.py")
-            if os.path.exists(assets_script):
-                run_command([sys.executable, assets_script])
-            else:
-                log_and_print(f"WARNING: Assets script not found at {assets_script}", "WARNING")
-        except Exception as e:
-            log_and_print(f"Asset generation warning: {e}", "WARNING")
+
+        assets_script = os.path.join(ROOT_DIR, "tools", "prepare_installer_assets.py")
+        if os.path.exists(assets_script):
+            cmd = [sys.executable, assets_script]
+            # Force offscreen platform on Linux to avoid XCB errors in headless environments
+            if platform.system() == "Linux":
+                cmd.extend(["-platform", "offscreen"])
+
+            run_command(cmd)
+        else:
+            log_and_print(f"ERROR: Assets script not found at {assets_script}", "ERROR")
+            sys.exit(1)
 
         kill_existing_process()
 
@@ -456,6 +460,19 @@ def build():
         if not os.path.exists(iss_path):
             log_and_print(f"Setup script not found at: {iss_path}", "ERROR")
             sys.exit(1)
+
+        log_and_print(f"Using Inno Setup Script: {iss_path}")
+
+        # Verify ISS content
+        try:
+            with open(iss_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+                if "[Messages]" not in content:
+                    log_and_print("WARNING: '[Messages]' section not found in setup_script.iss! The installer might not have the updated text.", "WARNING")
+                else:
+                    log_and_print("Verified: setup_script.iss contains custom '[Messages]'.")
+        except Exception as e:
+            log_and_print(f"Could not verify ISS content: {e}", "WARNING")
 
         # FIX: Passiamo il path assoluto di output_folder a Inno Setup
         cmd_iscc = [
