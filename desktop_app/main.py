@@ -533,12 +533,12 @@ class ApplicationController:
             # Delay toast slightly to allow dashboard transition to complete
             QTimer.singleShot(800, lambda: self.show_notification(msg_title, msg_text, "file-text.svg"))
 
-        # Play Welcome Speech (Disabled for stability)
-        # welcome_speech = user_info.get("welcome_speech")
-        # if welcome_speech:
-        #     from .services.sound_manager import SoundManager
-        #     # Delay speech by 1.5s to ensure UI is stable and avoid OpenGL/FFmpeg conflicts
-        #     QTimer.singleShot(1500, lambda: SoundManager.instance().speak(welcome_speech))
+        # Play Welcome Speech (Delayed to avoid crash during transition)
+        welcome_speech = user_info.get("welcome_speech")
+        if welcome_speech:
+            from .services.sound_manager import SoundManager
+            # Delay speech by 1.5s to ensure UI is stable and avoid OpenGL/FFmpeg conflicts
+            QTimer.singleShot(1500, lambda: SoundManager.instance().speak(welcome_speech))
 
         # Check for expiring certificates (Business Logic)
         try:

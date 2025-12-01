@@ -44,7 +44,7 @@ class DummyEnum:
     Horizontal = 1
     Vertical = 2
     WA_TransparentForMouseEvents = 0
-    WA_ShowWithoutActivation = 0
+    WA_ShowWithoutActivating = 0
     WA_TranslucentBackground = 0
     WA_DeleteOnClose = 0
     AA_ShareOpenGLContexts = 0

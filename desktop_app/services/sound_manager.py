@@ -51,7 +51,7 @@ class SpeechWorker(QThread):
 
 class SoundManager(QObject):
     _instance = None
-    SOUND_ENABLED = False  # GLOBAL SWITCH TO DISABLE AUDIO TO PREVENT CRASHES
+    SOUND_ENABLED = True  # GLOBAL SWITCH TO DISABLE AUDIO TO PREVENT CRASHES
 
     @staticmethod
     def instance():
