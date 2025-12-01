@@ -272,7 +272,7 @@ def generate_iss_content(output_folder):
 #define BuildDir "{output_folder}"
 
 [Setup]
-AppId={{A1B2C3D4-E5F6-7890-1234-567890ABCDEF}}
+AppId={{{{A1B2C3D4-E5F6-7890-1234-567890ABCDEF}}}}
 AppName={{#MyAppName}}
 AppVersion={{#MyAppVersion}}
 AppPublisher={{#MyAppPublisher}}
