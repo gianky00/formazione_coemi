@@ -70,9 +70,9 @@ class LoginWorker(QThread):
                  except: pass
             self.finished_error.emit(error_msg)
 
-class LicenseUpdateWorker(QObject):
+class LicenseUpdateWorker(QThread):
     """Worker to run license update in a separate thread."""
-    finished = pyqtSignal(bool, str)
+    update_finished = pyqtSignal(bool, str)
 
     def __init__(self, api_client):
         super().__init__()
@@ -81,12 +81,12 @@ class LicenseUpdateWorker(QObject):
     def run(self):
         hw_id = get_machine_id()
         if not hw_id:
-            self.finished.emit(False, "Impossibile recuperare l'Hardware ID della macchina.")
+            self.update_finished.emit(False, "Impossibile recuperare l'Hardware ID della macchina.")
             return
 
         updater = LicenseUpdaterService(self.api_client)
         success, message = updater.update_license(hw_id)
-        self.finished.emit(success, message)
+        self.update_finished.emit(success, message)
 
 class LoginView(QWidget):
     login_success = pyqtSignal(dict) # Emits user_info dict
@@ -97,6 +97,8 @@ class LoginView(QWidget):
         self.threadpool = QThreadPool()
         self._stop_3d_rendering = False # Flag to safely stop 3D engine before view transition
         self.pending_count = 0 # To store the count of documents to validate
+        self.login_worker = None
+        self.license_worker = None
 
         # --- Interactive Neural Background Setup ---
         self.setMouseTracking(True)
@@ -469,17 +471,19 @@ class LoginView(QWidget):
             QTimer.singleShot(1000, self.handle_update_license)
 
     def handle_update_license(self):
+        if self.license_worker and self.license_worker.isRunning():
+            return
+
         self.update_btn.setText("Aggiornamento in corso...")
         self.update_btn.setEnabled(False)
 
-        self.thread = QThread()
-        self.worker = LicenseUpdateWorker(self.api_client)
-        self.worker.moveToThread(self.thread)
+        self.license_worker = LicenseUpdateWorker(self.api_client)
+        self.license_worker.update_finished.connect(self.on_update_finished)
+        self.license_worker.finished.connect(self._cleanup_license_worker)
+        self.license_worker.start()
 
-        self.thread.started.connect(self.worker.run)
-        self.worker.finished.connect(self.on_update_finished)
-
-        self.thread.start()
+    def _cleanup_license_worker(self):
+        self.license_worker = None
 
     def on_update_finished(self, success, message):
         self.update_btn.setText("Aggiorna Licenza")
@@ -495,9 +499,6 @@ class LoginView(QWidget):
         else:
             CustomMessageDialog.show_error(self, "Errore Aggiornamento", message)
 
-        self.thread.quit()
-        self.thread.wait()
-
     def resizeEvent(self, event):
         super().resizeEvent(event)
         # Keep container centered
@@ -511,6 +512,29 @@ class LoginView(QWidget):
                 self.anim_slide.setEndValue(QPoint(cx, cy))
             else:
                 self.container.move(cx, cy)
+
+    def closeEvent(self, event):
+        """
+        Force quit all running threads when the view is closed.
+        This prevents 'Zombie' processes and 'Thread Destroyed' crashes.
+        """
+        # 1. Stop Login Worker
+        if self.login_worker and self.login_worker.isRunning():
+            print("[LoginView] Stopping LoginWorker...")
+            self.login_worker.quit()
+            self.login_worker.wait()
+
+        # 2. Stop License Worker
+        if self.license_worker and self.license_worker.isRunning():
+            print("[LoginView] Stopping LicenseWorker...")
+            self.license_worker.quit()
+            self.license_worker.wait()
+
+        # 3. Stop Background Animation Timer
+        if self._anim_timer.isActive():
+            self._anim_timer.stop()
+
+        event.accept()
 
     def reset_view(self):
         """Resets the UI state for a fresh login attempt."""
@@ -575,6 +599,9 @@ class LoginView(QWidget):
         animation.start()
 
     def handle_login(self):
+        if self.login_worker and self.login_worker.isRunning():
+            return
+
         username = self.username_input.text().strip()
         password = self.password_input.text().strip()
 
@@ -599,7 +626,11 @@ class LoginView(QWidget):
         self.login_worker = LoginWorker(self.api_client, username, password)
         self.login_worker.finished_success.connect(self.on_login_success)
         self.login_worker.finished_error.connect(self._on_login_error)
+        self.login_worker.finished.connect(self._cleanup_login_worker)
         self.login_worker.start()
+
+    def _cleanup_login_worker(self):
+        self.login_worker = None
 
     def _on_login_error(self, error_msg):
         self.login_btn.set_loading(False)

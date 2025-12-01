@@ -13,6 +13,7 @@ from .components.custom_dialog import CustomMessageDialog
 from .components.toast import ToastNotification
 from .ipc_bridge import IPCBridge
 import os
+from app.core.db_security import db_security
 
 def setup_styles(app: QApplication):
     """
@@ -338,15 +339,29 @@ class MasterWindow(QMainWindow):
         """
         Intercept application close event to ensure robust logout and database cleanup.
         """
+        print("[DEBUG] MasterWindow closing...")
+
+        # 1. API Logout (Triggers backend token invalidation)
         if self.controller and self.controller.api_client.access_token:
             try:
-                print("[DEBUG] Application closing: Triggering logout/cleanup...")
-                # This call is blocking and triggers backend DB save + unlock
+                print("[DEBUG] Triggering API logout...")
+                # This call is blocking
                 self.controller.api_client.logout()
             except Exception as e:
-                print(f"[ERROR] Cleanup failed during close: {e}")
+                print(f"[ERROR] API Logout failed during close: {e}")
+
+        # 2. Database Security Cleanup (Release Lock & Save)
+        try:
+            print("[DEBUG] Releasing Database Lock...")
+            db_security.cleanup()
+        except Exception as e:
+            print(f"[CRITICAL] Database cleanup failed: {e}")
 
         event.accept()
+
+        # 3. Force Process Termination
+        print("[DEBUG] Forcing Application Quit...")
+        QApplication.quit()
 
 class ApplicationController:
     def __init__(self, license_ok=True, license_error=""):
