@@ -3,7 +3,7 @@ import sys
 import traceback
 import requests
 import json
-from PyQt6.QtWidgets import QApplication, QMessageBox
+from PyQt6.QtWidgets import QApplication, QMessageBox, QMainWindow
 from PyQt6.QtGui import QFont, QFontDatabase
 from PyQt6.QtCore import Qt
 
