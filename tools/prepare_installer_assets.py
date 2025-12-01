@@ -68,6 +68,18 @@ def draw_neural_background(painter, width, height):
         painter.setBrush(QBrush(rad_grad))
         painter.drawEllipse(node["pos"], r, r)
 
+def draw_glow_behind(painter, center_point, radius):
+    """Draws a soft white glow behind the logo to improve visibility."""
+    glow = QRadialGradient(center_point, radius)
+    glow.setColorAt(0, QColor(255, 255, 255, 80))  # White center, semi-transparent
+    glow.setColorAt(0.7, QColor(255, 255, 255, 20)) # Fade
+    glow.setColorAt(1, QColor(255, 255, 255, 0))   # Transparent edge
+
+    painter.save()
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QBrush(glow))
+    painter.drawEllipse(center_point, radius, radius)
+    painter.restore()
 
 def create_assets():
     # QApplication is required to use QPixmap/QPainter
@@ -99,28 +111,24 @@ def create_assets():
     if os.path.exists(logo_path):
         logo = QPixmap(logo_path)
         if not logo.isNull():
-            # Scale logo to fit width with margins
-            target_width = 240
+            # Scale logo to fit width with margins - Increased for better visibility
+            target_width = 260
             scaled_logo = logo.scaledToWidth(target_width, Qt.TransformationMode.SmoothTransformation)
 
             x = (wiz_size.width() - scaled_logo.width()) // 2
             y = (wiz_size.height() - scaled_logo.height()) // 2
 
-            # Add a subtle drop shadow to the logo for readability
-            # (Simulated by drawing black copy offset)
-            # painter.setOpacity(0.3)
-            # painter.drawPixmap(x+2, y+4, scaled_logo) # Shadow
+            # Draw Glow
+            center = QPointF(x + scaled_logo.width()/2, y + scaled_logo.height()/2)
+            radius = max(scaled_logo.width(), scaled_logo.height()) * 0.7
+            draw_glow_behind(painter, center, radius)
 
-            # painter.setOpacity(1.0)
+            # Draw Logo
             painter.drawPixmap(x, y, scaled_logo)
     else:
          painter.setPen(QColor("white"))
          painter.setFont(painter.font()) # Default font
          painter.drawText(wiz_img.rect(), Qt.AlignmentFlag.AlignCenter, "INTELLEO")
-
-    # Add "Security Suite" text at bottom
-    painter.setPen(QColor(255, 255, 255, 180))
-    # Font setup would be complex without loading font file, stick to default or simple drawing
 
     painter.end()
 
@@ -144,9 +152,15 @@ def create_assets():
     if os.path.exists(logo_path):
         logo = QPixmap(logo_path)
         if not logo.isNull():
-            scaled_logo = logo.scaled(80, 80, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            scaled_logo = logo.scaled(90, 90, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             x = (small_size.width() - scaled_logo.width()) // 2
             y = (small_size.height() - scaled_logo.height()) // 2
+
+            # Draw Glow
+            center = QPointF(x + scaled_logo.width()/2, y + scaled_logo.height()/2)
+            radius = max(scaled_logo.width(), scaled_logo.height()) * 0.7
+            draw_glow_behind(painter, center, radius)
+
             painter.drawPixmap(x, y, scaled_logo)
 
     painter.end()

@@ -185,8 +185,7 @@ begin
                        '- Configurazione Database Crittografato AES-256...' + #13#10 +
                        '- Predisposizione Ambiente Scadenzario Intelligente...' + #13#10 +
                        '- Verifica Moduli di Notifica Automatica...' + #13#10 +
-                       '- Inizializzazione Dashboard Interattiva...' + #13#10 +
-                       #13#10 +
+                       '- Inizializzazione Dashboard Interattiva...' + #13#10 + #13#10 +
                        'Attendere prego. Stiamo preparando il tuo ambiente di lavoro.';
   TipsLabel.Font.Style := [fsItalic];
   TipsLabel.Font.Color := clWindowText;
