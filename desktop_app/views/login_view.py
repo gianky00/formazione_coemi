@@ -682,11 +682,9 @@ class LoginView(QWidget):
         elif self.pending_count > 1:
             speech_text += f" Ci sono {self.pending_count} documenti da convalidare."
 
-        try:
-            # Modified speech with gender awareness and accent on Intellèo
-            SoundManager.instance().speak(speech_text)
-        except Exception:
-            pass # Fail silently if audio/TTS fails
+        # Pass speech text to controller for playback after transition to avoid crash
+        if self.api_client.user_info:
+            self.api_client.user_info["welcome_speech"] = speech_text
 
         # Stop background animation
         self._anim_timer.stop()
