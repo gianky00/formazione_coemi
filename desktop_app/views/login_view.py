@@ -573,7 +573,13 @@ class LoginView(QWidget):
             return
 
         _, license_data = self.read_license_info()
-        if license_data and "Hardware ID" in license_data:
+
+        # Check Validity and Expiration
+        if not license_data:
+            CustomMessageDialog.show_warning(self, "Licenza Mancante", "Dati di licenza non trovati. Effettua l'aggiornamento.")
+            return
+
+        if "Hardware ID" in license_data:
             stored_hw_id = license_data["Hardware ID"]
             current_hw_id = get_machine_id()
             if stored_hw_id != current_hw_id:
@@ -581,6 +587,19 @@ class LoginView(QWidget):
                                      "L'Hardware ID della licenza non corrisponde a quello di questa macchina.\n"
                                      "Contattare il supporto per una nuova licenza.")
                 return
+
+        if "Scadenza Licenza" in license_data:
+            try:
+                from datetime import datetime
+                expiry_date = datetime.strptime(license_data["Scadenza Licenza"], "%d/%m/%Y").date()
+                from datetime import date
+                if date.today() > expiry_date:
+                    CustomMessageDialog.show_warning(self, "Licenza Scaduta", "La licenza è scaduta. Contattare il supporto.")
+                    return
+            except Exception as e:
+                print(f"Date check error: {e}")
+                # We proceed if date parsing fails, letting backend decide or just warning
+                pass
 
         # Start Threaded Login
         self.login_btn.set_loading(True)

@@ -234,7 +234,9 @@ def main():
             from desktop_app.main import ApplicationController, setup_styles
             setup_styles(qt_app)
 
-            controller = ApplicationController(license_ok=license_ok, license_error=license_error)
+            # Keep reference to controller to prevent Garbage Collection
+            qt_app._controller = ApplicationController(license_ok=license_ok, license_error=license_error)
+            controller = qt_app._controller
 
             if args.analyze: controller.analyze_path(args.analyze)
             elif args.import_csv: controller.import_dipendenti_csv(args.import_csv)
