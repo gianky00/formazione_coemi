@@ -3,10 +3,11 @@ import sys
 import socket
 import platform
 import math
+import traceback
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QFrame, QMessageBox, QHBoxLayout,
                              QGraphicsDropShadowEffect, QApplication, QPushButton,
                              QDialog, QLineEdit, QDialogButtonBox)
-from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPropertyAnimation, QPoint, QPointF, QEasingCurve, QTimer, QObject, QThread, QThreadPool, QRect
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPropertyAnimation, QPoint, QPointF, QEasingCurve, QTimer, QObject, QThread, QRect
 from PyQt6.QtGui import QPixmap, QColor, QFont, QPainter, QLinearGradient, QPen, QBrush
 from desktop_app.utils import get_asset_path
 import random
@@ -16,7 +17,6 @@ from desktop_app.services.license_manager import LicenseManager
 from desktop_app.services.sound_manager import SoundManager
 from desktop_app.services.license_updater_service import LicenseUpdaterService
 from desktop_app.services.hardware_id_service import get_machine_id
-from desktop_app.workers.worker import Worker
 from desktop_app.components.neural_3d import NeuralNetwork3D
 
 class ForcePasswordChangeDialog(QDialog):
@@ -66,13 +66,40 @@ class LicenseUpdateWorker(QObject):
         success, message = updater.update_license(hw_id)
         self.finished.emit(success, message)
 
+class LoginWorker(QThread):
+    finished_success = pyqtSignal(object)
+    finished_error = pyqtSignal(str)
+
+    def __init__(self, api_client, username, password):
+        super().__init__()
+        self.api_client = api_client
+        self.username = username
+        self.password = password
+
+    def run(self):
+        try:
+            # Blocking call to API login
+            response = self.api_client.login(self.username, self.password)
+            self.finished_success.emit(response)
+        except Exception as e:
+            traceback.print_exc()
+            error_msg = str(e)
+            # Attempt to extract friendly message from API error
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    detail = e.response.json().get('detail')
+                    if detail:
+                        error_msg = detail
+                except:
+                    pass
+            self.finished_error.emit(error_msg)
+
 class LoginView(QWidget):
     login_success = pyqtSignal(dict) # Emits user_info dict
 
     def __init__(self, api_client, license_ok=True, license_error=""):
         super().__init__()
         self.api_client = api_client
-        self.threadpool = QThreadPool()
         self._stop_3d_rendering = False # Flag to safely stop 3D engine before view transition
         self.pending_count = 0 # To store the count of documents to validate
 
@@ -573,29 +600,24 @@ class LoginView(QWidget):
 
         # Start Threaded Login
         self.login_btn.set_loading(True)
-        worker = Worker(self.api_client.login, username=username, password=password)
-        worker.signals.result.connect(self._on_login_success_internal)
-        worker.signals.error.connect(self._on_login_error)
-        self.threadpool.start(worker)
 
-    def _on_login_error(self, error_tuple):
+        # Instantiate and start the LoginWorker
+        # We store it in self.login_worker to prevent garbage collection
+        self.login_worker = LoginWorker(self.api_client, username, password)
+        self.login_worker.finished_success.connect(self.on_login_success)
+        self.login_worker.finished_error.connect(self.on_login_error)
+        self.login_worker.start()
+
+    def on_login_error(self, error_message):
         self.login_btn.set_loading(False)
         self.shake_window()
+        CustomMessageDialog.show_error(self, "Errore di Accesso", error_message)
 
-        exctype, value, tb = error_tuple
-        error_msg = "Credenziali non valide o errore del server."
-
-        # Extract detail from requests exception if available
-        e = value
-        if hasattr(e, 'response') and e.response is not None:
-             try:
-                 detail = e.response.json().get('detail')
-                 if detail: error_msg = detail
-             except: pass
-
-        CustomMessageDialog.show_error(self, "Errore di Accesso", error_msg)
-
-    def _on_login_success_internal(self, response):
+    def on_login_success(self, response):
+        """
+        Executed in the Main Thread.
+        Safely handles UI updates, Dialogs, and Animations.
+        """
         try:
             self.api_client.set_token(response)
             user_info = self.api_client.user_info
@@ -655,11 +677,12 @@ class LoginView(QWidget):
             self._animate_success_exit()
 
         except Exception as e:
-            self._on_login_error((type(e), e, None))
-            self.login_btn.set_loading(False)
+            # Handle unexpected errors during the Success flow
+            traceback.print_exc()
+            self.on_login_error(str(e))
 
     def _animate_success_exit(self):
-        # Audio Feedback - Removed 'success' (sirena) sound per user request
+        # Audio Feedback
         # try:
         #    SoundManager.instance().play_sound('success')
         # except: pass

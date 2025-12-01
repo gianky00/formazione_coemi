@@ -446,6 +446,34 @@ class DummyQObject:
     def deleteLater(self):
         pass
 
+class DummyQThread(DummyQObject):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._started = DummySignal()
+        self._finished = DummySignal()
+
+    @property
+    def started(self):
+        return self._started
+
+    @property
+    def finished(self):
+        return self._finished
+
+    def start(self, priority=None):
+        self._started.emit()
+        # For testing, we don't automatically call run() to allow granular control,
+        # or we could. But usually explicit run() call in test is better.
+
+    def run(self):
+        pass
+
+    def quit(self):
+        pass
+
+    def wait(self):
+        pass
+
 class DummyQDate:
     @staticmethod
     def currentDate():
@@ -594,7 +622,7 @@ def mock_qt_modules():
     mock_core.QEasingCurve = MagicMock()
     mock_core.pyqtSignal = DummyPyQtSignal
     mock_core.QThreadPool = MagicMock()
-    mock_core.QThread = MagicMock()
+    mock_core.QThread = DummyQThread
     mock_core.QRunnable = MagicMock
     mock_core.QPoint = MagicMock()
     mock_core.QPointF = MagicMock()
