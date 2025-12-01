@@ -249,14 +249,13 @@ end;
 
 procedure CurPageChanged(CurPageID: Integer);
 var
-  InnerRect: TRect;
   HalfWidth: Integer;
 begin
   if CurPageID = wpInstalling then
   begin
     // --- LAYOUT RECALCULATION for Fullscreen ---
-    InnerRect := WizardForm.InstallingPage.ClientRect;
-    HalfWidth := InnerRect.Right div 2;
+    // InnerRect := WizardForm.InstallingPage.ClientRect; -> REMOVED
+    HalfWidth := WizardForm.InstallingPage.ClientWidth div 2;
 
     // LEFT COLUMN: Status, Progress, Tips
     WizardForm.StatusLabel.Left := ScaleX(40);
@@ -278,7 +277,7 @@ begin
     SlideImage.Left := HalfWidth;
     SlideImage.Top := ScaleY(40); // Add some top margin
     SlideImage.Width := HalfWidth - ScaleX(40); // Margin on right
-    SlideImage.Height := InnerRect.Bottom - ScaleY(80); // Margin bottom
+    SlideImage.Height := WizardForm.InstallingPage.ClientHeight - ScaleY(80); // Margin bottom
 
     // START TIMER
     SlideTimerID := SetTimer(0, 0, 3000, CreateCallback(@TimerProc));
