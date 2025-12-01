@@ -292,7 +292,7 @@ BackColor2=clBlack
 WizardImageBackColor=clBlack
 
 ; IMAGES
-WizardImageFile={os.path.join(INSTALLER_ASSETS_DIR, 'slide_1.bmp')}
+WizardImageFile={os.path.abspath(os.path.join(INSTALLER_ASSETS_DIR, 'slide_1.bmp'))}
 WizardSmallImageFile={os.path.join(ROOT_DIR, 'desktop_app', 'assets', 'installer_small.bmp')}
 SetupIconFile={os.path.join(ROOT_DIR, 'desktop_app', 'icons', 'icon.ico')}
 
@@ -314,7 +314,7 @@ Source: "{os.path.join(ROOT_DIR, 'desktop_app', 'assets')}\*"; DestDir: "{{app}}
 Source: "{os.path.join(ROOT_DIR, 'desktop_app', 'icons')}\*"; DestDir: "{{app}}\\desktop_app\\icons"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; GENERATED SLIDES FOR ANIMATION (Stored but not installed)
-Source: "{os.path.join(INSTALLER_ASSETS_DIR, '*.bmp')}"; DestDir: "{{tmp}}"; Flags: dontcopy
+Source: "{os.path.abspath(os.path.join(INSTALLER_ASSETS_DIR, '*.bmp'))}"; DestDir: "{{tmp}}"; Flags: dontcopy
 
 [Icons]
 Name: "{{autoprograms}}\{{#MyAppName}}"; Filename: "{{app}}\{{#MyAppExeName}}"
