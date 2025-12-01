@@ -371,6 +371,12 @@ class AuditLogWidget(QFrame):
         title.setStyleSheet("font-size: 16px; font-weight: 600;")
         header.addWidget(title)
         header.addStretch()
+
+        self.export_btn = QPushButton("Esporta CSV")
+        self.export_btn.setObjectName("secondary")
+        self.export_btn.clicked.connect(self.export_logs)
+        header.addWidget(self.export_btn)
+
         self.layout.addLayout(header)
 
         filter_layout = QHBoxLayout()
@@ -457,6 +463,33 @@ class AuditLogWidget(QFrame):
 
     def _on_search_changed(self):
         self.search_timer.start()
+
+    def export_logs(self):
+        try:
+             import requests
+
+             url = f"{self.api_client.base_url}/audit/export"
+             headers = self.api_client._get_headers()
+
+             response = requests.get(url, headers=headers)
+             if response.status_code == 200:
+                 default_name = "audit_logs.csv"
+                 if "Content-Disposition" in response.headers:
+                     import re
+                     fname = re.findall('filename="?([^"]+)"?', response.headers["Content-Disposition"])
+                     if fname:
+                         default_name = fname[0]
+
+                 save_path, _ = QFileDialog.getSaveFileName(self, "Salva CSV Audit", default_name, "CSV Files (*.csv)")
+                 if save_path:
+                     with open(save_path, "wb") as f:
+                         f.write(response.content)
+                     CustomMessageDialog.show_info(self, "Esportazione Riuscita", f"Log salvati in:\n{save_path}")
+             else:
+                 CustomMessageDialog.show_error(self, "Errore", f"Errore server: {response.status_code}")
+
+        except Exception as e:
+            CustomMessageDialog.show_error(self, "Errore Esportazione", str(e))
 
     def refresh_logs(self):
         user_id = self.user_filter.currentData()

@@ -30,7 +30,8 @@ def get_user_data_dir() -> Path:
     Uses platformdirs to ensure compliance with OS standards.
     Windows: %LOCALAPPDATA%/Intelleo
     """
-    base_dir = Path(platformdirs.user_data_dir("Intelleo", "Intelleo"))
+    # appauthor=False prevents 'Intelleo/Intelleo' nesting on Windows
+    base_dir = Path(platformdirs.user_data_dir("Intelleo", appauthor=False))
     base_dir.mkdir(parents=True, exist_ok=True)
     return base_dir
 
