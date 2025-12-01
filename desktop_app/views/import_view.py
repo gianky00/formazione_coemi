@@ -345,6 +345,7 @@ class DropZone(QFrame):
 
 class ImportView(QWidget):
     import_completed = pyqtSignal()
+    notification_requested = pyqtSignal(str, str)
 
     def __init__(self):
         super().__init__()
@@ -505,3 +506,4 @@ class ImportView(QWidget):
         self.stop_button.setVisible(False)
         self.scanner.setVisible(False) # Hide Hologram
         self.import_completed.emit()
+        self.notification_requested.emit("Analisi Completata", "L'elaborazione dei documenti è terminata.")

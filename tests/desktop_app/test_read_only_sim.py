@@ -42,6 +42,9 @@ class TestReadOnlyEnforcement(unittest.TestCase):
             "read_only": True
         }
 
+        # Mock certificates response for expiring check
+        self.mock_api.get.return_value = []
+
         # Mock Dashboard creation
         mock_dashboard = MagicMock()
         self.controller.dashboard = mock_dashboard
@@ -106,13 +109,13 @@ class TestReadOnlyEnforcement(unittest.TestCase):
         mock_dashboard.is_read_only = True
         self.controller.dashboard = mock_dashboard
 
-        # Patch QMessageBox to check warning
-        with patch('desktop_app.main.QMessageBox') as mock_msg:
+        # Patch CustomMessageDialog to check warning
+        with patch('desktop_app.main.CustomMessageDialog') as mock_msg:
              # ACT
              self.controller.analyze_path("some/path.pdf")
 
              # ASSERT
-             mock_msg.warning.assert_called()
+             mock_msg.show_warning.assert_called()
              # Ensure analyze_path was NOT called on dashboard
              mock_dashboard.analyze_path.assert_not_called()
 

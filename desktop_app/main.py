@@ -355,6 +355,7 @@ class ApplicationController:
         print("[DEBUG] APIClient initialized. Creating MasterWindow...")
         self.master_window = MasterWindow(self, license_ok, license_error)
         self.dashboard = None
+        self.notification = None # Store reference to prevent GC
         self.pending_action = None # Generalized from pending_analysis_path
 
         # Connect IPC Bridge
@@ -408,6 +409,11 @@ class ApplicationController:
             print(f"[DEBUG] Health Check Warning: {e}")
             # We proceed, as network errors might be temporary or handled by LoginView
             pass
+
+    def show_notification(self, title, message, icon_name="file-text.svg"):
+        """Displays a toast notification."""
+        self.notification = ToastNotification(self.master_window, title, message, icon_name=icon_name)
+        self.notification.show_toast()
 
     def handle_ipc_action(self, action: str, payload: dict):
         """
@@ -465,15 +471,8 @@ class ApplicationController:
         try:
             response = self.api_client.import_dipendenti_csv(path)
             message = response.get("message", "Importazione riuscita.")
-            warnings = response.get("warnings", [])
-
-            msg_text = message
-            if warnings:
-                msg_text += "\n\nAvvisi:\n" + "\n".join(warnings[:5])
-                if len(warnings) > 5:
-                    msg_text += f"\n...e altri {len(warnings)-5}"
-
-            CustomMessageDialog.show_info(self.master_window, "Importazione Completata", msg_text)
+            # We simplify the message for the toast
+            self.show_notification("Importazione Completata", message, icon_name="users.svg")
 
             # Refresh data if needed (Dashboard usually auto-refreshes on tab switch, but we can force it)
             if self.dashboard:
@@ -516,6 +515,9 @@ class ApplicationController:
 
         self.dashboard.sidebar.set_user_info(account_name, display_str)
 
+        # Connect notification signal from dashboard
+        self.dashboard.notification_requested.connect(self.show_notification)
+
         # Transition
         self.master_window.show_dashboard(self.dashboard)
 
@@ -529,12 +531,27 @@ class ApplicationController:
                 msg_text = f"Ci sono {pending_count} documenti da convalidare."
 
             # Delay toast slightly to allow dashboard transition to complete
-            QTimer.singleShot(800, lambda: ToastNotification(
-                self.master_window,
-                msg_title,
-                msg_text,
-                icon_name="file-text.svg"
-            ).show_toast())
+            QTimer.singleShot(800, lambda: self.show_notification(msg_title, msg_text, "file-text.svg"))
+
+        # Check for expiring certificates (Business Logic)
+        try:
+            # We fetch all certificates to check for expiring ones (simple client-side filter)
+            # This is acceptable for the expected volume (3-4 docs/employee * ~100 employees)
+            all_certs = self.api_client.get("certificati")
+            expiring_count = 0
+            for cert in all_certs:
+                status = cert.get("stato_certificato")
+                if status == "in_scadenza" or status == "scaduto":
+                    expiring_count += 1
+
+            if expiring_count > 0:
+                scad_title = "Scadenze Imminenti"
+                scad_text = f"Ci sono {expiring_count} certificati in scadenza o scaduti."
+                # Schedule this toast to appear after the first one (e.g. 4 seconds later)
+                delay = 4500 if pending_count > 0 else 1000
+                QTimer.singleShot(delay, lambda: self.show_notification(scad_title, scad_text, "calendar.svg"))
+        except Exception as e:
+            print(f"[Controller] Error fetching expiring certs: {e}")
 
         # Handle deferred action
         if self.pending_action:

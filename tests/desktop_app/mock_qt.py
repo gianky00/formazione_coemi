@@ -44,6 +44,9 @@ class DummyEnum:
     Horizontal = 1
     Vertical = 2
     WA_TransparentForMouseEvents = 0
+    WA_ShowWithoutActivation = 0
+    WA_TranslucentBackground = 0
+    WA_DeleteOnClose = 0
     AA_ShareOpenGLContexts = 0
     DisplayRole = 0
     EditRole = 1
@@ -54,6 +57,10 @@ class DummyEnum:
     SmoothTransformation = 1
     TextSelectableByMouse = 1
     NoPen = 0
+    FramelessWindowHint = 0
+    Tool = 0
+    WindowStaysOnTopHint = 0
+    Dialog = 0
 
 class DummyQLayoutItem:
     def __init__(self, widget):
@@ -136,7 +143,7 @@ class DummyQWidget:
         pass
     def windowFlags(self):
         return 0
-    def setAttribute(self, attr, on):
+    def setAttribute(self, attr, on=True):
         pass
     def raise_(self):
         pass
