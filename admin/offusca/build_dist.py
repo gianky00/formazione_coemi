@@ -263,7 +263,7 @@ def generate_installer_assets():
 def generate_iss_content(output_folder):
     """Generates the Pascal Script Inno Setup file dynamically."""
 
-    iss_content = f"""
+    iss_content = fr"""
 ; Script Generated Dynamically by build_dist.py for Intelleo (Cyberpunk Edition)
 #define MyAppName "{APP_NAME}"
 #define MyAppVersion "1.0.0"
