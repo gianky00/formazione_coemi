@@ -19,11 +19,11 @@ class KPIWidget(QFrame):
         layout = QVBoxLayout(self)
 
         lbl_title = QLabel(title)
-        lbl_title.setStyleSheet("color: #6B7280; font-size: 14px; font-weight: 500;")
+        lbl_title.setStyleSheet("color: #6B7280; font-size: 14px; font-weight: 700; background: transparent;")
         layout.addWidget(lbl_title)
 
         self.lbl_value = QLabel(str(value))
-        self.lbl_value.setStyleSheet(f"color: {color}; font-size: 28px; font-weight: 700;")
+        self.lbl_value.setStyleSheet(f"color: {color}; font-size: 28px; font-weight: 800; background: transparent;")
         layout.addWidget(self.lbl_value)
 
     def update_value(self, value):
