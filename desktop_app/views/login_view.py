@@ -3,7 +3,7 @@ import sys
 import socket
 import platform
 import math
-import requests
+import requests # Added for direct API call
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QFrame, QMessageBox, QHBoxLayout,
                              QGraphicsDropShadowEffect, QApplication, QPushButton,
                              QDialog, QLineEdit, QDialogButtonBox)
@@ -86,7 +86,7 @@ class LoginView(QWidget):
 
         self._anim_timer = QTimer(self)
         self._anim_timer.timeout.connect(self._animate_background)
-        self._anim_timer.start(16) # ~60 FPS target for smooth 3D rotation
+        self._anim_timer.start(33) # Changed to 33ms (~30 FPS) for smoother/lighter performance
 
         # Container Card (Split View) - Manual Positioning for Animation
         self.container = QFrame(self)
@@ -653,6 +653,7 @@ class LoginView(QWidget):
                 CustomMessageDialog.show_warning(self, "Modalità Sola Lettura", msg)
 
             # Trigger Fly-Out Animation before emitting success
+            print("[DEBUG] Triggering success exit animation")
             self._animate_success_exit()
 
         except Exception as e:
@@ -679,8 +680,9 @@ class LoginView(QWidget):
              worker.signals.result.connect(self._on_speech_ready)
              self.threadpool.start(worker)
 
-        except Exception:
+        except Exception as e:
              # Fallback
+             print(f"[ERROR] Worker start failed: {e}")
              SoundManager.instance().speak(base_msg)
 
         # Stop background animation to save resources and prevent paint conflicts
@@ -699,6 +701,7 @@ class LoginView(QWidget):
         self.anim_exit.setEasingCurve(QEasingCurve.Type.InBack)
 
         def on_anim_finished():
+            print("[DEBUG] Login exit animation finished. Emitting login_success.")
             self.login_success.emit(self.api_client.user_info)
 
         self.anim_exit.finished.connect(on_anim_finished)

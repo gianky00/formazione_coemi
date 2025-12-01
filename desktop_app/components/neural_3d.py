@@ -5,7 +5,8 @@ from PyQt6.QtCore import QPointF, QRectF, Qt
 from PyQt6.QtGui import QColor, QRadialGradient, QPixmap, QPainter, QBrush, QImage
 
 class NeuralNetwork3D:
-    def __init__(self, num_nodes=100, connect_distance=250):
+    def __init__(self, num_nodes=100, connect_distance=200):
+        # Reduced default nodes to 100 for better performance ("scatta" fix)
         self.num_nodes = num_nodes
         self.connect_distance_sq = connect_distance ** 2
 
@@ -28,7 +29,6 @@ class NeuralNetwork3D:
         self.target_rot_y = 0.0
 
         # --- Pulse System ---
-        # List of active pulses: [start_index, end_index, progress (0.0-1.0), speed]
         self.pulses = []
         self.connections = [] # Cached connections [(i, j, dist_sq)]
 
@@ -74,7 +74,6 @@ class NeuralNetwork3D:
         mouse_norm_x/y: -1.0 to 1.0 (screen center is 0,0)
         """
         # 1. Update Rotation Target (Smooth Camera)
-        # Mouse movement implies looking around or rotating the object
         self.target_rot_y = mouse_norm_x * 0.5 # Yaw
         self.target_rot_x = -mouse_norm_y * 0.5 # Pitch
 
@@ -86,22 +85,20 @@ class NeuralNetwork3D:
         # 2. Update Positions (Drift)
         self.points += self.velocities
 
-        # Wrap around boundary (Torus topology-ish or just box bounce)
+        # Wrap around boundary
         limit = 1000
 
-        # Check X Axis (column 0)
+        # Safe Axis Checks (Fixes IndexError)
         mask_x_high = self.points[:, 0] > limit
         mask_x_low = self.points[:, 0] < -limit
         self.velocities[mask_x_high, 0] *= -1
         self.velocities[mask_x_low, 0] *= -1
 
-        # Check Y Axis (column 1)
         mask_y_high = self.points[:, 1] > limit
         mask_y_low = self.points[:, 1] < -limit
         self.velocities[mask_y_high, 1] *= -1
         self.velocities[mask_y_low, 1] *= -1
 
-        # Check Z Axis (column 2)
         mask_z_high = self.points[:, 2] > limit
         mask_z_low = self.points[:, 2] < -limit
         self.velocities[mask_z_high, 2] *= -1
@@ -114,7 +111,6 @@ class NeuralNetwork3D:
         self.phases += self.phase_speeds
 
         # 4. Update Pulses
-        # Filter out finished pulses
         active_pulses = []
         for p in self.pulses:
             p[2] += p[3] # Progress += Speed
@@ -123,18 +119,13 @@ class NeuralNetwork3D:
         self.pulses = active_pulses
 
         # Randomly spawn new pulses
-        if self.connections and random.random() < 0.15: # 15% chance per frame
+        if self.connections and random.random() < 0.15:
             conn = random.choice(self.connections)
-            # [start_idx, end_idx, progress, speed]
             speed = random.uniform(0.02, 0.05)
             self.pulses.append([conn[0], conn[1], 0.0, speed])
 
 
     def project_and_render(self, painter, width, height):
-        """
-        Projects 3D points to 2D and renders everything.
-        Doing projection + render in one pass to avoid copying large arrays back to Python.
-        """
         center_x = width / 2
         center_y = height / 2
         focal_length = 800
@@ -144,8 +135,6 @@ class NeuralNetwork3D:
         cy, sy = math.cos(self.rot_y), math.sin(self.rot_y)
 
         # Rotate around Y axis
-        # x' = x*cos - z*sin
-        # z' = x*sin + z*cos
         x = self.points[:, 0]
         y = self.points[:, 1]
         z = self.points[:, 2]
@@ -154,114 +143,82 @@ class NeuralNetwork3D:
         z_rot_y = x * sy + z * cy
 
         # Rotate around X axis
-        # y' = y*cos - z'*sin
-        # z'' = y*sin + z'*cos
         y_final = y * cx - z_rot_y * sx
         z_final = y * sx + z_rot_y * cx
         x_final = x_rot_y
 
         # --- 2. Perspective Projection ---
-        # scale = f / (f + z)
-        # Avoid division by zero
-        z_safe = z_final + 1200 # Push everything back so camera isn't inside
+        z_safe = z_final + 1200
         scale = focal_length / np.maximum(z_safe, 0.1)
 
         x_2d = x_final * scale + center_x
         y_2d = y_final * scale + center_y
 
-        # Store 2D coords for connection drawing
-        # Shape (N, 2)
-        coords_2d = np.column_stack((x_2d, y_2d))
-
         # --- 3. Draw Connections & Pulses ---
         self.connections = []
-        painter.setPen(QColor(100, 200, 255, 40)) # Very faint blue
+        painter.setPen(QColor(100, 200, 255, 40))
 
-        # Calculate squared distance matrix (N x N)
         pos_3d = np.column_stack((x_final, y_final, z_final))
         diff = pos_3d[:, np.newaxis, :] - pos_3d[np.newaxis, :, :]
         dists_sq = np.sum(diff**2, axis=-1)
 
-        # Get pairs (i < j) where dist < limit
         mask = np.triu(dists_sq < self.connect_distance_sq, k=1)
         rows, cols = np.nonzero(mask)
 
         # Draw Lines
-        lines = []
         for i, j in zip(rows, cols):
             p1 = QPointF(x_2d[i], y_2d[i])
             p2 = QPointF(x_2d[j], y_2d[j])
 
-            # Opacity based on distance (closer = opaque)
             d_sq = dists_sq[i, j]
             alpha = int(255 * (1.0 - (d_sq / self.connect_distance_sq)))
             if alpha > 0:
-                # Store connection for pulses
                 self.connections.append((i, j, d_sq))
-
-                # Draw Line
-                color = QColor(147, 197, 253) # Blue 300
-                color.setAlpha(max(0, min(80, int(alpha * 0.3)))) # Cap alpha
+                color = QColor(147, 197, 253)
+                color.setAlpha(max(0, min(80, int(alpha * 0.3))))
                 painter.setPen(color)
                 painter.drawLine(p1, p2)
 
         # Draw Pulses
-        painter.setPen(Qt.PenStyle.NoPen) # No outline
-        pulse_color = QColor(255, 255, 255) # White core
-
+        painter.setPen(Qt.PenStyle.NoPen)
         for p in self.pulses:
             start_idx, end_idx, progress, _ = p
-
-            # Interpolate 2D position
             sx, sy = x_2d[start_idx], y_2d[start_idx]
             ex, ey = x_2d[end_idx], y_2d[end_idx]
 
             curr_x = sx + (ex - sx) * progress
             curr_y = sy + (ey - sy) * progress
 
-            # Draw glowing dot
-            # Using one of the small textures
             size = 16
-            offset = size / 2
+            tex_key = 16
+            tex = self.star_textures[tex_key]
 
-            # Simple distance fading for pulses too?
-            pulse_color.setAlpha(200)
             painter.setOpacity(0.8)
-            painter.drawPixmap(int(curr_x - offset), int(curr_y - offset), self.star_textures[16])
+            painter.drawPixmap(int(curr_x - size/2), int(curr_y - size/2), tex)
             painter.setOpacity(1.0)
 
-
         # --- 4. Draw Nodes (Z-Sorted) ---
-        # Sort by Z (depth) so we draw far ones first
-        sort_indices = np.argsort(z_safe)[::-1] # Descending order of depth (Back to Front)
+        sort_indices = np.argsort(z_safe)[::-1]
 
         for i in sort_indices:
-            # Calculate size based on depth + breathing
-            base_size = scale[i] * 10 # Base radius factor
+            s = scale[i]
+            base_size = scale[i] * 10
             breath = 1.0 + math.sin(self.phases[i]) * 0.2
             final_size = base_size * breath
 
-            # Choose texture bucket
-            # 8, 16, 32, 64
             if final_size < 12: tex_key = 16
             elif final_size < 24: tex_key = 32
             else: tex_key = 64
-            # Add 128 check
             if final_size >= 64: tex_key = 128
 
-            if tex_key not in self.star_textures:
-                tex_key = 64 # Fallback
-
+            if tex_key not in self.star_textures: tex_key = 64
             tex = self.star_textures[tex_key]
 
             x = x_2d[i] - (tex.width() / 2)
             y = y_2d[i] - (tex.height() / 2)
 
-            # Depth opacity
-            # Normalized depth 0..1
             depth_alpha = min(1.0, max(0.2, (scale[i] * 2.0)))
             painter.setOpacity(depth_alpha)
-
             painter.drawPixmap(int(x), int(y), tex)
 
         painter.setOpacity(1.0)

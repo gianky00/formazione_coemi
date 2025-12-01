@@ -21,7 +21,6 @@ from desktop_app.utils import get_asset_path
 
 def setup_styles(app):
     # Load Inter Font
-    # (Assuming fonts are installed or loaded here)
     pass
 
     # Global Stylesheet
@@ -223,10 +222,13 @@ class ApplicationController:
 
     def on_login_success(self, user_info):
         try:
+            print("[DEBUG] on_login_success started.")
             # Create Dashboard if not exists
             if not self.dashboard:
+                print("[DEBUG] Creating MainDashboardWidget...")
                 self.dashboard = MainDashboardWidget(self.api_client)
                 self.dashboard.logout_requested.connect(self.on_logout)
+                print("[DEBUG] MainDashboardWidget created.")
 
             # Propagate Read-Only State
             is_read_only = user_info.get("read_only", False)
@@ -256,10 +258,13 @@ class ApplicationController:
             self.dashboard.sidebar.set_user_info(account_name, display_str)
 
             # Transition
+            print("[DEBUG] Transitioning to Dashboard...")
             self.master_window.show_dashboard(self.dashboard)
+            print("[DEBUG] Transition initiated.")
 
             # Handle deferred action
             if self.pending_action:
+                print(f"[DEBUG] Handling deferred action: {self.pending_action}")
                 if is_read_only:
                     CustomMessageDialog.show_warning(self.master_window, "Sola Lettura",
                                         "L'azione richiesta è stata annullata perché il database è in modalità Sola Lettura.")
@@ -272,6 +277,7 @@ class ApplicationController:
 
                 self.pending_action = None
         except Exception as e:
+            print("[ERROR] Exception in on_login_success:")
             traceback.print_exc()
             CustomMessageDialog.show_error(self.master_window, "Errore Dashboard", f"Errore durante il caricamento della dashboard:\n{e}")
 
