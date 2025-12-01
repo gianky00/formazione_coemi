@@ -6,7 +6,7 @@ __pycache__/
 # C extensions
 *.so
 
-# Distribution / packaging
+# Distribution / packaging (Generale)
 .Python
 build/
 develop-eggs/
@@ -57,10 +57,6 @@ cover/
 # pyenv
 .python-version
 
-# celery
-celerybeat-schedule
-celerybeat.pid
-
 # SageMath parsed files
 *.sage.py
 
@@ -77,47 +73,44 @@ Scripts/
 Include/
 pyvenv.cfg
 
-# Spyder project settings
+# IDE settings
 .spyderproject
 .spyproject
-
-# Rope project settings
 .ropeproject
 
-# mkdocs documentation
+# Documentation & Type checking
 /site
-
-# mypy
 .mypy_cache/
 .dmypy.json
 dmypy.json
-
-# Pyre type checker
 .pyre/
-
-# pytype static type analyzer
 .pytype/
-
-# Cython debug symbols
 cython_debug/
 
-# Intelleo specific - Database e file locali
+# --- INTELLEO SPECIFIC ---
+
+# 1. Ignora database locali e cache
 cliente/
 cache/
 *.db
 *.sqlite
 .database_documenti.db.lock
 
-# Intelleo specific - Build output e Offuscamento
-# Ignora le cartelle di output della compilazione e i codici offuscati
+# 2. Ignora output di build e offuscamento
 Intelleo/
 obfuscated/
-installer_assets/
-admin/offusca/dist/
 admin/offusca/build/
 admin/offusca/build_log.txt
 
-# Intelleo specific - Licenze e Token (File sensibili o generati)
+# 3. Gestione cartella 'dist' in admin/offusca/
+# Prima ignora tutto il contenuto di dist
+admin/offusca/dist/*
+
+# Poi INCLUDI (whitelist) solo i file specifici richiesti
+!admin/offusca/dist/installer_assets/
+!admin/offusca/dist/setup_script_generated.iss
+
+# 4. File sensibili o temporanei
 desktop_app/assets/installer_*.bmp
 /admin/crea_licenze/PC COEMI ALLEGRETTI
 admin/crea_licenze/seriale_disco.txt
