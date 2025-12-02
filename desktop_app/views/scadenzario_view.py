@@ -266,7 +266,7 @@ class ScadenzarioView(QWidget):
                 lbl = QGraphicsTextItem(label_text)
                 font = QFont()
                 font.setBold(True)
-                font.setPointSize(8)
+                font.setPointSize(12)
                 lbl.setFont(font)
                 lbl.setDefaultTextColor(QColor(0, 0, 0, 100))
 
@@ -301,7 +301,7 @@ class ScadenzarioView(QWidget):
                 # Bold Header
                 font = QFont()
                 font.setBold(True)
-                font.setPointSize(10)
+                font.setPointSize(12)
                 text.setFont(font)
 
                 text.setPos(days_from_start * col_width, 0)
