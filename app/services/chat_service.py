@@ -93,7 +93,7 @@ DOCUMENTI DA VALIDARE/ORFANI ({len(orphans_list)}):
         try:
             # Re-configure global genai with Chat Key
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('models/gemini-1.5-flash')
+            model = genai.GenerativeModel('models/gemini-2.5-flash')
         except Exception as e:
             logger.error(f"Failed to initialize Gemini Flash: {e}")
             return f"Errore inizializzazione AI: {e}"
