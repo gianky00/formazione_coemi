@@ -4,8 +4,8 @@ from datetime import date, datetime
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
                              QPushButton, QStackedWidget, QLabel, QFrame, QSizePolicy,
                              QScrollArea, QLayout, QApplication)
-    from PyQt6.QtCore import (Qt, QSize, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup,
-                              pyqtSignal, QPoint, pyqtProperty, QRect, QTimer, QObject, QThread)
+from PyQt6.QtCore import (Qt, QSize, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup,
+                          pyqtSignal, QPoint, pyqtProperty, QRect, QTimer, QObject, QThread)
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QBrush, QPen
 
 # Import Utils
