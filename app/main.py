@@ -17,6 +17,10 @@ from app.services.file_maintenance import organize_expired_files
 from app.db.session import SessionLocal
 from app.utils.logging import setup_logging
 from datetime import datetime, timedelta
+import logging
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler()
 
@@ -53,15 +57,26 @@ async def lifespan(app: FastAPI):
         yield
         return
     except Exception as e:
-        print(f"CRITICAL DB ERROR: {e}")
-        app.state.startup_error = f"Database Error: {e}"
-        yield
-        return
+        # We Log but DO NOT BLOCK startup.
+        # This allows the UI to launch and prompt the user to fix the DB.
+        print(f"WARNING: Database Load Error (Non-Fatal for UI): {e}")
+        # We do NOT set app.state.startup_error here to allow Login UI to load.
 
     # Startup
     try:
-        Base.metadata.create_all(bind=engine)
-        seed_database()
+        # Attempt to create tables and seed.
+        # If this fails (e.g. corrupted DB), we catch it and continue so the UI can handle recovery.
+        try:
+            Base.metadata.create_all(bind=engine)
+            seed_database()
+        except Exception as e:
+            logger.warning(f"Database Seeding/Migration failed: {e}. Proceeding in Recovery Mode.")
+            # Do NOT raise. Continue.
+
+        # EXPLICITLY REMOVED AUTO-CREATION logic per user request.
+        # The database file is created only via the "Create New Database" UI flow in launcher.py.
+        if not db_security.db_path.exists():
+            logger.warning(f"Database file not found at {db_security.db_path}. Waiting for UI recovery.")
 
         # File Maintenance is now deferred to background task triggered by UI
         # to prevent blocking startup.
@@ -77,8 +92,9 @@ async def lifespan(app: FastAPI):
 
         scheduler.start()
     except Exception as e:
-        print(f"CRITICAL STARTUP ERROR: {e}")
-        app.state.startup_error = str(e)
+        print(f"STARTUP EXCEPTION (Handled): {e}")
+        # Only set startup_error for truly fatal things that prevent the API from even serving status
+        # For DB issues, we prefer to let the UI handle it.
 
     yield
 
@@ -110,8 +126,6 @@ async def check_startup_error(request: Request, call_next):
 async def health_check(request: Request):
     """
     Simple health check endpoint.
-    Crucially, it is NOT affected by the middleware, so it will respond even
-    if there's a startup error. We check the state directly.
     """
     if hasattr(request.app.state, "startup_error") and request.app.state.startup_error:
          return JSONResponse(

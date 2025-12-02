@@ -1,4 +1,5 @@
 import json
+import traceback
 from datetime import datetime
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton,
@@ -298,7 +299,7 @@ class UserManagementWidget(QFrame):
             except Exception as e:
                 CustomMessageDialog.show_error(self, "Errore", str(e))
 
-class GeneralSettingsWidget(QFrame):
+class DatabaseSettingsWidget(QFrame):
     def __init__(self, api_client, parent=None):
         super().__init__(parent)
         self.api_client = api_client
@@ -309,69 +310,15 @@ class GeneralSettingsWidget(QFrame):
         self.form_layout.setSpacing(15)
         self.form_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
 
+        self.layout.addWidget(QLabel("<b>Impostazioni Database</b>"))
+
         self.db_path_input = QLineEdit()
         self.db_path_input.setReadOnly(True)
-        self.browse_db_path_button = QPushButton("Sfoglia...")
+        self.browse_db_path_button = QPushButton("Sfoglia / Crea...")
         db_path_layout = QHBoxLayout()
         db_path_layout.addWidget(self.db_path_input)
         db_path_layout.addWidget(self.browse_db_path_button)
         self.form_layout.addRow(QLabel("Percorso Database:"), db_path_layout)
-
-        # API Section
-        api_separator = QFrame()
-        api_separator.setFrameShape(QFrame.Shape.HLine)
-        api_separator.setFrameShadow(QFrame.Shadow.Sunken)
-        self.form_layout.addRow(api_separator)
-        self.form_layout.addRow(QLabel("<b>Configurazione API</b>"))
-
-        self.gemini_analysis_key_input = QLineEdit()
-        self.gemini_analysis_key_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.form_layout.addRow(QLabel("API Gemini 2.5-pro (Analisi Documenti):"), self.gemini_analysis_key_input)
-
-        self.gemini_chat_key_input = QLineEdit()
-        self.gemini_chat_key_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.form_layout.addRow(QLabel("API Gemini 1.5-flash (Chatbot):"), self.gemini_chat_key_input)
-
-        self.voice_assistant_check = QCheckBox("Abilita Assistente Vocale")
-        self.form_layout.addRow("", self.voice_assistant_check)
-
-        # SMTP Section
-        smtp_separator = QFrame()
-        smtp_separator.setFrameShape(QFrame.Shape.HLine)
-        smtp_separator.setFrameShadow(QFrame.Shadow.Sunken)
-        self.form_layout.addRow(smtp_separator)
-        self.form_layout.addRow(QLabel("<b>Impostazioni Email</b>"))
-
-        self.email_preset_combo = QComboBox()
-        self.email_preset_combo.addItems(["Manuale", "Gmail", "Outlook", "COEMI"])
-        self.form_layout.addRow(QLabel("Preset Email:"), self.email_preset_combo)
-        self.smtp_host_input = QLineEdit()
-        self.form_layout.addRow(QLabel("SMTP Host:"), self.smtp_host_input)
-        self.smtp_port_input = QLineEdit()
-        self.form_layout.addRow(QLabel("SMTP Port:"), self.smtp_port_input)
-        self.smtp_user_input = QLineEdit()
-        self.form_layout.addRow(QLabel("Utente SMTP (Email):"), self.smtp_user_input)
-        self.smtp_password_input = QLineEdit()
-        self.smtp_password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.form_layout.addRow(QLabel("Password SMTP:"), self.smtp_password_input)
-        self.recipients_to_input = QLineEdit()
-        self.recipients_to_input.setPlaceholderText("Separati da virgola")
-        self.form_layout.addRow(QLabel("Destinatari (To):"), self.recipients_to_input)
-        self.recipients_cc_input = QLineEdit()
-        self.recipients_cc_input.setPlaceholderText("Separati da virgola")
-        self.form_layout.addRow(QLabel("Copia Conoscenza (CC):"), self.recipients_cc_input)
-
-        threshold_separator = QFrame()
-        threshold_separator.setFrameShape(QFrame.Shape.HLine)
-        threshold_separator.setFrameShadow(QFrame.Shadow.Sunken)
-        self.form_layout.addRow(threshold_separator)
-
-        self.alert_threshold_input = QLineEdit()
-        self.alert_threshold_input.setPlaceholderText("Default: 60")
-        self.form_layout.addRow(QLabel("Soglia Avviso (giorni):"), self.alert_threshold_input)
-        self.alert_threshold_visite_input = QLineEdit()
-        self.alert_threshold_visite_input.setPlaceholderText("Default: 30")
-        self.form_layout.addRow(QLabel("Soglia Avviso Visite Mediche (giorni):"), self.alert_threshold_visite_input)
 
         # Maintenance Section
         maint_separator = QFrame()
@@ -401,6 +348,88 @@ class GeneralSettingsWidget(QFrame):
                     CustomMessageDialog.show_error(self, "Errore", f"Errore server: {response.text}")
             except Exception as e:
                 CustomMessageDialog.show_error(self, "Errore", str(e))
+
+class APISettingsWidget(QFrame):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("card")
+        self.layout = QVBoxLayout(self)
+        self.layout.setSpacing(15)
+        self.form_layout = QFormLayout()
+        self.form_layout.setSpacing(15)
+        self.form_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+
+        self.layout.addWidget(QLabel("<b>Configurazione API & AI</b>"))
+
+        self.gemini_analysis_key_input = QLineEdit()
+        self.gemini_analysis_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.form_layout.addRow(QLabel("API Gemini 2.5-pro (Analisi Documenti):"), self.gemini_analysis_key_input)
+
+        self.gemini_chat_key_input = QLineEdit()
+        self.gemini_chat_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.form_layout.addRow(QLabel("API Gemini 1.5-flash (Chatbot):"), self.gemini_chat_key_input)
+
+        self.voice_assistant_check = QCheckBox("Abilita Assistente Vocale")
+        self.form_layout.addRow("", self.voice_assistant_check)
+
+        self.layout.addLayout(self.form_layout)
+        self.layout.addStretch()
+
+class EmailSettingsWidget(QFrame):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("card")
+        self.layout = QVBoxLayout(self)
+        self.layout.setSpacing(15)
+        self.form_layout = QFormLayout()
+        self.form_layout.setSpacing(15)
+        self.form_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+
+        self.layout.addWidget(QLabel("<b>Impostazioni Email (SMTP)</b>"))
+
+        self.email_preset_combo = QComboBox()
+        self.email_preset_combo.addItems(["Manuale", "Gmail", "Outlook", "COEMI"])
+        self.form_layout.addRow(QLabel("Preset Email:"), self.email_preset_combo)
+        self.smtp_host_input = QLineEdit()
+        self.form_layout.addRow(QLabel("SMTP Host:"), self.smtp_host_input)
+        self.smtp_port_input = QLineEdit()
+        self.form_layout.addRow(QLabel("SMTP Port:"), self.smtp_port_input)
+        self.smtp_user_input = QLineEdit()
+        self.form_layout.addRow(QLabel("Utente SMTP (Email):"), self.smtp_user_input)
+        self.smtp_password_input = QLineEdit()
+        self.smtp_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.form_layout.addRow(QLabel("Password SMTP:"), self.smtp_password_input)
+        self.recipients_to_input = QLineEdit()
+        self.recipients_to_input.setPlaceholderText("Separati da virgola")
+        self.form_layout.addRow(QLabel("Destinatari (To):"), self.recipients_to_input)
+        self.recipients_cc_input = QLineEdit()
+        self.recipients_cc_input.setPlaceholderText("Separati da virgola")
+        self.form_layout.addRow(QLabel("Copia Conoscenza (CC):"), self.recipients_cc_input)
+
+        self.layout.addLayout(self.form_layout)
+        self.layout.addStretch()
+
+class GeneralSettingsWidget(QFrame):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("card")
+        self.layout = QVBoxLayout(self)
+        self.layout.setSpacing(15)
+        self.form_layout = QFormLayout()
+        self.form_layout.setSpacing(15)
+        self.form_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+
+        self.layout.addWidget(QLabel("<b>Parametri Generali</b>"))
+
+        self.alert_threshold_input = QLineEdit()
+        self.alert_threshold_input.setPlaceholderText("Default: 60")
+        self.form_layout.addRow(QLabel("Soglia Avviso (giorni):"), self.alert_threshold_input)
+        self.alert_threshold_visite_input = QLineEdit()
+        self.alert_threshold_visite_input.setPlaceholderText("Default: 30")
+        self.form_layout.addRow(QLabel("Soglia Avviso Visite Mediche (giorni):"), self.alert_threshold_visite_input)
+
+        self.layout.addLayout(self.form_layout)
+        self.layout.addStretch()
 
 class AuditLogWidget(QFrame):
     def __init__(self, api_client, parent=None):
@@ -596,72 +625,117 @@ class AuditLogWidget(QFrame):
 class ConfigView(QWidget):
     def __init__(self, api_client: APIClient):
         super().__init__()
-        self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(20, 20, 20, 20)
-        self.layout.setSpacing(15)
-        self.api_client = api_client
-        self.current_settings = {}
+        try:
+            self.layout = QVBoxLayout(self)
+            self.layout.setContentsMargins(20, 20, 20, 20)
+            self.layout.setSpacing(15)
+            self.api_client = api_client
+            self.current_settings = {}
 
-        description = QLabel("Gestisci le impostazioni e le chiavi API dell'applicazione.")
-        description.setObjectName("viewDescription")
-        self.layout.addWidget(description)
+            description = QLabel("Gestisci le impostazioni e le chiavi API dell'applicazione.")
+            description.setObjectName("viewDescription")
+            self.layout.addWidget(description)
 
-        self.nav_container = QFrame()
-        self.nav_layout = QHBoxLayout(self.nav_container)
-        self.nav_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.nav_layout.setSpacing(10)
+            self.nav_container = QFrame()
+            self.nav_layout = QHBoxLayout(self.nav_container)
+            self.nav_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.nav_layout.setSpacing(10)
 
-        self.btn_general = QPushButton("Parametri generali")
-        self.btn_general.setCheckable(True)
-        # self.btn_general.setChecked(True) # Logic moved to showEvent/switch_tab
-        self.btn_general.clicked.connect(lambda: self.switch_tab(0))
+            self.btn_general = QPushButton("Generale")
+            self.btn_general.setCheckable(True)
+            self.btn_general.clicked.connect(lambda: self.switch_tab(0))
 
-        self.btn_account = QPushButton("Account")
-        self.btn_account.setCheckable(True)
-        self.btn_account.clicked.connect(lambda: self.switch_tab(1))
+            self.btn_database = QPushButton("Database")
+            self.btn_database.setCheckable(True)
+            self.btn_database.clicked.connect(lambda: self.switch_tab(1))
 
-        self.btn_audit = QPushButton("Log Attività")
-        self.btn_audit.setCheckable(True)
-        self.btn_audit.clicked.connect(lambda: self.switch_tab(2))
+            self.btn_api = QPushButton("API")
+            self.btn_api.setCheckable(True)
+            self.btn_api.clicked.connect(lambda: self.switch_tab(2))
 
-        for btn in [self.btn_general, self.btn_account, self.btn_audit]:
-            btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setFixedWidth(180)
-            self.nav_layout.addWidget(btn)
+            self.btn_email = QPushButton("Email")
+            self.btn_email.setCheckable(True)
+            self.btn_email.clicked.connect(lambda: self.switch_tab(3))
 
-        self.layout.addWidget(self.nav_container)
+            self.btn_account = QPushButton("Account")
+            self.btn_account.setCheckable(True)
+            self.btn_account.clicked.connect(lambda: self.switch_tab(4))
 
-        self.stacked_widget = QStackedWidget()
-        self.general_settings = GeneralSettingsWidget(self.api_client)
-        self.user_management_widget = UserManagementWidget(self.api_client)
-        self.audit_widget = AuditLogWidget(self.api_client)
-        self.stacked_widget.addWidget(self.general_settings)
-        self.stacked_widget.addWidget(self.user_management_widget)
-        self.stacked_widget.addWidget(self.audit_widget)
-        self.layout.addWidget(self.stacked_widget)
+            self.btn_audit = QPushButton("Log Attività")
+            self.btn_audit.setCheckable(True)
+            self.btn_audit.clicked.connect(lambda: self.switch_tab(5))
 
-        self.bottom_buttons_frame = QFrame()
-        bottom_layout = QHBoxLayout(self.bottom_buttons_frame)
-        bottom_layout.setContentsMargins(0, 0, 0, 0)
-        self.import_button = QPushButton("Importa Dipendenti da CSV")
-        self.import_button.setObjectName("secondary")
-        self.import_button.setToolTip("Formato CSV richiesto. Dimensione massima: 5MB.")
-        self.import_button.clicked.connect(self.import_csv)
-        self.save_button = QPushButton("Salva Modifiche")
-        self.save_button.setObjectName("primary")
-        self.save_button.clicked.connect(self.save_config)
-        bottom_layout.addWidget(self.import_button)
-        bottom_layout.addStretch()
-        bottom_layout.addWidget(self.save_button)
-        self.layout.addWidget(self.bottom_buttons_frame)
+            self.nav_buttons = [
+                self.btn_general, self.btn_database, self.btn_api,
+                self.btn_email, self.btn_account, self.btn_audit
+            ]
 
-        self.general_settings.email_preset_combo.currentIndexChanged.connect(self.apply_email_preset)
-        self.general_settings.browse_db_path_button.clicked.connect(self.select_db_path)
+            for btn in self.nav_buttons:
+                btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                btn.setFixedWidth(130)
+                self.nav_layout.addWidget(btn)
+
+            self.layout.addWidget(self.nav_container)
+
+            self.stacked_widget = QStackedWidget()
+
+            # Init Sub-Widgets
+            self.general_settings = GeneralSettingsWidget()
+            self.database_settings = DatabaseSettingsWidget(self.api_client)
+            self.api_settings = APISettingsWidget()
+            self.email_settings = EmailSettingsWidget()
+            self.user_management_widget = UserManagementWidget(self.api_client)
+            self.audit_widget = AuditLogWidget(self.api_client)
+
+            self.stacked_widget.addWidget(self.general_settings)       # 0
+            self.stacked_widget.addWidget(self.database_settings)      # 1
+            self.stacked_widget.addWidget(self.api_settings)           # 2
+            self.stacked_widget.addWidget(self.email_settings)         # 3
+            self.stacked_widget.addWidget(self.user_management_widget) # 4
+            self.stacked_widget.addWidget(self.audit_widget)           # 5
+
+            self.layout.addWidget(self.stacked_widget)
+
+            self.bottom_buttons_frame = QFrame()
+            bottom_layout = QHBoxLayout(self.bottom_buttons_frame)
+            bottom_layout.setContentsMargins(0, 0, 0, 0)
+
+            self.import_button = QPushButton("Importa Dipendenti da CSV")
+            self.import_button.setObjectName("secondary")
+            self.import_button.setToolTip("Formato CSV richiesto. Dimensione massima: 5MB.")
+            self.import_button.clicked.connect(self.import_csv)
+
+            self.save_button = QPushButton("Salva Modifiche")
+            self.save_button.setObjectName("primary")
+            self.save_button.clicked.connect(self.save_config)
+
+            # Layout: [Import] [10px] [Save] [Stretch] -> Left aligned
+            bottom_layout.addWidget(self.import_button)
+            bottom_layout.addSpacing(10)
+            bottom_layout.addWidget(self.save_button)
+            bottom_layout.addStretch()
+
+            self.layout.addWidget(self.bottom_buttons_frame)
+
+            # Connections
+            self.email_settings.email_preset_combo.currentIndexChanged.connect(self.apply_email_preset)
+            self.database_settings.browse_db_path_button.clicked.connect(self.select_db_path)
+        except Exception as e:
+            print(f"CRITICAL ERROR in ConfigView.__init__: {e}")
+            traceback.print_exc()
+            # Fallback UI to prevent crash
+            # Check if layout already exists to avoid "Attempting to set QLayout" warning
+            if not hasattr(self, 'layout') or self.layout is None:
+                self.layout = QVBoxLayout(self)
+
+            error_label = QLabel(f"Errore critico durante l'inizializzazione della vista Configurazione:\n{e}")
+            error_label.setStyleSheet("color: red; font-weight: bold;")
+            self.layout.addWidget(error_label)
 
     def select_db_path(self):
-        folder_path = QFileDialog.getExistingDirectory(self, "Seleziona Cartella per il Database")
-        if folder_path:
-            self.general_settings.db_path_input.setText(folder_path)
+        file_path, _ = QFileDialog.getSaveFileName(self, "Seleziona o Crea Database", "", "SQLite Database (*.db)")
+        if file_path:
+            self.database_settings.db_path_input.setText(file_path)
 
     def set_read_only(self, is_read_only: bool):
         self.is_read_only = is_read_only
@@ -674,13 +748,13 @@ class ConfigView(QWidget):
 
     def switch_tab(self, index):
         self.stacked_widget.setCurrentIndex(index)
-        self.btn_general.setChecked(index == 0)
-        self.btn_account.setChecked(index == 1)
-        self.btn_audit.setChecked(index == 2)
-        # Show save button only on General Settings tab (index 0)
-        self.bottom_buttons_frame.setVisible(index == 0)
+        for i, btn in enumerate(self.nav_buttons):
+            btn.setChecked(i == index)
 
-        if index == 2:
+        # Show save button only on config tabs (0, 1, 2, 3)
+        self.bottom_buttons_frame.setVisible(index <= 3)
+
+        if index == 5: # Audit Log
             self.audit_widget.refresh_filters()
 
     def showEvent(self, event):
@@ -688,18 +762,20 @@ class ConfigView(QWidget):
         if self.api_client and self.api_client.user_info:
             is_admin = self.api_client.user_info.get("is_admin", False)
 
-            self.btn_general.setVisible(is_admin)
-            self.btn_audit.setVisible(is_admin)
-            self.btn_account.setVisible(True) # Account always visible
+            # Show/Hide Admin Tabs
+            for btn in [self.btn_general, self.btn_database, self.btn_api, self.btn_email, self.btn_audit]:
+                btn.setVisible(is_admin)
+
+            self.btn_account.setVisible(True)
 
             if is_admin:
                 self.load_config()
                 # Default to General tab for Admin
-                if self.stacked_widget.currentIndex() == -1:
-                    self.switch_tab(0)
+                if self.stacked_widget.currentIndex() == -1 or self.stacked_widget.currentIndex() == 4:
+                     self.switch_tab(0)
             else:
-                # Default (and only) tab for User is Account
-                self.switch_tab(1)
+                # Default (and only) tab for User is Account (index 4)
+                self.switch_tab(4)
 
             # Refresh user management widget (handles its own admin/user logic)
             self.user_management_widget.refresh_users()
@@ -707,45 +783,52 @@ class ConfigView(QWidget):
     def load_config(self):
         try:
             self.current_settings = self.api_client.get_mutable_config()
-            gs = self.general_settings
 
-            # Reveal the Analysis API key for editing
+            # --- API Settings ---
+            as_widget = self.api_settings
             obfuscated_analysis_key = self.current_settings.get("GEMINI_API_KEY_ANALYSIS", "")
             revealed_analysis_key = reveal_string(obfuscated_analysis_key)
-            gs.gemini_analysis_key_input.setText(revealed_analysis_key)
+            as_widget.gemini_analysis_key_input.setText(revealed_analysis_key)
 
-            # Reveal the Chat API key for editing
             obfuscated_chat_key = self.current_settings.get("GEMINI_API_KEY_CHAT", "")
             revealed_chat_key = reveal_string(obfuscated_chat_key)
-            gs.gemini_chat_key_input.setText(revealed_chat_key)
+            as_widget.gemini_chat_key_input.setText(revealed_chat_key)
 
-            # Voice Assistant
-            gs.voice_assistant_check.setChecked(self.current_settings.get("VOICE_ASSISTANT_ENABLED", True))
+            as_widget.voice_assistant_check.setChecked(self.current_settings.get("VOICE_ASSISTANT_ENABLED", True))
 
-            gs.db_path_input.setText(self.current_settings.get("DATABASE_PATH", ""))
-            gs.smtp_host_input.setText(self.current_settings.get("SMTP_HOST", ""))
-            gs.smtp_port_input.setText(str(self.current_settings.get("SMTP_PORT", "")))
-            gs.smtp_user_input.setText(self.current_settings.get("SMTP_USER", ""))
-            gs.smtp_password_input.setText(self.current_settings.get("SMTP_PASSWORD", ""))
-            gs.recipients_to_input.setText(self.current_settings.get("EMAIL_RECIPIENTS_TO", ""))
-            gs.recipients_cc_input.setText(self.current_settings.get("EMAIL_RECIPIENTS_CC", ""))
-            gs.alert_threshold_input.setText(str(self.current_settings.get("ALERT_THRESHOLD_DAYS", "60")))
-            gs.alert_threshold_visite_input.setText(str(self.current_settings.get("ALERT_THRESHOLD_DAYS_VISITE", "30")))
+            # --- Database Settings ---
+            db_widget = self.database_settings
+            db_widget.db_path_input.setText(self.current_settings.get("DATABASE_PATH", ""))
+
+            # --- Email Settings ---
+            es_widget = self.email_settings
+            es_widget.smtp_host_input.setText(self.current_settings.get("SMTP_HOST", ""))
+            es_widget.smtp_port_input.setText(str(self.current_settings.get("SMTP_PORT", "")))
+            es_widget.smtp_user_input.setText(self.current_settings.get("SMTP_USER", ""))
+            es_widget.smtp_password_input.setText(self.current_settings.get("SMTP_PASSWORD", ""))
+            es_widget.recipients_to_input.setText(self.current_settings.get("EMAIL_RECIPIENTS_TO", ""))
+            es_widget.recipients_cc_input.setText(self.current_settings.get("EMAIL_RECIPIENTS_CC", ""))
+
+            # --- General Settings ---
+            gs_widget = self.general_settings
+            gs_widget.alert_threshold_input.setText(str(self.current_settings.get("ALERT_THRESHOLD_DAYS", "60")))
+            gs_widget.alert_threshold_visite_input.setText(str(self.current_settings.get("ALERT_THRESHOLD_DAYS_VISITE", "30")))
+
         except Exception as e:
             CustomMessageDialog.show_error(self, "Errore", f"Impossibile caricare la configurazione: {e}")
 
     def apply_email_preset(self):
-        preset = self.general_settings.email_preset_combo.currentText()
-        gs = self.general_settings
+        preset = self.email_settings.email_preset_combo.currentText()
+        es_widget = self.email_settings
         if preset == "Gmail":
-            gs.smtp_host_input.setText("smtp.gmail.com")
-            gs.smtp_port_input.setText("465")
+            es_widget.smtp_host_input.setText("smtp.gmail.com")
+            es_widget.smtp_port_input.setText("465")
         elif preset == "Outlook":
-            gs.smtp_host_input.setText("smtp.office365.com")
-            gs.smtp_port_input.setText("587")
+            es_widget.smtp_host_input.setText("smtp.office365.com")
+            es_widget.smtp_port_input.setText("587")
         elif preset == "COEMI":
-            gs.smtp_host_input.setText("smtps.aruba.it")
-            gs.smtp_port_input.setText("465")
+            es_widget.smtp_host_input.setText("smtps.aruba.it")
+            es_widget.smtp_port_input.setText("465")
 
     def import_csv(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Seleziona CSV", "", "CSV Files (*.csv)")
@@ -761,22 +844,25 @@ class ConfigView(QWidget):
             return
 
         gs = self.general_settings
+        db = self.database_settings
+        api = self.api_settings
+        email = self.email_settings
 
         # Get the plain text keys from the input for comparison
-        plain_analysis_key = gs.gemini_analysis_key_input.text()
-        plain_chat_key = gs.gemini_chat_key_input.text()
+        plain_analysis_key = api.gemini_analysis_key_input.text()
+        plain_chat_key = api.gemini_chat_key_input.text()
 
         new_settings = {
-            "DATABASE_PATH": gs.db_path_input.text(),
+            "DATABASE_PATH": db.db_path_input.text(),
             "GEMINI_API_KEY_ANALYSIS": obfuscate_string(plain_analysis_key),
             "GEMINI_API_KEY_CHAT": obfuscate_string(plain_chat_key),
-            "VOICE_ASSISTANT_ENABLED": gs.voice_assistant_check.isChecked(),
-            "SMTP_HOST": gs.smtp_host_input.text(),
-            "SMTP_PORT": int(gs.smtp_port_input.text()) if gs.smtp_port_input.text().isdigit() else None,
-            "SMTP_USER": gs.smtp_user_input.text(),
-            "SMTP_PASSWORD": gs.smtp_password_input.text(),
-            "EMAIL_RECIPIENTS_TO": gs.recipients_to_input.text(),
-            "EMAIL_RECIPIENTS_CC": gs.recipients_cc_input.text(),
+            "VOICE_ASSISTANT_ENABLED": api.voice_assistant_check.isChecked(),
+            "SMTP_HOST": email.smtp_host_input.text(),
+            "SMTP_PORT": int(email.smtp_port_input.text()) if email.smtp_port_input.text().isdigit() else None,
+            "SMTP_USER": email.smtp_user_input.text(),
+            "SMTP_PASSWORD": email.smtp_password_input.text(),
+            "EMAIL_RECIPIENTS_TO": email.recipients_to_input.text(),
+            "EMAIL_RECIPIENTS_CC": email.recipients_cc_input.text(),
             "ALERT_THRESHOLD_DAYS": int(gs.alert_threshold_input.text()) if gs.alert_threshold_input.text().isdigit() else 60,
             "ALERT_THRESHOLD_DAYS_VISITE": int(gs.alert_threshold_visite_input.text()) if gs.alert_threshold_visite_input.text().isdigit() else 30,
         }
@@ -811,7 +897,7 @@ class ConfigView(QWidget):
 
         try:
             # Check if database path has changed
-            new_db_path = gs.db_path_input.text()
+            new_db_path = db.db_path_input.text()
             current_db_path = self.current_settings.get("DATABASE_PATH", "")
             if new_db_path and new_db_path != current_db_path:
                 self.api_client.move_database(new_db_path)

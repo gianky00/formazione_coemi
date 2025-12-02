@@ -4,22 +4,34 @@ import json
 import hashlib
 import shutil
 import tempfile
+from typing import Optional, Dict, Any
 from desktop_app.services.path_service import get_license_dir
 
 class LicenseUpdaterService:
-    def __init__(self, api_client):
+    """
+    Manages the license update process.
+    Can operate in two modes:
+    1. API-Dependent: Uses an `api_client` to fetch configuration from the running backend.
+    2. Standalone (Headless): Uses a provided `config` dictionary, suitable for startup/launcher.
+    """
+    def __init__(self, api_client=None, config: Optional[Dict[str, Any]] = None):
         self.api_client = api_client
-        self.config = None
+        self.config = config
 
     def _load_config(self):
-        """Fetches updater config from the backend."""
-        if not self.config:
-            try:
-                response = self.api_client.get("/app_config/config/updater")
-                self.config = response
-            except Exception as e:
-                print(f"Failed to load updater configuration: {e}")
-                raise RuntimeError("Impossibile caricare la configurazione per l'aggiornamento.") from e
+        """Fetches updater config from the backend or uses provided config."""
+        if self.config:
+            return self.config
+
+        if not self.api_client:
+            raise RuntimeError("Nessun client API e nessuna configurazione fornita. Impossibile aggiornare.")
+
+        try:
+            response = self.api_client.get("/app_config/config/updater")
+            self.config = response
+        except Exception as e:
+            print(f"Failed to load updater configuration: {e}")
+            raise RuntimeError("Impossibile caricare la configurazione per l'aggiornamento.") from e
         return self.config
 
     @staticmethod
@@ -115,6 +127,7 @@ class LicenseUpdaterService:
 
                 # 3. Atomic Update to User Data Directory (No Elevation Needed)
                 target_license_dir = get_license_dir()
+                os.makedirs(target_license_dir, exist_ok=True) # Ensure dir exists
 
                 # Move the validated files into the target directory, overwriting existing ones.
                 shutil.move(rkey_path, os.path.join(target_license_dir, "pyarmor.rkey"))
@@ -139,8 +152,3 @@ if __name__ == '__main__':
     # For testing purposes
     hw_id = LicenseUpdaterService.get_hardware_id()
     print(f"Detected Hardware ID: {hw_id}")
-
-    # Example of how to call the update
-    # print("\nAttempting to update license...")
-    # success, message = LicenseUpdaterService.update_license(hw_id)
-    # print(f"Result: {success} - {message}")

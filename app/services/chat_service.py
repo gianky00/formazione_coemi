@@ -12,21 +12,8 @@ logger = logging.getLogger(__name__)
 
 class ChatService:
     def __init__(self):
-        self.model = None
-        self._configure_model()
-
-    def _configure_model(self):
-        api_key = settings.GEMINI_API_KEY_CHAT
-        if not api_key:
-            logger.warning("GEMINI_API_KEY_CHAT not configured. Chat will fail.")
-            return
-        
-        try:
-            genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel('models/gemini-1.5-flash')
-            logger.info("Gemini 1.5-flash initialized for Chat.")
-        except Exception as e:
-            logger.error(f"Failed to initialize Gemini Flash: {e}")
+        # We delay configuration to runtime to handle dynamic key updates and multi-key conflicts
+        pass
 
     def get_rag_context(self, db: Session, user: User) -> str:
         """
@@ -40,31 +27,26 @@ class ChatService:
         total_employees = db.query(Dipendente).count()
         
         # 2. Expiring / Expired
-        # Note: logic duplication with certificate_logic, but optimized for summary here
-        # We find certificates where status would be 'in_scadenza' or 'scaduto'
-        # Ideally we fetch all and filter in python if DB logic is complex, 
-        # but for RAG context we want specific lists.
-        
         # Fetching certificates that are expired or expiring soon
-        # We rely on the date logic directly here for speed
         relevant_certs = db.query(Certificato).join(Dipendente, isouter=True).filter(
             or_(
-                Certificato.data_scadenza <= threshold_date,
-                Certificato.data_scadenza == None # Handle infinite validity? No, ignore for alerts usually
+                Certificato.data_scadenza_calcolata <= threshold_date,
+                Certificato.data_scadenza_calcolata == None
             )
         ).all()
 
         expiring_list = []
         expired_list = []
         
-        # Calculate statuses efficiently
         statuses = get_bulk_certificate_statuses(db, relevant_certs)
         
         for cert in relevant_certs:
             status = statuses.get(cert.id, "attivo")
             emp_name = cert.dipendente.nome if cert.dipendente else (cert.nome_dipendente_raw or "Sconosciuto")
             
-            info = f"- {emp_name}: {cert.corso.nome_corso} ({status.upper()}, Scade: {cert.data_scadenza})"
+            # Safe access to calculated date
+            date_str = cert.data_scadenza_calcolata or "N/A"
+            info = f"- {emp_name}: {cert.corso.nome_corso} ({status.upper()}, Scade: {date_str})"
             
             if status == "scaduto":
                 expired_list.append(info)
@@ -100,8 +82,21 @@ DOCUMENTI DA VALIDARE/ORFANI ({len(orphans_list)}):
         return context
 
     def chat_with_intelleo(self, message: str, history: List[Dict[str, str]], context: str) -> str:
-        if not self.model:
-            return "Errore: Chatbot non configurato (chiave API mancante)."
+        api_key = settings.GEMINI_API_KEY_CHAT
+
+        if not api_key or "obf:" in api_key: # Simple check if reveal failed or empty
+             # If reveal failed, it might still return the string, but settings property handles reveal.
+             # If the string is empty or invalid format, we can't proceed.
+             if not api_key:
+                 return "Errore: Chiave API Chat non configurata."
+
+        try:
+            # Re-configure global genai with Chat Key
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel('models/gemini-2.5-flash')
+        except Exception as e:
+            logger.error(f"Failed to initialize Gemini Flash: {e}")
+            return f"Errore inizializzazione AI: {e}"
 
         system_prompt = f"""
 Sei Intelleo, l'assistente AI avanzato per la sicurezza sul lavoro di COEMI.
@@ -117,32 +112,19 @@ LINEE GUIDA:
 {context}
 """
         
-        # Build chat session history
-        # Gemini history format: [{'role': 'user', 'parts': ['...']}, {'role': 'model', 'parts': ['...']}]
         gemini_history = []
         for msg in history:
             role = 'user' if msg.get('role') == 'user' else 'model'
             gemini_history.append({'role': role, 'parts': [msg.get('content', '')]})
 
         try:
-            chat = self.model.start_chat(history=gemini_history)
-            # We explicitly pass the system prompt context in the LAST message or setup?
-            # Gemini Pro/Flash supports system_instruction in constructor, but here we want dynamic context per request.
-            # Best practice: Prepend context to the latest message or the first message.
-            # Or use a fresh chat object every time with context in the first message?
-            
-            # Strategy: Send System Prompt + User Message as the prompt. 
-            # We don't rely on `start_chat` persistent history object for simplicity/statelessness across API calls, 
-            # effectively treating it as a single turn with history context.
-            
-            # Alternatively, if history is passed, we reconstruct the chat.
-            
+            chat_session = model.start_chat(history=gemini_history)
             final_prompt = f"{system_prompt}\n\nUTENTE: {message}"
-            
-            response = chat.send_message(final_prompt)
+            response = chat_session.send_message(final_prompt)
             return response.text
         except Exception as e:
             logger.error(f"Chat Error: {e}")
-            return "Mi dispiace, ho riscontrato un errore nel processare la tua richiesta."
+            # More descriptive error for debugging
+            return f"Errore durante la generazione della risposta: {e}"
 
 chat_service = ChatService()

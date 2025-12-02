@@ -39,7 +39,8 @@ def test_tts_worker_generation(MockCommunicate):
         # Fallback if run() didn't execute due to environment
         pass
     else:
-        MockCommunicate.assert_called_with("Hello World", "it-IT-ElsaNeural")
+        # Updated assertion to match the new default voice "it-IT-IrmaNeural"
+        MockCommunicate.assert_called_with("Hello World", "it-IT-IrmaNeural")
         mock_comm_instance.save.assert_called_once()
 
 

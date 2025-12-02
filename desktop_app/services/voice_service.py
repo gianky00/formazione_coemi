@@ -18,7 +18,7 @@ class TTSWorker(QThread):
     finished = pyqtSignal(str) # Emits path to generated file
     error = pyqtSignal(str)
 
-    def __init__(self, text, voice="it-IT-ElsaNeural"):
+    def __init__(self, text, voice="it-IT-IrmaNeural"):
         super().__init__()
         self.text = text
         self.voice = voice
