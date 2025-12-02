@@ -1,4 +1,5 @@
 import json
+import traceback
 from datetime import datetime
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton,
@@ -624,100 +625,112 @@ class AuditLogWidget(QFrame):
 class ConfigView(QWidget):
     def __init__(self, api_client: APIClient):
         super().__init__()
-        self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(20, 20, 20, 20)
-        self.layout.setSpacing(15)
-        self.api_client = api_client
-        self.current_settings = {}
+        try:
+            self.layout = QVBoxLayout(self)
+            self.layout.setContentsMargins(20, 20, 20, 20)
+            self.layout.setSpacing(15)
+            self.api_client = api_client
+            self.current_settings = {}
 
-        description = QLabel("Gestisci le impostazioni e le chiavi API dell'applicazione.")
-        description.setObjectName("viewDescription")
-        self.layout.addWidget(description)
+            description = QLabel("Gestisci le impostazioni e le chiavi API dell'applicazione.")
+            description.setObjectName("viewDescription")
+            self.layout.addWidget(description)
 
-        self.nav_container = QFrame()
-        self.nav_layout = QHBoxLayout(self.nav_container)
-        self.nav_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.nav_layout.setSpacing(10)
+            self.nav_container = QFrame()
+            self.nav_layout = QHBoxLayout(self.nav_container)
+            self.nav_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.nav_layout.setSpacing(10)
 
-        self.btn_general = QPushButton("Generale")
-        self.btn_general.setCheckable(True)
-        self.btn_general.clicked.connect(lambda: self.switch_tab(0))
+            self.btn_general = QPushButton("Generale")
+            self.btn_general.setCheckable(True)
+            self.btn_general.clicked.connect(lambda: self.switch_tab(0))
 
-        self.btn_database = QPushButton("Database")
-        self.btn_database.setCheckable(True)
-        self.btn_database.clicked.connect(lambda: self.switch_tab(1))
+            self.btn_database = QPushButton("Database")
+            self.btn_database.setCheckable(True)
+            self.btn_database.clicked.connect(lambda: self.switch_tab(1))
 
-        self.btn_api = QPushButton("API")
-        self.btn_api.setCheckable(True)
-        self.btn_api.clicked.connect(lambda: self.switch_tab(2))
+            self.btn_api = QPushButton("API")
+            self.btn_api.setCheckable(True)
+            self.btn_api.clicked.connect(lambda: self.switch_tab(2))
 
-        self.btn_email = QPushButton("Email")
-        self.btn_email.setCheckable(True)
-        self.btn_email.clicked.connect(lambda: self.switch_tab(3))
+            self.btn_email = QPushButton("Email")
+            self.btn_email.setCheckable(True)
+            self.btn_email.clicked.connect(lambda: self.switch_tab(3))
 
-        self.btn_account = QPushButton("Account")
-        self.btn_account.setCheckable(True)
-        self.btn_account.clicked.connect(lambda: self.switch_tab(4))
+            self.btn_account = QPushButton("Account")
+            self.btn_account.setCheckable(True)
+            self.btn_account.clicked.connect(lambda: self.switch_tab(4))
 
-        self.btn_audit = QPushButton("Log Attività")
-        self.btn_audit.setCheckable(True)
-        self.btn_audit.clicked.connect(lambda: self.switch_tab(5))
+            self.btn_audit = QPushButton("Log Attività")
+            self.btn_audit.setCheckable(True)
+            self.btn_audit.clicked.connect(lambda: self.switch_tab(5))
 
-        self.nav_buttons = [
-            self.btn_general, self.btn_database, self.btn_api,
-            self.btn_email, self.btn_account, self.btn_audit
-        ]
+            self.nav_buttons = [
+                self.btn_general, self.btn_database, self.btn_api,
+                self.btn_email, self.btn_account, self.btn_audit
+            ]
 
-        for btn in self.nav_buttons:
-            btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setFixedWidth(130)
-            self.nav_layout.addWidget(btn)
+            for btn in self.nav_buttons:
+                btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                btn.setFixedWidth(130)
+                self.nav_layout.addWidget(btn)
 
-        self.layout.addWidget(self.nav_container)
+            self.layout.addWidget(self.nav_container)
 
-        self.stacked_widget = QStackedWidget()
+            self.stacked_widget = QStackedWidget()
 
-        # Init Sub-Widgets
-        self.general_settings = GeneralSettingsWidget()
-        self.database_settings = DatabaseSettingsWidget(self.api_client)
-        self.api_settings = APISettingsWidget()
-        self.email_settings = EmailSettingsWidget()
-        self.user_management_widget = UserManagementWidget(self.api_client)
-        self.audit_widget = AuditLogWidget(self.api_client)
+            # Init Sub-Widgets
+            self.general_settings = GeneralSettingsWidget()
+            self.database_settings = DatabaseSettingsWidget(self.api_client)
+            self.api_settings = APISettingsWidget()
+            self.email_settings = EmailSettingsWidget()
+            self.user_management_widget = UserManagementWidget(self.api_client)
+            self.audit_widget = AuditLogWidget(self.api_client)
 
-        self.stacked_widget.addWidget(self.general_settings)       # 0
-        self.stacked_widget.addWidget(self.database_settings)      # 1
-        self.stacked_widget.addWidget(self.api_settings)           # 2
-        self.stacked_widget.addWidget(self.email_settings)         # 3
-        self.stacked_widget.addWidget(self.user_management_widget) # 4
-        self.stacked_widget.addWidget(self.audit_widget)           # 5
+            self.stacked_widget.addWidget(self.general_settings)       # 0
+            self.stacked_widget.addWidget(self.database_settings)      # 1
+            self.stacked_widget.addWidget(self.api_settings)           # 2
+            self.stacked_widget.addWidget(self.email_settings)         # 3
+            self.stacked_widget.addWidget(self.user_management_widget) # 4
+            self.stacked_widget.addWidget(self.audit_widget)           # 5
 
-        self.layout.addWidget(self.stacked_widget)
+            self.layout.addWidget(self.stacked_widget)
 
-        self.bottom_buttons_frame = QFrame()
-        bottom_layout = QHBoxLayout(self.bottom_buttons_frame)
-        bottom_layout.setContentsMargins(0, 0, 0, 0)
+            self.bottom_buttons_frame = QFrame()
+            bottom_layout = QHBoxLayout(self.bottom_buttons_frame)
+            bottom_layout.setContentsMargins(0, 0, 0, 0)
 
-        self.import_button = QPushButton("Importa Dipendenti da CSV")
-        self.import_button.setObjectName("secondary")
-        self.import_button.setToolTip("Formato CSV richiesto. Dimensione massima: 5MB.")
-        self.import_button.clicked.connect(self.import_csv)
+            self.import_button = QPushButton("Importa Dipendenti da CSV")
+            self.import_button.setObjectName("secondary")
+            self.import_button.setToolTip("Formato CSV richiesto. Dimensione massima: 5MB.")
+            self.import_button.clicked.connect(self.import_csv)
 
-        self.save_button = QPushButton("Salva Modifiche")
-        self.save_button.setObjectName("primary")
-        self.save_button.clicked.connect(self.save_config)
+            self.save_button = QPushButton("Salva Modifiche")
+            self.save_button.setObjectName("primary")
+            self.save_button.clicked.connect(self.save_config)
 
-        # Layout: [Import] [10px] [Save] [Stretch] -> Left aligned
-        bottom_layout.addWidget(self.import_button)
-        bottom_layout.addSpacing(10)
-        bottom_layout.addWidget(self.save_button)
-        bottom_layout.addStretch()
+            # Layout: [Import] [10px] [Save] [Stretch] -> Left aligned
+            bottom_layout.addWidget(self.import_button)
+            bottom_layout.addSpacing(10)
+            bottom_layout.addWidget(self.save_button)
+            bottom_layout.addStretch()
 
-        self.layout.addWidget(self.bottom_buttons_frame)
+            self.layout.addWidget(self.bottom_buttons_frame)
 
-        # Connections
-        self.email_settings.email_preset_combo.currentIndexChanged.connect(self.apply_email_preset)
-        self.database_settings.browse_db_path_button.clicked.connect(self.select_db_path)
+            # Connections
+            self.email_settings.email_preset_combo.currentIndexChanged.connect(self.apply_email_preset)
+            self.database_settings.browse_db_path_button.clicked.connect(self.select_db_path)
+        except Exception as e:
+            print(f"CRITICAL ERROR in ConfigView.__init__: {e}")
+            traceback.print_exc()
+            # Fallback UI to prevent crash
+            # Check if layout already exists to avoid "Attempting to set QLayout" warning
+            if not hasattr(self, 'layout') or self.layout is None:
+                self.layout = QVBoxLayout(self)
+
+            error_label = QLabel(f"Errore critico durante l'inizializzazione della vista Configurazione:\n{e}")
+            error_label.setStyleSheet("color: red; font-weight: bold;")
+            self.layout.addWidget(error_label)
 
     def select_db_path(self):
         folder_path = QFileDialog.getExistingDirectory(self, "Seleziona Cartella per il Database")
