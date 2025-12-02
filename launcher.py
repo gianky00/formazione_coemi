@@ -204,9 +204,10 @@ def initialize_new_database(path_obj):
     settings.save_mutable_settings({"DATABASE_PATH": str(path_obj)})
 
 
-def check_database_integrity(splash):
+def post_launch_integrity_check(controller):
     """
-    Step 1 & 2: Integrity Check and Recovery Dialog.
+    Step 3 (Delayed): Integrity Check and Recovery Dialog.
+    Executes AFTER the UI (Login) is visible.
     """
     try:
         from app.core.config import settings, get_user_data_dir
@@ -233,20 +234,20 @@ def check_database_integrity(splash):
         # 2. Check Integrity (if exists)
         is_valid = False
         if exists:
-            splash.update_status(f"Verifica integrità: {target.name}", 10)
-            QApplication.processEvents()
+            # Check silently if possible, or show minimal feedback
+            # In post-launch, we probably just check validity.
+            # db_security.verify_integrity reads the file.
             is_valid = db_security.verify_integrity(target)
 
         if exists and is_valid:
-            # Pre-load DB Security logic (remove stale locks here to be safe)
-            # Actually db_security.__init__ does it, but we can double check or rely on it.
-            # db_security is already imported, so __init__ ran.
+            # Everything is fine.
             break
 
-        # 3. Prompt User (Recovery Dialog)
-        splash.hide() # Hide splash to show blocking dialog cleanly
+        # 3. Prompt User (Recovery Dialog OVER Login View)
+        # Use controller.login_view as parent if available
+        parent = controller.login_view if hasattr(controller, 'login_view') and controller.login_view else None
 
-        msg = QMessageBox()
+        msg = QMessageBox(parent)
         msg.setIcon(QMessageBox.Icon.Critical if exists else QMessageBox.Icon.Warning)
 
         if not exists:
@@ -265,36 +266,31 @@ def check_database_integrity(splash):
         msg.setWindowFlags(msg.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
         msg.exec()
 
-        splash.show() # Restore splash after dialog
-
         clicked = msg.clickedButton()
 
         if clicked == browse_btn:
-            file_path, _ = QFileDialog.getOpenFileName(None, "Seleziona Database", str(get_user_data_dir()), "Database Files (*.db *.bak)")
+            file_path, _ = QFileDialog.getOpenFileName(parent, "Seleziona Database", str(get_user_data_dir()), "Database Files (*.db *.bak)")
             if file_path:
                 file_path = os.path.normpath(file_path)
                 path_obj = Path(file_path)
 
                 if path_obj.suffix.lower() == ".bak":
                     # RESTORE LOGIC
-                    reply = QMessageBox.question(None, "Ripristino Backup", f"Ripristinare dal backup:\n{path_obj.name}?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                    reply = QMessageBox.question(parent, "Ripristino Backup", f"Ripristinare dal backup:\n{path_obj.name}?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
                     if reply == QMessageBox.StandardButton.Yes:
                         try:
-                            splash.update_status("Ripristino in corso...", 15)
-                            QApplication.processEvents()
                             db_security.db_path = target
                             db_security.data_dir = target.parent
                             db_security.restore_from_backup(path_obj)
-                            continue
+                            # RESTART REQUIRED to reload DB in backend
+                            restart_app()
                         except Exception as e:
-                            QMessageBox.critical(None, "Errore", f"Ripristino fallito: {e}")
+                            QMessageBox.critical(parent, "Errore", f"Ripristino fallito: {e}")
                 else:
                     # Update Settings
                     settings.save_mutable_settings({"DATABASE_PATH": file_path})
-                    # Reset db_security paths
-                    db_security.db_path = path_obj
-                    db_security.data_dir = path_obj.parent
-                    continue
+                    # RESTART REQUIRED
+                    restart_app()
 
         elif clicked == create_btn:
             try:
@@ -303,29 +299,25 @@ def check_database_integrity(splash):
                     timestamp = time.strftime("%Y%m%d_%H%M%S")
                     backup_corrupt = target.with_suffix(f".corrupted_{timestamp}.db")
                     target.rename(backup_corrupt)
-                    splash.update_status(f"Archiviato DB corrotto...", 15)
 
-                splash.update_status("Inizializzazione Nuovo Database...", 20)
-                QApplication.processEvents()
-
-                # Use default path if custom was corrupt/missing
+                # Initialize
                 if not settings.DATABASE_PATH:
                     target = get_user_data_dir() / "database_documenti.db"
 
                 initialize_new_database(target)
 
-                # Reset Singleton
-                db_security.db_path = target
-                db_security.data_dir = target.parent
-
-                splash.update_status("Database creato con successo.", 25)
-                break
+                # RESTART REQUIRED
+                restart_app()
             except Exception as e:
-                QMessageBox.critical(None, "Errore Creazione", f"Impossibile creare il database:\n{e}")
+                QMessageBox.critical(parent, "Errore Creazione", f"Impossibile creare il database:\n{e}")
 
         else:
             sys.exit(1)
 
+def restart_app():
+    """Restarts the current application."""
+    python = sys.executable
+    os.execl(python, python, *sys.argv)
 
 class StartupWorker(QThread):
     progress_update = pyqtSignal(str, int)
@@ -427,8 +419,7 @@ def main():
     # Step 0: License Gatekeeper
     check_license_gatekeeper(splash)
 
-    # Step 1: Database Integrity & Recovery
-    check_database_integrity(splash)
+    # Step 1 (Removed Pre-Launch Check): Proceed to App Launch
 
     # Step 2: Start Backend & App
     worker = StartupWorker(server_port)
@@ -458,6 +449,12 @@ def main():
                 splash.finish(controller.master_window)
             else:
                 splash.close()
+
+            # --- STEP 3: POST-LAUNCH DB INTEGRITY CHECK ---
+            # Now that UI (Login) is potentially visible, check DB.
+            # If missing/corrupt, the dialog will show OVER the Login View.
+            # And user can resolve it.
+            post_launch_integrity_check(controller)
 
         except Exception as e:
             splash.show_error(f"Errore caricamento interfaccia: {e}")
