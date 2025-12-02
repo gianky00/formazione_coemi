@@ -346,7 +346,7 @@ class DBSecurityManager:
         backup_dir = self.data_dir / "Backups"
         backup_dir.mkdir(parents=True, exist_ok=True)
 
-        timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
+        timestamp = time.strftime("%d-%m-%Y_ore_%H-%M")
         backup_name = f"{self.db_path.stem}_{timestamp}.bak"
         backup_path = backup_dir / backup_name
 
