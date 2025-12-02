@@ -45,6 +45,10 @@ class AnagraficaView(QWidget):
 
         self.setup_ui()
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.refresh_data()
+
     def setup_ui(self):
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(20, 20, 20, 20)
