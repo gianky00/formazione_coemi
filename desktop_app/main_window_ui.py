@@ -175,6 +175,7 @@ class Sidebar(QFrame):
         self.add_button("scadenzario", "Scadenzario", "calendar.svg")
         self.add_button("stats", "Statistiche", "bar-chart.svg")
         self.add_button("database", "Database", "layout-dashboard.svg")
+        self.add_button("anagrafica", "Anagrafica", "users.svg")
 
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
@@ -365,6 +366,7 @@ class MainDashboardWidget(QWidget):
             "validation": None,
             "scadenzario": None,
             "stats": None,
+            "anagrafica": None,
             "config": None,
             "guide": None
         }
@@ -424,6 +426,11 @@ class MainDashboardWidget(QWidget):
             self.views["config"] = ConfigView(self.api_client)
             self.stacked_widget.addWidget(self.views["config"])
 
+        if not self.views["anagrafica"]:
+            from .views.anagrafica_view import AnagraficaView
+            self.views["anagrafica"] = AnagraficaView(self.api_client)
+            self.stacked_widget.addWidget(self.views["anagrafica"])
+
         # Connect signals now that views exist
         self._connect_cross_view_signals()
 
@@ -471,6 +478,10 @@ class MainDashboardWidget(QWidget):
                 from .views.config_view import ConfigView
                 self.views["config"] = ConfigView(self.api_client)
                 self.stacked_widget.addWidget(self.views["config"])
+            elif key == "anagrafica":
+                from .views.anagrafica_view import AnagraficaView
+                self.views["anagrafica"] = AnagraficaView(self.api_client)
+                self.stacked_widget.addWidget(self.views["anagrafica"])
 
         self._connect_cross_view_signals()
 
@@ -480,6 +491,7 @@ class MainDashboardWidget(QWidget):
         val = self.views.get("validation")
         db = self.views.get("database")
         scad = self.views.get("scadenzario")
+        ana = self.views.get("anagrafica")
 
         if imp and val:
             try: imp.import_completed.disconnect(val.refresh_data)
@@ -501,6 +513,16 @@ class MainDashboardWidget(QWidget):
              except: pass
              db.database_changed.connect(scad.refresh_data)
 
+        if ana and db:
+            try: ana.data_changed.disconnect(db.load_data)
+            except: pass
+            ana.data_changed.connect(db.load_data)
+
+        if ana and scad:
+            try: ana.data_changed.disconnect(scad.refresh_data)
+            except: pass
+            ana.data_changed.connect(scad.refresh_data)
+
     def _connect_signals(self):
         # Sidebar connections (Always safe)
         self.sidebar.buttons["import"].clicked.connect(lambda: self.switch_to("import"))
@@ -508,6 +530,7 @@ class MainDashboardWidget(QWidget):
         self.sidebar.buttons["database"].clicked.connect(lambda: self.switch_to("database"))
         self.sidebar.buttons["scadenzario"].clicked.connect(lambda: self.switch_to("scadenzario"))
         self.sidebar.buttons["stats"].clicked.connect(lambda: self.switch_to("stats"))
+        self.sidebar.buttons["anagrafica"].clicked.connect(lambda: self.switch_to("anagrafica"))
         self.sidebar.buttons["config"].clicked.connect(lambda: self.switch_to("config"))
         self.sidebar.buttons["guide"].clicked.connect(lambda: self.switch_to("guide"))
 
