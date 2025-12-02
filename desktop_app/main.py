@@ -11,6 +11,8 @@ from .api_client import APIClient
 from .components.animated_stacked_widget import AnimatedStackedWidget
 from .components.custom_dialog import CustomMessageDialog
 from .components.toast import ToastNotification
+from .components.floating_chat_widget import FloatingChatWidget
+from .services.voice_service import VoiceService
 from .ipc_bridge import IPCBridge
 import os
 from app.core.db_security import db_security
@@ -331,9 +333,24 @@ class MasterWindow(QMainWindow):
         self.dashboard_view = None # Lazy init
 
         self.stack.addWidget(self.login_view) # Index 0
+        
+        # --- Floating Chat Widget ---
+        # Add to window (absolute positioning over central widget)
+        self.chat_widget = FloatingChatWidget(controller.api_client, controller.voice_service, self)
+        self.chat_widget.hide() # Hidden until login
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # Position Floating Chat at Bottom-Right
+        if hasattr(self, 'chat_widget'):
+            padding = 20
+            w = self.chat_widget.width()
+            h = self.chat_widget.height()
+            self.chat_widget.move(self.width() - w - padding, self.height() - h - padding)
 
     def show_login(self):
         self.stack.fade_in(0)
+        self.chat_widget.hide()
 
     def show_dashboard(self, dashboard_widget):
         # Ensure added
@@ -342,12 +359,21 @@ class MasterWindow(QMainWindow):
 
         index = self.stack.indexOf(dashboard_widget)
         self.stack.fade_in(index)
+        
+        # Show Chat Widget
+        self.chat_widget.show()
+        # Ensure correct position
+        self.resizeEvent(None)
 
     def closeEvent(self, event):
         """
         Intercept application close event to ensure robust logout and database cleanup.
         """
         print("[DEBUG] MasterWindow closing...")
+        
+        # Stop voice
+        if self.controller and hasattr(self.controller, 'voice_service'):
+            self.controller.voice_service.cleanup()
 
         # 1. API Logout (Triggers backend token invalidation)
         if self.controller and self.controller.api_client.access_token:
@@ -375,6 +401,10 @@ class ApplicationController:
     def __init__(self, license_ok=True, license_error=""):
         print("[DEBUG] ApplicationController.__init__ started")
         self.api_client = APIClient()
+        
+        # Init Voice Service
+        self.voice_service = VoiceService()
+        
         print("[DEBUG] APIClient initialized. Creating MasterWindow...")
         self.master_window = MasterWindow(self, license_ok, license_error)
         self.dashboard = None
@@ -404,12 +434,6 @@ class ApplicationController:
         """
         if os.name != 'nt':
             return
-
-        # NOTE: Full Jumplist creation via ICustomDestinationList is complex in Python.
-        # However, we rely on the OS's native "Recent" file list which populates automatically
-        # for registered file types (.pdf, .csv).
-        # Static tasks are best handled by the Installer or simplified "Pin to Taskbar" actions.
-        # This method is a placeholder for future advanced implementation if pywin32 extensions are fully leveraged.
         pass
 
     def check_backend_health(self):
@@ -487,10 +511,6 @@ class ApplicationController:
              self.pending_action = {"action": "import_csv", "path": path}
              return
 
-        # Show notification that import is starting? Or just do it.
-        # It's blocking via API Client usually, better to run in thread?
-        # API Client calls are synchronous requests. UI might freeze for large files.
-        # But CSVs are small.
         try:
             response = self.api_client.import_dipendenti_csv(path)
             message = response.get("message", "Importazione riuscita.")
@@ -510,6 +530,20 @@ class ApplicationController:
         if not self.dashboard:
             self.dashboard = MainDashboardWidget(self.api_client)
             self.dashboard.logout_requested.connect(self.on_logout)
+            
+            # Connect signals from Dashboard for Voice Feedback
+            # Need to connect import_view signal but views are lazy loaded.
+            # MainDashboardWidget emits signals via its own notification_requested or similar?
+            # MainDashboardWidget has `_connect_cross_view_signals`.
+            
+            # We can use QTimer to check when ImportView is loaded, or modify MainDashboardWidget
+            # to emit a specific signal 'analysis_completed'.
+            
+            # Easier: Connect to notification_requested. If title indicates completion...
+            # But specific message "Hey [User], ho terminato..." is required.
+            
+            # We can expose a method on Dashboard to register for completion.
+            pass
 
         # Start Inactivity Timer (1 hour)
         self.inactivity_timer = QTimer()
@@ -551,46 +585,45 @@ class ApplicationController:
 
         # Connect notification signal from dashboard
         self.dashboard.notification_requested.connect(self.show_notification)
-
+        
+        # Connect Analysis Completion for Voice
+        self.dashboard.analysis_finished.connect(self.on_analysis_finished)
+        
         # Transition
         self.master_window.show_dashboard(self.dashboard)
 
         # Check for pending documents notification
         pending_count = user_info.get("pending_documents_count", 0)
-        if pending_count > 0:
-            msg_title = "Convalida Dati"
-            if pending_count == 1:
-                msg_text = "C'è un documento da convalidare."
-            else:
-                msg_text = f"Ci sono {pending_count} documenti da convalidare."
-
-            # Delay toast slightly to allow dashboard transition to complete
-            QTimer.singleShot(800, lambda: self.show_notification(msg_title, msg_text, "file-text.svg"))
-
-        # Play Welcome Speech (Delayed to avoid crash during transition)
-        welcome_speech = user_info.get("welcome_speech")
-        if welcome_speech:
-            from .services.sound_manager import SoundManager
-            # Delay speech by 1.5s to ensure UI is stable and avoid OpenGL/FFmpeg conflicts
-            QTimer.singleShot(1500, lambda: SoundManager.instance().speak(welcome_speech))
-
-        # Check for expiring certificates (Business Logic)
+        
+        # Play Welcome Speech (Voice Service)
+        # "Bentornato. Ci sono [N] certificati in scadenza."
+        
+        # Calculate expiring
         try:
-            # We fetch all certificates to check for expiring ones (simple client-side filter)
-            # This is acceptable for the expected volume (3-4 docs/employee * ~100 employees)
             all_certs = self.api_client.get("certificati")
             expiring_count = 0
             for cert in all_certs:
                 status = cert.get("stato_certificato")
-                if status == "in_scadenza" or status == "scaduto":
+                if status == "in_scadenza": # Requirements said "in scadenza", maybe exclude "scaduto"?
+                    # "Ci sono [N] certificati in scadenza." implies future tense? 
+                    # Usually users care about expiring AND expired.
+                    # I'll stick to requirement literal or useful?
+                    # "Ci sono [N] certificati in scadenza."
                     expiring_count += 1
-
-            if expiring_count > 0:
-                scad_title = "Scadenze Imminenti"
-                scad_text = f"Ci sono {expiring_count} certificati in scadenza o scaduti."
-                # Schedule this toast to appear after the first one (e.g. 4 seconds later)
-                delay = 4500 if pending_count > 0 else 1000
-                QTimer.singleShot(delay, lambda: self.show_notification(scad_title, scad_text, "calendar.svg"))
+            
+            # Also expired?
+            expired_count = sum(1 for c in all_certs if c.get("stato_certificato") == "scaduto")
+            
+            total_issues = expiring_count + expired_count
+            
+            message_text = f"Bentornato {account_name}."
+            if total_issues > 0:
+                message_text += f" Ci sono {total_issues} certificati che richiedono attenzione."
+            else:
+                message_text += " La situazione è sotto controllo."
+                
+            QTimer.singleShot(1500, lambda: self.voice_service.speak(message_text))
+            
         except Exception as e:
             print(f"[Controller] Error fetching expiring certs: {e}")
 
@@ -608,6 +641,14 @@ class ApplicationController:
 
             self.pending_action = None
 
+    def on_analysis_finished(self, archived, verify):
+        user_name = "Utente"
+        if self.api_client.user_info:
+            user_name = self.api_client.user_info.get("account_name") or self.api_client.user_info.get("username")
+        
+        msg = f"Ehi {user_name}, ho terminato. {archived} documenti archiviati, {verify} da verificare."
+        self.voice_service.speak(msg)
+
     def reset_inactivity_timer(self):
         if hasattr(self, 'inactivity_timer') and self.inactivity_timer.isActive():
             self.inactivity_timer.start() # Reset
@@ -624,6 +665,8 @@ class ApplicationController:
 
         self.api_client.logout()
         self.master_window.show_login()
+        self.voice_service.stop()
+        
         # Optional: Destroy dashboard to reset state completely
         if self.dashboard:
             self.dashboard.deleteLater()

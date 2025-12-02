@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.api import main as api_router
 from app.api.routers import notifications as notifications_router
-from app.api.routers import auth, users, audit, config, system, app_config, stats
+from app.api.routers import auth, users, audit, config, system, app_config, stats, chat
 from app.db.session import engine
 from app.db.models import Base
 from app.core.config import settings
@@ -66,8 +66,8 @@ async def lifespan(app: FastAPI):
         # File Maintenance is now deferred to background task triggered by UI
         # to prevent blocking startup.
 
-        if settings.GEMINI_API_KEY:
-            genai.configure(api_key=settings.GEMINI_API_KEY)
+        if settings.GEMINI_API_KEY_ANALYSIS:
+            genai.configure(api_key=settings.GEMINI_API_KEY_ANALYSIS)
 
         # Schedule the daily alert job
         scheduler.add_job(check_and_send_alerts, 'cron', hour=8, minute=0)
@@ -130,6 +130,7 @@ app.include_router(config.router, prefix="/api/v1/config", tags=["Configuration"
 app.include_router(system.router, prefix="/api/v1/system", tags=["System"])
 app.include_router(app_config.router, prefix="/api/v1/app_config", tags=["App Config"])
 app.include_router(stats.router, prefix="/api/v1/stats", tags=["Statistics"])
+app.include_router(chat.router, prefix="/api/v1/chat", tags=["Chat"])
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

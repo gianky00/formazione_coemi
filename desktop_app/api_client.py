@@ -93,6 +93,21 @@ class APIClient:
         response.raise_for_status()
         return response.json()
 
+    # --- Chat ---
+
+    def send_chat_message(self, message, history=None):
+        """
+        Sends a message to the Chatbot.
+        """
+        url = f"{self.base_url}/chat"
+        payload = {
+            "message": message,
+            "history": history or []
+        }
+        response = requests.post(url, json=payload, headers=self._get_headers())
+        response.raise_for_status()
+        return response.json()
+
     # --- Dipendenti Management ---
 
     def get_dipendenti_list(self):

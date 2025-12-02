@@ -16,7 +16,9 @@ def mock_api_client():
     client.user_info = {"is_admin": True}
     # Simulate the data returned by the GET /config endpoint
     client.get_mutable_config.return_value = {
-        "GEMINI_API_KEY": "test_api_key",
+        "GEMINI_API_KEY_ANALYSIS": "test_analysis_key",
+        "GEMINI_API_KEY_CHAT": "test_chat_key",
+        "VOICE_ASSISTANT_ENABLED": True,
         "SMTP_HOST": "smtp.test.com",
         "SMTP_PORT": 587,
         "SMTP_USER": "test@user.com",
@@ -47,7 +49,9 @@ def test_config_view_loads_settings_from_api(MockAPIClient, mock_api_client):
 
     # Assert that UI fields are populated with the mock data
     gs = view.general_settings
-    assert gs.gemini_api_key_input.text() == "test_api_key"
+    assert gs.gemini_analysis_key_input.text() == "test_analysis_key"
+    assert gs.gemini_chat_key_input.text() == "test_chat_key"
+    assert gs.voice_assistant_check.isChecked() == True
     assert gs.smtp_host_input.text() == "smtp.test.com"
     assert gs.smtp_port_input.text() == "587"
     assert gs.alert_threshold_input.text() == "45"
@@ -67,6 +71,7 @@ def test_config_view_saves_settings_via_api(MockAPIClient, mock_api_client):
     # Simulate user changing a value
     view.general_settings.smtp_host_input.setText("smtp.new.com")
     view.general_settings.alert_threshold_input.setText("90")
+    view.general_settings.voice_assistant_check.setChecked(False)
 
     # Simulate clicking the save button
     view.save_config()
@@ -78,5 +83,7 @@ def test_config_view_saves_settings_via_api(MockAPIClient, mock_api_client):
     sent_payload = mock_api_client.update_mutable_config.call_args[0][0]
     assert sent_payload["SMTP_HOST"] == "smtp.new.com"
     assert sent_payload["ALERT_THRESHOLD_DAYS"] == 90
+    assert sent_payload["VOICE_ASSISTANT_ENABLED"] == False
+    
     # Verify that an unchanged value is NOT in the payload
-    assert "GEMINI_API_KEY" not in sent_payload
+    assert "GEMINI_API_KEY_ANALYSIS" not in sent_payload

@@ -54,7 +54,7 @@ def test_mutable_settings_loading_from_existing_file(settings_file: Path, monkey
     custom_settings = {
         "SMTP_HOST": "smtp.custom.com",
         "SMTP_PORT": 1234,
-        "GEMINI_API_KEY": "custom_api_key"
+        "GEMINI_API_KEY_ANALYSIS": "custom_api_key"
     }
     with open(settings_file, 'w') as f:
         json.dump(custom_settings, f)
@@ -65,7 +65,7 @@ def test_mutable_settings_loading_from_existing_file(settings_file: Path, monkey
 
     assert settings.SMTP_HOST == "smtp.custom.com"
     assert settings.SMTP_PORT == 1234
-    assert settings.GEMINI_API_KEY == "custom_api_key"
+    assert settings.GEMINI_API_KEY_ANALYSIS == "custom_api_key"
     assert settings.ALERT_THRESHOLD_DAYS == 60
 
 def test_mutable_settings_update_and_save(settings_file: Path, monkeypatch):
@@ -107,6 +107,32 @@ def test_handles_corrupted_settings_file(settings_file: Path, monkeypatch):
     assert data["SMTP_HOST"] == "smtps.aruba.it"
     assert settings.SMTP_HOST == "smtps.aruba.it"
 
+def test_migration_of_legacy_gemini_key(settings_file: Path, monkeypatch):
+    """
+    Test that the legacy GEMINI_API_KEY is migrated to GEMINI_API_KEY_ANALYSIS.
+    """
+    legacy_settings = {
+        "GEMINI_API_KEY": "legacy_key_123",
+        "SMTP_HOST": "old.smtp.com"
+    }
+    with open(settings_file, 'w') as f:
+        json.dump(legacy_settings, f)
+
+    monkeypatch.setattr('app.core.config.get_user_data_dir', lambda: settings_file.parent)
+    settings = SettingsManager()
+
+    # The file should have been migrated
+    with open(settings_file, 'r') as f:
+        data = json.load(f)
+
+    assert "GEMINI_API_KEY" not in data
+    assert data["GEMINI_API_KEY_ANALYSIS"] == "legacy_key_123"
+    assert settings.GEMINI_API_KEY_ANALYSIS == "legacy_key_123"
+
+    # Default defaults should be added
+    assert "GEMINI_API_KEY_CHAT" in data
+    assert "VOICE_ASSISTANT_ENABLED" in data
+
 
 # --- Tests for Security Obfuscation ---
 
@@ -133,14 +159,14 @@ def test_gemini_api_key_is_revealed_at_runtime(settings_file: Path, monkeypatch)
     plain_key = "my_secret_user_api_key"
     obfuscated_key = obfuscate_string(plain_key)
 
-    # Simulate a user saving the obfuscated key
+    # Simulate a user saving the obfuscated key using the NEW key name
     with open(settings_file, 'w') as f:
-        json.dump({"GEMINI_API_KEY": obfuscated_key}, f)
+        json.dump({"GEMINI_API_KEY_ANALYSIS": obfuscated_key}, f)
 
     monkeypatch.setattr('app.core.config.get_user_data_dir', lambda: settings_file.parent)
     settings = SettingsManager()
 
     # The property should automatically reveal the key
-    assert settings.GEMINI_API_KEY == plain_key
+    assert settings.GEMINI_API_KEY_ANALYSIS == plain_key
     # The raw value fetched from the mutable settings should remain obfuscated
-    assert settings.mutable.get("GEMINI_API_KEY") == obfuscated_key
+    assert settings.mutable.get("GEMINI_API_KEY_ANALYSIS") == obfuscated_key

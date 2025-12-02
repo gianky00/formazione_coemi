@@ -249,9 +249,9 @@ class DummyQWidget:
     def setGraphicsEffect(self, effect):
         pass
     def setChecked(self, checked):
-        pass
+        self._checked = checked
     def isChecked(self):
-        return True
+        return getattr(self, '_checked', True)
     def setCurrentWidget(self, widget):
         pass
     def count(self):
@@ -596,7 +596,15 @@ def mock_qt_modules():
     mock_core.QEasingCurve = MagicMock()
     mock_core.pyqtSignal = DummyPyQtSignal
     mock_core.QThreadPool = MagicMock()
-    mock_core.QThread = MagicMock()
+    
+    class DummyQThread(DummyQObject):
+        def start(self): pass
+        def quit(self): pass
+        def wait(self): pass
+        def isRunning(self): return False
+        def run(self): pass
+
+    mock_core.QThread = DummyQThread
     mock_core.QRunnable = MagicMock
     mock_core.QPoint = MagicMock()
     mock_core.QPointF = MagicMock()
