@@ -73,18 +73,10 @@ async def lifespan(app: FastAPI):
             logger.warning(f"Database Seeding/Migration failed: {e}. Proceeding in Recovery Mode.")
             # Do NOT raise. Continue.
 
-        # Ensure the DB file exists on disk immediately after seeding (for first run)
+        # EXPLICITLY REMOVED AUTO-CREATION logic per user request.
+        # The database file is created only via the "Create New Database" UI flow in launcher.py.
         if not db_security.db_path.exists():
-            print("Creating initial database file on disk...")
-            original_ro = db_security.is_read_only
-            try:
-                db_security.is_read_only = False
-                if db_security.save_to_disk():
-                    print(f"Database created at: {db_security.db_path}")
-                else:
-                    print("Failed to create initial database file.")
-            finally:
-                db_security.is_read_only = original_ro
+            logger.warning(f"Database file not found at {db_security.db_path}. Waiting for UI recovery.")
 
         # File Maintenance is now deferred to background task triggered by UI
         # to prevent blocking startup.

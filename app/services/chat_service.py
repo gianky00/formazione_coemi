@@ -42,15 +42,15 @@ class ChatService:
         # 2. Expiring / Expired
         # Note: logic duplication with certificate_logic, but optimized for summary here
         # We find certificates where status would be 'in_scadenza' or 'scaduto'
-        # Ideally we fetch all and filter in python if DB logic is complex, 
+        # We fetch all and filter in python if DB logic is complex,
         # but for RAG context we want specific lists.
         
         # Fetching certificates that are expired or expiring soon
         # We rely on the date logic directly here for speed
         relevant_certs = db.query(Certificato).join(Dipendente, isouter=True).filter(
             or_(
-                Certificato.data_scadenza <= threshold_date,
-                Certificato.data_scadenza == None # Handle infinite validity? No, ignore for alerts usually
+                Certificato.data_scadenza_calcolata <= threshold_date,
+                Certificato.data_scadenza_calcolata == None # Handle infinite validity? No, ignore for alerts usually
             )
         ).all()
 
@@ -64,7 +64,7 @@ class ChatService:
             status = statuses.get(cert.id, "attivo")
             emp_name = cert.dipendente.nome if cert.dipendente else (cert.nome_dipendente_raw or "Sconosciuto")
             
-            info = f"- {emp_name}: {cert.corso.nome_corso} ({status.upper()}, Scade: {cert.data_scadenza})"
+            info = f"- {emp_name}: {cert.corso.nome_corso} ({status.upper()}, Scade: {cert.data_scadenza_calcolata})"
             
             if status == "scaduto":
                 expired_list.append(info)
