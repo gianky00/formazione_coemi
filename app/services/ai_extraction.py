@@ -16,10 +16,10 @@ class GeminiClient:
         if cls._instance is None:
             cls._instance = super(GeminiClient, cls).__new__(cls)
             try:
-                if not settings.GEMINI_API_KEY:
-                    logging.error("GEMINI_API_KEY not found.")
-                    raise ValueError("GEMINI_API_KEY not configured.")
-                genai.configure(api_key=settings.GEMINI_API_KEY)
+                if not settings.GEMINI_API_KEY_ANALYSIS:
+                    logging.error("GEMINI_API_KEY_ANALYSIS not found.")
+                    raise ValueError("GEMINI_API_KEY_ANALYSIS not configured.")
+                genai.configure(api_key=settings.GEMINI_API_KEY_ANALYSIS)
                 cls._model = genai.GenerativeModel('models/gemini-2.5-pro')
                 logging.info("Gemini model 'models/gemini-2.5-pro' initialized successfully.")
             except Exception as e:

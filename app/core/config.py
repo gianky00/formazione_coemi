@@ -38,32 +38,59 @@ def get_user_data_dir() -> Path:
 def migrate_legacy_settings(target_path: Path):
     """
     Checks for settings.json in legacy temporary locations and moves it to the target path.
-    1. %TEMP%/settings.json
-    2. %TEMP%/Intelleo/settings.json
+    Also handles internal key migrations (e.g., GEMINI_API_KEY -> GEMINI_API_KEY_ANALYSIS).
     """
+    # 1. File Migration
+    if not target_path.exists():
+        temp_dir = Path(tempfile.gettempdir())
+        legacy_path_1 = temp_dir / "settings.json"
+        legacy_path_2 = temp_dir / "Intelleo" / "settings.json"
+
+        source = None
+        if legacy_path_1.exists():
+            source = legacy_path_1
+        elif legacy_path_2.exists():
+            source = legacy_path_2
+
+        if source:
+            try:
+                logging.info(f"Migrating settings from {source} to {target_path}")
+                shutil.move(str(source), str(target_path))
+            except Exception as e:
+                logging.error(f"Failed to migrate settings: {e}")
+
+    # 2. Key Migration (In-Place)
     if target_path.exists():
-        return
-
-    temp_dir = Path(tempfile.gettempdir())
-
-    # Priority 1: Direct in Temp
-    legacy_path_1 = temp_dir / "settings.json"
-
-    # Priority 2: Temp/Intelleo
-    legacy_path_2 = temp_dir / "Intelleo" / "settings.json"
-
-    source = None
-    if legacy_path_1.exists():
-        source = legacy_path_1
-    elif legacy_path_2.exists():
-        source = legacy_path_2
-
-    if source:
         try:
-            logging.info(f"Migrating settings from {source} to {target_path}")
-            shutil.move(str(source), str(target_path))
+            with open(target_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            changed = False
+            # Migration: GEMINI_API_KEY -> GEMINI_API_KEY_ANALYSIS
+            if "GEMINI_API_KEY" in data and "GEMINI_API_KEY_ANALYSIS" not in data:
+                data["GEMINI_API_KEY_ANALYSIS"] = data["GEMINI_API_KEY"]
+                del data["GEMINI_API_KEY"]
+                changed = True
+            
+            # Add defaults if missing
+            if "GEMINI_API_KEY_CHAT" not in data:
+                # Default placeholder or empty. Using a dummy obfuscated value to indicate unset.
+                # Or empty string.
+                data["GEMINI_API_KEY_CHAT"] = ""
+                changed = True
+
+            if "VOICE_ASSISTANT_ENABLED" not in data:
+                data["VOICE_ASSISTANT_ENABLED"] = True
+                changed = True
+
+            if changed:
+                with open(target_path, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, indent=4)
+                logging.info("Migrated settings keys.")
+
         except Exception as e:
-            logging.error(f"Failed to migrate settings: {e}")
+            logging.error(f"Failed to migrate settings keys: {e}")
+
 
 class MutableSettings:
     """
@@ -79,7 +106,9 @@ class MutableSettings:
             "DATABASE_PATH": None,
             "FIRST_RUN_ADMIN_PASSWORD": "prova",
             # Default key is also obfuscated to avoid scanners.
-            "GEMINI_API_KEY": "obf:TUFxc2Y0TkVlQHRhY015Z0NwOFk1VDRCLnl6YUlB",
+            "GEMINI_API_KEY_ANALYSIS": "obf:TUFxc2Y0TkVlQHRhY015Z0NwOFk1VDRCLnl6YUlB",
+            "GEMINI_API_KEY_CHAT": "", # Empty by default
+            "VOICE_ASSISTANT_ENABLED": True,
             "SMTP_HOST": "smtps.aruba.it",
             "SMTP_PORT": 465,
             "SMTP_USER": "giancarlo.allegretti@coemi.it",
@@ -161,9 +190,18 @@ class SettingsManager:
         return self.mutable.get("FIRST_RUN_ADMIN_PASSWORD")
 
     @property
-    def GEMINI_API_KEY(self):
-        obfuscated_key = self.mutable.get("GEMINI_API_KEY")
+    def GEMINI_API_KEY_ANALYSIS(self):
+        obfuscated_key = self.mutable.get("GEMINI_API_KEY_ANALYSIS")
         return reveal_string(obfuscated_key)
+    
+    @property
+    def GEMINI_API_KEY_CHAT(self):
+        obfuscated_key = self.mutable.get("GEMINI_API_KEY_CHAT")
+        return reveal_string(obfuscated_key)
+
+    @property
+    def VOICE_ASSISTANT_ENABLED(self):
+        return self.mutable.get("VOICE_ASSISTANT_ENABLED", True)
 
     @property
     def SMTP_HOST(self):

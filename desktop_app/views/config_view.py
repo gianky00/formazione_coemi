@@ -279,7 +279,7 @@ class UserManagementWidget(QFrame):
                     if hasattr(e, 'response') and e.response is not None:
                         err_json = e.response.json()
                         detail = err_json.get('detail', str(e))
-                        CustomMessageDialog.show_error(self, "Errore", detail)
+                        CustomMessageDialog.show_error(self, "Errore", "Errore: " + detail)
                     else:
                         CustomMessageDialog.show_error(self, "Errore", str(e))
                 except:
@@ -317,14 +317,30 @@ class GeneralSettingsWidget(QFrame):
         db_path_layout.addWidget(self.browse_db_path_button)
         self.form_layout.addRow(QLabel("Percorso Database:"), db_path_layout)
 
-        self.gemini_api_key_input = QLineEdit()
-        self.gemini_api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.form_layout.addRow(QLabel("Gemini API Key:"), self.gemini_api_key_input)
+        # API Section
+        api_separator = QFrame()
+        api_separator.setFrameShape(QFrame.Shape.HLine)
+        api_separator.setFrameShadow(QFrame.Shadow.Sunken)
+        self.form_layout.addRow(api_separator)
+        self.form_layout.addRow(QLabel("<b>Configurazione API</b>"))
 
+        self.gemini_analysis_key_input = QLineEdit()
+        self.gemini_analysis_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.form_layout.addRow(QLabel("API Gemini 2.5-pro (Analisi Documenti):"), self.gemini_analysis_key_input)
+
+        self.gemini_chat_key_input = QLineEdit()
+        self.gemini_chat_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.form_layout.addRow(QLabel("API Gemini 1.5-flash (Chatbot):"), self.gemini_chat_key_input)
+
+        self.voice_assistant_check = QCheckBox("Abilita Assistente Vocale")
+        self.form_layout.addRow("", self.voice_assistant_check)
+
+        # SMTP Section
         smtp_separator = QFrame()
         smtp_separator.setFrameShape(QFrame.Shape.HLine)
         smtp_separator.setFrameShadow(QFrame.Shadow.Sunken)
         self.form_layout.addRow(smtp_separator)
+        self.form_layout.addRow(QLabel("<b>Impostazioni Email</b>"))
 
         self.email_preset_combo = QComboBox()
         self.email_preset_combo.addItems(["Manuale", "Gmail", "Outlook", "COEMI"])
@@ -693,10 +709,18 @@ class ConfigView(QWidget):
             self.current_settings = self.api_client.get_mutable_config()
             gs = self.general_settings
 
-            # Reveal the API key for editing
-            obfuscated_key = self.current_settings.get("GEMINI_API_KEY", "")
-            revealed_key = reveal_string(obfuscated_key)
-            gs.gemini_api_key_input.setText(revealed_key)
+            # Reveal the Analysis API key for editing
+            obfuscated_analysis_key = self.current_settings.get("GEMINI_API_KEY_ANALYSIS", "")
+            revealed_analysis_key = reveal_string(obfuscated_analysis_key)
+            gs.gemini_analysis_key_input.setText(revealed_analysis_key)
+
+            # Reveal the Chat API key for editing
+            obfuscated_chat_key = self.current_settings.get("GEMINI_API_KEY_CHAT", "")
+            revealed_chat_key = reveal_string(obfuscated_chat_key)
+            gs.gemini_chat_key_input.setText(revealed_chat_key)
+
+            # Voice Assistant
+            gs.voice_assistant_check.setChecked(self.current_settings.get("VOICE_ASSISTANT_ENABLED", True))
 
             gs.db_path_input.setText(self.current_settings.get("DATABASE_PATH", ""))
             gs.smtp_host_input.setText(self.current_settings.get("SMTP_HOST", ""))
@@ -738,12 +762,15 @@ class ConfigView(QWidget):
 
         gs = self.general_settings
 
-        # Get the plain text key from the input for comparison
-        plain_text_api_key = gs.gemini_api_key_input.text()
+        # Get the plain text keys from the input for comparison
+        plain_analysis_key = gs.gemini_analysis_key_input.text()
+        plain_chat_key = gs.gemini_chat_key_input.text()
 
         new_settings = {
             "DATABASE_PATH": gs.db_path_input.text(),
-            "GEMINI_API_KEY": obfuscate_string(plain_text_api_key),
+            "GEMINI_API_KEY_ANALYSIS": obfuscate_string(plain_analysis_key),
+            "GEMINI_API_KEY_CHAT": obfuscate_string(plain_chat_key),
+            "VOICE_ASSISTANT_ENABLED": gs.voice_assistant_check.isChecked(),
             "SMTP_HOST": gs.smtp_host_input.text(),
             "SMTP_PORT": int(gs.smtp_port_input.text()) if gs.smtp_port_input.text().isdigit() else None,
             "SMTP_USER": gs.smtp_user_input.text(),
@@ -754,17 +781,25 @@ class ConfigView(QWidget):
             "ALERT_THRESHOLD_DAYS_VISITE": int(gs.alert_threshold_visite_input.text()) if gs.alert_threshold_visite_input.text().isdigit() else 30,
         }
 
-        # --- Smart comparison for API Key ---
-        # Reveal the currently stored key to compare it with the new plain text key
-        current_obfuscated_key = self.current_settings.get("GEMINI_API_KEY", "")
-        current_revealed_key = reveal_string(current_obfuscated_key)
+        # --- Smart comparison for API Keys ---
+        # Reveal the currently stored keys to compare with the new plain text keys
+        
+        # Analysis Key
+        current_obf_analysis = self.current_settings.get("GEMINI_API_KEY_ANALYSIS", "")
+        current_rev_analysis = reveal_string(current_obf_analysis)
+        
+        # Chat Key
+        current_obf_chat = self.current_settings.get("GEMINI_API_KEY_CHAT", "")
+        current_rev_chat = reveal_string(current_obf_chat)
 
         # Build the update payload, excluding unchanged values
         update_payload = {}
         for k, v in new_settings.items():
-            if k == "GEMINI_API_KEY":
-                # Only add the API key if the plain text version has actually changed
-                if plain_text_api_key != current_revealed_key:
+            if k == "GEMINI_API_KEY_ANALYSIS":
+                if plain_analysis_key != current_rev_analysis:
+                    update_payload[k] = v
+            elif k == "GEMINI_API_KEY_CHAT":
+                if plain_chat_key != current_rev_chat:
                     update_payload[k] = v
             elif self.current_settings.get(k) != v:
                 update_payload[k] = v

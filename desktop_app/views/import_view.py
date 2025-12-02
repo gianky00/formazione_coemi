@@ -14,7 +14,7 @@ import time
 from collections import deque
 
 class PdfWorker(QObject):
-    finished = pyqtSignal()
+    finished = pyqtSignal(int, int) # archived_count, verify_count
     progress = pyqtSignal(int)
     log_message = pyqtSignal(str, str)  # Message, Color
     status_update = pyqtSignal(str)
@@ -27,6 +27,10 @@ class PdfWorker(QObject):
         self.output_folder = output_folder
         self._is_stopped = False
         self.recent_times = deque(maxlen=5)
+        
+        # Stats
+        self.archived_count = 0
+        self.verify_count = 0
 
     def stop(self):
         self._is_stopped = True
@@ -63,13 +67,15 @@ class PdfWorker(QObject):
                     etr_str = f"Circa {int(etr_seconds)} secondi rimanenti"
                 self.etr_update.emit(etr_str)
 
-        self.finished.emit()
+        self.finished.emit(self.archived_count, self.verify_count)
 
     def process_pdf(self, file_path):
         original_filename = os.path.basename(file_path)
 
         # Helper for moving to error folder
         def move_to_error(reason="Errore Generico", data=None, source_path=None):
+            self.verify_count += 1
+            
             if source_path is None: source_path = file_path
 
             error_category = "ALTRI ERRORI"
@@ -213,6 +219,7 @@ class PdfWorker(QObject):
                                 os.makedirs(dest_path, exist_ok=True)
 
                                 shutil.move(current_op_path, os.path.join(dest_path, new_filename))
+                                self.archived_count += 1
                             except Exception as e:
                                 self.log_message.emit(f"Errore durante lo spostamento del file {original_filename}: {e}", "red")
                                 move_to_error(f"Errore Spostamento: {e}", cert_data, source_path=current_op_path)
@@ -344,7 +351,7 @@ class DropZone(QFrame):
             self.parent().process_dropped_files(files_to_process)
 
 class ImportView(QWidget):
-    import_completed = pyqtSignal()
+    import_completed = pyqtSignal(int, int) # archived, verify
     notification_requested = pyqtSignal(str, str)
 
     def __init__(self):
@@ -500,10 +507,10 @@ class ImportView(QWidget):
         self.results_display.append(message)
         self.results_display.setTextColor(QColor(color_map["default"])) # Reset
 
-    def on_processing_finished(self):
+    def on_processing_finished(self, archived_count, verify_count):
         self.status_label.setText("Elaborazione completata.")
         self.etr_label.setText("")
         self.stop_button.setVisible(False)
         self.scanner.setVisible(False) # Hide Hologram
-        self.import_completed.emit()
-        self.notification_requested.emit("Analisi Completata", "L'elaborazione dei documenti è terminata.")
+        self.import_completed.emit(archived_count, verify_count)
+        self.notification_requested.emit("Analisi Completata", f"L'elaborazione è terminata. {archived_count} archiviati, {verify_count} da verificare.")

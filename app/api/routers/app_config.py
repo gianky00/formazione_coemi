@@ -16,7 +16,9 @@ class AppConfigSchema(BaseModel):
 class MutableSettingsSchema(BaseModel):
     """Pydantic model for validating incoming mutable settings updates."""
     FIRST_RUN_ADMIN_PASSWORD: Optional[str] = Field(None, min_length=4)
-    GEMINI_API_KEY: Optional[str] = None
+    GEMINI_API_KEY_ANALYSIS: Optional[str] = None
+    GEMINI_API_KEY_CHAT: Optional[str] = None
+    VOICE_ASSISTANT_ENABLED: Optional[bool] = None
     SMTP_HOST: Optional[str] = None
     SMTP_PORT: Optional[int] = Field(None, gt=0, le=65535)
     SMTP_USER: Optional[str] = None

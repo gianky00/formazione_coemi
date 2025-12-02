@@ -332,6 +332,7 @@ class Sidebar(QFrame):
 class MainDashboardWidget(QWidget):
     logout_requested = pyqtSignal()
     notification_requested = pyqtSignal(str, str)
+    analysis_finished = pyqtSignal(int, int)
 
     def __init__(self, api_client):
         super().__init__()
@@ -423,6 +424,7 @@ class MainDashboardWidget(QWidget):
             self.views["import"] = ImportView()
             self.views["import"].api_client = self.api_client
             self.views["import"].notification_requested.connect(self.notification_requested.emit)
+            self.views["import"].import_completed.connect(self.analysis_finished.emit)
             self.stacked_widget.addWidget(self.views["import"])
 
         if not self.views["validation"]:
@@ -477,6 +479,7 @@ class MainDashboardWidget(QWidget):
                 self.views["import"] = ImportView()
                 self.views["import"].api_client = self.api_client
                 self.views["import"].notification_requested.connect(self.notification_requested.emit)
+                self.views["import"].import_completed.connect(self.analysis_finished.emit)
                 self.stacked_widget.addWidget(self.views["import"])
             elif key == "validation":
                 from .views.validation_view import ValidationView
