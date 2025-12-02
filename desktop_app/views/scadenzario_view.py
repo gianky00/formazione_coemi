@@ -106,7 +106,8 @@ class ScadenzarioView(QWidget):
 
         self.api_client = APIClient()
         self.threadpool = QThreadPool()
-        self.current_date = QDate.currentDate()
+        # Default view: 1 month before today. Total range 3 months covers (-1 to +2).
+        self.current_date = QDate.currentDate().addMonths(-1)
         self.zoom_months = 3.0
         self.target_zoom_months = 3.0
         self.certificates = []
@@ -232,7 +233,8 @@ class ScadenzarioView(QWidget):
         header_height = 30
 
         today = QDate.currentDate()
-        start_date = self.current_date.addDays(-self.current_date.day() + 1)
+        # Use current_date directly to respect exact "1 month before today" logic
+        start_date = self.current_date
         days_total = int(30.44 * self.zoom_months)
         end_date = start_date.addDays(days_total)
         total_days = max(1, start_date.daysTo(end_date))
@@ -247,6 +249,8 @@ class ScadenzarioView(QWidget):
             "avviso": (today.addDays(31), today.addDays(90), QColor(251, 191, 36, 30))
         }
 
+        zone_labels = {"scaduto": "SCADUTI", "in_scadenza": "IN SCADENZA", "avviso": "AVVISI"}
+
         for name, (zone_start, zone_end, color) in zone_definitions.items():
             start_x = max(0, start_date.daysTo(zone_start) * col_width)
             end_x = min(scene_width, start_date.daysTo(zone_end) * col_width)
@@ -257,11 +261,35 @@ class ScadenzarioView(QWidget):
                 zone_rect.setZValue(-1)
                 self.gantt_scene.addItem(zone_rect)
 
+                # Zone Title (Top Right)
+                label_text = zone_labels.get(name, name.upper())
+                lbl = QGraphicsTextItem(label_text)
+                font = QFont()
+                font.setBold(True)
+                font.setPointSize(8)
+                lbl.setFont(font)
+                lbl.setDefaultTextColor(QColor(0, 0, 0, 100))
+
+                lbl_width = lbl.boundingRect().width()
+                lbl_x = end_x - lbl_width - 10
+                if lbl_x < start_x: lbl_x = start_x + 5 # Clamp left
+
+                lbl.setPos(lbl_x, 5) # Top margin
+                self.gantt_scene.addItem(lbl)
+
         current_draw_date = start_date
         while current_draw_date <= end_date:
+            # Snap to start of month for labeling, but handle partial first month
             if current_draw_date.day() != 1:
+                # If we are inside a month, find the NEXT 1st
                 next_month = current_draw_date.addMonths(1)
                 next_month.setDate(next_month.year(), next_month.month(), 1)
+
+                # Check if we should label the CURRENT month if it's visible enough?
+                # Usually standard Gantt labels 1st of month.
+                # If we start on 15 Nov, next 1st is 1 Dec. 15 Nov - 30 Nov is unlabeled?
+                # Let's label the *current* month start even if it's before start_date? No.
+                # Just draw next month.
                 current_draw_date = next_month
                 continue
 
@@ -269,6 +297,13 @@ class ScadenzarioView(QWidget):
             if days_from_start <= total_days:
                 month_name = current_draw_date.toString("MMM yyyy")
                 text = QGraphicsTextItem(month_name)
+
+                # Bold Header
+                font = QFont()
+                font.setBold(True)
+                font.setPointSize(10)
+                text.setFont(font)
+
                 text.setPos(days_from_start * col_width, 0)
                 self.gantt_scene.addItem(text)
             current_draw_date = current_draw_date.addMonths(1)
