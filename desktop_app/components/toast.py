@@ -37,13 +37,8 @@ class ToastNotification(QWidget):
             }
         """)
 
-        # Shadow
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(20)
-        shadow.setXOffset(0)
-        shadow.setYOffset(4)
-        shadow.setColor(QColor(0, 0, 0, 30))
-        self.setGraphicsEffect(shadow)
+        # Shadow removed to prevent UpdateLayeredWindowIndirect failed errors on Windows
+        # self.setGraphicsEffect(None)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)

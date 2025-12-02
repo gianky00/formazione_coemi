@@ -88,13 +88,6 @@ class DatabaseView(QWidget):
         self.view_model = DatabaseViewModel()
         self.api_client = APIClient()
 
-        # Animation Timer
-        self.anim_timer = QTimer(self)
-        self.anim_timer.setInterval(16) # ~60 FPS
-        self.anim_timer.timeout.connect(self._animate_step)
-        self.anim_duration = 0
-        self.max_anim_time = 0
-
         self._init_ui()
         self._connect_signals()
         self.view_model.load_data()
@@ -227,7 +220,6 @@ class DatabaseView(QWidget):
         self._update_filters()
         self._restore_selection()
         self._update_button_states()
-        self._start_table_animation()
 
     def _update_table_view(self):
         df = self.view_model.filtered_data
@@ -273,30 +265,6 @@ class DatabaseView(QWidget):
             self.table_view.selectionModel().selectionChanged.connect(self._update_button_states)
 
         self._update_button_states()
-
-    def _start_table_animation(self):
-        if not self.model or self.model.rowCount() == 0: return
-
-        # Initialize delegates
-        if hasattr(self, 'status_delegate'): self.status_delegate.start_animation()
-        if hasattr(self, 'default_delegate'): self.default_delegate.start_animation()
-
-        # Start timer loop
-        rows = self.model.rowCount()
-        self.max_anim_time = (rows * 30) + 300 + 100 # Total duration buffer
-        self.anim_duration = 0
-        self.anim_timer.start()
-
-    def _animate_step(self):
-        self.anim_duration += 16
-        self.table_view.viewport().update() # Force repaint
-
-        if self.anim_duration >= self.max_anim_time:
-            self.anim_timer.stop()
-            # Ensure final state is fully opaque
-            if hasattr(self, 'status_delegate'): self.status_delegate.is_animating = False
-            if hasattr(self, 'default_delegate'): self.default_delegate.is_animating = False
-            self.table_view.viewport().update()
 
     def _update_filters(self):
         self.dipendente_filter.blockSignals(True)
