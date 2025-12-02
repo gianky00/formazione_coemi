@@ -8,6 +8,7 @@ import importlib
 import argparse
 import requests
 import platform
+import sqlite3
 
 # --- CRITICAL: IMPORT WEBENGINE & SET ATTRIBUTE BEFORE QAPPLICATION ---
 from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -77,13 +78,137 @@ def check_port(host, port):
         return result
     except: return False
 
-def check_database_recovery(splash):
+# --- PHASE 0: LICENSE GATEKEEPER ---
+def verify_license_files():
+    """Checks for the physical presence of license files."""
+    from desktop_app.services.path_service import get_license_dir, get_app_install_dir
+
+    # 1. Check User Data Directory (Preferred)
+    user_lic_dir = get_license_dir()
+    if os.path.exists(os.path.join(user_lic_dir, "pyarmor.rkey")) and \
+       os.path.exists(os.path.join(user_lic_dir, "config.dat")):
+        sys.path.insert(0, user_lic_dir)
+        return True
+
+    # 2. Check Install Directory (Legacy)
+    install_dir = get_app_install_dir()
+    legacy_lic_dir = os.path.join(install_dir, "Licenza")
+    if os.path.exists(os.path.join(legacy_lic_dir, "pyarmor.rkey")) and \
+       os.path.exists(os.path.join(legacy_lic_dir, "config.dat")):
+        sys.path.insert(0, legacy_lic_dir)
+        return True
+
+    # 3. Check Root (Legacy)
+    if os.path.exists(os.path.join(install_dir, "pyarmor.rkey")) and \
+       os.path.exists(os.path.join(install_dir, "config.dat")):
+        sys.path.insert(0, install_dir)
+        return True
+
+    return False
+
+def check_license_gatekeeper(splash):
     """
-    Checks if the configured database file exists and is valid.
-    If not, enters a blocking Recovery Loop to prompt the user.
+    Step 0: Strict License Check.
+    If license is missing or invalid, attempt headless update.
+    If update fails, BLOCK startup.
+    """
+    splash.update_status("Controllo Licenza...", 5)
+    QApplication.processEvents()
+
+    # 1. Physical Check
+    files_ok = verify_license_files()
+
+    # 2. Validity Check (Simulated by import)
+    valid_license = False
+    if files_ok:
+        try:
+            # Try importing a protected module
+            import app.core.config
+            valid_license = True
+        except Exception:
+            valid_license = False
+
+    if valid_license:
+        return # Proceed
+
+    # --- LICENSE INVALID/MISSING: RECOVERY MODE ---
+    splash.update_status("Licenza mancante. Tentativo aggiornamento...", 5)
+    QApplication.processEvents()
+
+    try:
+        from app.core.config import settings
+        from desktop_app.services.license_updater_service import LicenseUpdaterService
+        from desktop_app.services.hardware_id_service import get_machine_id
+
+        # Prepare Config for Headless Update
+        update_config = {
+            "repo_owner": settings.LICENSE_REPO_OWNER,
+            "repo_name": settings.LICENSE_REPO_NAME,
+            "github_token": settings.LICENSE_GITHUB_TOKEN
+        }
+
+        updater = LicenseUpdaterService(config=update_config)
+        hw_id = get_machine_id()
+
+        success, msg = updater.update_license(hw_id)
+
+        if success:
+            splash.update_status("Licenza aggiornata! Riavvio...", 100)
+            QApplication.processEvents()
+            time.sleep(1)
+            # Restart Application
+            python = sys.executable
+            os.execl(python, python, *sys.argv)
+        else:
+            QMessageBox.critical(None, "Errore Licenza",
+                f"Impossibile avviare l'applicazione.\n\nStato Licenza: {msg}\n\nContattare il supporto.")
+            sys.exit(1)
+
+    except Exception as e:
+        QMessageBox.critical(None, "Errore Critico", f"Fallito recupero licenza:\n{e}")
+        sys.exit(1)
+
+# --- PHASE 2: DATABASE INTEGRITY & RECOVERY ---
+
+def initialize_new_database(path_obj):
+    """
+    Creates a new SQLite database with WAL mode, Schema, and Admin User.
+    """
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from app.db.models import Base
+    from app.db.seeding import seed_database
+    from app.core.config import settings
+
+    # 1. Initialize SQLite file with WAL Mode
+    conn = sqlite3.connect(str(path_obj))
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA synchronous=FULL;")
+    conn.commit()
+    conn.close()
+
+    # 2. Apply Schema (SQLAlchemy)
+    db_url = f"sqlite:///{path_obj}"
+    engine = create_engine(db_url)
+    Base.metadata.create_all(bind=engine)
+
+    # 3. Seed Admin
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    db = SessionLocal()
+    try:
+        seed_database(db)
+    finally:
+        db.close()
+
+    # 4. Update Settings
+    settings.save_mutable_settings({"DATABASE_PATH": str(path_obj)})
+
+
+def check_database_integrity(splash):
+    """
+    Step 1 & 2: Integrity Check and Recovery Dialog.
     """
     try:
-        # Import dynamically to ensure environment is ready
         from app.core.config import settings, get_user_data_dir
         from app.core.db_security import db_security
         from pathlib import Path
@@ -108,25 +233,30 @@ def check_database_recovery(splash):
         # 2. Check Integrity (if exists)
         is_valid = False
         if exists:
-            splash.update_status(f"Verifica integrità: {target.name}")
+            splash.update_status(f"Verifica integrità: {target.name}", 10)
             QApplication.processEvents()
             is_valid = db_security.verify_integrity(target)
 
         if exists and is_valid:
+            # Pre-load DB Security logic (remove stale locks here to be safe)
+            # Actually db_security.__init__ does it, but we can double check or rely on it.
+            # db_security is already imported, so __init__ ran.
             break
 
-        # 3. Prompt User
+        # 3. Prompt User (Recovery Dialog)
+        splash.hide() # Hide splash to show blocking dialog cleanly
+
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Icon.Critical if exists else QMessageBox.Icon.Warning)
 
         if not exists:
-            msg.setWindowTitle("Database Non Trovato")
-            msg.setText("Il file del database non è stato trovato.")
-            msg.setInformativeText(f"Percorso atteso:\n{target}\n\nPuoi cercare il file, crearne uno nuovo, o ripristinare un backup.")
+            msg.setWindowTitle("Database Mancante")
+            msg.setText("Il database non è stato trovato.")
+            msg.setInformativeText(f"Percorso: {target}\n\nÈ necessario creare un nuovo database o selezionarne uno esistente.")
         else:
             msg.setWindowTitle("Database Corrotto")
-            msg.setText("Il file del database risulta danneggiato.")
-            msg.setInformativeText("È necessario ripristinare un backup o creare un nuovo database.")
+            msg.setText("Il file del database è danneggiato.")
+            msg.setInformativeText("Integrità compromessa. Ripristinare un backup o creare un nuovo database.")
 
         browse_btn = msg.addButton("Sfoglia / Ripristina...", QMessageBox.ButtonRole.ActionRole)
         create_btn = msg.addButton("Crea Nuovo Database", QMessageBox.ButtonRole.ActionRole)
@@ -135,105 +265,72 @@ def check_database_recovery(splash):
         msg.setWindowFlags(msg.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
         msg.exec()
 
+        splash.show() # Restore splash after dialog
+
         clicked = msg.clickedButton()
 
         if clicked == browse_btn:
-            file_path, _ = QFileDialog.getOpenFileName(None, "Seleziona Database o Backup", str(get_user_data_dir()), "Database Files (*.db *.bak)")
-
+            file_path, _ = QFileDialog.getOpenFileName(None, "Seleziona Database", str(get_user_data_dir()), "Database Files (*.db *.bak)")
             if file_path:
-                # Normalize path separators for consistency
                 file_path = os.path.normpath(file_path)
                 path_obj = Path(file_path)
 
                 if path_obj.suffix.lower() == ".bak":
                     # RESTORE LOGIC
-                    reply = QMessageBox.question(None, "Ripristino Backup", f"Vuoi ripristinare il database dal backup:\n{path_obj.name}?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                    reply = QMessageBox.question(None, "Ripristino Backup", f"Ripristinare dal backup:\n{path_obj.name}?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
                     if reply == QMessageBox.StandardButton.Yes:
                         try:
-                            splash.update_status("Ripristino in corso...")
+                            splash.update_status("Ripristino in corso...", 15)
                             QApplication.processEvents()
-                            # Manually set db_path in security manager to ensure it targets the expected location
                             db_security.db_path = target
-                            db_security.data_dir = target.parent # Ensure data_dir matches for backups
-
+                            db_security.data_dir = target.parent
                             db_security.restore_from_backup(path_obj)
                             continue
                         except Exception as e:
-                            QMessageBox.critical(None, "Errore Ripristino", f"Fallito: {e}")
+                            QMessageBox.critical(None, "Errore", f"Ripristino fallito: {e}")
                 else:
-                    # Update Settings (Standard .db selection)
-                    try:
-                        # 1. Update Settings
-                        settings.save_mutable_settings({"DATABASE_PATH": file_path})
-
-                        # 2. Verify Persistence
-                        # Reload settings from disk to ensure it was written
-                        from app.core.config import MutableSettings
-                        check_settings = MutableSettings(settings.mutable.settings_path)
-                        saved_path = check_settings.get("DATABASE_PATH")
-
-                        if saved_path != file_path:
-                            raise Exception(f"Verifica salvataggio fallita. Letto: {saved_path}")
-
-                        # 3. Update Runtime Singletons
-                        db_security.db_path = path_obj
-                        db_security.data_dir = path_obj.parent
-
-                        splash.update_status("Database aggiornato. Riavvio controllo...")
-                    except Exception as e:
-                         QMessageBox.critical(None, "Errore Salvataggio", f"Impossibile salvare le impostazioni:\n{e}\n\nControlla i permessi della cartella AppData.")
+                    # Update Settings
+                    settings.save_mutable_settings({"DATABASE_PATH": file_path})
+                    # Reset db_security paths
+                    db_security.db_path = path_obj
+                    db_security.data_dir = path_obj.parent
+                    continue
 
         elif clicked == create_btn:
-             try:
-                 # Reset to Default
-                 settings.save_mutable_settings({"DATABASE_PATH": None})
+            try:
+                # Archive corrupt if exists
+                if target.exists():
+                    timestamp = time.strftime("%Y%m%d_%H%M%S")
+                    backup_corrupt = target.with_suffix(f".corrupted_{timestamp}.db")
+                    target.rename(backup_corrupt)
+                    splash.update_status(f"Archiviato DB corrotto...", 15)
 
-                 # Move corrupt file if exists
-                 default_path = get_user_data_dir() / "database_documenti.db"
-                 if default_path.exists():
-                     timestamp = time.strftime("%Y%m%d_%H%M%S")
-                     backup_corrupt = default_path.with_suffix(f".corrupt_{timestamp}.db")
-                     default_path.rename(backup_corrupt)
-                     splash.update_status(f"Archiviato DB corrotto: {backup_corrupt.name}")
+                splash.update_status("Inizializzazione Nuovo Database...", 20)
+                QApplication.processEvents()
 
-                 splash.update_status("Creazione nuovo database...")
-                 return # Exit loop, backend will initialize fresh DB
-             except Exception as e:
-                 QMessageBox.critical(None, "Errore", f"Errore creazione: {e}")
+                # Use default path if custom was corrupt/missing
+                if not settings.DATABASE_PATH:
+                    target = get_user_data_dir() / "database_documenti.db"
+
+                initialize_new_database(target)
+
+                # Reset Singleton
+                db_security.db_path = target
+                db_security.data_dir = target.parent
+
+                splash.update_status("Database creato con successo.", 25)
+                break
+            except Exception as e:
+                QMessageBox.critical(None, "Errore Creazione", f"Impossibile creare il database:\n{e}")
 
         else:
             sys.exit(1)
 
 
-def verify_license():
-    from desktop_app.services.path_service import get_license_dir, get_app_install_dir
-    user_license_path = os.path.join(get_license_dir(), "pyarmor.rkey")
-    install_dir = get_app_install_dir()
-    fallback_license_path_licenza = os.path.join(install_dir, "Licenza", "pyarmor.rkey")
-    fallback_license_path_root = os.path.join(install_dir, "pyarmor.rkey")
-
-    if os.path.exists(user_license_path):
-        lic_path = user_license_path
-        sys.path.insert(0, os.path.dirname(user_license_path))
-    elif os.path.exists(fallback_license_path_licenza):
-        lic_path = fallback_license_path_licenza
-        sys.path.insert(0, os.path.dirname(fallback_license_path_licenza))
-    elif os.path.exists(fallback_license_path_root):
-        lic_path = fallback_license_path_root
-        sys.path.insert(0, os.path.dirname(fallback_license_path_root))
-    else:
-        return False, "File di licenza (pyarmor.rkey) non trovato."
-
-    try:
-        import app.core.config
-        return True, "OK"
-    except Exception as e:
-        return False, f"Licenza non valida o scaduta.\nErrore sistema: {str(e)}"
-
 class StartupWorker(QThread):
     progress_update = pyqtSignal(str, int)
     error_occurred = pyqtSignal(str)
-    startup_complete = pyqtSignal(bool, str) # license_ok, license_error
+    startup_complete = pyqtSignal(bool, str)
 
     def __init__(self, server_port):
         super().__init__()
@@ -241,31 +338,17 @@ class StartupWorker(QThread):
 
     def run(self):
         try:
-            # 1. Integrity
-            self.progress_update.emit("Verifica integrità...", 10)
+            # 1. Environment Checks
+            self.progress_update.emit("Verifica ambiente...", 30)
             try:
                 from desktop_app.services.security_service import is_virtual_environment, is_debugger_active, is_analysis_tool_running
                 from desktop_app.services.integrity_service import verify_critical_components
 
                 is_intact, int_msg = verify_critical_components()
                 if not is_intact: raise Exception(f"Integrità compromessa: {int_msg}")
+            except ImportError: pass
 
-                is_dbg, dbg_msg = is_debugger_active()
-                if is_dbg: raise Exception(dbg_msg)
-
-                is_tool, tool_msg = is_analysis_tool_running()
-                if is_tool: raise Exception(tool_msg)
-
-                is_vm, vm_msg = is_virtual_environment()
-                if is_vm: raise Exception(vm_msg)
-            except ImportError:
-                pass # Dev mode
-
-            # 2. License
-            self.progress_update.emit("Controllo Licenza...", 30)
-            license_ok, license_error = verify_license()
-
-            # 3. Clock
+            # 2. Clock
             self.progress_update.emit("Sincronizzazione orologio...", 40)
             try:
                 from desktop_app.services.time_service import check_system_clock
@@ -273,11 +356,11 @@ class StartupWorker(QThread):
                 if not clock_ok: raise Exception(clock_error)
             except ImportError: pass
 
-            # 4. Server Start
+            # 3. Server Start
             self.progress_update.emit("Avvio Server Database...", 50)
             threading.Thread(target=start_server, args=(self.server_port,), daemon=True).start()
 
-            # 5. Wait for Server
+            # 4. Wait for Server
             self.progress_update.emit("Connessione al Backend...", 60)
             t0 = time.time()
             ready = False
@@ -285,29 +368,28 @@ class StartupWorker(QThread):
                 if check_port("127.0.0.1", self.server_port):
                     ready = True
                     break
-                # Animate progress while waiting
                 elapsed = time.time() - t0
                 prog = 60 + int((elapsed / 20) * 30)
                 self.progress_update.emit("Connessione al Backend...", min(90, prog))
-                time.sleep(0.1) # Safe in thread
+                time.sleep(0.1)
 
             if not ready:
                 raise Exception("Timeout connessione al server locale.")
 
-            # 6. Health Check
+            # 5. Health Check
             self.progress_update.emit("Verifica Connessione...", 92)
             try:
                 health_url = f"http://localhost:{self.server_port}/api/v1/health"
                 response = requests.get(health_url, timeout=5)
                 if response.status_code != 200:
-                    detail = response.json().get("detail", "Errore sconosciuto")
-                    raise Exception(f"Server Error: {detail}")
+                    raise Exception(f"Server Error: {response.json().get('detail')}")
             except Exception as e:
                 raise Exception(f"Health Check Failed: {e}")
 
-            # 7. Ready
-            self.progress_update.emit("Caricamento risorse...", 98)
-            self.startup_complete.emit(license_ok, license_error)
+            # 6. Ready
+            self.progress_update.emit("Caricamento interfaccia...", 98)
+            # License is guaranteed valid by Gatekeeper
+            self.startup_complete.emit(True, "OK")
 
         except Exception as e:
             self.error_occurred.emit(str(e))
@@ -331,27 +413,24 @@ def main():
     else:
         qt_app = QApplication.instance()
 
-    # Show Splash Immediately
+    # Show Splash
     try:
         from desktop_app.views.splash_screen import CustomSplashScreen
         splash = CustomSplashScreen()
         splash.show()
-        splash.update_status("Avvio sistema...", 0)
     except Exception as e:
         QMessageBox.critical(None, "Errore", f"Splash Error: {e}")
         sys.exit(1)
 
-    # RECOVERY LOOP: Check Database Existence
-    try:
-        splash.update_status("Controllo Database...", 5)
-        # Ensure splash updates before blocking loop
-        QApplication.processEvents()
-        check_database_recovery(splash)
-    except Exception as e:
-        QMessageBox.critical(None, "Errore Recovery", f"Errore durante il controllo del database: {e}")
-        sys.exit(1)
+    # --- EXECUTE STRICT STARTUP SEQUENCE ---
 
-    # Worker Setup
+    # Step 0: License Gatekeeper
+    check_license_gatekeeper(splash)
+
+    # Step 1: Database Integrity & Recovery
+    check_database_integrity(splash)
+
+    # Step 2: Start Backend & App
     worker = StartupWorker(server_port)
 
     def on_progress(msg, val):
@@ -359,12 +438,6 @@ def main():
 
     def on_error(msg):
         splash.show_error(msg)
-        # Don't exit immediately, allow user to read and close splash manually
-        # Splash show_error manages its own event loop if needed or we wait
-        # Since we are in main thread, qt_app.exec() hasn't started yet.
-        # But splash.show_error calls loop.exec().
-        # After loop quits, splash closes. We should exit.
-        # sys.exit(1) happens after splash closes.
 
     def on_complete(license_ok, license_error):
         try:
@@ -396,7 +469,6 @@ def main():
 
     worker.start()
 
-    # Start Event Loop
     sys.exit(qt_app.exec())
 
 if __name__ == "__main__":

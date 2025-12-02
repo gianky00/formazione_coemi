@@ -83,7 +83,7 @@ class DBSecurityManager:
     def _check_and_recover_stale_lock(self):
         """
         Detects if a lock file exists but belongs to a dead process.
-        If confirmed dead (PID check), it deletes the lock file automatically.
+        Strictly checks if PID exists. If dead, deletes lock immediately.
         """
         if not self.lock_path.exists():
             return
@@ -93,10 +93,6 @@ class DBSecurityManager:
             # We instantiate a temporary manager just for this check
             temp_mgr = LockManager(str(self.lock_path))
 
-            # Since LockManager doesn't have a public 'read_only' method, we peek manually
-            # But we must be careful. The safer way is to trust standard logic,
-            # but standard logic is failing on Reboot.
-            # Let's read the file directly since we are in Recovery Mode.
             with open(self.lock_path, 'rb') as f:
                 # Byte 0 is lock byte, Byte 1+ is JSON
                 f.seek(1)
@@ -116,9 +112,10 @@ class DBSecurityManager:
                 if not pid:
                     return # No PID to check
 
-                # CHECK PID EXISTENCE
+                # CHECK PID EXISTENCE - HARDENED LOGIC
+                # If psutil says PID is gone, we delete the lock. Period.
                 if not psutil.pid_exists(pid):
-                    logger.warning(f"Stale Lock Recovery: PID {pid} is dead. Removing lock.")
+                    logger.warning(f"Stale Lock Recovery: PID {pid} is DEAD. Removing lock immediately.")
                     self._force_remove_lock()
                 else:
                     # PID exists, but is it US or Python/Intelleo?
@@ -126,18 +123,18 @@ class DBSecurityManager:
                         proc = psutil.Process(pid)
                         name = proc.name().lower()
                         # If process is definitely NOT related to us (e.g. Chrome, System), kill lock
-                        # Common names: python.exe, Intelleo.exe, main.py
-                        valid_names = ["python", "intelleo", "main"]
+                        valid_names = ["python", "intelleo", "main", "launcher", "boot_loader"]
                         is_valid = any(v in name for v in valid_names)
 
                         if not is_valid:
-                            logger.warning(f"Stale Lock Recovery: PID {pid} exists ({name}) but is not Intelleo. Removing lock.")
+                            logger.warning(f"Stale Lock Recovery: PID {pid} exists ({name}) but is unrelated. Removing lock.")
                             self._force_remove_lock()
                         else:
                             logger.info(f"Lock file belongs to active process {pid} ({name}). Respecting lock.")
 
                     except psutil.NoSuchProcess:
                          # Process died during check
+                         logger.warning(f"Stale Lock Recovery: Process {pid} died during check. Removing lock.")
                          self._force_remove_lock()
 
         except Exception as e:
@@ -280,6 +277,13 @@ class DBSecurityManager:
         if self.active_connection is None:
             # Create fresh memory connection
             conn = sqlite3.connect(':memory:', check_same_thread=False)
+
+            # --- SECURITY & PERFORMANCE HARDENING ---
+            try:
+                conn.execute("PRAGMA journal_mode=WAL;")
+                conn.execute("PRAGMA synchronous=FULL;")
+            except Exception as e:
+                logger.warning(f"Failed to set PRAGMA security settings: {e}")
 
             if self.initial_bytes:
                 try:
