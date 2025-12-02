@@ -172,7 +172,7 @@ def check_license_gatekeeper(splash):
 
 def initialize_new_database(path_obj):
     """
-    Creates a new SQLite database with WAL mode, Schema, and Admin User.
+    Creates a new SQLite database with DELETE mode (compatible with in-memory loading), Schema, and Admin User.
     """
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
@@ -180,9 +180,9 @@ def initialize_new_database(path_obj):
     from app.db.seeding import seed_database
     from app.core.config import settings
 
-    # 1. Initialize SQLite file with WAL Mode
+    # 1. Initialize SQLite file with DELETE Mode (Not WAL, to avoid multi-file issues during single-file load)
     conn = sqlite3.connect(str(path_obj))
-    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA journal_mode=DELETE;")
     conn.execute("PRAGMA synchronous=FULL;")
     conn.commit()
     conn.close()
@@ -294,14 +294,15 @@ def post_launch_integrity_check(controller):
 
         elif clicked == create_btn:
             try:
-                # Ask user for location
-                file_path, _ = QFileDialog.getSaveFileName(parent, "Crea Nuovo Database", str(get_user_data_dir()), "Database Files (*.db)")
-                if not file_path:
+                # Ask user for DIRECTORY
+                dir_path = QFileDialog.getExistingDirectory(parent, "Seleziona Cartella per Nuovo Database", str(get_user_data_dir()))
+                if not dir_path:
                     continue # Cancelled
 
-                target = Path(file_path)
+                # Enforce standard filename
+                target = Path(dir_path) / "database_documenti.db"
 
-                # Initialize
+                # Initialize with DELETE mode
                 initialize_new_database(target)
 
                 # RESTART REQUIRED

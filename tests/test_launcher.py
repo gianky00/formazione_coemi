@@ -75,9 +75,7 @@ def test_initialize_new_database(mocker, tmp_path):
     launcher.initialize_new_database(db_path)
 
     # Verify Steps
-    # 1. SQLite WAL Pragma (hard to mock sqlite3.connect context manager perfectly without side effects,
-    # but we can check if file was touched or if mock was called if we mocked sqlite3)
-    # We didn't mock sqlite3, so it created a real file.
+    # 1. Existence
     assert db_path.exists()
 
     # 2. Schema Creation
@@ -88,3 +86,11 @@ def test_initialize_new_database(mocker, tmp_path):
 
     # 4. Settings Update
     mock_settings.save_mutable_settings.assert_called_once_with({"DATABASE_PATH": str(db_path)})
+
+    # 5. Verify NO WAL files (Ensure DELETE mode)
+    wal_file = db_path.with_suffix(".db-wal")
+    shm_file = db_path.with_suffix(".db-shm")
+    # Note: If sqlite was mocked, this check is void. But we didn't mock sqlite3.
+    # In DELETE mode, they shouldn't exist after connection close.
+    assert not wal_file.exists()
+    assert not shm_file.exists()
