@@ -314,7 +314,7 @@ class DatabaseSettingsWidget(QFrame):
 
         self.db_path_input = QLineEdit()
         self.db_path_input.setReadOnly(True)
-        self.browse_db_path_button = QPushButton("Sfoglia...")
+        self.browse_db_path_button = QPushButton("Sfoglia / Crea...")
         db_path_layout = QHBoxLayout()
         db_path_layout.addWidget(self.db_path_input)
         db_path_layout.addWidget(self.browse_db_path_button)
@@ -733,9 +733,9 @@ class ConfigView(QWidget):
             self.layout.addWidget(error_label)
 
     def select_db_path(self):
-        folder_path = QFileDialog.getExistingDirectory(self, "Seleziona Cartella per il Database")
-        if folder_path:
-            self.database_settings.db_path_input.setText(folder_path)
+        file_path, _ = QFileDialog.getSaveFileName(self, "Seleziona o Crea Database", "", "SQLite Database (*.db)")
+        if file_path:
+            self.database_settings.db_path_input.setText(file_path)
 
     def set_read_only(self, is_read_only: bool):
         self.is_read_only = is_read_only

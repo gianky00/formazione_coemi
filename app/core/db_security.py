@@ -468,19 +468,32 @@ class DBSecurityManager:
         self.is_locked_mode = enable_encryption
         self.save_to_disk()
 
-    def move_database(self, new_dir: Path):
+    def move_database(self, new_dir_or_path: Path):
         """
-        Moves the database file to a new directory, updates settings, and internal paths.
+        Moves the database file to a new directory or specific file path.
+        Updates settings and internal paths.
         """
         if self.is_read_only:
             raise PermissionError("Cannot move database in read-only mode.")
 
         current_path = self.db_path
-        new_path = new_dir / current_path.name
+        target_path = Path(new_dir_or_path)
+
+        # Check if target is a file (ends with .db) or directory
+        if target_path.suffix.lower() == ".db":
+            new_path = target_path
+            new_data_dir = target_path.parent
+        else:
+            # Assume directory
+            new_path = target_path / current_path.name
+            new_data_dir = target_path
 
         if current_path == new_path:
             logger.info("New database path is the same as the current one. No action taken.")
             return
+
+        # Ensure parent dir exists
+        new_data_dir.mkdir(parents=True, exist_ok=True)
 
         # 1. Save current state to disk before moving
         self.save_to_disk()
@@ -494,9 +507,11 @@ class DBSecurityManager:
             raise
 
         # 3. Update internal state and settings
-        self.data_dir = new_dir
+        self.data_dir = new_data_dir
         self.db_path = new_path
-        settings.save_mutable_settings({"DATABASE_PATH": str(new_dir)})
+        # Save the full path if it was a file selection, otherwise the dir
+        save_val = str(new_path) if target_path.suffix.lower() == ".db" else str(new_data_dir)
+        settings.save_mutable_settings({"DATABASE_PATH": save_val})
 
 
     # Alias for backward compatibility if needed, or just for main.py
