@@ -294,16 +294,14 @@ def post_launch_integrity_check(controller):
 
         elif clicked == create_btn:
             try:
-                # Archive corrupt if exists
-                if target.exists():
-                    timestamp = time.strftime("%Y%m%d_%H%M%S")
-                    backup_corrupt = target.with_suffix(f".corrupted_{timestamp}.db")
-                    target.rename(backup_corrupt)
+                # Ask user for location
+                file_path, _ = QFileDialog.getSaveFileName(parent, "Crea Nuovo Database", str(get_user_data_dir()), "Database Files (*.db)")
+                if not file_path:
+                    continue # Cancelled
+
+                target = Path(file_path)
 
                 # Initialize
-                if not settings.DATABASE_PATH:
-                    target = get_user_data_dir() / "database_documenti.db"
-
                 initialize_new_database(target)
 
                 # RESTART REQUIRED
