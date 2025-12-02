@@ -57,7 +57,7 @@ class FloatingChatWidget(QWidget):
         
         # Setup WebChannel
         self.channel = QWebChannel()
-        self.controller = ChatController(self)
+        self.controller = ChatController(api_client, self)
         self.channel.registerObject("backend", self.controller)
         self.web_view.page().setWebChannel(self.channel)
         
