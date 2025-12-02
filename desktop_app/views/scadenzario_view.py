@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGraphicsView, QGraph
                              QGraphicsTextItem, QGraphicsLineItem, QPushButton, QHBoxLayout,
                              QScrollBar, QTreeWidgetItemIterator, QFileDialog, QComboBox,
                              QProgressBar)
-from PyQt6.QtCore import Qt, QDate, QRectF, QVariantAnimation, QEasingCurve, pyqtSignal, QThreadPool
+from PyQt6.QtCore import Qt, QDate, QRectF, QVariantAnimation, QEasingCurve, pyqtSignal, QThreadPool, QLocale
 from PyQt6.QtGui import QColor, QBrush, QPen, QFont, QLinearGradient, QPainterPath, QPainter, QPageLayout, QPageSize, QImage
 from PyQt6.QtPrintSupport import QPrinter
 import requests
@@ -295,7 +295,8 @@ class ScadenzarioView(QWidget):
 
             days_from_start = start_date.daysTo(current_draw_date)
             if days_from_start <= total_days:
-                month_name = current_draw_date.toString("MMM yyyy")
+                locale = QLocale(QLocale.Language.Italian, QLocale.Country.Italy)
+                month_name = locale.toString(current_draw_date, "MMM yyyy").capitalize()
                 text = QGraphicsTextItem(month_name)
 
                 # Bold Header
