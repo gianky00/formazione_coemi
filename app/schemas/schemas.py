@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator, ConfigDict
-from typing import Optional
+from typing import Optional, List
 from datetime import date, datetime
 
 class DipendenteSchema(BaseModel):
@@ -8,8 +8,29 @@ class DipendenteSchema(BaseModel):
     nome: str
     cognome: str
     data_nascita: Optional[date] = None
+    email: Optional[str] = None
+    categoria_reparto: Optional[str] = None
+    data_assunzione: Optional[date] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+class DipendenteCreateSchema(BaseModel):
+    matricola: Optional[str] = None
+    nome: str
+    cognome: str
+    data_nascita: Optional[date] = None
+    email: Optional[str] = None
+    categoria_reparto: Optional[str] = None
+    data_assunzione: Optional[date] = None
+
+class DipendenteUpdateSchema(BaseModel):
+    matricola: Optional[str] = None
+    nome: Optional[str] = None
+    cognome: Optional[str] = None
+    data_nascita: Optional[date] = None
+    email: Optional[str] = None
+    categoria_reparto: Optional[str] = None
+    data_assunzione: Optional[date] = None
 
 class CertificatoSchema(BaseModel):
     id: int
@@ -22,6 +43,9 @@ class CertificatoSchema(BaseModel):
     data_scadenza: Optional[str] = None
     stato_certificato: str
     assegnazione_fallita_ragione: Optional[str] = None
+
+class DipendenteDetailSchema(DipendenteSchema):
+    certificati: List[CertificatoSchema] = []
 
 class CertificatoCreazioneSchema(BaseModel):
     nome: str = Field(..., min_length=1, description="Nome e cognome del dipendente")

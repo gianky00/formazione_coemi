@@ -68,6 +68,29 @@ def migrate_schema(db: Session):
                 print(f"Error adding extended security columns: {e}")
                 db.rollback()
 
+        # Check columns in dipendenti table
+        result = db.execute(text("PRAGMA table_info(dipendenti)"))
+        dipendenti_columns = [row[1] for row in result.fetchall()]
+
+        if dipendenti_columns and 'email' not in dipendenti_columns:
+            print("Migrating schema: Adding email to dipendenti table...")
+            try:
+                db.execute(text("ALTER TABLE dipendenti ADD COLUMN email VARCHAR"))
+                db.execute(text("CREATE UNIQUE INDEX ix_dipendenti_email ON dipendenti (email)"))
+                db.commit()
+            except Exception as e:
+                print(f"Error adding email column: {e}")
+                db.rollback()
+
+        if dipendenti_columns and 'data_assunzione' not in dipendenti_columns:
+            print("Migrating schema: Adding data_assunzione to dipendenti table...")
+            try:
+                db.execute(text("ALTER TABLE dipendenti ADD COLUMN data_assunzione DATE"))
+                db.commit()
+            except Exception as e:
+                print(f"Error adding data_assunzione column: {e}")
+                db.rollback()
+
         # Ensure indexes exist for performance (Brute force detection queries timestamp and ip_address)
         try:
             db.execute(text("CREATE INDEX IF NOT EXISTS ix_audit_logs_timestamp ON audit_logs (timestamp)"))

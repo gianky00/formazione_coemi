@@ -93,6 +93,43 @@ class APIClient:
         response.raise_for_status()
         return response.json()
 
+    # --- Dipendenti Management ---
+
+    def get_dipendenti_list(self):
+        """Fetches the list of all employees."""
+        url = f"{self.base_url}/dipendenti"
+        response = requests.get(url, headers=self._get_headers())
+        response.raise_for_status()
+        return response.json()
+
+    def get_dipendente_detail(self, dipendente_id):
+        """Fetches detailed info for a specific employee, including certificates."""
+        url = f"{self.base_url}/dipendenti/{dipendente_id}"
+        response = requests.get(url, headers=self._get_headers())
+        response.raise_for_status()
+        return response.json()
+
+    def create_dipendente(self, data):
+        """Creates a new employee manually."""
+        url = f"{self.base_url}/dipendenti/"
+        response = requests.post(url, json=data, headers=self._get_headers())
+        response.raise_for_status()
+        return response.json()
+
+    def update_dipendente(self, dipendente_id, data):
+        """Updates an existing employee."""
+        url = f"{self.base_url}/dipendenti/{dipendente_id}"
+        response = requests.put(url, json=data, headers=self._get_headers())
+        response.raise_for_status()
+        return response.json()
+
+    def delete_dipendente(self, dipendente_id):
+        """Deletes an employee."""
+        url = f"{self.base_url}/dipendenti/{dipendente_id}"
+        response = requests.delete(url, headers=self._get_headers())
+        response.raise_for_status()
+        return response.json()
+
     # --- System ---
 
     def trigger_maintenance(self):

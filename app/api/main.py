@@ -14,7 +14,15 @@ from app.api import deps
 from datetime import datetime
 from typing import Optional, List
 import charset_normalizer
-from app.schemas.schemas import CertificatoSchema, CertificatoCreazioneSchema, CertificatoAggiornamentoSchema, DipendenteSchema
+from app.schemas.schemas import (
+    CertificatoSchema,
+    CertificatoCreazioneSchema,
+    CertificatoAggiornamentoSchema,
+    DipendenteSchema,
+    DipendenteCreateSchema,
+    DipendenteUpdateSchema,
+    DipendenteDetailSchema
+)
 
 router = APIRouter()
 
@@ -456,6 +464,7 @@ async def import_dipendenti_csv(
         nome = row.get('Nome')
         data_nascita = row.get('Data_nascita')
         badge = row.get('Badge')
+        data_assunzione = row.get('Data_assunzione')
 
         if not all([cognome, nome, badge]):
             continue
@@ -467,6 +476,13 @@ async def import_dipendenti_csv(
             except ValueError:
                 pass  # Gestisce date non valide o formati diversi
 
+        parsed_data_assunzione = None
+        if data_assunzione:
+            try:
+                parsed_data_assunzione = datetime.strptime(data_assunzione, '%d/%m/%Y').date()
+            except ValueError:
+                pass
+
         # Step 1: Cerca per Matricola (Upsert standard)
         dipendente = db.query(Dipendente).filter(Dipendente.matricola == badge).first()
 
@@ -475,6 +491,8 @@ async def import_dipendenti_csv(
             dipendente.cognome = cognome
             dipendente.nome = nome
             dipendente.data_nascita = parsed_data_nascita
+            if parsed_data_assunzione:
+                dipendente.data_assunzione = parsed_data_assunzione
         else:
             # Step 2: Matricola non trovata. Cerca per Cognome + Nome + Data Nascita (Gestione Riassunzione/Cambio Matricola)
             found_by_identity = False
@@ -493,6 +511,8 @@ async def import_dipendenti_csv(
                     # Aggiorna anche anagrafica per uniformità (es. correzione nome)
                     dipendente.nome = nome
                     dipendente.cognome = cognome
+                    if parsed_data_assunzione:
+                        dipendente.data_assunzione = parsed_data_assunzione
                     found_by_identity = True
                 elif len(matches) > 1:
                     # Duplicati nel DB -> Ambiguo -> Skip e Warning
@@ -505,7 +525,8 @@ async def import_dipendenti_csv(
                     cognome=cognome,
                     nome=nome,
                     matricola=badge,
-                    data_nascita=parsed_data_nascita
+                    data_nascita=parsed_data_nascita,
+                    data_assunzione=parsed_data_assunzione
                 )
                 db.add(dipendente)
 
@@ -539,3 +560,128 @@ async def import_dipendenti_csv(
 @router.get("/dipendenti", response_model=List[DipendenteSchema])
 def get_dipendenti(db: Session = Depends(get_db)):
     return db.query(Dipendente).all()
+
+@router.get("/dipendenti/{dipendente_id}", response_model=DipendenteDetailSchema)
+def get_dipendente_detail(dipendente_id: int, db: Session = Depends(get_db)):
+    dipendente = db.query(Dipendente).options(
+        selectinload(Dipendente.certificati).selectinload(Certificato.corso)
+    ).filter(Dipendente.id == dipendente_id).first()
+
+    if not dipendente:
+        raise HTTPException(status_code=404, detail="Dipendente non trovato")
+
+    # Calculate status for all certs
+    status_map = certificate_logic.get_bulk_certificate_statuses(db, dipendente.certificati)
+
+    cert_schemas = []
+    for cert in dipendente.certificati:
+        if not cert.corso:
+            continue
+
+        status = status_map.get(cert.id, "attivo")
+
+        cert_schemas.append(CertificatoSchema(
+            id=cert.id,
+            nome=f"{dipendente.cognome} {dipendente.nome}",
+            data_nascita=dipendente.data_nascita.strftime('%d/%m/%Y') if dipendente.data_nascita else None,
+            matricola=dipendente.matricola,
+            corso=cert.corso.nome_corso,
+            categoria=cert.corso.categoria_corso or "General",
+            data_rilascio=cert.data_rilascio.strftime('%d/%m/%Y'),
+            data_scadenza=cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else None,
+            stato_certificato=status
+        ))
+
+    return DipendenteDetailSchema(
+        id=dipendente.id,
+        matricola=dipendente.matricola,
+        nome=dipendente.nome,
+        cognome=dipendente.cognome,
+        data_nascita=dipendente.data_nascita,
+        email=dipendente.email,
+        categoria_reparto=dipendente.categoria_reparto,
+        data_assunzione=dipendente.data_assunzione,
+        certificati=cert_schemas
+    )
+
+@router.post("/dipendenti/", response_model=DipendenteSchema, dependencies=[Depends(deps.check_write_permission)])
+def create_dipendente(
+    dipendente: DipendenteCreateSchema,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_user)
+):
+    if dipendente.matricola:
+        existing = db.query(Dipendente).filter(Dipendente.matricola == dipendente.matricola).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Matricola già esistente.")
+
+    if dipendente.email:
+        existing_email = db.query(Dipendente).filter(Dipendente.email == dipendente.email).first()
+        if existing_email:
+             raise HTTPException(status_code=400, detail="Email già esistente.")
+
+    new_dipendente = Dipendente(
+        matricola=dipendente.matricola,
+        nome=dipendente.nome,
+        cognome=dipendente.cognome,
+        data_nascita=dipendente.data_nascita,
+        email=dipendente.email,
+        categoria_reparto=dipendente.categoria_reparto,
+        data_assunzione=dipendente.data_assunzione
+    )
+    db.add(new_dipendente)
+    db.commit()
+    db.refresh(new_dipendente)
+
+    log_security_action(db, current_user, "DIPENDENTE_CREATE", f"Creato dipendente {dipendente.cognome} {dipendente.nome}", category="DATA")
+    return new_dipendente
+
+@router.put("/dipendenti/{dipendente_id}", response_model=DipendenteSchema, dependencies=[Depends(deps.check_write_permission)])
+def update_dipendente(
+    dipendente_id: int,
+    dipendente_data: DipendenteUpdateSchema,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_user)
+):
+    dipendente = db.get(Dipendente, dipendente_id)
+    if not dipendente:
+        raise HTTPException(status_code=404, detail="Dipendente non trovato")
+
+    update_dict = dipendente_data.model_dump(exclude_unset=True)
+
+    if "matricola" in update_dict and update_dict["matricola"] != dipendente.matricola:
+        existing = db.query(Dipendente).filter(Dipendente.matricola == update_dict["matricola"]).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Matricola già esistente.")
+
+    if "email" in update_dict and update_dict["email"] != dipendente.email:
+         if update_dict["email"]:
+            existing_email = db.query(Dipendente).filter(Dipendente.email == update_dict["email"]).first()
+            if existing_email:
+                 raise HTTPException(status_code=400, detail="Email già esistente.")
+
+    for key, value in update_dict.items():
+        setattr(dipendente, key, value)
+
+    db.commit()
+    db.refresh(dipendente)
+
+    log_security_action(db, current_user, "DIPENDENTE_UPDATE", f"Aggiornato dipendente ID {dipendente_id}", category="DATA")
+    return dipendente
+
+@router.delete("/dipendenti/{dipendente_id}", dependencies=[Depends(deps.check_write_permission)])
+def delete_dipendente(
+    dipendente_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_user)
+):
+    dipendente = db.get(Dipendente, dipendente_id)
+    if not dipendente:
+        raise HTTPException(status_code=404, detail="Dipendente non trovato")
+
+    log_details = f"Eliminato dipendente {dipendente.cognome} {dipendente.nome} (ID {dipendente_id})"
+    db.delete(dipendente)
+    db.commit()
+
+    log_security_action(db, current_user, "DIPENDENTE_DELETE", log_details, category="DATA")
+    return {"message": "Dipendente eliminato con successo"}
