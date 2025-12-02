@@ -107,7 +107,8 @@ class MutableSettings:
             "FIRST_RUN_ADMIN_PASSWORD": "prova",
             # Default key is also obfuscated to avoid scanners.
             "GEMINI_API_KEY_ANALYSIS": "obf:TUFxc2Y0TkVlQHRhY015Z0NwOFk1VDRCLnl6YUlB",
-            "GEMINI_API_KEY_CHAT": "", # Empty by default
+            # Default dummy key for chat, obfuscated.
+            "GEMINI_API_KEY_CHAT": "obf:c3RsdWFmZWRfcm9mX3lla190YWhjX3ltbXVk",
             "VOICE_ASSISTANT_ENABLED": True,
             "SMTP_HOST": "smtps.aruba.it",
             "SMTP_PORT": 465,
