@@ -59,7 +59,7 @@ class DatabaseViewModel(QObject):
         self.error_occurred.emit(f"Errore durante il caricamento: {error_message}")
         self.data_changed.emit()
 
-    def filter_data(self, dipendente, categoria, stato):
+    def filter_data(self, dipendente, categoria, stato, search_text=""):
         if self._df_original.empty:
             return
 
@@ -77,6 +77,20 @@ class DatabaseViewModel(QObject):
             if stato == "in scadenza":
                 db_stato = "in_scadenza"
             df_filtered = df_filtered[df_filtered['stato_certificato'] == db_stato]
+
+        if search_text:
+            search_text = search_text.lower()
+            mask = pd.Series([False] * len(df_filtered), index=df_filtered.index)
+
+            # Columns to search in
+            search_cols = ['Dipendente', 'DOCUMENTO', 'matricola', 'categoria']
+
+            for col in search_cols:
+                if col in df_filtered.columns:
+                    # Robust string conversion and search
+                    mask |= df_filtered[col].astype(str).str.lower().str.contains(search_text, na=False, regex=False)
+
+            df_filtered = df_filtered[mask]
 
         self._df_filtered = df_filtered
         self.data_changed.emit()

@@ -53,8 +53,8 @@ class TestDatabaseViewModel:
 
     def test_filter_data(self, view_model):
         view_model._df_original = pd.DataFrame([
-            {"Dipendente": "Rossi", "categoria": "A", "stato_certificato": "attivo"},
-            {"Dipendente": "Bianchi", "categoria": "B", "stato_certificato": "in_scadenza"}
+            {"Dipendente": "Rossi", "categoria": "A", "stato_certificato": "attivo", "DOCUMENTO": "Corso A", "matricola": "123"},
+            {"Dipendente": "Bianchi", "categoria": "B", "stato_certificato": "in_scadenza", "DOCUMENTO": "Corso B", "matricola": "456"}
         ])
 
         view_model.filter_data("Rossi", "Tutti", "Tutti")
@@ -64,6 +64,18 @@ class TestDatabaseViewModel:
         view_model.filter_data("Tutti", "Tutti", "in scadenza")
         assert len(view_model.filtered_data) == 1
         assert view_model.filtered_data.iloc[0]["stato_certificato"] == "in_scadenza"
+
+        # Search Text Tests
+        view_model.filter_data("Tutti", "Tutti", "Tutti", search_text="Bianchi")
+        assert len(view_model.filtered_data) == 1
+        assert view_model.filtered_data.iloc[0]["Dipendente"] == "Bianchi"
+
+        view_model.filter_data("Tutti", "Tutti", "Tutti", search_text="456")
+        assert len(view_model.filtered_data) == 1
+        assert view_model.filtered_data.iloc[0]["matricola"] == "456"
+
+        view_model.filter_data("Tutti", "Tutti", "Tutti", search_text="Corso")
+        assert len(view_model.filtered_data) == 2
 
     def test_delete_certificates(self, view_model):
         with patch("desktop_app.view_models.database_view_model.DeleteCertificatesWorker") as MockWorker:

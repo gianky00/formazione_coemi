@@ -145,6 +145,12 @@ class DatabaseView(QWidget):
         filter_layout.addWidget(QLabel("Stato:"))
         filter_layout.addWidget(self.status_filter)
 
+        self.search_input = AnimatedInput()
+        self.search_input.setPlaceholderText("Cerca...")
+        self.search_input.setMinimumWidth(200)
+        filter_layout.addWidget(QLabel("Cerca:"))
+        filter_layout.addWidget(self.search_input)
+
         filter_layout.addStretch()
 
         # Actions in Filter Card
@@ -196,6 +202,7 @@ class DatabaseView(QWidget):
         self.dipendente_filter.currentIndexChanged.connect(self._trigger_filter)
         self.categoria_filter.currentIndexChanged.connect(self._trigger_filter)
         self.status_filter.currentIndexChanged.connect(self._trigger_filter)
+        self.search_input.textChanged.connect(self._trigger_filter)
 
         self.export_button.clicked.connect(self.export_to_csv)
         self.edit_button.clicked.connect(self.edit_data)
@@ -317,7 +324,8 @@ class DatabaseView(QWidget):
         self.view_model.filter_data(
             self.dipendente_filter.currentText(),
             self.categoria_filter.currentText(),
-            self.status_filter.currentText()
+            self.status_filter.currentText(),
+            self.search_input.text()
         )
 
     def set_read_only(self, is_read_only: bool):
