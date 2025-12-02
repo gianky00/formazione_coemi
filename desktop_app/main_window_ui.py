@@ -4,13 +4,30 @@ from datetime import date, datetime
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
                              QPushButton, QStackedWidget, QLabel, QFrame, QSizePolicy,
                              QScrollArea, QLayout, QApplication)
-from PyQt6.QtCore import Qt, QSize, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup, pyqtSignal, QPoint, pyqtProperty, QRect, QTimer
+from PyQt6.QtCore import (Qt, QSize, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup,
+                          pyqtSignal, QPoint, pyqtProperty, QRect, QTimer, QObject, QThread)
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QBrush, QPen
 
 # Import Utils
 from .utils import get_asset_path, load_colored_icon
 from .services.license_manager import LicenseManager
 from .components.custom_dialog import CustomMessageDialog
+
+class SystemCheckWorker(QObject):
+    result_ready = pyqtSignal(dict)
+    finished = pyqtSignal()
+
+    def __init__(self, api_client):
+        super().__init__()
+        self.api_client = api_client
+
+    def run(self):
+        try:
+            status = self.api_client.get_lock_status()
+            self.result_ready.emit(status)
+        except:
+            pass
+        self.finished.emit()
 
 class SidebarButton(QPushButton):
     def __init__(self, text, icon_name, parent=None):
@@ -559,21 +576,33 @@ class MainDashboardWidget(QWidget):
     def _init_system_checks(self):
         self.system_check_timer = QTimer(self)
         self.system_check_timer.setInterval(10000)
-        self.system_check_timer.timeout.connect(self._perform_system_checks)
+        self.system_check_timer.timeout.connect(self._start_system_check_thread)
         self.system_check_timer.start()
 
         self._last_license_check = 0
-        self._perform_system_checks()
+        self._start_system_check_thread()
 
-    def _perform_system_checks(self):
+    def _start_system_check_thread(self):
+        # Create a new thread for each check to ensure clean state
+        # Alternatively, keep one worker alive. But creating simple worker is fine.
+        self.check_thread = QThread()
+        self.check_worker = SystemCheckWorker(self.api_client)
+        self.check_worker.moveToThread(self.check_thread)
+        self.check_thread.started.connect(self.check_worker.run)
+        self.check_worker.result_ready.connect(self._on_system_check_result)
+        self.check_worker.finished.connect(self.check_thread.quit)
+        self.check_worker.finished.connect(self.check_worker.deleteLater)
+        self.check_thread.finished.connect(self.check_thread.deleteLater)
+        self.check_thread.start()
+
+    def _on_system_check_result(self, status):
         try:
-            status = self.api_client.get_lock_status()
             is_read_only = status.get("read_only", False)
             if is_read_only and not getattr(self, 'is_read_only', False):
                 CustomMessageDialog.show_warning(self, "Connessione Persa", "L'applicazione è passata in modalità Sola Lettura.")
                 self.set_read_only_mode(True)
         except Exception as e:
-            print(f"System check failed: {e}")
+            print(f"System check UI update failed: {e}")
 
         import time
         if time.time() - self._last_license_check > 3600:

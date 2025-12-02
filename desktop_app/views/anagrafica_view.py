@@ -342,10 +342,16 @@ class AnagraficaView(QWidget):
         self.inp_nascita = QDateEdit()
         self.inp_nascita.setDisplayFormat("dd/MM/yyyy")
         self.inp_nascita.setCalendarPopup(True)
+        # Support for nullable dates: set min date to 1900 and special text
+        min_date = QDate(1900, 1, 1)
+        self.inp_nascita.setMinimumDate(min_date)
+        self.inp_nascita.setSpecialValueText(" ")
+
         self.inp_assunzione = QDateEdit()
         self.inp_assunzione.setDisplayFormat("dd/MM/yyyy")
         self.inp_assunzione.setCalendarPopup(True)
-        self.inp_assunzione.setSpecialValueText(" ") # Allow empty visually
+        self.inp_assunzione.setMinimumDate(min_date)
+        self.inp_assunzione.setSpecialValueText(" ")
 
         self.inp_matricola.setPlaceholderText("Es. 12345")
         self.inp_email.setPlaceholderText("email@azienda.it")
@@ -500,25 +506,31 @@ class AnagraficaView(QWidget):
         self.inp_email.setText(data.get('email') or "")
         self.inp_reparto.setText(data.get('categoria_reparto') or "")
 
+        min_date = QDate(1900, 1, 1)
         if data.get('data_nascita'):
             self.inp_nascita.setDate(QDate.fromString(data['data_nascita'], "yyyy-MM-dd"))
         else:
-            self.inp_nascita.setDate(QDate.currentDate())
+            self.inp_nascita.setDate(min_date)
 
         if data.get('data_assunzione'):
             self.inp_assunzione.setDate(QDate.fromString(data['data_assunzione'], "yyyy-MM-dd"))
         else:
-             self.inp_assunzione.setDate(QDate.currentDate())
+             self.inp_assunzione.setDate(min_date)
 
     def save_employee(self):
+        min_date = QDate(1900, 1, 1)
+
+        nascita = self.inp_nascita.date()
+        assunzione = self.inp_assunzione.date()
+
         data = {
             "nome": self.inp_nome.text().strip(),
             "cognome": self.inp_cognome.text().strip(),
             "matricola": self.inp_matricola.text().strip() or None,
             "email": self.inp_email.text().strip() or None,
             "categoria_reparto": self.inp_reparto.text().strip() or None,
-            "data_nascita": self.inp_nascita.date().toString("yyyy-MM-dd"),
-            "data_assunzione": self.inp_assunzione.date().toString("yyyy-MM-dd")
+            "data_nascita": nascita.toString("yyyy-MM-dd") if nascita > min_date else None,
+            "data_assunzione": assunzione.toString("yyyy-MM-dd") if assunzione > min_date else None
         }
 
         if not data["nome"] or not data["cognome"]:
