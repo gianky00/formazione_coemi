@@ -464,6 +464,7 @@ async def import_dipendenti_csv(
         nome = row.get('Nome')
         data_nascita = row.get('Data_nascita')
         badge = row.get('Badge')
+        data_assunzione = row.get('Data_assunzione')
 
         if not all([cognome, nome, badge]):
             continue
@@ -475,6 +476,13 @@ async def import_dipendenti_csv(
             except ValueError:
                 pass  # Gestisce date non valide o formati diversi
 
+        parsed_data_assunzione = None
+        if data_assunzione:
+            try:
+                parsed_data_assunzione = datetime.strptime(data_assunzione, '%d/%m/%Y').date()
+            except ValueError:
+                pass
+
         # Step 1: Cerca per Matricola (Upsert standard)
         dipendente = db.query(Dipendente).filter(Dipendente.matricola == badge).first()
 
@@ -483,6 +491,8 @@ async def import_dipendenti_csv(
             dipendente.cognome = cognome
             dipendente.nome = nome
             dipendente.data_nascita = parsed_data_nascita
+            if parsed_data_assunzione:
+                dipendente.data_assunzione = parsed_data_assunzione
         else:
             # Step 2: Matricola non trovata. Cerca per Cognome + Nome + Data Nascita (Gestione Riassunzione/Cambio Matricola)
             found_by_identity = False
@@ -501,6 +511,8 @@ async def import_dipendenti_csv(
                     # Aggiorna anche anagrafica per uniformità (es. correzione nome)
                     dipendente.nome = nome
                     dipendente.cognome = cognome
+                    if parsed_data_assunzione:
+                        dipendente.data_assunzione = parsed_data_assunzione
                     found_by_identity = True
                 elif len(matches) > 1:
                     # Duplicati nel DB -> Ambiguo -> Skip e Warning
@@ -513,7 +525,8 @@ async def import_dipendenti_csv(
                     cognome=cognome,
                     nome=nome,
                     matricola=badge,
-                    data_nascita=parsed_data_nascita
+                    data_nascita=parsed_data_nascita,
+                    data_assunzione=parsed_data_assunzione
                 )
                 db.add(dipendente)
 
