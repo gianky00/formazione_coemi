@@ -1,4 +1,13 @@
+import sys
 import unittest
+from unittest.mock import MagicMock
+
+# Mock PyQt6 before importing desktop_app.utils
+sys.modules["PyQt6"] = MagicMock()
+sys.modules["PyQt6.QtGui"] = MagicMock()
+sys.modules["PyQt6.QtCore"] = MagicMock()
+
+# Now import the utility
 from desktop_app.utils import clean_text_for_display
 
 class TestTextNormalization(unittest.TestCase):
@@ -15,6 +24,13 @@ class TestTextNormalization(unittest.TestCase):
         self.assertEqual(clean_text_for_display("metrò"), "metrò")
         self.assertEqual(clean_text_for_display("così"), "così")
         self.assertEqual(clean_text_for_display("più"), "più")
+
+    def test_proparoxytone_handling(self):
+        # New test case for the requested feature
+        self.assertEqual(clean_text_for_display("assìsterti"), "assisterti")
+        self.assertEqual(clean_text_for_display("màcchina"), "macchina")
+        self.assertEqual(clean_text_for_display("tàvolo"), "tavolo")
+        self.assertEqual(clean_text_for_display("dìmmelo"), "dimmelo")
 
     def test_punctuation_interaction(self):
         self.assertEqual(clean_text_for_display("Sono prónta."), "Sono pronta.")

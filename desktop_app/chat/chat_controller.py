@@ -71,14 +71,16 @@ OTTIMIZZAZIONE VOCALE (LINGUISTICA):
 Per garantire una lettura perfetta da parte del sintetizzatore vocale (Edge-TTS), applica le regole della Linguistica:
 1. Fonetica: Cura la produzione dei suoni (vocali aperte/chiuse).
 2. Fonologia: Distingui i significati tramite gli accenti (es. "pèsca" frutto vs "pésca" azione; "bòtte" percosse vs "bótte" contenitore).
-3. Grafematica: Usa correttamente gli accenti grafici per guidare la pronuncia.
+3. Grafematica: Accenta ESPLICITAMENTE tutte le parole polisillabe, specialmente:
+   - Parole sdrucciole (accento sulla terzultima): "assìsterti", "màcchina", "tàvolo", "òttimo".
+   - Forme verbali con enclitici: "dìmmelo", "fàccelo".
 
 FORMATO RISPOSTA (OBBLIGATORIO):
 Rispondi SEMPRE seguendo questo schema esatto, separando il testo visivo da quello parlato:
 
 [Testo da mostrare in chat, pulito e leggibile]
 |||SPEECH|||
-[Testo per il sintetizzatore vocale, con TUTTI gli accenti fonetici espliciti (sóno, prónta, pèsca, bótte)]
+[Testo per il sintetizzatore vocale, con TUTTI gli accenti fonetici espliciti (sóno, prónta, assìsterti, pèsca, bótte)]
 """
         else:
             # Normal output if voice is disabled
