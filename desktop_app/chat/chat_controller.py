@@ -5,6 +5,7 @@ from desktop_app.workers.chat_worker import ChatWorker
 
 class ChatController(QObject):
     response_ready = pyqtSignal(str)
+    speech_ready = pyqtSignal(str)
 
     def __init__(self, api_client, parent=None):
         super().__init__(parent)
@@ -60,6 +61,19 @@ CAPACITÀ (Function Calling):
 CONOSCENZA INTERFACCIA:
 {APP_MAP}
 
+OTTIMIZZAZIONE VOCALE (LINGUISTICA):
+Per garantire una lettura perfetta da parte del sintetizzatore vocale (Edge-TTS), applica le regole della Linguistica:
+1. Fonetica: Cura la produzione dei suoni (vocali aperte/chiuse).
+2. Fonologia: Distingui i significati tramite gli accenti (es. "pèsca" frutto vs "pésca" azione; "bòtte" percosse vs "bótte" contenitore).
+3. Grafematica: Usa correttamente gli accenti grafici per guidare la pronuncia.
+
+FORMATO RISPOSTA (OBBLIGATORIO):
+Rispondi SEMPRE seguendo questo schema esatto, separando il testo visivo da quello parlato:
+
+[Testo da mostrare in chat, pulito e leggibile]
+|||SPEECH|||
+[Testo per il sintetizzatore vocale, con TUTTI gli accenti fonetici espliciti (sóno, prónta, pèsca, bótte)]
+
 REGOLE:
 - Non inventare mai dati. Se lo strumento non restituisce nulla, dillo.
 - Sii proattiva: se vedi scadenze imminenti, segnalale con urgenza.
@@ -98,8 +112,20 @@ REGOLE:
     def _on_worker_finished(self, response_text, new_history):
         # Update history with the new state (including tool calls)
         self.history = new_history
-        # Emit response to UI
-        self.response_ready.emit(response_text)
+
+        # Parse logic: Split Display vs Speech
+        if "|||SPEECH|||" in response_text:
+            parts = response_text.split("|||SPEECH|||")
+            display_text = parts[0].strip()
+            speech_text = parts[1].strip()
+        else:
+            # Fallback if AI forgets separator (should replace this logic if critical)
+            display_text = response_text
+            speech_text = response_text
+
+        # Emit separate signals
+        self.response_ready.emit(display_text)
+        self.speech_ready.emit(speech_text)
 
     def _on_worker_error(self, error_msg):
         self.response_ready.emit(f"Errore: {error_msg}")
