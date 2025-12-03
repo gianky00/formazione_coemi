@@ -69,40 +69,57 @@
     *   If a match is found in the updated registry -> Links `dipendente_id`.
 5.  **Result**: Certificates become "Assigned" and visible in the main Dashboard.
 
-## 5. Database Security Lifecycle
-**Goal**: Ensure encryption-at-rest and exclusive access without data loss.
+## 5. Database Security & Resilience
+**Goal**: Ensure encryption-at-rest and robust recovery from locks/crashes.
 
 1.  **Architecture**: **Strict In-Memory**.
     *   Disk File: `database_documenti.db` (Always Encrypted with Fernet).
     *   Runtime: Decrypted into RAM (`sqlite3.deserialize`).
     *   **No plain-text data is ever written to disk** (unless explicitly unlocked by admin).
 
-2.  **Startup Flow**:
-    *   **Lock Acquisition**: At login, the application attempts to acquire an OS-level lock on the `.lock` file.
-        *   **Success**: The user gains write access.
-        *   **Failure**: The application starts in "Read-Only" mode.
-    *   Load encrypted bytes -> Decrypt -> RAM.
+2.  **Startup Resilience**:
+    *   **Lock Check**: Attempts to acquire OS-level lock.
+        *   *If Locked*: Starts in **Read-Only Mode**. UI warns user.
+    *   **Corruption Check**: If decryption fails, starts in **Recovery Mode**.
+    *   **Backend**: Does NOT crash on DB errors; allows UI to load and guide user.
 
-3.  **Access Control**:
-    *   **Login**: Acquires an exclusive OS-level lock on the `.lock` file.
-    *   **Logout / Close Window**:
-        *   Trigger `db_security.cleanup()`.
-        *   Serialize RAM DB -> Encrypt -> Atomic Write to Disk.
-        *   Release the OS-level lock.
+3.  **Persistence**:
+    *   **Atomic Write**: `serialize` -> `encrypt` -> `write to temp` -> `replace`.
+    *   **Cleanup**: `atexit` handlers ensure lock release on shutdown.
 
-4.  **Persistence**:
-    *   Periodic Sync (APScheduler, 5 min).
-    *   Explicit Sync on Logout.
-    *   **Constraint**: Sync only writes if the session holds the lock.
+## 6. Lyra RAG & Voice Pipeline
+**Goal**: Provide context-aware answers and vocal interaction.
 
-## 6. Audit & Security Monitoring
-**Goal**: Track user actions and detect threats.
+1.  **Input**: User types in Chat Widget.
+2.  **Context Retrieval (RAG)**:
+    *   System searches `docs/` (Architecture, Flows, Models).
+    *   System queries `Database` (Employee stats, Certificate counts).
+3.  **Persona Injection**:
+    *   Injects `LYRA_PROFILE.md` context (Tone: Professional, Empathetic, Sicilian).
+4.  **Generation**: Gemini 2.5 Pro generates text response.
+5.  **Voice Synthesis (Edge-TTS)**:
+    *   If "Voice" enabled: Text -> `edge-tts` -> MP3.
+    *   Audio played immediately in client.
 
-1.  **Event Logging**:
-    *   `app.utils.audit.log_security_action` is called for Login, Logout, User Create/Update, and Data Export.
-    *   Captures `IP`, `User-Agent`, `Device-ID` (from headers), and `Changes` (diff snapshot).
-
-2.  **Threat Detection**:
-    *   **Brute Force**: >5 Failed Logins within 10 minutes from same IP -> Logs CRITICAL event.
-    *   **Unauthorized Access**: Non-admin accessing Admin API -> Logs CRITICAL event.
-    *   **Alerting**: CRITICAL events trigger immediate email notification to admins.
+## 🤖 AI Metadata (RAG Context)
+```json
+{
+  "type": "process_documentation",
+  "domain": "business_logic",
+  "workflows": [
+    "Certificate Ingestion",
+    "Status Calculation",
+    "Notification Dispatch",
+    "Identity Resolution",
+    "Database Security",
+    "Lyra Interaction"
+  ],
+  "key_mechanisms": [
+    "Gemini AI Extraction",
+    "Tenacity Retry",
+    "In-Memory Database",
+    "Edge-TTS",
+    "RAG"
+  ]
+}
+```
