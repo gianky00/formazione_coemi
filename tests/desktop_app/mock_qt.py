@@ -25,6 +25,16 @@ class DummyPyQtSignal:
             self._signals[instance] = DummySignal()
         return self._signals[instance]
 
+class DummyQObject:
+    def __init__(self, parent=None):
+        pass
+    def moveToThread(self, thread):
+        pass
+    def deleteLater(self):
+        pass
+    def parent(self):
+        return None
+
 class DummyEnum:
     StyledPanel = 1
     Sunken = 1
@@ -91,16 +101,25 @@ class DummyQModelIndex:
     def data(self, role=0):
         return None
 
-class DummyQAbstractTableModel(MagicMock):
-    def __init__(self, *args, **kwargs):
-        # Consume parent arg safely
-        parent = kwargs.pop('parent', None)
-        super().__init__(*args, **kwargs)
+class DummyQAbstractTableModel(DummyQObject):
+    def __init__(self, parent=None, *args, **kwargs):
+        super().__init__(parent)
+        self._data = []
 
     def index(self, row, column, parent=None):
         return DummyQModelIndex(row, column)
 
-class DummyQWidget:
+    def beginResetModel(self): pass
+    def endResetModel(self): pass
+    def layoutChanged(self):
+        return DummySignal()
+    def rowCount(self, parent=None): return 0
+    def columnCount(self, parent=None): return 0
+    def data(self, index, role=0): return None
+    def flags(self, index): return 0
+    def headerData(self, section, orientation, role=0): return None
+
+class DummyQWidget(DummyQObject):
     # Enum mocks
     Shape = DummyEnum
     Shadow = DummyEnum
@@ -122,7 +141,8 @@ class DummyQWidget:
     PenStyle = DummyEnum
     GlobalColor = DummyEnum
 
-    def __init__(self, text=None, *args, **kwargs):
+    def __init__(self, text=None, parent=None, *args, **kwargs):
+        super().__init__(parent)
         self._clicked = DummySignal()
         self._toggled = DummySignal()
         self._accepted = DummySignal()
@@ -292,7 +312,8 @@ class DummyQWidget:
     def setAlternatingRowColors(self, enable):
         pass
     def setModel(self, model):
-        pass
+        self._model = model
+        self.setModel_called = True
     def setColumnHidden(self, col, hidden):
         pass
     def selectRow(self, row):
@@ -447,14 +468,6 @@ class DummyQMainWindow(DummyQWidget):
 
 class DummyQDialog(DummyQWidget):
     def exec(self):
-        pass
-
-class DummyQObject:
-    def __init__(self, parent=None):
-        pass
-    def moveToThread(self, thread):
-        pass
-    def deleteLater(self):
         pass
 
 class DummyQDate:
@@ -628,6 +641,8 @@ def mock_qt_modules():
     mock_core.QRectF = MagicMock()
     mock_core.QVariantAnimation = MagicMock()
     mock_core.QParallelAnimationGroup = MagicMock()
+    mock_core.QUrl = MagicMock()
+    mock_core.QUrl.fromLocalFile = MagicMock()
 
     mock_media = MagicMock()
     mock_media.QSoundEffect = MagicMock()
@@ -658,7 +673,17 @@ def mock_qt_modules():
     mock_webchannel = MagicMock()
     mock_webchannel.QWebChannel = MagicMock
 
+    mock_pyqt6 = MagicMock()
+    mock_pyqt6.QtWidgets = mock_widgets
+    mock_pyqt6.QtCore = mock_core
+    mock_pyqt6.QtGui = mock_gui
+    mock_pyqt6.QtWebEngineWidgets = mock_web
+    mock_pyqt6.QtWebEngineCore = mock_web_core
+    mock_pyqt6.QtWebChannel = mock_webchannel
+    mock_pyqt6.QtMultimedia = mock_media
+
     return {
+        'PyQt6': mock_pyqt6,
         'PyQt6.QtWidgets': mock_widgets,
         'PyQt6.QtCore': mock_core,
         'PyQt6.QtGui': mock_gui,
