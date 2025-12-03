@@ -4,18 +4,19 @@ Questo documento fornisce una disamina tecnica approfondita del sistema di gesti
 
 ## Architettura del Sistema
 
-Il progetto adotta un'architettura client-server disaccoppiata, composta da un backend API RESTful e un'applicazione desktop nativa.
+Il progetto adotta un'architettura client-server disaccoppiata e resiliente, composta da un backend "Dual-API" e un ecosistema frontend ibrido.
 
--   **Backend (FastAPI):** Un server Python ad alte prestazioni che espone endpoint per tutte le operazioni CRUD, gestisce la logica di business e si interfaccia con il servizio di intelligenza artificiale.
--   **Frontend (PyQt6):** Un'applicazione desktop Windows che fornisce l'interfaccia grafica per l'interazione dell'utente, consumando le API esposte dal backend.
--   **Database (SQLite via SQLAlchemy):** Un database a file singolo, gestito tramite l'ORM SQLAlchemy, che garantisce la persistenza dei dati.
--   **Servizio AI (Google Gemini):** Sfrutta il modello `gemini-2.5-pro` per l'analisi multimodale dei documenti PDF.
+-   **Backend (FastAPI):** Un server Python ad alte prestazioni che gestisce:
+    -   **Core API:** Operazioni CRUD per certificati e dipendenti.
+    -   **Chat/RAG API:** Endpoint dedicati per l'assistente IA "Lyra", con supporto vocale (TTS) e Retrieval-Augmented Generation.
+-   **Frontend Desktop (PyQt6):** Un'applicazione nativa per Windows per l'amministrazione avanzata.
+-   **Mobile UI / User Guide (React):** Un'applicazione web reattiva (`guide_frontend`) integrata nel desktop ma progettata per la consultazione mobile.
+-   **Database (SQLite Encrypted):** Un database "In-Memory" crittografato a riposo per la massima sicurezza.
+-   **Servizi AI:** Google Gemini (Analisi Doc + Chat) ed Edge-TTS (Sintesi Vocale).
 
 ---
 
 ## Dettagli Implementativi del Backend (`app/`)
-
-Il backend è il cuore del sistema e gestisce tutta la logica applicativa.
 
 ### Gestione delle Dipendenze e Sessioni DB
 
@@ -121,4 +122,28 @@ Per eseguire la suite di test automatizzati, eseguire il seguente comando dalla 
 
 ```bash
 python -m pytest
+```
+
+## 🤖 AI Metadata (RAG Context)
+```json
+{
+  "type": "project_overview",
+  "domain": "general_documentation",
+  "tech_stack": [
+    "Python 3.12",
+    "FastAPI (Dual API)",
+    "PyQt6",
+    "React (Vite)",
+    "SQLite (Encrypted)",
+    "Google Gemini",
+    "Edge-TTS"
+  ],
+  "key_features": [
+    "AI Document Analysis",
+    "Lyra Voice Assistant",
+    "Mobile-Ready Guide",
+    "Resilient Architecture",
+    "Automated Expiration Alerts"
+  ]
+}
 ```

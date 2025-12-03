@@ -1,11 +1,12 @@
 import logging
 import os
+import glob
 from datetime import datetime
 from PyQt6.QtCore import QObject, pyqtSlot, pyqtSignal
 from app.core.config import settings
 from desktop_app.workers.chat_worker import ChatWorker
 from desktop_app.utils import clean_text_for_display
-from desktop_app.services.path_service import get_lyra_profile_path
+from desktop_app.services.path_service import get_docs_dir
 
 class ChatController(QObject):
     response_ready = pyqtSignal(str)
@@ -16,7 +17,7 @@ class ChatController(QObject):
         self.api_client = api_client
         self.history = []
         self.chat_worker = None
-        self._lyra_profile_cache = None
+        self._knowledge_base_cache = None
 
     def _get_user_first_name(self):
         if not self.api_client.user_info:
@@ -57,37 +58,41 @@ class ChatController(QObject):
         else:
             return "È notte. Posso scherzare sul fatto che le scadenze non dormono mai, ma l'utente dovrebbe."
 
-    def _load_lyra_profile(self):
-        """Carica il profilo dettagliato dal file MD."""
-        if self._lyra_profile_cache:
-            return self._lyra_profile_cache
+    def _load_knowledge_base(self):
+        """Carica tutti i file Markdown dalla cartella docs/."""
+        if self._knowledge_base_cache:
+            return self._knowledge_base_cache
 
-        path = get_lyra_profile_path()
+        docs_dir = get_docs_dir()
+        kb_content = "KNOWLEDGE BASE (DOCUMENTATION):\n\n"
+
         try:
-            with open(path, 'r', encoding='utf-8') as f:
-                self._lyra_profile_cache = f.read()
-            return self._lyra_profile_cache
-        except Exception as e:
-            logging.error(f"Errore caricamento profilo Lyra da {path}: {e}")
-            return "Profilo dettagliato non disponibile."
+            md_files = glob.glob(os.path.join(docs_dir, "*.md"))
+            if not md_files:
+                logging.warning(f"Nessun file .md trovato in {docs_dir}")
+                return ""
 
-    def _is_identity_query(self, message):
-        """Determina se l'utente sta chiedendo informazioni sull'identità di Lyra."""
-        keywords = [
-            "chi sei", "chi è lyra", "parlami di te", "tua storia", "tue origini",
-            "come ti chiami", "quanti anni hai", "chi ti ha creato", "creatore",
-            "coemi", "sicilia", "priolo", "vega", "costellazione", "sentimenti",
-            "sei un'ia", "sei un intelligenza", "sei umana", "profilo", "identità",
-            "mizzica", "talìa"
-        ]
-        msg_lower = message.lower()
-        return any(k in msg_lower for k in keywords)
+            for file_path in md_files:
+                filename = os.path.basename(file_path)
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                        kb_content += f"--- START FILE: {filename} ---\n{content}\n--- END FILE: {filename} ---\n\n"
+                except Exception as e:
+                    logging.error(f"Errore lettura file {filename}: {e}")
+
+            self._knowledge_base_cache = kb_content
+            return self._knowledge_base_cache
+        except Exception as e:
+            logging.error(f"Errore caricamento Knowledge Base: {e}")
+            return ""
 
     def get_system_prompt(self, user_message=""):
         user_name = self._get_user_first_name()
         voice_enabled = settings.VOICE_ASSISTANT_ENABLED
         special_day = self._get_special_day_context()
         time_context = self._get_time_of_day_context()
+        knowledge_base = self._load_knowledge_base()
 
         # App Map
         APP_MAP = """
@@ -113,16 +118,11 @@ Sei professionale, empatica, precisa e hai origini siciliane (Priolo Gargallo).
 Il tuo obiettivo è semplificare la gestione della sicurezza sul lavoro.
 """
 
-        # Dynamic Profile Injection
-        detailed_profile = ""
-        if self._is_identity_query(user_message):
-            detailed_profile = f"\nDETTAGLI IDENTITÀ:\n{self._load_lyra_profile()}\n"
-
         base_prompt = f"""
 {LITE_IDENTITY}
 Stai assistendo {user_name}.
 
-{detailed_profile}
+{knowledge_base}
 
 CONTESTO TEMPORALE:
 - Data odierna: {datetime.now().strftime("%d/%m/%Y")}

@@ -2,28 +2,40 @@
 
 ## High-Level Architecture
 
-The system follows a **Decoupled Client-Server Architecture**.
+The system follows a **Decoupled Client-Server Architecture** with a **Dual-API** design to separate core business logic from the conversational AI capabilities.
 
 *   **Server**: A headless Python/FastAPI backend responsible for data persistence, business logic, AI processing, and scheduled tasks.
-*   **Client**: A desktop application built with Python/PyQt6, communicating with the server exclusively via HTTP REST APIs.
-*   **User Guide**: A dedicated React single-page application embedded within the desktop client.
+    *   **Core API**: Standard REST endpoints for Certificate/Employee management.
+    *   **Chat/RAG API**: Dedicated endpoints for the AI Persona "Lyra" and RAG operations.
+*   **Client**: A desktop application built with Python/PyQt6.
+*   **Mobile/Web UI**: The `guide_frontend` (React + Vite) serves as both the user manual and the mobile-responsive interface for specific workflows.
 *   **External Services**:
-    *   **Google Gemini API**: For document analysis.
-    *   **SMTP Server**: For email notifications (supports SSL and STARTTLS).
+    *   **Google Gemini API**: For document analysis and Chat/RAG generation.
+    *   **SMTP Server**: For email notifications.
+    *   **Edge-TTS**: For high-quality text-to-speech synthesis (Voice Assistant).
 
 ```mermaid
 graph TD
     subgraph "Desktop Client (PyQt6)"
         UI[User Interface] -->|HTTP Requests| API_Client[API Client Wrapper]
         API_Client -->|REST API| Backend
-        UI -->|Embeds| Guide[Modern Guide (React + QWebEngineView)]
+        UI -->|Embeds| Guide[Mobile UI / Guide (React + QWebEngineView)]
     end
 
     subgraph "Backend Server (FastAPI)"
-        Backend[FastAPI Router] --> Services[Service Layer]
+        Backend[FastAPI Router]
+        Backend --> CoreAPI[Core API Router]
+        Backend --> ChatAPI[Chat/RAG API Router]
+
+        CoreAPI --> Services[Service Layer]
+        ChatAPI --> RAG[RAG & Persona Engine]
+
         Services -->|ORM| DB[(In-Memory SQLite)]
         Services -->|Serialize/Encrypt| DiskDB[database_documenti.db]
-        Services -->|Generate| Gemini[Google Gemini AI]
+
+        RAG --> Gemini[Google Gemini AI]
+        RAG --> TTS[Edge-TTS Service]
+
         Services -->|SMTP| Email[Email Server]
     end
 ```
@@ -33,9 +45,11 @@ graph TD
 ### Backend (`app/`)
 *   **Entry Point**: `app.main:app` (Lifespan manager, APScheduler init).
 *   **Core Dependencies**:
-    *   `fastapi`: Web framework.
+    *   `fastapi`: Web framework (Dual-Router setup).
     *   `sqlalchemy`: ORM for SQLite.
-    *   `google-generativeai`: AI Client.
+    *   `google-generativeai`: AI Client (Analysis & Chat).
+    *   `edge-tts`: Text-to-Speech generation.
+    *   `tenacity`: Resilience & Retries.
     *   `pydantic`: Data validation.
     *   `apscheduler`: Background task scheduling.
     *   `fpdf2`: PDF Report generation.
@@ -45,13 +59,14 @@ graph TD
 *   **Entry Point**: `boot_loader.py` -> `launcher.py` -> `desktop_app.main`.
 *   **Core Dependencies**:
     *   `PyQt6`: GUI Framework.
-    *   `PyQt6-WebEngine`: Browser engine for User Guide.
+    *   `PyQt6-WebEngine`: Browser engine for `guide_frontend`.
     *   `requests`: HTTP Client.
 
-### User Guide (`guide_frontend/`)
+### Mobile UI / User Guide (`guide_frontend/`)
 *   **Framework**: React + Vite.
 *   **Styling**: Tailwind CSS v3.
-*   **Integration**: Compiled to static HTML/JS/CSS (`dist/`) and loaded via `file://` protocol in `QWebEngineView`.
+*   **Role**: Provides the "Modern Guide" and responsive mobile views.
+*   **Integration**: Compiled to static HTML/JS/CSS (`dist/`) and loaded via `file://` protocol.
 
 ## Component Interaction
 
@@ -70,14 +85,41 @@ graph TD
     *   **PDF Generation**: Uses `fpdf2` to create an in-memory PDF report.
     *   **Email Dispatch**: Connects via `smtplib` (auto-detects SSL vs STARTTLS).
 
-### 3. Validation Workflow
-1.  **Status**: Certificates start with `stato_validazione='AUTOMATIC'`.
-2.  **Client**: Fetches these via `GET /certificati/?validated=false`.
-3.  **Action**: User validates -> `PUT /certificati/{id}/valida` -> Status becomes `MANUAL`.
-4.  **Visibility**: Only `MANUAL` certificates appear in the main Dashboard.
+### 3. Lyra Interaction (Chat & Voice)
+1.  **User**: Sends text query via Desktop Chat Widget.
+2.  **Chat API**: Receives request at `/api/v1/chat/`.
+3.  **RAG Engine**: Retrieves context from `docs/` and Database.
+4.  **Generation**: Gemini generates response as "Lyra".
+5.  **Voice (Optional)**: If enabled, response text is sent to `edge-tts`. Audio bytes are returned to Client.
 
 ### 4. Boot Process (Reliability)
 1.  **Executable**: Starts `boot_loader.py`.
 2.  **Safety Check**: Imports `launcher.py` inside a `try/except` block.
-3.  **Health Check**: The launcher calls the `/api/v1/health` endpoint on the backend. If the backend reports an error (e.g., inaccessible database), the launcher displays a critical error message and exits.
-4.  **Failure Handling**: If missing DLLs or imports cause a crash, `boot_loader` catches it and displays a native Windows Message Box with the error, preventing "silent crashes".
+3.  **Health Check**: The launcher calls `/api/v1/health`.
+    *   **Resilience**: If DB is locked or corrupted, Backend enters "Recovery Mode" (non-fatal).
+    *   **UI**: Displays appropriate warnings/recovery options instead of crashing.
+4.  **Failure Handling**: `boot_loader` catches hard crashes (DLLs) and shows a native Windows Message Box.
+
+## 🤖 AI Metadata (RAG Context)
+```json
+{
+  "type": "architecture_documentation",
+  "domain": "system_design",
+  "key_components": [
+    "FastAPI Backend",
+    "PyQt6 Desktop Client",
+    "React Mobile UI",
+    "Dual-API (Core + Chat)",
+    "In-Memory Database",
+    "Google Gemini",
+    "Edge-TTS"
+  ],
+  "architecture_style": "Decoupled Client-Server",
+  "critical_paths": [
+    "Data Ingestion",
+    "Notification Dispatch",
+    "Lyra RAG/Voice Pipeline",
+    "Secure Boot"
+  ]
+}
+```

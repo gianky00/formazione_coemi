@@ -153,3 +153,27 @@ The AI Service (`extract_entities_with_ai`) returns:
 }
 ```
 *Note: Dates in AI response are normalized to `DD/MM/YYYY` by the Frontend/API before persistence.*
+
+## 🤖 AI Metadata (RAG Context)
+```json
+{
+  "type": "data_schema",
+  "domain": "database",
+  "tables": [
+    "User",
+    "AuditLog",
+    "Dipendente",
+    "Corso",
+    "Certificato"
+  ],
+  "relationships": [
+    "Dipendente -> Certificato (One-to-Many)",
+    "Corso -> Certificato (One-to-Many)",
+    "User -> AuditLog (One-to-Many)"
+  ],
+  "validation_rules": [
+    "Unique(Corso.nome + Categoria)",
+    "Unique(Certificato.dipendente + corso + data)"
+  ]
+}
+```

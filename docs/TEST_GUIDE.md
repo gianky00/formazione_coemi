@@ -73,3 +73,17 @@ Intelleo.exe --hwid
 ### Test 3: API/Backend Startup
 Launch the app and check the log files or console output.
 *Expected*: "FastAPI startup complete", "Database loaded in memory".
+
+## 🤖 AI Metadata (RAG Context)
+```json
+{
+  "type": "testing_guide",
+  "domain": "qa_protocols",
+  "tools": ["pytest", "mock_qt", "npm"],
+  "test_types": [
+    "Unit Tests (Backend)",
+    "Headless UI Tests (Frontend)",
+    "Manual Integration Tests (Distribution)"
+  ]
+}
+```

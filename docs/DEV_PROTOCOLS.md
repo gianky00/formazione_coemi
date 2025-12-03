@@ -60,3 +60,15 @@ The application implements a **Full-Stack Error Handling** pattern.
 *   **Commits**: Atomic, descriptive messages.
 *   **Branches**: Feature branches required. No direct commits to main.
 *   **Documentation**: Update `docs/` if architectural changes occur.
+
+## 🤖 AI Metadata (RAG Context)
+```json
+{
+  "type": "development_standards",
+  "domain": "coding_guidelines",
+  "languages": ["Python", "JavaScript (React)"],
+  "standards": ["PEP 8", "Conventional Commits"],
+  "testing_frameworks": ["pytest"],
+  "error_handling": "Full-Stack Propagation"
+}
+```
