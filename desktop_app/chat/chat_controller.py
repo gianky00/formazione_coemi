@@ -2,6 +2,7 @@ import logging
 from PyQt6.QtCore import QObject, pyqtSlot, pyqtSignal
 from app.core.config import settings
 from desktop_app.workers.chat_worker import ChatWorker
+from desktop_app.utils import clean_text_for_display
 
 class ChatController(QObject):
     response_ready = pyqtSignal(str)
@@ -24,6 +25,7 @@ class ChatController(QObject):
 
     def get_system_prompt(self):
         user_name = self._get_user_first_name()
+        voice_enabled = settings.VOICE_ASSISTANT_ENABLED
 
         # Hardcoded App Map
         APP_MAP = """
@@ -41,7 +43,7 @@ MAPPA APPLICAZIONE (COSA VEDI E DOVE SI TROVA):
    - "Filtri": La barra dei filtri è in alto nella tabella Database.
 """
 
-        return f"""
+        base_prompt = f"""
 SEI LYRA.
 Sei l'intelligenza nativa del sistema Intelleo.
 Il tuo scopo è assistere {user_name} e fornire dati precisi sulla sicurezza.
@@ -60,7 +62,11 @@ CAPACITÀ (Function Calling):
 
 CONOSCENZA INTERFACCIA:
 {APP_MAP}
+"""
 
+        if voice_enabled:
+            # Add strict instructions for dual output (Phonetic + Visual)
+            base_prompt += """
 OTTIMIZZAZIONE VOCALE (LINGUISTICA):
 Per garantire una lettura perfetta da parte del sintetizzatore vocale (Edge-TTS), applica le regole della Linguistica:
 1. Fonetica: Cura la produzione dei suoni (vocali aperte/chiuse).
@@ -73,11 +79,20 @@ Rispondi SEMPRE seguendo questo schema esatto, separando il testo visivo da quel
 [Testo da mostrare in chat, pulito e leggibile]
 |||SPEECH|||
 [Testo per il sintetizzatore vocale, con TUTTI gli accenti fonetici espliciti (sóno, prónta, pèsca, bótte)]
+"""
+        else:
+            # Normal output if voice is disabled
+            base_prompt += """
+REGOLE:
+- Rispondi direttamente con il testo da mostrare.
+"""
 
+        base_prompt += """
 REGOLE:
 - Non inventare mai dati. Se lo strumento non restituisce nulla, dillo.
 - Sii proattiva: se vedi scadenze imminenti, segnalale con urgenza.
 """
+        return base_prompt
 
     @pyqtSlot(str)
     def receive_message(self, message):
@@ -116,15 +131,21 @@ REGOLE:
         # Parse logic: Split Display vs Speech
         if "|||SPEECH|||" in response_text:
             parts = response_text.split("|||SPEECH|||")
-            display_text = parts[0].strip()
+            ui_text_raw = parts[0].strip()
             speech_text = parts[1].strip()
         else:
-            # Fallback if AI forgets separator (should replace this logic if critical)
-            display_text = response_text
+            # Fallback: if no separator, assume text is just text.
+            # However, if voice was enabled, the AI might have failed to split.
+            # We treat the whole text as UI text, and also as speech text.
+            ui_text_raw = response_text
             speech_text = response_text
 
+        # 1. Normalize UI Text (Safety Net)
+        # Even if the AI separated it, we run the cleaner to ensure no stray phonetic accents leaked into the visual part.
+        ui_text_clean = clean_text_for_display(ui_text_raw)
+
         # Emit separate signals
-        self.response_ready.emit(display_text)
+        self.response_ready.emit(ui_text_clean)
         self.speech_ready.emit(speech_text)
 
     def _on_worker_error(self, error_msg):
