@@ -24,7 +24,8 @@ class FloatingChatWidget(QWidget):
         
         # Window Flags & Attributes
         # REMOVED SubWindow to fix rendering freeze
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        # REMOVED FramelessWindowHint as it's a child widget
+        # self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         
         self.is_expanded = False
@@ -52,18 +53,18 @@ class FloatingChatWidget(QWidget):
         # Ensure Chat Frame has a fixed width
         self.chat_frame.setFixedWidth(380)
 
-        # Shadow for Chat Frame
-        chat_shadow = QGraphicsDropShadowEffect()
-        chat_shadow.setBlurRadius(40)
-        chat_shadow.setColor(QColor(0, 0, 0, 40))
-        chat_shadow.setOffset(0, 10)
-        self.chat_frame.setGraphicsEffect(chat_shadow)
+        # REMOVED QGraphicsDropShadowEffect to fix WebEngine rendering artifacts/freeze
+        # chat_shadow = QGraphicsDropShadowEffect()
+        # ...
+        # self.chat_frame.setGraphicsEffect(chat_shadow)
 
         self.chat_layout = QVBoxLayout(self.chat_frame)
         self.chat_layout.setContentsMargins(0, 0, 0, 0)
         
         self.web_view = QWebEngineView()
-        self.web_view.page().setBackgroundColor(Qt.GlobalColor.transparent)
+        # FIX: Opaque background prevents rendering freeze/lag on input
+        self.web_view.page().setBackgroundColor(Qt.GlobalColor.white)
+        self.web_view.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
         
         # Setup WebChannel
         self.channel = QWebChannel()
@@ -101,7 +102,7 @@ class FloatingChatWidget(QWidget):
             }
         """)
         
-        # Glow Effect for FAB
+        # Glow Effect for FAB (Keep this as it's not overlapping WebEngine)
         fab_shadow = QGraphicsDropShadowEffect()
         fab_shadow.setBlurRadius(20)
         fab_shadow.setColor(QColor(29, 78, 216, 80))

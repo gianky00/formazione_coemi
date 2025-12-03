@@ -63,8 +63,10 @@ class DummyEnum:
     Dialog = 0
     SubWindow = 0
     transparent = 0
+    white = 3
     class GlobalColor:
         transparent = 0
+        white = 3
 
 class DummyQLayoutItem:
     def __init__(self, widget):
