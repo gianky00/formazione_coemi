@@ -68,3 +68,19 @@ def get_lyra_profile_path():
         # path_service.py is in desktop_app/services
         # ../../ maps to Repo Root
         return os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'docs', 'LYRA_PROFILE.md'))
+
+def get_docs_dir():
+    """
+    Restituisce il percorso assoluto alla cartella docs/.
+    """
+    if getattr(sys, 'frozen', False):
+        base = os.path.dirname(sys.executable)
+
+        # Check _internal (PyInstaller 6+)
+        internal_path = os.path.join(base, "_internal", "docs")
+        if os.path.exists(internal_path):
+            return internal_path
+
+        return os.path.join(base, "docs")
+    else:
+        return os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'docs'))
