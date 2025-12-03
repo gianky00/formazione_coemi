@@ -15,18 +15,18 @@ class DipendenteSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class DipendenteCreateSchema(BaseModel):
-    matricola: Optional[str] = None
-    nome: str
-    cognome: str
+    matricola: Optional[str] = Field(None, min_length=1)
+    nome: str = Field(..., min_length=1)
+    cognome: str = Field(..., min_length=1)
     data_nascita: Optional[date] = None
     email: Optional[str] = None
     categoria_reparto: Optional[str] = None
     data_assunzione: Optional[date] = None
 
 class DipendenteUpdateSchema(BaseModel):
-    matricola: Optional[str] = None
-    nome: Optional[str] = None
-    cognome: Optional[str] = None
+    matricola: Optional[str] = Field(None, min_length=1)
+    nome: Optional[str] = Field(None, min_length=1)
+    cognome: Optional[str] = Field(None, min_length=1)
     data_nascita: Optional[date] = None
     email: Optional[str] = None
     categoria_reparto: Optional[str] = None

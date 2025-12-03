@@ -75,6 +75,7 @@ class DBSecurityManager:
         # Initialize LockManager
         self.lock_manager = LockManager(str(self.lock_path))
         self._heartbeat_timer: Optional[threading.Timer] = None
+        self._autosave_timer: Optional[threading.Timer] = None
 
     def _derive_key(self) -> bytes:
         digest = hashlib.sha256(self._STATIC_SECRET.encode()).digest()
@@ -185,12 +186,41 @@ class DBSecurityManager:
             self._heartbeat_timer.cancel()
             self._heartbeat_timer = None
 
+    def _start_autosave(self):
+        """
+        Starts the periodic auto-save mechanism.
+        """
+        self._stop_autosave()
+
+        def _save_tick():
+            if self.is_read_only:
+                return
+
+            logger.info("Auto-save triggered.")
+            self.save_to_disk()
+
+            # Schedule next save (e.g., every 5 minutes = 300 seconds)
+            self._autosave_timer = threading.Timer(300.0, _save_tick)
+            self._autosave_timer.daemon = True
+            self._autosave_timer.start()
+
+        # Start timer (first save after 5 mins)
+        self._autosave_timer = threading.Timer(300.0, _save_tick)
+        self._autosave_timer.daemon = True
+        self._autosave_timer.start()
+
+    def _stop_autosave(self):
+        if self._autosave_timer:
+            self._autosave_timer.cancel()
+            self._autosave_timer = None
+
     def force_read_only_mode(self):
         """
         Emergency method to switch to Read-Only mode if lock is lost.
         """
         self.is_read_only = True
         self._stop_heartbeat()
+        self._stop_autosave()
         logger.warning("System switched to READ-ONLY mode due to lock instability.")
 
     def acquire_session_lock(self, user_info: Dict) -> Tuple[bool, Optional[Dict]]:
@@ -221,6 +251,7 @@ class DBSecurityManager:
             self.read_only_info = None
             logger.info("Session lock acquired. Write access enabled.")
             self._start_heartbeat()
+            self._start_autosave()
         else:
             self.is_read_only = True
             self.read_only_info = owner_info
@@ -233,6 +264,7 @@ class DBSecurityManager:
         Releases the lock via LockManager.
         """
         self._stop_heartbeat()
+        self._stop_autosave()
         self.lock_manager.release()
         self.is_read_only = False # Reset state, though usually app is closing.
 
