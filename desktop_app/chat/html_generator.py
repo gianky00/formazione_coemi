@@ -24,28 +24,33 @@ def get_chat_html():
             box-sizing: border-box;
         }
 
-        body {
-            background-color: #FFFFFF; /* Opaque to prevent scroll ghosting */
-            color: var(--text-color);
-            font-family: 'Inter', 'Segoe UI', sans-serif;
+        html, body {
+            height: 100%;
             margin: 0;
             padding: 0;
+        }
+
+        body {
+            background-color: #FFFFFF;
+            color: var(--text-color);
+            font-family: 'Inter', 'Segoe UI', sans-serif;
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            height: 100vh;
         }
 
         #chat-container {
             flex: 1;
+            min-height: 0; /* Crucial for scrolling inside flex column */
             overflow-y: auto;
             padding: 20px;
             display: flex;
             flex-direction: column;
             position: relative;
-            z-index: 1; /* Scrollable content below headers */
+            z-index: 1;
             scrollbar-width: thin;
             scrollbar-color: var(--accent-color) transparent;
+            scroll-behavior: smooth; /* Fluid scrolling */
         }
 
         /* Bubbles */
