@@ -264,7 +264,7 @@ def build():
             f"{os.path.join(OBF_DIR, 'desktop_app', 'icons')}{sep}desktop_app/icons",
             f"{os.path.join(OBF_DIR, runtime_dir)}{sep}{runtime_dir}",
             f"{os.path.join(ROOT_DIR, 'guide_frontend', 'dist')}{sep}guide",
-            f"{os.path.join(ROOT_DIR, 'docs', 'LYRA_PROFILE.md')}{sep}_internal/docs/LYRA_PROFILE.md"
+            f"{os.path.join(ROOT_DIR, 'docs', 'LYRA_PROFILE.md')}{sep}_internal/docs"
         ]
 
         cmd_pyinstaller = [
