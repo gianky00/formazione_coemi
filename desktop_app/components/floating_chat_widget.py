@@ -179,6 +179,9 @@ class FloatingChatWidget(QWidget):
         self.snap_animation.start()
 
     def toggle_chat(self):
+        # Capture current geometry to calculate height difference
+        old_geo = self.geometry()
+
         if self.is_expanded:
             self.chat_frame.hide()
             self.resize(self.collapsed_size)
@@ -189,9 +192,16 @@ class FloatingChatWidget(QWidget):
             self.chat_frame.show()
             self.is_expanded = True
             self.fab.setText("×")
-            # Re-snap to ensure it stays on edge if size changed
-            # (Resizing expands inwards if aligned correctly, but let's be safe)
-            QTimer.singleShot(0, self.snap_to_edge)
+
+        # Adjust position to grow UPWARDS (keep bottom anchor)
+        # This is critical because if user moved it to bottom, growing down goes off-screen.
+        new_height = self.height()
+        old_height = old_geo.height()
+        y_diff = new_height - old_height
+        self.move(self.x(), self.y() - y_diff)
+
+        # Re-snap to ensure it stays on edge if size changed
+        QTimer.singleShot(0, self.snap_to_edge)
 
     def send_response_to_js(self, text):
         safe_text = text.replace('\\', '\\\\').replace('`', '\\`')
