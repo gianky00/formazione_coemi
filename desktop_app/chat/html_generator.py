@@ -25,7 +25,7 @@ def get_chat_html():
         }
 
         body {
-            background-color: transparent;
+            background-color: #FFFFFF; /* Opaque to prevent scroll ghosting */
             color: var(--text-color);
             font-family: 'Inter', 'Segoe UI', sans-serif;
             margin: 0;
@@ -42,7 +42,8 @@ def get_chat_html():
             padding: 20px;
             display: flex;
             flex-direction: column;
-            /* Removed gap, using margins for robustness */
+            position: relative;
+            z-index: 1; /* Scrollable content below headers */
             scrollbar-width: thin;
             scrollbar-color: var(--accent-color) transparent;
         }
@@ -52,14 +53,14 @@ def get_chat_html():
             max-width: 85%;
             width: fit-content;
             padding: 12px 16px;
-            margin-bottom: 15px; /* Explicit spacing */
+            margin-bottom: 15px;
             border-radius: 12px;
             font-size: 14px;
             line-height: 1.5;
             animation: fadeIn 0.3s ease-out;
             word-wrap: break-word;
             overflow-wrap: break-word;
-            white-space: pre-wrap; /* Preserve newlines, wrap text */
+            white-space: pre-wrap;
         }
 
         .user-message {
@@ -79,7 +80,7 @@ def get_chat_html():
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
 
-        /* Markdown Styling inside Lyra messages */
+        /* Markdown Styling */
         .lyra-message strong { font-weight: 600; color: #111827; }
         .lyra-message em { color: #4B5563; }
         .lyra-message code { background: #F3F4F6; padding: 2px 4px; border-radius: 4px; font-family: monospace; font-size: 0.9em; }
@@ -99,6 +100,8 @@ def get_chat_html():
             display: flex;
             align-items: center;
             gap: 10px;
+            position: relative;
+            z-index: 10; /* Above scroll */
         }
 
         input {
@@ -143,6 +146,8 @@ def get_chat_html():
             justify-content: space-between;
             align-items: center;
             background: #FFFFFF;
+            position: relative;
+            z-index: 10;
         }
         #header-title {
             font-weight: 600;
@@ -166,11 +171,14 @@ def get_chat_html():
             flex-direction: row;
             gap: 10px;
             padding: 10px 15px;
-            background-color: #F9FAFB;
+            background-color: #FFFFFF; /* Opaque */
             border-bottom: 1px solid #E5E7EB;
             overflow-x: auto;
             white-space: nowrap;
-            flex-shrink: 0; /* Prevent shrinking */
+            flex-shrink: 0;
+            position: relative;
+            z-index: 10; /* Ensure covers scroll */
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
         }
 
         #suggestions::-webkit-scrollbar {
@@ -216,6 +224,7 @@ def get_chat_html():
             left: -100%;
             animation: neuralMove 1.5s infinite linear;
             display: none;
+            z-index: 11;
         }
         @keyframes neuralMove { 0% { left: -100%; } 100% { left: 100%; } }
 
@@ -238,7 +247,7 @@ def get_chat_html():
         <!-- Messages -->
     </div>
 
-    <div style="position: relative;">
+    <div style="position: relative; z-index: 10;">
         <div id="neural-pulse"></div>
         <div id="input-area">
             <input type="text" id="message-input" placeholder="Chiedi a Lyra..." onkeypress="handleKeyPress(event)">
