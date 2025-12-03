@@ -72,6 +72,14 @@ class NeuralNetwork3D:
 
         return textures
 
+    def reset(self):
+        """Resets the engine to initial state (stops warp)."""
+        self.warp_active = False
+        self.warp_speed = 0.0
+        # Reset positions to ensure we aren't stuck in a "tunnel"
+        self.points = (np.random.rand(self.num_nodes, 3) - 0.5) * 1600
+        self.velocities = (np.random.rand(self.num_nodes, 3) - 0.5) * 1.5
+
     def start_warp(self):
         """Activates the cinematic warp effect."""
         self.warp_active = True

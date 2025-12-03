@@ -546,6 +546,17 @@ class LoginView(QWidget):
 
         self._stop_3d_rendering = False # Re-enable rendering
 
+        # --- FIX: Reset Neural Engine & UI State ---
+        self.neural_engine.reset()
+
+        # Restore Shadow Effect (removing opacity effect from transition)
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(50)
+        shadow.setXOffset(0)
+        shadow.setYOffset(10)
+        shadow.setColor(QColor(0, 0, 0, 30))
+        self.container.setGraphicsEffect(shadow)
+
         # Ensure background animation is running
         if not self._anim_timer.isActive():
             self._anim_timer.start(16)
@@ -703,8 +714,8 @@ class LoginView(QWidget):
     def _animate_success_exit(self):
         """
         Triggers the 'Spectacular' Cinematic 3D Warp Transition.
-        1. Fade out the UI Card (0.3s).
-        2. Trigger Neural Warp (2.0s).
+        1. Fade out the UI Card (0.2s).
+        2. Trigger Neural Warp (1.2s).
         3. Emit success signal.
         """
         # 1. Prepare Welcome Speech (Audio)
@@ -732,7 +743,7 @@ class LoginView(QWidget):
         self.container.setGraphicsEffect(self.opacity_effect)
         
         self.anim_fade = QPropertyAnimation(self.opacity_effect, b"opacity")
-        self.anim_fade.setDuration(300)
+        self.anim_fade.setDuration(200)
         self.anim_fade.setStartValue(1.0)
         self.anim_fade.setEndValue(0.0)
         self.anim_fade.setEasingCurve(QEasingCurve.Type.InOutQuad)
@@ -741,9 +752,9 @@ class LoginView(QWidget):
         # 3. Trigger Neural Warp
         self.neural_engine.start_warp()
 
-        # 4. Schedule Completion (2 seconds)
+        # 4. Schedule Completion (1.2 seconds)
         # We DO NOT stop the _anim_timer here, as we need it to render the warp.
-        QTimer.singleShot(2000, self._finish_login_transition)
+        QTimer.singleShot(1200, self._finish_login_transition)
 
     def _finish_login_transition(self):
         # Stop rendering loop to save resources
