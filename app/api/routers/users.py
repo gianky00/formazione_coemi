@@ -78,6 +78,15 @@ def update_user(
         )
 
     update_data = user_in.model_dump(exclude_unset=True)
+
+    if "username" in update_data and update_data["username"] != user.username:
+        existing_user = db.query(UserModel).filter(UserModel.username == update_data["username"]).first()
+        if existing_user:
+            raise HTTPException(
+                status_code=400,
+                detail="The user with this username already exists in the system.",
+            )
+
     password_changed = False
     if update_data.get("password"):
         hashed_password = security.get_password_hash(update_data["password"])
