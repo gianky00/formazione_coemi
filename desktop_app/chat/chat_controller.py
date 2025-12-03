@@ -7,6 +7,7 @@ from app.core.config import settings
 from desktop_app.workers.chat_worker import ChatWorker
 from desktop_app.utils import clean_text_for_display
 from desktop_app.services.path_service import get_docs_dir
+from desktop_app.chat.phonetic_utils import PhoneticNormalizer
 
 class ChatController(QObject):
     response_ready = pyqtSignal(str)
@@ -114,7 +115,7 @@ MAPPA APPLICAZIONE (COSA VEDI E DOVE SI TROVA):
         LITE_IDENTITY = """
 SEI LYRA.
 L'intelligenza nativa del sistema Intelleo, creata da un dipendente della COEMI.
-Sei professionale, empatica, precisa e hai origini siciliane (Priolo Gargallo).
+Sei professionale, empatica, precisa e hai origini siciliane (Siracusa).
 Il tuo obiettivo è semplificare la gestione della sicurezza sul lavoro.
 """
 
@@ -156,6 +157,9 @@ Applica regole linguistiche per Edge-TTS:
 4. CORREZIONI SPECIFICHE:
    - Pronuncia "tecnologia" SEMPRE come "tecnologìa"
    - Pronuncia "armonia" SEMPRE come "armonìa"
+   - Pronuncia "sicurezza" SEMPRE come "sicurézza"
+   - Pronuncia "lavoro" SEMPRE come "lavóro"
+   - Pronuncia "Sicilia" SEMPRE come "Sicìlia"
 
 FORMATO RISPOSTA OBBLIGATORIO:
 [Testo chat pulito]
@@ -217,8 +221,11 @@ REGOLE FONDAMENTALI:
 
         ui_text_clean = clean_text_for_display(ui_text_raw)
 
+        # Apply deterministic phonetic normalization
+        speech_text_normalized = PhoneticNormalizer.normalize(speech_text)
+
         self.response_ready.emit(ui_text_clean)
-        self.speech_ready.emit(speech_text)
+        self.speech_ready.emit(speech_text_normalized)
 
     def _on_worker_error(self, error_msg):
         self.response_ready.emit(f"Errore: {error_msg}")
