@@ -115,7 +115,7 @@ class FloatingChatWidget(QWidget):
 
         # Connect controller signal to JS and Voice
         self.controller.response_ready.connect(self.send_response_to_js)
-        self.controller.response_ready.connect(self.speak_response)
+        self.controller.speech_ready.connect(self.speak_response)
 
         # Animation for Snapping
         self.snap_animation = QPropertyAnimation(self, b"pos")
