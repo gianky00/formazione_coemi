@@ -9,92 +9,120 @@ def get_chat_html():
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <style>
         :root {
-            --bg-color: rgba(20, 20, 40, 0.95);
-            --glass-border: 1px solid rgba(100, 100, 255, 0.3);
-            --accent-color: #6366f1; /* Indigo 500 */
-            --text-color: #e2e8f0;
-            --user-bubble: rgba(255, 255, 255, 0.1);
-            --lyra-bubble: rgba(99, 102, 241, 0.15);
+            --bg-color: #FFFFFF;
+            --glass-border: 1px solid #E5E7EB;
+            --accent-color: #1D4ED8; /* Royal Blue */
+            --text-color: #1F2937; /* Dark Grey */
+            --user-bubble-bg: #1D4ED8;
+            --user-bubble-text: #FFFFFF;
+            --lyra-bubble-bg: #FFFFFF;
+            --lyra-bubble-text: #1F2937;
+            --input-bg: #F9FAFB;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
         }
 
         body {
-            background-color: transparent; /* Let Qt handle the background */
+            background-color: #FFFFFF;
             color: var(--text-color);
             font-family: 'Inter', 'Segoe UI', sans-serif;
-            margin: 0;
-            padding: 0;
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            height: 100vh;
         }
 
         #chat-container {
             flex: 1;
+            min-height: 0; /* Crucial for scrolling inside flex column */
             overflow-y: auto;
             padding: 20px;
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            position: relative;
+            z-index: 1;
             scrollbar-width: thin;
             scrollbar-color: var(--accent-color) transparent;
+            scroll-behavior: smooth; /* Fluid scrolling */
         }
 
         /* Bubbles */
         .message {
             max-width: 85%;
+            width: fit-content;
             padding: 12px 16px;
+            margin-bottom: 15px;
             border-radius: 12px;
             font-size: 14px;
-            line-height: 1.6;
+            line-height: 1.5;
             animation: fadeIn 0.3s ease-out;
-            position: relative;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            white-space: pre-wrap;
         }
 
         .user-message {
             align-self: flex-end;
-            background: var(--user-bubble);
+            background: var(--user-bubble-bg);
+            color: var(--user-bubble-text);
             border-bottom-right-radius: 2px;
-            color: #fff;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }
 
         .lyra-message {
             align-self: flex-start;
-            background: var(--lyra-bubble);
-            border: var(--glass-border);
+            background: var(--lyra-bubble-bg);
+            color: var(--lyra-bubble-text);
+            border: 1px solid #E5E7EB;
             border-bottom-left-radius: 2px;
-            backdrop-filter: blur(5px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
 
+        /* Markdown Styling */
+        .lyra-message strong { font-weight: 600; color: #111827; }
+        .lyra-message em { color: #4B5563; }
+        .lyra-message code { background: #F3F4F6; padding: 2px 4px; border-radius: 4px; font-family: monospace; font-size: 0.9em; }
+
         /* Typography */
-        h1, h2, h3 { font-weight: 300; margin-top: 0; }
+        h1, h2, h3 { font-weight: 600; margin-top: 0; color: #111827; }
         p { margin: 0 0 10px 0; }
         p:last-child { margin: 0; }
-        code { background: rgba(0,0,0,0.3); padding: 2px 5px; border-radius: 4px; font-family: monospace; }
-        pre { background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; overflow-x: auto; }
         ul, ol { margin: 0 0 10px 0; padding-left: 20px; }
+        li { margin-bottom: 4px; }
 
         /* Input Area */
         #input-area {
             padding: 15px;
-            background: rgba(30, 30, 60, 0.8);
+            background: var(--input-bg);
             border-top: var(--glass-border);
             display: flex;
             align-items: center;
             gap: 10px;
+            position: relative;
+            z-index: 10; /* Above scroll */
         }
 
         input {
             flex: 1;
-            background: rgba(0, 0, 0, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: #FFFFFF;
+            border: 1px solid #D1D5DB;
             border-radius: 20px;
             padding: 10px 15px;
-            color: white;
+            color: var(--text-color);
             outline: none;
-            transition: border-color 0.2s;
+            transition: border-color 0.2s, box-shadow 0.2s;
         }
-        input:focus { border-color: var(--accent-color); }
+        input:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1);
+        }
 
         button {
             background: var(--accent-color);
@@ -107,9 +135,13 @@ def get_chat_html():
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: transform 0.2s;
+            transition: transform 0.2s, background-color 0.2s;
+            box-shadow: 0 2px 4px rgba(29, 78, 216, 0.3);
         }
-        button:hover { transform: scale(1.1); }
+        button:hover {
+            transform: scale(1.05);
+            background-color: #1E40AF;
+        }
 
         /* Header */
         #header {
@@ -118,44 +150,74 @@ def get_chat_html():
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: rgba(30, 30, 60, 0.9);
+            background: #FFFFFF;
+            position: relative;
+            z-index: 10;
         }
-        #header-title { font-weight: 300; font-size: 18px; letter-spacing: 1px; }
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            background-color: #10b981;
-            border-radius: 50%;
-            box-shadow: 0 0 5px #10b981;
-        }
-        .status-dot.thinking {
-            background-color: #f59e0b;
-            box-shadow: 0 0 8px #f59e0b;
-            animation: pulse 1s infinite;
+        #header-title {
+            font-weight: 600;
+            font-size: 16px;
+            color: var(--accent-color);
+            letter-spacing: 0.5px;
         }
 
-        /* Suggestions */
-        #suggestions {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 10px;
-            margin-top: auto; /* Push to bottom of empty chat */
+        /* Status Text */
+        #status-text {
+            font-size: 12px;
+            color: #6B7280;
+            font-style: italic;
+            display: none;
+            animation: pulseText 1.5s infinite;
         }
+
+        /* Suggestions Bar */
+        #suggestions {
+            display: flex;
+            flex-direction: row;
+            gap: 10px;
+            padding: 10px 15px;
+            background-color: #FFFFFF; /* Opaque */
+            border-bottom: 1px solid #E5E7EB;
+            overflow-x: auto;
+            white-space: nowrap;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 10; /* Ensure covers scroll */
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+
+        #suggestions::-webkit-scrollbar {
+            height: 4px;
+        }
+        #suggestions::-webkit-scrollbar-thumb {
+            background-color: #D1D5DB;
+            border-radius: 2px;
+        }
+
         .suggestion-chip {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 10px;
+            background: #FFFFFF;
+            border: 1px solid #E5E7EB;
+            color: #4B5563;
+            padding: 8px 16px;
             border-radius: 20px;
             text-align: center;
             cursor: pointer;
-            transition: background 0.2s;
+            transition: all 0.2s;
             font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            flex-shrink: 0;
         }
-        .suggestion-chip:hover { background: rgba(255, 255, 255, 0.1); border-color: var(--accent-color); }
+        .suggestion-chip:hover {
+            background: #EFF6FF;
+            border-color: var(--accent-color);
+            color: var(--accent-color);
+        }
 
         /* Animations */
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulseText { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
 
         /* Neural Pulse Bar */
         #neural-pulse {
@@ -167,6 +229,7 @@ def get_chat_html():
             left: -100%;
             animation: neuralMove 1.5s infinite linear;
             display: none;
+            z-index: 11;
         }
         @keyframes neuralMove { 0% { left: -100%; } 100% { left: 100%; } }
 
@@ -175,19 +238,21 @@ def get_chat_html():
 <body>
     <div id="header">
         <div id="header-title">LYRA</div>
-        <div class="status-dot" id="status-indicator"></div>
+        <div id="status-text">Sto pensando...</div>
+    </div>
+
+    <div id="suggestions">
+        <div class="suggestion-chip" onclick="sendMessage('Analisi Scadenze Settimana')">Analisi Scadenze Settimana</div>
+        <div class="suggestion-chip" onclick="sendMessage('Chi manca all\'appello?')">Chi manca all'appello?</div>
+        <div class="suggestion-chip" onclick="sendMessage('Sintesi Sicurezza')">Sintesi Sicurezza</div>
+        <div class="suggestion-chip" onclick="sendMessage('Mostra Statistiche')">Mostra Statistiche</div>
     </div>
 
     <div id="chat-container">
-        <!-- Zero State -->
-        <div id="suggestions">
-            <div class="suggestion-chip" onclick="sendMessage('Analisi Scadenze Settimana')">Analisi Scadenze Settimana</div>
-            <div class="suggestion-chip" onclick="sendMessage('Chi manca all\'appello?')">Chi manca all'appello?</div>
-            <div class="suggestion-chip" onclick="sendMessage('Sintesi Sicurezza')">Sintesi Sicurezza</div>
-        </div>
+        <!-- Messages -->
     </div>
 
-    <div style="position: relative;">
+    <div style="position: relative; z-index: 10;">
         <div id="neural-pulse"></div>
         <div id="input-area">
             <input type="text" id="message-input" placeholder="Chiedi a Lyra..." onkeypress="handleKeyPress(event)">
@@ -212,10 +277,6 @@ def get_chat_html():
         function sendMessage(text) {
             if (!text) return;
             addMessage(text, 'user');
-
-            // Hide suggestions if they exist
-            const suggestions = document.getElementById('suggestions');
-            if (suggestions) suggestions.style.display = 'none';
 
             setThinking(true);
             if (backend) {
@@ -249,13 +310,13 @@ def get_chat_html():
 
         function setThinking(isThinking) {
             const pulse = document.getElementById('neural-pulse');
-            const dot = document.getElementById('status-indicator');
+            const statusText = document.getElementById('status-text');
             if (isThinking) {
                 pulse.style.display = 'block';
-                dot.classList.add('thinking');
+                statusText.style.display = 'block';
             } else {
                 pulse.style.display = 'none';
-                dot.classList.remove('thinking');
+                statusText.style.display = 'none';
             }
         }
 

@@ -61,6 +61,10 @@ class DummyEnum:
     Tool = 0
     WindowStaysOnTopHint = 0
     Dialog = 0
+    SubWindow = 0
+    transparent = 0
+    class GlobalColor:
+        transparent = 0
 
 class DummyQLayoutItem:
     def __init__(self, widget):
@@ -114,6 +118,7 @@ class DummyQWidget:
     ContextMenuPolicy = DummyEnum
     TextInteractionFlag = DummyEnum
     PenStyle = DummyEnum
+    GlobalColor = DummyEnum
 
     def __init__(self, text=None, *args, **kwargs):
         self._clicked = DummySignal()
@@ -147,7 +152,7 @@ class DummyQWidget:
         pass
     def raise_(self):
         pass
-    def resize(self, w, h):
+    def resize(self, *args):
         pass
     def setGeometry(self, *args):
         pass
@@ -379,6 +384,8 @@ class DummyQWidget:
         return pos
     def exec(self, *args):
         pass
+    def installEventFilter(self, filterObj):
+        pass
 
     # Signals
     @builtins.property
@@ -506,7 +513,7 @@ class DummyQWebEngineView(DummyQWidget):
         self.html = None
     def setUrl(self, url):
         self.url = url
-    def setHtml(self, html):
+    def setHtml(self, html, baseUrl=None):
         self.html = html
     def page(self):
         page = MagicMock()
@@ -595,6 +602,13 @@ def mock_qt_modules():
     mock_core.QPropertyAnimation = DummyQPropertyAnimation
     mock_core.QEasingCurve = MagicMock()
     mock_core.pyqtSignal = DummyPyQtSignal
+
+    def dummy_pyqtSlot(*args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
+    mock_core.pyqtSlot = dummy_pyqtSlot
+
     mock_core.QThreadPool = MagicMock()
     
     class DummyQThread(DummyQObject):

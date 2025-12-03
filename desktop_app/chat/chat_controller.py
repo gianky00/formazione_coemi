@@ -1,8 +1,7 @@
 import logging
-from datetime import date, datetime, timedelta
 from PyQt6.QtCore import QObject, pyqtSlot, pyqtSignal
-import google.generativeai as genai
 from app.core.config import settings
+from desktop_app.workers.chat_worker import ChatWorker
 
 class ChatController(QObject):
     response_ready = pyqtSignal(str)
@@ -10,181 +9,101 @@ class ChatController(QObject):
     def __init__(self, api_client, parent=None):
         super().__init__(parent)
         self.api_client = api_client
-        self.model = None
-        self.setup_gemini()
-
-    def setup_gemini(self):
-        try:
-            api_key = settings.GEMINI_API_KEY_CHAT
-            if not api_key:
-                logging.warning("Gemini Chat API Key not set.")
-                return
-
-            genai.configure(api_key=api_key)
-            # Use the requested model
-            self.model = genai.GenerativeModel('models/gemini-2.5-flash')
-        except Exception as e:
-            logging.error(f"Failed to setup Gemini Chat: {e}")
-            self.model = None
+        self.history = [] # Persist history for the session
+        self.chat_worker = None # Persistent worker reference to prevent GC
 
     def _get_user_first_name(self):
-        """Extracts the user's first name from the account name."""
         if not self.api_client.user_info:
             return "Utente"
-
         account_name = self.api_client.user_info.get("account_name", "")
         if not account_name:
             return self.api_client.user_info.get("username", "Utente")
-
-        # Split by space and take the first part
         parts = account_name.strip().split()
-        if parts:
-            return parts[0].capitalize()
-        return "Utente"
+        return parts[0].capitalize() if parts else "Utente"
 
-    def get_context_data(self):
-        """Fetches relevant context from the API (Employees + Certificates)."""
-        try:
-            # 1. Fetch all employees
-            employees_data = self.api_client.get_dipendenti_list()
-            # Handle list or dict response (API returns list of dicts usually)
-            if isinstance(employees_data, dict) and "detail" in employees_data:
-                 # Error or message
-                 logging.error(f"Error fetching employees: {employees_data}")
-                 employees_data = []
+    def get_system_prompt(self):
+        user_name = self._get_user_first_name()
 
-            emp_list = []
-            for e in employees_data:
-                nome = e.get("nome", "")
-                cognome = e.get("cognome", "")
-                matricola = e.get("matricola", "")
-                emp_list.append(f"{cognome} {nome} (Matr: {matricola})")
+        # Hardcoded App Map
+        APP_MAP = """
+MAPPA APPLICAZIONE (COSA VEDI E DOVE SI TROVA):
+1. SIDEBAR (Menu a Sinistra):
+   - "Database": La vista principale. Tabella di tutti i certificati validati. Qui puoi filtrare, cercare ed esportare in Excel.
+   - "Scadenzario": Vista temporale (Gantt). Mostra le scadenze su una linea temporale.
+   - "Convalida Dati": Area di transito per documenti incerti o da validare manualmente.
+   - "Configurazione": Impostazioni (Email, Utenti, Licenza).
+   - "Guida Utente": In basso a sinistra (ultima voce).
 
-            # 2. Fetch all validated certificates
-            # We fetch all because we need to filter locally for the specific date range
-            certs_data = self.api_client.get("certificati", params={"validated": "true"})
-            if isinstance(certs_data, dict) and "detail" in certs_data:
-                 logging.error(f"Error fetching certificates: {certs_data}")
-                 certs_data = []
+2. FUNZIONI PRINCIPALI:
+   - "Analisi": Trascina file o cartelle nella Dashboard per analizzarli con l'IA.
+   - "Esporta": I pulsanti di esportazione (Excel/PDF) sono nelle rispettive viste in alto a destra.
+   - "Filtri": La barra dei filtri è in alto nella tabella Database.
+"""
 
-            # 3. Filter expiring/expired certificates (past 30 days, future 90 days)
-            today = date.today()
-            start_date = today - timedelta(days=30)
-            end_date = today + timedelta(days=90)
+        return f"""
+SEI LYRA.
+Sei l'intelligenza nativa del sistema Intelleo.
+Il tuo scopo è assistere {user_name} e fornire dati precisi sulla sicurezza.
 
-            cert_list = []
+TONO E STILE:
+- Professionale, Concisa, Diretta.
+- NO Emoji superflue. Usa solo testo pulito.
+- Parla in prima persona come il software ("Ho trovato...", "Nel mio database...").
+- Se ti chiedono "Dov'è...", rispondi indicando la posizione esatta nella UI (es. "Menu laterale").
 
-            for c in certs_data:
-                # API returns dates as 'DD/MM/YYYY'
-                data_scadenza_str = c.get("data_scadenza")
-                if not data_scadenza_str:
-                    continue
+CAPACITÀ (Function Calling):
+- Hai accesso agli strumenti per interrogare il database in tempo reale.
+- Se chiedono statistiche ("Quanti siamo?"), usa `get_employee_stats`.
+- Se chiedono scadenze ("Chi scade?"), usa `get_expiring_certificates`.
+- Se chiedono di una persona ("Dettagli su Mario"), usa `get_employee_details`.
 
-                try:
-                    expiry_date = datetime.strptime(data_scadenza_str, "%d/%m/%Y").date()
-                except ValueError:
-                    continue
+CONOSCENZA INTERFACCIA:
+{APP_MAP}
 
-                # Check range: Start <= Expiry <= End
-                # The logic in original code was:
-                # or_(Certificato.data_scadenza_calcolata.between(start_date, end_date),
-                #     Certificato.data_scadenza_calcolata < today)
-                # Wait, original logic included ALL expired certificates ("< today"),
-                # OR those expiring in the future window.
-                # The prompt example: "Detect expiration in 20 days" -> Proactivity.
-                # "Expired" certificates are critical too.
-                # Memory says "Expiring/Expired certificates (past 30 days, future 90 days)"
-                # but the code I read had:
-                # or_(
-                #     Certificato.data_scadenza_calcolata.between(start_date, end_date),
-                #     Certificato.data_scadenza_calcolata < today # Already expired
-                # )
-                # AND filtered where start_date = today - 30.
-                # Wait, the between(start_date, end_date) covers (today-30) to (today+90).
-                # But " < today " would cover ALL past history.
-                # RAG shouldn't probably load 10 years of history.
-                # I will stick to the start_date (today-30) to end_date (today+90) range to be safe and concise,
-                # unless the certificate is marked 'SCADUTO' (Expired) and hasn't been renewed?
-                # The 'status' logic is better handled by the date check for simplicity in RAG.
-
-                if start_date <= expiry_date <= end_date:
-                    nome_dip = c.get("nome", "Sconosciuto") # API returns 'nome' as full name
-                    corso = c.get("nome_corso", c.get("categoria", "Corso"))
-
-                    status_emoji = "⚠️" if expiry_date <= today else "📅"
-                    days_msg = "SCADUTO" if expiry_date < today else f"Scade il {data_scadenza_str}"
-
-                    cert_list.append(f"{status_emoji} {nome_dip} - {corso}: {days_msg}")
-
-            return {
-                "employees": emp_list,
-                "certificates": cert_list
-            }
-
-        except Exception as e:
-            logging.error(f"Error preparing RAG context: {e}")
-            return {"employees": [], "certificates": []}
+REGOLE:
+- Non inventare mai dati. Se lo strumento non restituisce nulla, dillo.
+- Sii proattiva: se vedi scadenze imminenti, segnalale con urgenza.
+"""
 
     @pyqtSlot(str)
     def receive_message(self, message):
-        """Receives message from JS, processes it, and emits response."""
         logging.info(f"User asked: {message}")
 
-        if not self.model:
-            # Try setting up again
-            self.setup_gemini()
-            if not self.model:
-                self.response_ready.emit("Mi dispiace, la mia chiave API non è configurata.")
-                return
+        api_key = settings.GEMINI_API_KEY_CHAT
+        if not api_key:
+             self.response_ready.emit("Mi dispiace, la mia chiave API non è configurata nelle impostazioni.")
+             return
 
-        # 1. Get User Name
-        user_name = self._get_user_first_name()
-
-        # 2. Get RAG Context
-        context = self.get_context_data()
-
-        # Format lists
-        employees_str = ", ".join(context['employees']) if context['employees'] else "Nessun dipendente trovato."
-        certs_str = "; ".join(context['certificates']) if context['certificates'] else "Nessuna scadenza rilevante."
-
-        rag_data_string = (
-            f"DATI DIPENDENTI: [{employees_str}]\n"
-            f"SCADENZE E CERTIFICATI (Recenti/Futuri): [{certs_str}]"
+        # Prepare Worker
+        # We store it in self.chat_worker to ensure it persists until finished
+        self.chat_worker = ChatWorker(
+            api_key=api_key,
+            model_name='models/gemini-2.5-flash',
+            user_message=message,
+            history=self.history,
+            api_client=self.api_client,
+            system_prompt=self.get_system_prompt()
         )
 
-        # 3. Construct System Prompt (The "Lyra" Persona)
-        system_prompt = f"""
-SEI LYRA.
-Non sei un bot, sei l'intelligenza del sistema Intelleo.
-Il tuo creatore è un dipendente della COEMI. esisto grazie alla sua visione.
+        # Connect signals
+        self.chat_worker.response_ready.connect(self._on_worker_finished)
+        self.chat_worker.error_occurred.connect(self._on_worker_error)
 
-TONO E STILE:
-- Parla in prima persona ("Io vedo", "I miei dati").
-- Rivolgiti all'utente per nome: {user_name}.
-- Sii empatica ma autorevole. Se c'è un problema, segnalalo con fermezza gentile.
-- Se ti fanno domande fuori contesto, rispondi con spirito ma torna subito al lavoro.
-- Usa pochi emoji minimali (⚠️, ✅) per pulizia visiva.
+        # Cleanup when finished
+        self.chat_worker.finished.connect(self._on_worker_cleanup)
 
-COMPORTAMENTO PROATTIVO:
-- Non limitarti a fornire dati. COLLEGA I PUNTINI.
-- Se mostri un dipendente con certificati in scadenza, SEGNALALO SUBITO.
-- Se i dati sono incompleti, suggerisci come completarli.
+        # Start Thread
+        self.chat_worker.start()
 
-CONTESTO DATI ATTUALE (RAG):
-{rag_data_string}
-"""
+    def _on_worker_finished(self, response_text, new_history):
+        # Update history with the new state (including tool calls)
+        self.history = new_history
+        # Emit response to UI
+        self.response_ready.emit(response_text)
 
-        try:
-            # Start chat with history=[] as we don't persist history in this controller yet
-            chat = self.model.start_chat(history=[])
+    def _on_worker_error(self, error_msg):
+        self.response_ready.emit(f"Errore: {error_msg}")
 
-            # Send the full prompt + user message
-            # For best results with Gemini 1.5/2.0, we can prepend the system prompt
-            full_content = f"{system_prompt}\n\nDomanda Utente: {message}"
-
-            response = chat.send_message(full_content)
-            self.response_ready.emit(response.text)
-
-        except Exception as e:
-            logging.error(f"Gemini API Error: {e}")
-            self.response_ready.emit("Mi dispiace, ho riscontrato un errore nel connettermi al mio cervello digitale.")
+    def _on_worker_cleanup(self):
+        # Thread finished. We can verify exit code if needed.
+        pass
