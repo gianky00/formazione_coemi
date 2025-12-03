@@ -20,6 +20,10 @@ def get_chat_html():
             --input-bg: #F9FAFB;
         }
 
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             background-color: transparent;
             color: var(--text-color);
@@ -38,7 +42,7 @@ def get_chat_html():
             padding: 20px;
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            /* Removed gap, using margins for robustness */
             scrollbar-width: thin;
             scrollbar-color: var(--accent-color) transparent;
         }
@@ -48,11 +52,11 @@ def get_chat_html():
             max-width: 85%;
             width: fit-content;
             padding: 12px 16px;
+            margin-bottom: 15px; /* Explicit spacing */
             border-radius: 12px;
             font-size: 14px;
             line-height: 1.5;
             animation: fadeIn 0.3s ease-out;
-            position: relative;
             word-wrap: break-word;
             overflow-wrap: break-word;
             white-space: pre-wrap; /* Preserve newlines, wrap text */
@@ -156,25 +160,41 @@ def get_chat_html():
             animation: pulseText 1.5s infinite;
         }
 
-        /* Suggestions */
+        /* Suggestions Bar */
         #suggestions {
-            display: grid;
-            grid-template-columns: 1fr;
+            display: flex;
+            flex-direction: row;
             gap: 10px;
-            margin-top: auto;
-            padding-bottom: 5px;
+            padding: 10px 15px;
+            background-color: #F9FAFB;
+            border-bottom: 1px solid #E5E7EB;
+            overflow-x: auto;
+            white-space: nowrap;
+            flex-shrink: 0; /* Prevent shrinking */
         }
+
+        #suggestions::-webkit-scrollbar {
+            height: 4px;
+        }
+        #suggestions::-webkit-scrollbar-thumb {
+            background-color: #D1D5DB;
+            border-radius: 2px;
+        }
+
         .suggestion-chip {
             background: #FFFFFF;
             border: 1px solid #E5E7EB;
             color: #4B5563;
-            padding: 10px;
+            padding: 8px 16px;
             border-radius: 20px;
             text-align: center;
             cursor: pointer;
             transition: all 0.2s;
             font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
             box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            flex-shrink: 0;
         }
         .suggestion-chip:hover {
             background: #EFF6FF;
@@ -207,13 +227,15 @@ def get_chat_html():
         <div id="status-text">Sto pensando...</div>
     </div>
 
+    <div id="suggestions">
+        <div class="suggestion-chip" onclick="sendMessage('Analisi Scadenze Settimana')">Analisi Scadenze Settimana</div>
+        <div class="suggestion-chip" onclick="sendMessage('Chi manca all\'appello?')">Chi manca all'appello?</div>
+        <div class="suggestion-chip" onclick="sendMessage('Sintesi Sicurezza')">Sintesi Sicurezza</div>
+        <div class="suggestion-chip" onclick="sendMessage('Mostra Statistiche')">Mostra Statistiche</div>
+    </div>
+
     <div id="chat-container">
-        <!-- Zero State -->
-        <div id="suggestions">
-            <div class="suggestion-chip" onclick="sendMessage('Analisi Scadenze Settimana')">Analisi Scadenze Settimana</div>
-            <div class="suggestion-chip" onclick="sendMessage('Chi manca all\'appello?')">Chi manca all'appello?</div>
-            <div class="suggestion-chip" onclick="sendMessage('Sintesi Sicurezza')">Sintesi Sicurezza</div>
-        </div>
+        <!-- Messages -->
     </div>
 
     <div style="position: relative;">
@@ -241,10 +263,6 @@ def get_chat_html():
         function sendMessage(text) {
             if (!text) return;
             addMessage(text, 'user');
-
-            // Hide suggestions if they exist
-            const suggestions = document.getElementById('suggestions');
-            if (suggestions) suggestions.style.display = 'none';
 
             setThinking(true);
             if (backend) {
