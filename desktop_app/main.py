@@ -341,12 +341,13 @@ class MasterWindow(QMainWindow):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        # Position Floating Chat at Bottom-Right
+        # Position Floating Chat at Bottom-Right ONLY if user hasn't moved it
         if hasattr(self, 'chat_widget'):
-            padding = 20
-            w = self.chat_widget.width()
-            h = self.chat_widget.height()
-            self.chat_widget.move(self.width() - w - padding, self.height() - h - padding)
+            if not getattr(self.chat_widget, 'user_has_moved', False):
+                padding = 20
+                w = self.chat_widget.width()
+                h = self.chat_widget.height()
+                self.chat_widget.move(self.width() - w - padding, self.height() - h - padding)
 
     def show_login(self):
         self.stack.fade_in(0)

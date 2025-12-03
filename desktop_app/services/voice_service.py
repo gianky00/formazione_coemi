@@ -18,10 +18,13 @@ class TTSWorker(QThread):
     finished = pyqtSignal(str) # Emits path to generated file
     error = pyqtSignal(str)
 
-    def __init__(self, text, voice="it-IT-IrmaNeural"):
+    def __init__(self, text, voice="it-IT-IsabellaNeural"):
         super().__init__()
         self.text = text
         self.voice = voice
+        # Personality Tuning Parameters
+        self.rate = "+10%"
+        self.pitch = "+2Hz"
 
     def run(self):
         try:
@@ -34,11 +37,16 @@ class TTSWorker(QThread):
             self.finished.emit(path)
         except Exception as e:
             logger.error(f"TTS Generation Error: {e}")
-            print(f"DEBUG TTS ERROR: {e}")
             self.error.emit(str(e))
 
     async def _generate_audio(self, path):
-        communicate = edge_tts.Communicate(self.text, self.voice)
+        # Apply Rate and Pitch tuning
+        communicate = edge_tts.Communicate(
+            self.text,
+            self.voice,
+            rate=self.rate,
+            pitch=self.pitch
+        )
         await communicate.save(path)
 
 class VoiceService(QObject):
@@ -57,6 +65,7 @@ class VoiceService(QObject):
         
         # Keep track of temporary files to clean them up
         self._current_file = None
+        self.worker = None # Keep reference to prevent GC
         
         self._player.mediaStatusChanged.connect(self._on_media_status_changed)
 
@@ -76,7 +85,8 @@ class VoiceService(QObject):
         self.stop()
 
         # Start generation in background thread
-        self.worker = TTSWorker(text)
+        # Use Isabella as the new standard
+        self.worker = TTSWorker(text, voice="it-IT-IsabellaNeural")
         self.worker.finished.connect(self._play_audio)
         self.worker.error.connect(lambda e: logger.error(f"TTS Error: {e}"))
         self.worker.start()
@@ -95,7 +105,6 @@ class VoiceService(QObject):
         """
         if status == QMediaPlayer.MediaStatus.EndOfMedia:
             # We can't delete immediately as the player might still hold the handle briefly
-            # But for temp files, we can just leave them for OS cleanup or try best effort
             pass
 
     def stop(self):
