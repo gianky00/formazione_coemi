@@ -2,11 +2,12 @@ import logging
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QGraphicsDropShadowEffect, QFrame, QApplication
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebChannel import QWebChannel
-from PyQt6.QtCore import Qt, QSize, pyqtSignal, QTimer, QUrl, QPoint, QEvent, QPropertyAnimation, QEasingCurve
-from PyQt6.QtGui import QColor, QMouseEvent
+from PyQt6.QtCore import Qt, QSize, pyqtSignal, QTimer, QUrl, QPoint, QEvent, QPropertyAnimation, QEasingCurve, QRect
+from PyQt6.QtGui import QColor, QMouseEvent, QIcon
 
 from desktop_app.chat.html_generator import get_chat_html
 from desktop_app.chat.chat_controller import ChatController
+from desktop_app.utils import load_colored_icon
 
 class FloatingChatWidget(QWidget):
     def __init__(self, api_client, voice_service, parent=None):
@@ -16,13 +17,15 @@ class FloatingChatWidget(QWidget):
         # Expanded/Collapsed sizes
         self.collapsed_size = QSize(80, 80) # Includes margin for shadow
         self.expanded_size = QSize(400, 600)
+        self.current_target_size = self.collapsed_size
 
         # Init size
         self.resize(self.collapsed_size)
         
-        # Transparent background for the container
+        # Window Flags & Attributes
+        # REMOVED SubWindow to fix rendering freeze
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.SubWindow)
         
         self.is_expanded = False
         self.is_dragging = False
@@ -42,18 +45,18 @@ class FloatingChatWidget(QWidget):
             QFrame {
                 background-color: #FFFFFF;
                 border: 1px solid #E5E7EB;
-                border-radius: 12px;
+                border-radius: 16px;
             }
         """)
         
-        # Ensure Chat Frame has a fixed width to prevent shrinking when aligned
+        # Ensure Chat Frame has a fixed width
         self.chat_frame.setFixedWidth(380)
 
         # Shadow for Chat Frame
         chat_shadow = QGraphicsDropShadowEffect()
         chat_shadow.setBlurRadius(40)
-        chat_shadow.setColor(QColor(0, 0, 0, 30))
-        chat_shadow.setOffset(0, 8)
+        chat_shadow.setColor(QColor(0, 0, 0, 40))
+        chat_shadow.setOffset(0, 10)
         self.chat_frame.setGraphicsEffect(chat_shadow)
 
         self.chat_layout = QVBoxLayout(self.chat_frame)
@@ -72,39 +75,42 @@ class FloatingChatWidget(QWidget):
         
         self.chat_layout.addWidget(self.web_view)
         
-        self.chat_frame.hide() # Initially hidden
+        # Initially hidden (opacity 0 or just hidden)
+        self.chat_frame.hide()
         self.layout.addWidget(self.chat_frame)
         
         # FAB (Avatar)
-        self.fab = QPushButton("L")
+        self.fab = QPushButton()
         self.fab.setFixedSize(60, 60)
         self.fab.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.fab.setIcon(load_colored_icon("user.svg", "#FFFFFF"))
+        self.fab.setIconSize(QSize(32, 32))
         self.fab.setStyleSheet("""
             QPushButton {
                 background-color: #1D4ED8;
                 color: #FFFFFF;
-                border: 1px solid #1E40AF;
+                border: none;
                 border-radius: 30px;
-                font-family: 'Segoe UI', sans-serif;
-                font-size: 24px;
-                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #2563EB;
-                border-color: #3B82F6;
+                transform: scale(1.05);
+            }
+            QPushButton:pressed {
+                background-color: #1E40AF;
             }
         """)
         
         # Glow Effect for FAB
         fab_shadow = QGraphicsDropShadowEffect()
         fab_shadow.setBlurRadius(20)
-        fab_shadow.setColor(QColor(29, 78, 216, 60))
+        fab_shadow.setColor(QColor(29, 78, 216, 80))
         fab_shadow.setOffset(0, 4)
         self.fab.setGraphicsEffect(fab_shadow)
         
         # We handle clicking manually via eventFilter to distinguish drag vs click
         self.fab.installEventFilter(self)
-        self.layout.addWidget(self.fab) # Alignment set dynamically
+        self.layout.addWidget(self.fab)
 
         # Connect controller signal to JS and Voice
         self.controller.response_ready.connect(self.send_response_to_js)
@@ -114,6 +120,11 @@ class FloatingChatWidget(QWidget):
         self.snap_animation = QPropertyAnimation(self, b"pos")
         self.snap_animation.setDuration(400)
         self.snap_animation.setEasingCurve(QEasingCurve.Type.OutBack)
+
+        # Animation for Expansion (Geometry)
+        self.expand_animation = QPropertyAnimation(self, b"geometry")
+        self.expand_animation.setDuration(300)
+        self.expand_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
 
     def eventFilter(self, source, event):
         if source == self.fab:
@@ -168,40 +179,58 @@ class FloatingChatWidget(QWidget):
             target_x = 20 # 20px padding
             align_flag = Qt.AlignmentFlag.AlignLeft
 
-        # Update layout alignment to ensure expanded chat opens on the correct side relative to FAB
-        # (Actually, QVBoxLayout stacks vertically. Alignment controls horizontal placement in the slot)
-        # We need to change the layout alignment so that child widgets align to that side
+        # Update layout alignment
         self.layout.setAlignment(Qt.AlignmentFlag.AlignBottom | align_flag)
 
         # Animate
         self.snap_animation.setStartValue(self.pos())
-        self.snap_animation.setEndValue(QPoint(target_x, self.y()))
+        self.snap_animation.setEndValue(QPoint(int(target_x), self.y()))
         self.snap_animation.start()
 
     def toggle_chat(self):
-        # Capture current geometry to calculate height difference
-        old_geo = self.geometry()
+        # Determine target geometry
+        current_geo = self.geometry()
 
         if self.is_expanded:
+            # Collapse
             self.chat_frame.hide()
-            self.resize(self.collapsed_size)
-            self.is_expanded = False
-            self.fab.setText("L")
-        else:
-            self.resize(self.expanded_size)
-            self.chat_frame.show()
-            self.is_expanded = True
-            self.fab.setText("×")
+            target_w = self.collapsed_size.width()
+            target_h = self.collapsed_size.height()
 
-        # Adjust position to grow UPWARDS (keep bottom anchor)
-        # This is critical because if user moved it to bottom, growing down goes off-screen.
-        new_height = self.height()
-        old_height = old_geo.height()
-        y_diff = new_height - old_height
-        self.move(self.x(), self.y() - y_diff)
+            # Calculate new Y to keep bottom anchored
+            new_y = current_geo.y() + (current_geo.height() - target_h)
+
+            target_rect = QRect(current_geo.x(), new_y, target_w, target_h)
+
+            self.fab.setIcon(load_colored_icon("user.svg", "#FFFFFF"))
+            self.is_expanded = False
+        else:
+            # Expand
+            self.chat_frame.show()
+            target_w = self.expanded_size.width()
+            target_h = self.expanded_size.height()
+
+            # Calculate new Y to grow UPWARDS
+            new_y = current_geo.y() - (target_h - current_geo.height())
+
+            target_rect = QRect(current_geo.x(), new_y, target_w, target_h)
+
+            self.fab.setIcon(load_colored_icon("chevron-down.svg", "#FFFFFF"))
+            self.is_expanded = True
+
+        # Animate
+        self.expand_animation.setStartValue(current_geo)
+        self.expand_animation.setEndValue(target_rect)
+        self.expand_animation.start()
 
         # Re-snap to ensure it stays on edge if size changed
-        QTimer.singleShot(0, self.snap_to_edge)
+        QTimer.singleShot(300, self.snap_to_edge)
+
+        # Focus input in WebEngine
+        if self.is_expanded:
+            self.web_view.setFocus()
+            script = "setTimeout(function() { document.getElementById('message-input').focus(); }, 100);"
+            self.web_view.page().runJavaScript(script)
 
     def send_response_to_js(self, text):
         safe_text = text.replace('\\', '\\\\').replace('`', '\\`')
