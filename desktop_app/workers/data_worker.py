@@ -31,7 +31,8 @@ class FetchCertificatesWorker(QRunnable):
             response = requests.get(
                 f"{self.api_client.base_url}/certificati/",
                 params=params,
-                headers=self.api_client._get_headers()
+                headers=self.api_client._get_headers(),
+                timeout=30
             )
             response.raise_for_status()
             data = response.json()
@@ -60,7 +61,8 @@ class DeleteCertificatesWorker(QRunnable):
                 try:
                     response = requests.delete(
                         f"{self.api_client.base_url}/certificati/{cert_id}",
-                        headers=self.api_client._get_headers()
+                        headers=self.api_client._get_headers(),
+                        timeout=10
                     )
                     response.raise_for_status()
                     success_count += 1
@@ -86,7 +88,8 @@ class UpdateCertificateWorker(QRunnable):
             response = requests.put(
                 f"{self.api_client.base_url}/certificati/{self.cert_id}",
                 json=self.data,
-                headers=self.api_client._get_headers()
+                headers=self.api_client._get_headers(),
+                timeout=10
             )
             response.raise_for_status()
             self.signals.result.emit(True)
@@ -112,7 +115,8 @@ class ValidateCertificatesWorker(QRunnable):
                 try:
                     response = requests.put(
                         f"{self.api_client.base_url}/certificati/{cert_id}/valida",
-                        headers=self.api_client._get_headers()
+                        headers=self.api_client._get_headers(),
+                        timeout=10
                     )
                     response.raise_for_status()
                     success_count += 1

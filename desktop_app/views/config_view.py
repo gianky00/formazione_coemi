@@ -340,7 +340,7 @@ class DatabaseSettingsWidget(QFrame):
                 import requests
                 url = f"{self.api_client.base_url}/system/optimize"
                 headers = self.api_client._get_headers()
-                response = requests.post(url, headers=headers)
+                response = requests.post(url, headers=headers, timeout=60)
 
                 if response.status_code == 200:
                     CustomMessageDialog.show_info(self, "Successo", "Database ottimizzato correttamente.")
@@ -542,7 +542,7 @@ class AuditLogWidget(QFrame):
              url = f"{self.api_client.base_url}/audit/export"
              headers = self.api_client._get_headers()
 
-             response = requests.get(url, headers=headers)
+             response = requests.get(url, headers=headers, timeout=60)
              if response.status_code == 200:
                  default_name = "audit_logs.csv"
                  if "Content-Disposition" in response.headers:

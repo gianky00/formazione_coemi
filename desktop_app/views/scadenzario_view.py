@@ -381,7 +381,7 @@ class ScadenzarioView(QWidget):
         self.loading_overlay.set_text("Invio email in corso...")
 
         def send():
-            return requests.post(f"{self.api_client.base_url}/notifications/send-manual-alert", headers=self.api_client._get_headers())
+            return requests.post(f"{self.api_client.base_url}/notifications/send-manual-alert", headers=self.api_client._get_headers(), timeout=60)
 
         worker = Worker(send)
         worker.signals.result.connect(self._on_email_sent)
@@ -408,7 +408,7 @@ class ScadenzarioView(QWidget):
         self.loading_overlay.set_text("Generazione Report PDF...")
 
         def download():
-            return requests.get(f"{self.api_client.base_url}/notifications/export-report", headers=self.api_client._get_headers())
+            return requests.get(f"{self.api_client.base_url}/notifications/export-report", headers=self.api_client._get_headers(), timeout=60)
 
         worker = Worker(download)
         worker.signals.result.connect(lambda res: self._on_pdf_downloaded(res, path))

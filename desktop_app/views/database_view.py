@@ -370,7 +370,7 @@ class DatabaseView(QWidget):
         if not cert_id_to_edit: return
 
         try:
-            response = requests.get(f"{self.api_client.base_url}/certificati/{cert_id_to_edit}")
+            response = requests.get(f"{self.api_client.base_url}/certificati/{cert_id_to_edit}", headers=self.api_client._get_headers(), timeout=10)
             response.raise_for_status()
             cert_data = response.json()
 

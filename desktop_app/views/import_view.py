@@ -184,7 +184,7 @@ class PdfWorker(QObject):
                         current_op_path = f"{file_path}_copy_{idx}.pdf"
                         shutil.copy2(file_path, current_op_path)
 
-                    save_response = requests.post(f"{self.api_client.base_url}/certificati/", json=certificato, headers=self.api_client._get_headers())
+                    save_response = requests.post(f"{self.api_client.base_url}/certificati/", json=certificato, headers=self.api_client._get_headers(), timeout=30)
 
                     if save_response.status_code == 200:
                         cert_data = save_response.json()
