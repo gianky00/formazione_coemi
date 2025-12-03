@@ -363,6 +363,7 @@ class MasterWindow(QMainWindow):
         
         # Show Chat Widget
         self.chat_widget.show()
+        self.chat_widget.raise_()
         # Ensure correct position
         self.resizeEvent(None)
 
