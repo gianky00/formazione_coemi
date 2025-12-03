@@ -1,6 +1,7 @@
 import os
 import sys
 import uuid
+import re
 from PyQt6.QtGui import QIcon, QPixmap
 from PyQt6.QtCore import QByteArray
 from desktop_app.services.license_manager import LicenseManager
@@ -58,3 +59,32 @@ def load_colored_icon(icon_name, color_hex):
     except Exception as e:
         print(f"Error loading icon {icon_name}: {e}")
         return QIcon(path) # Fallback
+
+def clean_text_for_display(text: str) -> str:
+    """
+    Removes phonetic stress accents for visual display while preserving
+    standard Italian grammatical accents at the end of words.
+
+    Logic:
+    - Always removes acute phonetic markers (á, í, ú).
+    - Removes internal stress accents (ò, è, à, ì, ù) only if they are inside a word.
+    - Preserves Markdown formatting (e.g., _città_) by excluding '_' from the "inside word" check.
+    """
+    # 1. Always replace acute accents on a, i, u (Phonetic stress markers)
+    text = re.sub(r'[á]', 'a', text)
+    text = re.sub(r'[í]', 'i', text)
+    text = re.sub(r'[ú]', 'u', text)
+
+    # Regex lookahead (?=[^\W_]) ensures the character is followed by a word character
+    # that is NOT an underscore. This prevents stripping accents before a Markdown underscore.
+
+    # 2. Replace accented o/e ONLY if they are inside a word
+    text = re.sub(r'[òó](?=[^\W_])', 'o', text)
+    text = re.sub(r'[èé](?=[^\W_])', 'e', text)
+
+    # 3. Also clean other accents inside words if used for stress (e.g. càsa)
+    text = re.sub(r'[à](?=[^\W_])', 'a', text)
+    text = re.sub(r'[ì](?=[^\W_])', 'i', text)
+    text = re.sub(r'[ù](?=[^\W_])', 'u', text)
+
+    return text
