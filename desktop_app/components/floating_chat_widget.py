@@ -63,7 +63,9 @@ class FloatingChatWidget(QWidget):
         self.chat_layout.setContentsMargins(0, 0, 0, 0)
         
         self.web_view = QWebEngineView()
-        self.web_view.page().setBackgroundColor(Qt.GlobalColor.transparent)
+        # FIX: Opaque background prevents rendering freeze/lag on input
+        self.web_view.page().setBackgroundColor(Qt.GlobalColor.white)
+        self.web_view.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
         
         # Setup WebChannel
         self.channel = QWebChannel()
