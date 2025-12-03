@@ -89,7 +89,7 @@ class APIClient:
     def change_password(self, old_password, new_password):
         url = f"{self.base_url}/auth/change-password"
         payload = {"old_password": old_password, "new_password": new_password}
-        response = requests.post(url, json=payload, headers=self._get_headers())
+        response = requests.post(url, json=payload, headers=self._get_headers(), timeout=10)
         response.raise_for_status()
         return response.json()
 
@@ -104,7 +104,7 @@ class APIClient:
             "message": message,
             "history": history or []
         }
-        response = requests.post(url, json=payload, headers=self._get_headers())
+        response = requests.post(url, json=payload, headers=self._get_headers(), timeout=30)
         response.raise_for_status()
         return response.json()
 
@@ -113,35 +113,35 @@ class APIClient:
     def get_dipendenti_list(self):
         """Fetches the list of all employees."""
         url = f"{self.base_url}/dipendenti"
-        response = requests.get(url, headers=self._get_headers())
+        response = requests.get(url, headers=self._get_headers(), timeout=10)
         response.raise_for_status()
         return response.json()
 
     def get_dipendente_detail(self, dipendente_id):
         """Fetches detailed info for a specific employee, including certificates."""
         url = f"{self.base_url}/dipendenti/{dipendente_id}"
-        response = requests.get(url, headers=self._get_headers())
+        response = requests.get(url, headers=self._get_headers(), timeout=10)
         response.raise_for_status()
         return response.json()
 
     def create_dipendente(self, data):
         """Creates a new employee manually."""
         url = f"{self.base_url}/dipendenti/"
-        response = requests.post(url, json=data, headers=self._get_headers())
+        response = requests.post(url, json=data, headers=self._get_headers(), timeout=10)
         response.raise_for_status()
         return response.json()
 
     def update_dipendente(self, dipendente_id, data):
         """Updates an existing employee."""
         url = f"{self.base_url}/dipendenti/{dipendente_id}"
-        response = requests.put(url, json=data, headers=self._get_headers())
+        response = requests.put(url, json=data, headers=self._get_headers(), timeout=10)
         response.raise_for_status()
         return response.json()
 
     def delete_dipendente(self, dipendente_id):
         """Deletes an employee."""
         url = f"{self.base_url}/dipendenti/{dipendente_id}"
-        response = requests.delete(url, headers=self._get_headers())
+        response = requests.delete(url, headers=self._get_headers(), timeout=10)
         response.raise_for_status()
         return response.json()
 
@@ -150,14 +150,14 @@ class APIClient:
     def trigger_maintenance(self):
         """Triggers the background file maintenance task."""
         url = f"{self.base_url}/system/maintenance/background"
-        response = requests.post(url, headers=self._get_headers())
+        response = requests.post(url, headers=self._get_headers(), timeout=10)
         response.raise_for_status()
         return response.json()
 
     def get_lock_status(self):
         """Checks if the backend is in Read-Only mode."""
         url = f"{self.base_url}/system/lock-status"
-        response = requests.get(url, headers=self._get_headers())
+        response = requests.get(url, headers=self._get_headers(), timeout=5)
         response.raise_for_status()
         return response.json()
 
@@ -168,7 +168,7 @@ class APIClient:
         url = f"{self.base_url}/dipendenti/import-csv"
         with open(file_path, 'rb') as f:
             files = {'file': (os.path.basename(file_path), f, 'text/csv')}
-            response = requests.post(url, files=files, headers=self._get_headers())
+            response = requests.post(url, files=files, headers=self._get_headers(), timeout=60)
         response.raise_for_status()
         return response.json()
 
@@ -176,7 +176,7 @@ class APIClient:
 
     def get_users(self):
         url = f"{self.base_url}/users/"
-        response = requests.get(url, headers=self._get_headers())
+        response = requests.get(url, headers=self._get_headers(), timeout=10)
         response.raise_for_status()
         return response.json()
 
@@ -189,7 +189,7 @@ class APIClient:
             "is_admin": is_admin,
             "gender": gender
         }
-        response = requests.post(url, json=payload, headers=self._get_headers())
+        response = requests.post(url, json=payload, headers=self._get_headers(), timeout=10)
         response.raise_for_status()
         return response.json()
 
@@ -198,21 +198,21 @@ class APIClient:
     def get_paths(self):
         """Retrieves the configured database path."""
         url = f"{self.base_url}/app_config/config/paths"
-        response = requests.get(url, headers=self._get_headers())
+        response = requests.get(url, headers=self._get_headers(), timeout=5)
         response.raise_for_status()
         return response.json()
 
     def get_mutable_config(self):
         """Retrieves user-configurable settings from the backend."""
         url = f"{self.base_url}/app_config/config"
-        response = requests.get(url, headers=self._get_headers())
+        response = requests.get(url, headers=self._get_headers(), timeout=10)
         response.raise_for_status()
         return response.json()
 
     def update_mutable_config(self, settings_data: dict):
         """Updates user-configurable settings on the backend."""
         url = f"{self.base_url}/app_config/config"
-        response = requests.put(url, json=settings_data, headers=self._get_headers())
+        response = requests.put(url, json=settings_data, headers=self._get_headers(), timeout=10)
         response.raise_for_status()
         # This endpoint returns 204 No Content, so we don't expect a body
         return True
@@ -221,19 +221,19 @@ class APIClient:
         """Moves the database file via the API."""
         url = f"{self.base_url}/config/move-database"
         payload = {"new_path": new_path}
-        response = requests.post(url, json=payload, headers=self._get_headers())
+        response = requests.post(url, json=payload, headers=self._get_headers(), timeout=60)
         response.raise_for_status()
         return response.json()
 
     def update_user(self, user_id, data):
         url = f"{self.base_url}/users/{user_id}"
-        response = requests.put(url, json=data, headers=self._get_headers())
+        response = requests.put(url, json=data, headers=self._get_headers(), timeout=10)
         response.raise_for_status()
         return response.json()
 
     def delete_user(self, user_id):
         url = f"{self.base_url}/users/{user_id}"
-        response = requests.delete(url, headers=self._get_headers())
+        response = requests.delete(url, headers=self._get_headers(), timeout=10)
         response.raise_for_status()
         return response.json()
 
@@ -241,7 +241,7 @@ class APIClient:
 
     def get_audit_categories(self):
         url = f"{self.base_url}/audit/categories"
-        response = requests.get(url, headers=self._get_headers())
+        response = requests.get(url, headers=self._get_headers(), timeout=10)
         response.raise_for_status()
         return response.json()
 
@@ -260,7 +260,7 @@ class APIClient:
         if end_date:
             params["end_date"] = end_date.isoformat() if hasattr(end_date, 'isoformat') else end_date
 
-        response = requests.get(url, params=params, headers=self._get_headers())
+        response = requests.get(url, params=params, headers=self._get_headers(), timeout=10)
         response.raise_for_status()
         return response.json()
 
@@ -273,7 +273,8 @@ class APIClient:
             "changes": changes,
             "severity": severity
         }
-        response = requests.post(url, json=payload, headers=self._get_headers())
+        # Short timeout for audit logs as they are fire-and-forget-ish from UI perspective
+        response = requests.post(url, json=payload, headers=self._get_headers(), timeout=5)
         # We don't necessarily crash if audit fails, but logging it is good
         # response.raise_for_status()
         # Allow caller to handle or ignore
@@ -283,13 +284,13 @@ class APIClient:
 
     def get_db_security_status(self):
         url = f"{self.base_url}/config/db-security/status"
-        response = requests.get(url, headers=self._get_headers())
+        response = requests.get(url, headers=self._get_headers(), timeout=5)
         response.raise_for_status()
         return response.json()
 
     def toggle_db_security(self, locked: bool):
         url = f"{self.base_url}/config/db-security/toggle"
         payload = {"locked": locked}
-        response = requests.post(url, json=payload, headers=self._get_headers())
+        response = requests.post(url, json=payload, headers=self._get_headers(), timeout=60) # Encryption might take time
         response.raise_for_status()
         return response.json()

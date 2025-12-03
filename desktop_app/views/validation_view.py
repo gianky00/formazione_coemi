@@ -164,7 +164,7 @@ class ValidationView(QWidget):
 
         cert_id = selected_ids[0]
         try:
-            response = requests.get(f"{self.api_client.base_url}/certificati/{cert_id}", headers=self.api_client._get_headers())
+            response = requests.get(f"{self.api_client.base_url}/certificati/{cert_id}", headers=self.api_client._get_headers(), timeout=10)
             response.raise_for_status()
             cert_data = response.json()
 
@@ -172,7 +172,7 @@ class ValidationView(QWidget):
             dialog = EditCertificatoDialog(cert_data, all_categories, self)
             if dialog.exec():
                 updated_data = dialog.get_data()
-                update_response = requests.put(f"{self.api_client.base_url}/certificati/{cert_id}", json=updated_data, headers=self.api_client._get_headers())
+                update_response = requests.put(f"{self.api_client.base_url}/certificati/{cert_id}", json=updated_data, headers=self.api_client._get_headers(), timeout=10)
                 update_response.raise_for_status()
                 CustomMessageDialog.show_info(self, "Successo", "Certificato aggiornato con successo.")
                 self.load_data()

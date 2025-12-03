@@ -133,7 +133,8 @@ class PdfWorker(QObject):
         try:
             with open(file_path, 'rb') as f:
                 files = {'file': (original_filename, f, 'application/pdf')}
-                response = requests.post(f"{self.api_client.base_url}/upload-pdf/", files=files, headers=self.api_client._get_headers())
+                # Timeout increased to 300s (5 min) for AI Analysis
+                response = requests.post(f"{self.api_client.base_url}/upload-pdf/", files=files, headers=self.api_client._get_headers(), timeout=300)
 
             if response.status_code == 200:
                 data = response.json()
@@ -183,7 +184,7 @@ class PdfWorker(QObject):
                         current_op_path = f"{file_path}_copy_{idx}.pdf"
                         shutil.copy2(file_path, current_op_path)
 
-                    save_response = requests.post(f"{self.api_client.base_url}/certificati/", json=certificato, headers=self.api_client._get_headers())
+                    save_response = requests.post(f"{self.api_client.base_url}/certificati/", json=certificato, headers=self.api_client._get_headers(), timeout=30)
 
                     if save_response.status_code == 200:
                         cert_data = save_response.json()
@@ -514,3 +515,22 @@ class ImportView(QWidget):
         self.scanner.setVisible(False) # Hide Hologram
         self.import_completed.emit(archived_count, verify_count)
         self.notification_requested.emit("Analisi Completata", f"L'elaborazione è terminata. {archived_count} archiviati, {verify_count} da verificare.")
+
+    def cleanup(self):
+        """
+        Gracefully stops the worker thread if running.
+        """
+        if hasattr(self, 'thread') and self.thread.isRunning():
+            print("[ImportView] Stopping worker thread...")
+            self.status_label.setText("Arresto in corso...")
+            self.worker.stop()
+            self.thread.quit()
+            # Wait for thread to finish (with timeout to prevent hanging)
+            if not self.thread.wait(3000):  # 3 seconds timeout
+                print("[ImportView] Thread did not finish in time. Terminating...")
+                self.thread.terminate()
+            print("[ImportView] Thread stopped.")
+
+    def closeEvent(self, event):
+        self.cleanup()
+        super().closeEvent(event)

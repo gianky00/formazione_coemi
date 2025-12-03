@@ -1,6 +1,7 @@
 import google.generativeai as genai
 import logging
 import json
+import threading
 from google.api_core import exceptions
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from app.core.config import settings
@@ -11,21 +12,25 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 class GeminiClient:
     _instance = None
     _model = None
+    _lock = threading.Lock()
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(GeminiClient, cls).__new__(cls)
-            try:
-                if not settings.GEMINI_API_KEY_ANALYSIS:
-                    logging.error("GEMINI_API_KEY_ANALYSIS not found.")
-                    raise ValueError("GEMINI_API_KEY_ANALYSIS not configured.")
-                genai.configure(api_key=settings.GEMINI_API_KEY_ANALYSIS)
-                cls._model = genai.GenerativeModel('models/gemini-2.5-pro')
-                logging.info("Gemini model 'models/gemini-2.5-pro' initialized successfully.")
-            except Exception as e:
-                logging.error(f"Failed to initialize Gemini model: {e}")
-                cls._instance = None
-                raise
+            with cls._lock:
+                # Double-checked locking
+                if cls._instance is None:
+                    cls._instance = super(GeminiClient, cls).__new__(cls)
+                    try:
+                        if not settings.GEMINI_API_KEY_ANALYSIS:
+                            logging.error("GEMINI_API_KEY_ANALYSIS not found.")
+                            raise ValueError("GEMINI_API_KEY_ANALYSIS not configured.")
+                        genai.configure(api_key=settings.GEMINI_API_KEY_ANALYSIS)
+                        cls._model = genai.GenerativeModel('models/gemini-2.5-pro')
+                        logging.info("Gemini model 'models/gemini-2.5-pro' initialized successfully.")
+                    except Exception as e:
+                        logging.error(f"Failed to initialize Gemini model: {e}")
+                        cls._instance = None
+                        raise
         return cls._instance
 
     def get_model(self):

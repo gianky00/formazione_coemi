@@ -377,6 +377,14 @@ class MasterWindow(QMainWindow):
         if self.controller and hasattr(self.controller, 'voice_service'):
             self.controller.voice_service.cleanup()
 
+        # Stop Dashboard Threads (Graceful Shutdown)
+        if self.controller and self.controller.dashboard:
+            try:
+                print("[DEBUG] Cleaning up dashboard threads...")
+                self.controller.dashboard.cleanup()
+            except Exception as e:
+                print(f"[ERROR] Dashboard cleanup failed: {e}")
+
         # 1. API Logout (Triggers backend token invalidation)
         if self.controller and self.controller.api_client.access_token:
             try:
