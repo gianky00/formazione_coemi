@@ -45,3 +45,26 @@ def get_license_dir():
     path = os.path.join(get_user_data_dir(), "Licenza")
     os.makedirs(path, exist_ok=True)
     return path
+
+def get_lyra_profile_path():
+    """
+    Restituisce il percorso assoluto al file LYRA_PROFILE.md.
+    Gestisce sia l'ambiente di sviluppo che la distribuzione (frozen).
+    """
+    if getattr(sys, 'frozen', False):
+        # Frozen: Cerca prima in _internal (nascosto), poi root
+        base = os.path.dirname(sys.executable)
+
+        # Check _internal (PyInstaller 6+ default location for data)
+        internal_path = os.path.join(base, "_internal", "docs", "LYRA_PROFILE.md")
+        if os.path.exists(internal_path):
+            return internal_path
+
+        # Fallback/Legacy structure
+        root_path = os.path.join(base, "docs", "LYRA_PROFILE.md")
+        return root_path
+    else:
+        # Dev: Repo root/docs/LYRA_PROFILE.md
+        # path_service.py is in desktop_app/services
+        # ../../ maps to Repo Root
+        return os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'docs', 'LYRA_PROFILE.md'))
