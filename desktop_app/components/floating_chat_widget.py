@@ -46,6 +46,9 @@ class FloatingChatWidget(QWidget):
             }
         """)
         
+        # Ensure Chat Frame has a fixed width to prevent shrinking when aligned
+        self.chat_frame.setFixedWidth(380)
+
         # Shadow for Chat Frame
         chat_shadow = QGraphicsDropShadowEffect()
         chat_shadow.setBlurRadius(40)
