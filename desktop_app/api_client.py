@@ -108,6 +108,15 @@ class APIClient:
         response.raise_for_status()
         return response.json()
 
+    # --- Stats ---
+
+    def get_stats_summary(self):
+        """Retrieves a summary of system statistics (employees, certificates, compliance)."""
+        url = f"{self.base_url}/stats/summary"
+        response = requests.get(url, headers=self._get_headers())
+        response.raise_for_status()
+        return response.json()
+
     # --- Dipendenti Management ---
 
     def get_dipendenti_list(self):

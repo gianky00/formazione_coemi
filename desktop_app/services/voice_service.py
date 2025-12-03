@@ -18,10 +18,12 @@ class TTSWorker(QThread):
     finished = pyqtSignal(str) # Emits path to generated file
     error = pyqtSignal(str)
 
-    def __init__(self, text, voice="it-IT-IrmaNeural"):
+    def __init__(self, text, voice="it-IT-IsabellaNeural"):
         super().__init__()
         self.text = text
         self.voice = voice
+        self.rate = "+10%"
+        self.pitch = "+2Hz"
 
     def run(self):
         try:
@@ -38,7 +40,12 @@ class TTSWorker(QThread):
             self.error.emit(str(e))
 
     async def _generate_audio(self, path):
-        communicate = edge_tts.Communicate(self.text, self.voice)
+        communicate = edge_tts.Communicate(
+            self.text,
+            self.voice,
+            rate=self.rate,
+            pitch=self.pitch
+        )
         await communicate.save(path)
 
 class VoiceService(QObject):

@@ -53,3 +53,19 @@ def test_import_dipendenti_csv_failure(mock_post):
     with patch("builtins.open", mock_open(read_data=b"data")):
         with pytest.raises(requests.exceptions.HTTPError):
             client.import_dipendenti_csv("path/to/file.csv")
+
+@patch('requests.get')
+def test_get_stats_summary(mock_get):
+    from desktop_app.api_client import APIClient
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"total_dipendenti": 10, "total_certificati": 50}
+    mock_get.return_value = mock_response
+
+    client = APIClient()
+    result = client.get_stats_summary()
+
+    from unittest.mock import ANY
+    assert result["total_dipendenti"] == 10
+    assert result["total_certificati"] == 50
+    mock_get.assert_called_with("http://localhost:8000/api/v1/stats/summary", headers=ANY)

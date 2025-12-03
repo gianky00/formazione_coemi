@@ -9,16 +9,20 @@ def get_chat_html():
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <style>
         :root {
-            --bg-color: rgba(20, 20, 40, 0.95);
-            --glass-border: 1px solid rgba(100, 100, 255, 0.3);
-            --accent-color: #6366f1; /* Indigo 500 */
-            --text-color: #e2e8f0;
-            --user-bubble: rgba(255, 255, 255, 0.1);
-            --lyra-bubble: rgba(99, 102, 241, 0.15);
+            --bg-color: #FFFFFF;
+            --accent-color: #1D4ED8; /* Royal Blue */
+            --accent-hover: #1E40AF;
+            --text-color: #1F2937;
+            --text-muted: #6B7280;
+            --user-bubble-bg: #1D4ED8;
+            --user-bubble-text: #FFFFFF;
+            --lyra-bubble-bg: #F3F4F6;
+            --lyra-bubble-text: #1F2937;
+            --border-color: #E5E7EB;
         }
 
         body {
-            background-color: transparent; /* Let Qt handle the background */
+            background-color: transparent;
             color: var(--text-color);
             font-family: 'Inter', 'Segoe UI', sans-serif;
             margin: 0;
@@ -37,48 +41,52 @@ def get_chat_html():
             flex-direction: column;
             gap: 15px;
             scrollbar-width: thin;
-            scrollbar-color: var(--accent-color) transparent;
+            scrollbar-color: #CBD5E1 transparent;
         }
 
         /* Bubbles */
         .message {
             max-width: 85%;
+            width: fit-content;
             padding: 12px 16px;
             border-radius: 12px;
             font-size: 14px;
-            line-height: 1.6;
+            line-height: 1.5;
             animation: fadeIn 0.3s ease-out;
             position: relative;
+            word-wrap: break-word;
         }
 
         .user-message {
             align-self: flex-end;
-            background: var(--user-bubble);
+            background: var(--user-bubble-bg);
+            color: var(--user-bubble-text);
             border-bottom-right-radius: 2px;
-            color: #fff;
+            box-shadow: 0 2px 4px rgba(29, 78, 216, 0.2);
         }
 
         .lyra-message {
             align-self: flex-start;
-            background: var(--lyra-bubble);
-            border: var(--glass-border);
+            background: var(--lyra-bubble-bg);
+            color: var(--lyra-bubble-text);
             border-bottom-left-radius: 2px;
-            backdrop-filter: blur(5px);
+            border: 1px solid var(--border-color);
         }
 
         /* Typography */
-        h1, h2, h3 { font-weight: 300; margin-top: 0; }
-        p { margin: 0 0 10px 0; }
+        h1, h2, h3 { font-weight: 600; margin-top: 5px; margin-bottom: 5px; font-size: 16px; }
+        p { margin: 0 0 8px 0; }
         p:last-child { margin: 0; }
-        code { background: rgba(0,0,0,0.3); padding: 2px 5px; border-radius: 4px; font-family: monospace; }
-        pre { background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; overflow-x: auto; }
+        code { background: #E2E8F0; padding: 2px 5px; border-radius: 4px; font-family: monospace; font-size: 12px; color: #D946EF; }
+        pre { background: #1E293B; color: #F8FAFC; padding: 10px; border-radius: 8px; overflow-x: auto; font-size: 12px; }
         ul, ol { margin: 0 0 10px 0; padding-left: 20px; }
+        strong { color: var(--accent-color); }
 
         /* Input Area */
         #input-area {
             padding: 15px;
-            background: rgba(30, 30, 60, 0.8);
-            border-top: var(--glass-border);
+            background: #FFFFFF;
+            border-top: 1px solid var(--border-color);
             display: flex;
             align-items: center;
             gap: 10px;
@@ -86,15 +94,20 @@ def get_chat_html():
 
         input {
             flex: 1;
-            background: rgba(0, 0, 0, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: #F9FAFB;
+            border: 1px solid var(--border-color);
             border-radius: 20px;
             padding: 10px 15px;
-            color: white;
+            color: var(--text-color);
             outline: none;
-            transition: border-color 0.2s;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            font-family: inherit;
         }
-        input:focus { border-color: var(--accent-color); }
+        input:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.1);
+        }
+        input::placeholder { color: var(--text-muted); }
 
         button {
             background: var(--accent-color);
@@ -107,68 +120,59 @@ def get_chat_html():
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: transform 0.2s;
+            transition: transform 0.2s, background 0.2s;
         }
-        button:hover { transform: scale(1.1); }
+        button:hover { background: var(--accent-hover); transform: scale(1.05); }
 
         /* Header */
         #header {
             padding: 15px 20px;
-            border-bottom: var(--glass-border);
+            border-bottom: 1px solid var(--border-color);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: rgba(30, 30, 60, 0.9);
+            background: #FFFFFF;
         }
-        #header-title { font-weight: 300; font-size: 18px; letter-spacing: 1px; }
+        #header-title { font-weight: 700; font-size: 16px; color: var(--accent-color); letter-spacing: 0.5px; }
+
         .status-dot {
             width: 8px;
             height: 8px;
-            background-color: #10b981;
+            background-color: #10B981; /* Green */
             border-radius: 50%;
-            box-shadow: 0 0 5px #10b981;
         }
         .status-dot.thinking {
-            background-color: #f59e0b;
-            box-shadow: 0 0 8px #f59e0b;
+            background-color: #F59E0B; /* Amber */
             animation: pulse 1s infinite;
         }
 
         /* Suggestions */
         #suggestions {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 10px;
-            margin-top: auto; /* Push to bottom of empty chat */
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: auto;
         }
         .suggestion-chip {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 10px;
-            border-radius: 20px;
-            text-align: center;
+            background: #EFF6FF; /* Blue-50 */
+            border: 1px solid #DBEAFE; /* Blue-100 */
+            padding: 8px 12px;
+            border-radius: 8px;
+            text-align: left;
             cursor: pointer;
-            transition: background 0.2s;
+            transition: background 0.2s, border-color 0.2s;
             font-size: 13px;
+            color: var(--accent-color);
+            font-weight: 500;
         }
-        .suggestion-chip:hover { background: rgba(255, 255, 255, 0.1); border-color: var(--accent-color); }
+        .suggestion-chip:hover {
+            background: #DBEAFE;
+            border-color: var(--accent-color);
+        }
 
         /* Animations */
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
-
-        /* Neural Pulse Bar */
-        #neural-pulse {
-            height: 2px;
-            width: 100%;
-            background: linear-gradient(90deg, transparent, var(--accent-color), transparent);
-            position: absolute;
-            top: 0;
-            left: -100%;
-            animation: neuralMove 1.5s infinite linear;
-            display: none;
-        }
-        @keyframes neuralMove { 0% { left: -100%; } 100% { left: 100%; } }
 
     </style>
 </head>
@@ -181,20 +185,17 @@ def get_chat_html():
     <div id="chat-container">
         <!-- Zero State -->
         <div id="suggestions">
-            <div class="suggestion-chip" onclick="sendMessage('Analisi Scadenze Settimana')">Analisi Scadenze Settimana</div>
-            <div class="suggestion-chip" onclick="sendMessage('Chi manca all\'appello?')">Chi manca all'appello?</div>
-            <div class="suggestion-chip" onclick="sendMessage('Sintesi Sicurezza')">Sintesi Sicurezza</div>
+            <div class="suggestion-chip" onclick="sendMessage('Analisi Scadenze Settimana')">📅 Analisi Scadenze Settimana</div>
+            <div class="suggestion-chip" onclick="sendMessage('Chi manca all\'appello?')">🔍 Chi manca all'appello?</div>
+            <div class="suggestion-chip" onclick="sendMessage('Sintesi Sicurezza')">🛡️ Sintesi Sicurezza</div>
         </div>
     </div>
 
-    <div style="position: relative;">
-        <div id="neural-pulse"></div>
-        <div id="input-area">
-            <input type="text" id="message-input" placeholder="Chiedi a Lyra..." onkeypress="handleKeyPress(event)">
-            <button onclick="sendUserMessage()">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-            </button>
-        </div>
+    <div id="input-area">
+        <input type="text" id="message-input" placeholder="Chiedi a Lyra..." onkeypress="handleKeyPress(event)">
+        <button onclick="sendUserMessage()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+        </button>
     </div>
 
     <script>
@@ -248,13 +249,10 @@ def get_chat_html():
         }
 
         function setThinking(isThinking) {
-            const pulse = document.getElementById('neural-pulse');
             const dot = document.getElementById('status-indicator');
             if (isThinking) {
-                pulse.style.display = 'block';
                 dot.classList.add('thinking');
             } else {
-                pulse.style.display = 'none';
                 dot.classList.remove('thinking');
             }
         }
