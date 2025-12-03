@@ -5,7 +5,7 @@ import platform
 import math
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QFrame, QMessageBox, QHBoxLayout,
                              QGraphicsDropShadowEffect, QApplication, QPushButton,
-                             QDialog, QLineEdit, QDialogButtonBox)
+                             QDialog, QLineEdit, QDialogButtonBox, QGraphicsOpacityEffect)
 from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPropertyAnimation, QPoint, QPointF, QEasingCurve, QTimer, QObject, QThread, QThreadPool, QRect
 from PyQt6.QtGui import QPixmap, QColor, QFont, QPainter, QLinearGradient, QPen, QBrush
 from desktop_app.utils import get_asset_path
@@ -701,57 +701,54 @@ class LoginView(QWidget):
             self.login_btn.set_loading(False)
 
     def _animate_success_exit(self):
-        # Audio Feedback - Removed 'success' (sirena) sound per user request
-        # try:
-        #    SoundManager.instance().play_sound('success')
-        # except: pass
-        
+        """
+        Triggers the 'Spectacular' Cinematic 3D Warp Transition.
+        1. Fade out the UI Card (0.3s).
+        2. Trigger Neural Warp (2.0s).
+        3. Emit success signal.
+        """
+        # 1. Prepare Welcome Speech (Audio)
         username = "Operatore"
         gender = None
         if self.api_client.user_info:
-            # Prefer full name (account_name) over username if available
             username = self.api_client.user_info.get("account_name") or self.api_client.user_info.get("username", "Operatore")
             gender = self.api_client.user_info.get("gender")
 
         welcome_word = "Bentornata" if gender == 'F' else "Bentornato"
-
-        # Base message
         speech_text = f"Ciao {username}, {welcome_word} in Intellèo."
 
-        # Add document count info
         if self.pending_count == 1:
             speech_text += " C'è un documento da convalidare."
         elif self.pending_count > 1:
             speech_text += f" Ci sono {self.pending_count} documenti da convalidare."
 
-        # Pass speech text to controller for playback after transition to avoid crash
         if self.api_client.user_info:
             self.api_client.user_info["welcome_speech"] = speech_text
+            self.api_client.user_info["pending_documents_count"] = self.pending_count
 
-        # Stop background animation
+        # 2. Fade Out UI (Login Card)
+        # We replace the Shadow Effect with Opacity Effect.
+        self.opacity_effect = QGraphicsOpacityEffect(self.container)
+        self.container.setGraphicsEffect(self.opacity_effect)
+        
+        self.anim_fade = QPropertyAnimation(self.opacity_effect, b"opacity")
+        self.anim_fade.setDuration(300)
+        self.anim_fade.setStartValue(1.0)
+        self.anim_fade.setEndValue(0.0)
+        self.anim_fade.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        self.anim_fade.start()
+
+        # 3. Trigger Neural Warp
+        self.neural_engine.start_warp()
+
+        # 4. Schedule Completion (2 seconds)
+        # We DO NOT stop the _anim_timer here, as we need it to render the warp.
+        QTimer.singleShot(2000, self._finish_login_transition)
+
+    def _finish_login_transition(self):
+        # Stop rendering loop to save resources
+        self._stop_3d_rendering = True
         self._anim_timer.stop()
 
-        # Slide Down & Fade (Fade via MasterWindow transition mostly)
-        # But we can Slide Down here for effect
-        self.anim_exit = QPropertyAnimation(self.container, b"pos")
-        self.anim_exit.setDuration(400)
-        
-        current_pos = self.container.pos()
-        target_pos = QPoint(current_pos.x(), current_pos.y() + 50) # Slide down slightly
-
-        self.anim_exit.setStartValue(current_pos)
-        self.anim_exit.setEndValue(target_pos)
-        self.anim_exit.setEasingCurve(QEasingCurve.Type.InBack)
-
-        def on_anim_finished():
-            # Safely stop rendering 3D scene before view transition
-            self._stop_3d_rendering = True
-
-            # Pass pending count via user_info dict
-            if self.api_client.user_info:
-                self.api_client.user_info["pending_documents_count"] = self.pending_count
-
-            self.login_success.emit(self.api_client.user_info)
-
-        self.anim_exit.finished.connect(on_anim_finished)
-        self.anim_exit.start()
+        # Emit signal to swap views
+        self.login_success.emit(self.api_client.user_info)

@@ -27,6 +27,10 @@ class NeuralNetwork3D:
         self.target_rot_x = 0.0
         self.target_rot_y = 0.0
 
+        # Warp Mode State
+        self.warp_active = False
+        self.warp_speed = 0.0
+
         # --- Pulse System ---
         # List of active pulses: [start_index, end_index, progress (0.0-1.0), speed]
         self.pulses = []
@@ -68,34 +72,66 @@ class NeuralNetwork3D:
 
         return textures
 
+    def start_warp(self):
+        """Activates the cinematic warp effect."""
+        self.warp_active = True
+        self.warp_speed = 5.0 # Starting speed
+
     def update(self, mouse_norm_x, mouse_norm_y):
         """
         Updates the simulation.
         mouse_norm_x/y: -1.0 to 1.0 (screen center is 0,0)
         """
-        # 1. Update Rotation Target (Smooth Camera)
-        # Mouse movement implies looking around or rotating the object
-        self.target_rot_y = mouse_norm_x * 0.5 # Yaw
-        self.target_rot_x = -mouse_norm_y * 0.5 # Pitch
+        if self.warp_active:
+             # --- Cinematic Warp Logic ---
+             # Exponential acceleration
+             self.warp_speed *= 1.12
+             if self.warp_speed > 200: self.warp_speed = 200 # Cap speed
 
-        # Lerp rotation
-        lerp_speed = 0.05
-        self.rot_x += (self.target_rot_x - self.rot_x) * lerp_speed
-        self.rot_y += (self.target_rot_y - self.rot_y) * lerp_speed
+             # Move Z towards camera (decrease Z)
+             # Points are roughly [-800, 800]. Camera is at ~-1200.
+             self.points[:, 2] -= self.warp_speed
 
-        # 2. Update Positions (Drift)
-        self.points += self.velocities
+             # Respawn stars that pass behind the camera
+             # Z < -1500 (allow some buffer)
+             mask_behind = self.points[:, 2] < -1500
 
-        # Wrap around boundary (Torus topology-ish or just box bounce)
-        # Using box bounce for simplicity, or wrap
-        limit = 1000
-        # Numpy boolean indexing for boundary check
-        mask_high = self.points > limit
-        mask_low = self.points < -limit
-        self.velocities[mask_high] *= -1
-        self.velocities[mask_low] *= -1
-        self.points[mask_high] = limit
-        self.points[mask_low] = -limit
+             respawn_count = np.sum(mask_behind)
+             if respawn_count > 0:
+                 # Respawn far ahead
+                 self.points[mask_behind, 2] = 1600
+                 # Randomize X/Y for infinite tunnel effect
+                 self.points[mask_behind, 0] = (np.random.rand(respawn_count) - 0.5) * 2000
+                 self.points[mask_behind, 1] = (np.random.rand(respawn_count) - 0.5) * 2000
+
+             # Also slightly drift rotation to center
+             self.target_rot_x = 0
+             self.target_rot_y = 0
+             self.rot_x *= 0.9
+             self.rot_y *= 0.9
+
+        else:
+            # --- Standard Idle Logic ---
+            # 1. Update Rotation Target (Smooth Camera)
+            self.target_rot_y = mouse_norm_x * 0.5 # Yaw
+            self.target_rot_x = -mouse_norm_y * 0.5 # Pitch
+
+            # Lerp rotation
+            lerp_speed = 0.05
+            self.rot_x += (self.target_rot_x - self.rot_x) * lerp_speed
+            self.rot_y += (self.target_rot_y - self.rot_y) * lerp_speed
+
+            # 2. Update Positions (Drift)
+            self.points += self.velocities
+
+            # Wrap around boundary
+            limit = 1000
+            mask_high = self.points > limit
+            mask_low = self.points < -limit
+            self.velocities[mask_high] *= -1
+            self.velocities[mask_low] *= -1
+            self.points[mask_high] = limit
+            self.points[mask_low] = -limit
 
         # 3. Update Breathing Phases
         self.phases += self.phase_speeds
@@ -109,11 +145,13 @@ class NeuralNetwork3D:
                 active_pulses.append(p)
         self.pulses = active_pulses
 
-        # Randomly spawn new pulses
-        if self.connections and random.random() < 0.15: # 15% chance per frame
+        # Randomly spawn new pulses (Only if not warping, to reduce noise?)
+        # Or keep them for effect? Let's keep them but maybe less chance if warping
+        chance = 0.05 if self.warp_active else 0.15
+
+        if self.connections and random.random() < chance:
             conn = random.choice(self.connections)
-            # [start_idx, end_idx, progress, speed]
-            speed = random.uniform(0.02, 0.05)
+            speed = random.uniform(0.05, 0.1) if self.warp_active else random.uniform(0.02, 0.05)
             self.pulses.append([conn[0], conn[1], 0.0, speed])
 
 
@@ -161,38 +199,10 @@ class NeuralNetwork3D:
         coords_2d = np.column_stack((x_2d, y_2d))
 
         # --- 3. Draw Connections & Pulses ---
-        # Calculating distances in 3D is better for logic, but 2D is faster for culling visuals.
-        # Let's use Z-sorted rendering for nodes, but connections first (behind nodes).
-
-        # Re-calculate connections periodically or every frame?
-        # For N=100, N^2 = 10000 checks. Numpy is fast enough for every frame.
-
-        # Calculate squared distance matrix (N x N)
-        # Using broadcasting: (N, 1, 3) - (1, N, 3) -> (N, N, 3)
-        # This might be memory heavy if N is huge. For N=100 it's tiny.
-        # Let's stick to a simpler loop for connections or scipy cdist if available.
-        # Since we want "Unthinkable" performance, let's optimize the loop logic.
-
-        # Actually, for visual connections, we only care about screen space or 3D space proximity.
-        # Let's use 3D proximity.
-
         self.connections = []
         painter.setPen(QColor(100, 200, 255, 40)) # Very faint blue
 
-        # Optimization: Only check a subset or use a spatial structure?
-        # For N=100, brute force is fine in C (numpy), but traversing in Python is slow.
-        # We'll rely on numpy for the distance calculation.
-
-        # pos_3d = np.column_stack((x_final, y_final, z_final))
-        # dists = np.sum((pos_3d[:, np.newaxis, :] - pos_3d[np.newaxis, :, :]) ** 2, axis=-1)
-        # This is (100, 100).
-
-        # Using pure numpy to find indices where dist < threshold
-        # triu to avoid duplicates and self-connection
-        # indices = np.argwhere(np.triu(dists < self.connect_distance_sq, k=1))
-
-        # Calculating matrix every frame for N=150 might be slightly heavy for Python overhead?
-        # Let's try.
+        # Calculate distances
         pos_3d = np.column_stack((x_final, y_final, z_final))
         diff = pos_3d[:, np.newaxis, :] - pos_3d[np.newaxis, :, :]
         dists_sq = np.sum(diff**2, axis=-1)
@@ -202,8 +212,11 @@ class NeuralNetwork3D:
         rows, cols = np.nonzero(mask)
 
         # Draw Lines
-        lines = []
+        # Only draw if scale is reasonable to avoid screen cluttering with giant lines
         for i, j in zip(rows, cols):
+            # Optimization: Skip if either point is behind camera or too close
+            if z_safe[i] < 10 or z_safe[j] < 10: continue
+
             p1 = QPointF(x_2d[i], y_2d[i])
             p2 = QPointF(x_2d[j], y_2d[j])
 
@@ -211,10 +224,8 @@ class NeuralNetwork3D:
             d_sq = dists_sq[i, j]
             alpha = int(255 * (1.0 - (d_sq / self.connect_distance_sq)))
             if alpha > 0:
-                # Store connection for pulses
                 self.connections.append((i, j, d_sq))
 
-                # Draw Line
                 color = QColor(147, 197, 253) # Blue 300
                 color.setAlpha(max(0, min(80, int(alpha * 0.3)))) # Cap alpha
                 painter.setPen(color)
@@ -227,7 +238,9 @@ class NeuralNetwork3D:
         for p in self.pulses:
             start_idx, end_idx, progress, _ = p
 
-            # Interpolate 2D position
+            # Check safety
+            if start_idx >= len(x_2d) or end_idx >= len(x_2d): continue
+
             sx, sy = x_2d[start_idx], y_2d[start_idx]
             ex, ey = x_2d[end_idx], y_2d[end_idx]
 
@@ -235,55 +248,39 @@ class NeuralNetwork3D:
             curr_y = sy + (ey - sy) * progress
 
             # Draw glowing dot
-            # Using one of the small textures
             size = 16
             offset = size / 2
 
-            # Simple distance fading for pulses too?
-            pulse_color.setAlpha(200)
             painter.setOpacity(0.8)
             painter.drawPixmap(int(curr_x - offset), int(curr_y - offset), self.star_textures[16])
             painter.setOpacity(1.0)
 
 
         # --- 4. Draw Nodes (Z-Sorted) ---
-        # Sort by Z (depth) so we draw far ones first
-        # z_final is high = close? No.
-        # In this coord system:
-        # z_safe = z_final + 1200. Higher z_safe = further away?
-        # No, scale = f / z_safe. So larger z_safe means smaller scale -> further away.
-        # We want to draw largest z_safe (furthest) first.
-
         sort_indices = np.argsort(z_safe)[::-1] # Descending order of depth (Back to Front)
 
         for i in sort_indices:
+            if z_safe[i] < 1: continue # Clip behind camera
+
             # Calculate size based on depth + breathing
             base_size = scale[i] * 10 # Base radius factor
             breath = 1.0 + math.sin(self.phases[i]) * 0.2
             final_size = base_size * breath
 
+            # Cap max size to avoid giant blobs when hitting camera
+            final_size = min(final_size, 100)
+
             # Choose texture bucket
-            # 8, 16, 32, 64
             if final_size < 12: tex_key = 16
             elif final_size < 24: tex_key = 32
             else: tex_key = 64
 
             tex = self.star_textures[tex_key]
 
-            # Scale pixmap if needed or just use raw?
-            # Scaling pixmaps every frame is slow.
-            # Better to just use the bucket size and rely on alpha for distance cue?
-            # Or just draw it centered.
-
-            # Let's scale slightly using the painter transform if needed,
-            # but drawing fixed sprites is faster.
-            # Let's map strict size buckets to avoid scaling artifacts/cost.
-
             x = x_2d[i] - (tex.width() / 2)
             y = y_2d[i] - (tex.height() / 2)
 
             # Depth opacity
-            # Normalized depth 0..1
             depth_alpha = min(1.0, max(0.2, (scale[i] * 2.0)))
             painter.setOpacity(depth_alpha)
 
