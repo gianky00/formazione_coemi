@@ -35,7 +35,7 @@ def organize_expired_files(db: Session):
     for cert in certificates:
         status = certificate_logic.get_certificate_status(db, cert)
 
-        if status == "scaduto":
+        if status in ["scaduto", "archiviato"]:
             # Prepare data for locator
             cert_data = {
                 'nome': f"{cert.dipendente.cognome} {cert.dipendente.nome}" if cert.dipendente else cert.nome_dipendente_raw,
