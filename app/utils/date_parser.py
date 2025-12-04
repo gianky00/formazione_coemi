@@ -24,6 +24,7 @@ def parse_date_flexible(date_str: str) -> Optional[date]:
         '%d/%m/%Y',
         '%d-%m-%Y',
         '%Y-%m-%d',
+        '%Y/%m/%d',
         '%d.%m.%Y',
         '%d/%m/%y',
         '%d-%m-%y'

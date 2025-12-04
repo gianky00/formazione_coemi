@@ -254,6 +254,18 @@ class PdfWorker(QObject):
 
                         try:
                             shutil.move(file_path, os.path.join(target_dir, original_filename))
+
+                            # Create TXT file with rejection reason
+                            txt_filename = os.path.splitext(original_filename)[0] + ".txt"
+                            txt_path = os.path.join(target_dir, txt_filename)
+                            try:
+                                with open(txt_path, "w", encoding="utf-8") as f:
+                                    f.write(f"File: {original_filename}\n")
+                                    f.write(f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
+                                    f.write(f"Motivo Scarto: {error_detail}\n")
+                            except Exception as txt_err:
+                                self.log_message.emit(f"Impossibile creare file TXT per scarto: {txt_err}", "orange")
+
                         except Exception as e:
                             self.log_message.emit(f"Impossibile spostare il file scartato {original_filename}: {e}", "red")
                         return

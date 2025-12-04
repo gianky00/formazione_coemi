@@ -43,7 +43,11 @@ def health_check():
     return {"status": "ok"}
 
 @router.post("/upload-pdf/", dependencies=[Depends(deps.check_write_permission)])
-async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_pdf(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_user)
+):
     MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 
     # Read file with size limit check
@@ -62,6 +66,7 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
     extracted_data = ai_extraction.extract_entities_with_ai(bytes(pdf_bytes))
     if "error" in extracted_data:
         if extracted_data.get("is_rejected"):
+             log_security_action(db, current_user, "AI_REJECT", f"File rejected by AI: {file.filename}. Reason: {extracted_data['error']}", category="AI_ANALYSIS", severity="MEDIUM")
              raise HTTPException(status_code=422, detail=extracted_data["error"])
         if extracted_data.get("status_code") == 429:
             raise HTTPException(status_code=429, detail=extracted_data["error"])
@@ -540,19 +545,8 @@ async def import_dipendenti_csv(
         if not all([cognome, nome, badge]):
             continue
 
-        parsed_data_nascita = None
-        if data_nascita:
-            try:
-                parsed_data_nascita = datetime.strptime(data_nascita, '%d/%m/%Y').date()
-            except ValueError:
-                pass  # Gestisce date non valide o formati diversi
-
-        parsed_data_assunzione = None
-        if data_assunzione:
-            try:
-                parsed_data_assunzione = datetime.strptime(data_assunzione, '%d/%m/%Y').date()
-            except ValueError:
-                pass
+        parsed_data_nascita = parse_date_flexible(data_nascita) if data_nascita else None
+        parsed_data_assunzione = parse_date_flexible(data_assunzione) if data_assunzione else None
 
         # Step 1: Cerca per Matricola (Upsert standard)
         dipendente = db.query(Dipendente).filter(Dipendente.matricola == badge).first()
@@ -720,6 +714,8 @@ def create_dipendente(
     current_user: UserModel = Depends(deps.get_current_user)
 ):
     if dipendente.matricola:
+        if not dipendente.matricola.strip():
+             raise HTTPException(status_code=400, detail="La matricola non può essere vuota o solo spazi.")
         existing = db.query(Dipendente).filter(Dipendente.matricola == dipendente.matricola).first()
         if existing:
             raise HTTPException(status_code=400, detail="Matricola già esistente.")
@@ -759,6 +755,8 @@ def update_dipendente(
     update_dict = dipendente_data.model_dump(exclude_unset=True)
 
     if "matricola" in update_dict and update_dict["matricola"] != dipendente.matricola:
+        if not update_dict["matricola"].strip():
+             raise HTTPException(status_code=400, detail="La matricola non può essere vuota o solo spazi.")
         existing = db.query(Dipendente).filter(Dipendente.matricola == update_dict["matricola"]).first()
         if existing:
             raise HTTPException(status_code=400, detail="Matricola già esistente.")
