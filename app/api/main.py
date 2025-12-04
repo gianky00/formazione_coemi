@@ -1,5 +1,6 @@
 import csv
 import io
+import os
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import IntegrityError
@@ -7,6 +8,8 @@ from sqlalchemy import or_
 from app.db.session import get_db
 from app.db.models import Corso, Certificato, ValidationStatus, Dipendente, User as UserModel
 from app.services import ai_extraction, certificate_logic, matcher
+from app.services.document_locator import find_document
+from app.core.config import settings, get_user_data_dir
 from app.utils.date_parser import parse_date_flexible
 from app.utils.file_security import verify_file_signature
 from app.utils.audit import log_security_action
@@ -404,6 +407,26 @@ def delete_certificato(
 
     # Snapshot for logging
     log_details = f"eliminato certificato ID {certificato_id} - {db_cert.nome_dipendente_raw or 'Sconosciuto'} - {db_cert.corso.nome_corso}"
+
+    # Try to delete the physical file
+    try:
+        cert_data = {
+            'nome': f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}" if db_cert.dipendente else db_cert.nome_dipendente_raw,
+            'matricola': db_cert.dipendente.matricola if db_cert.dipendente else None,
+            'categoria': db_cert.corso.categoria_corso if db_cert.corso else None,
+            'data_scadenza': db_cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_cert.data_scadenza_calcolata else None
+        }
+
+        # Only proceed if we have enough info to find the file
+        if cert_data['categoria']:
+            database_path = settings.DATABASE_PATH or str(get_user_data_dir())
+            if database_path:
+                file_path = find_document(database_path, cert_data)
+                if file_path and os.path.exists(file_path):
+                    os.remove(file_path)
+    except Exception as e:
+        print(f"Error deleting file for certificate {certificato_id}: {e}")
+        # Proceed with DB deletion regardless of file error
 
     db.delete(db_cert)
     db.commit()
