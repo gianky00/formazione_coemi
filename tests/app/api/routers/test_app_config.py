@@ -48,7 +48,7 @@ def test_update_mutable_config_as_admin(test_client: TestClient, admin_token_hea
 
     new_settings = {
         "SMTP_HOST": "smtp.newhost.com",
-        "GEMINI_API_KEY": "new_key_123",
+        "GEMINI_API_KEY_ANALYSIS": "new_key_123",
         "ALERT_THRESHOLD_DAYS": 99
     }
 

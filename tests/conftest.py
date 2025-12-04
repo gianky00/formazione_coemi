@@ -37,7 +37,8 @@ def mock_settings(test_dirs):
     # Mock data to match what SettingsManager expects
     mock_data = {
         "DATABASE_PATH": str(test_dirs),
-        "GEMINI_API_KEY": "obf:test_key_123", # Obfuscated format
+        "GEMINI_API_KEY_ANALYSIS": "obf:test_key_123", # Obfuscated format
+        "GEMINI_API_KEY_CHAT": "obf:test_chat_key_123",
         "SMTP_HOST": "localhost",
         "SMTP_PORT": 1025,
         "SMTP_USER": "test@example.com",

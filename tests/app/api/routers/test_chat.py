@@ -18,18 +18,12 @@ def test_chat_endpoint_success(test_client, mock_chat_service):
         "history": [{"role": "user", "content": "Hi"}]
     }
     
-    # test_client base_url is set to /api/v1 in conftest, but endpoint path inside router is /chat
-    # The router is included with prefix /api/v1/chat in main.py
-    # Wait, check main.py inclusion:
-    # app.include_router(chat.router, prefix="/api/v1/chat", tags=["Chat"])
+    # test_client base_url is set to /api/v1 in conftest.
+    # The router is included with prefix /api/v1/chat in main.py.
+    # Inside router: @router.post("/")
+    # So full path is /api/v1/chat/
     
-    # Inside router: @router.post("/chat")
-    # So full path is /api/v1/chat/chat
-    
-    # Since test_client base_url is http://testserver/api/v1
-    # We should request /chat/chat
-    
-    response = test_client.post("/chat/chat", json=payload)
+    response = test_client.post("/chat/", json=payload)
     
     assert response.status_code == 200
     assert response.json() == {"response": "Mock Reply"}
@@ -47,7 +41,7 @@ def test_chat_endpoint_error(test_client, mock_chat_service):
     mock_chat_service.chat_with_intelleo.side_effect = Exception("AI Error")
     
     payload = {"message": "Hello"}
-    response = test_client.post("/chat/chat", json=payload)
+    response = test_client.post("/chat/", json=payload)
     
     assert response.status_code == 500
     assert "AI Error" in response.json()["detail"]
