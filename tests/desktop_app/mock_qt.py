@@ -671,7 +671,22 @@ def mock_qt_modules():
     mock_core.QThreadPool = MagicMock()
     
     class DummyQThread(DummyQObject):
-        def start(self): pass
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            self._started = DummySignal()
+            self._finished = DummySignal()
+
+        @property
+        def started(self):
+            return self._started
+
+        @property
+        def finished(self):
+            return self._finished
+
+        def start(self):
+            self._started.emit()
+
         def quit(self): pass
         def wait(self): pass
         def isRunning(self): return False

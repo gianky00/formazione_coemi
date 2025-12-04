@@ -1,16 +1,28 @@
 import sys
 import pandas as pd
 import pytest
+import importlib
 from unittest.mock import MagicMock
 
-# Mock modules to avoid GUI dependency issues if needed,
-# though QAbstractTableModel usually works in headless if QApp exists (which pytest-qt provides or we mock)
-# For this unit test of logic, we might need to mock if imports fail.
-
-from desktop_app.views.database_view import CertificatoTableModel
-from PyQt6.QtCore import Qt
+# Ensure we are using REAL PyQt6 for this test
+# We clean sys.modules of any desktop_app modules that might have been mocked
+@pytest.fixture(autouse=True)
+def clean_imports():
+    to_remove = [k for k in sys.modules if k.startswith('desktop_app')]
+    for k in to_remove:
+        del sys.modules[k]
+    yield
 
 def test_database_table_model_uppercase_and_no_escape():
+    # Import inside test to ensure fresh import after cleaning sys.modules
+    from desktop_app.views.database_view import CertificatoTableModel
+    from PyQt6.QtCore import Qt, QCoreApplication
+
+    # Ensure QCoreApplication exists (needed for some QAbstractItemModel mechanics)
+    app = QCoreApplication.instance()
+    if not app:
+        app = QCoreApplication([])
+
     # Setup data with lowercase and special chars
     # The 'html.escape' would turn "'" into "&#x27;"
     # The requirement is UPPERCASE and NO ESCAPE.
@@ -23,6 +35,10 @@ def test_database_table_model_uppercase_and_no_escape():
 
     # Test row 0, col 0
     index = model.index(0, 0)
+
+    # Debug: Check if index is valid
+    assert index.isValid(), "Index should be valid"
+
     display_value = model.data(index, Qt.ItemDataRole.DisplayRole)
 
     # Verify: UPPERCASE applied?
