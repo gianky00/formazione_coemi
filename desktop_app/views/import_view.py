@@ -7,6 +7,7 @@ import os
 import shutil
 from datetime import datetime
 from app.utils.file_security import sanitize_filename
+from ..components.toast import ToastManager
 from ..api_client import APIClient
 from ..components.animated_widgets import LoadingOverlay
 from ..components.visuals import HolographicScanner
@@ -537,7 +538,8 @@ class ImportView(QWidget):
         self.stop_button.setVisible(False)
         self.scanner.setVisible(False) # Hide Hologram
         self.import_completed.emit(archived_count, verify_count)
-        self.notification_requested.emit("Analisi Completata", f"L'elaborazione è terminata. {archived_count} archiviati, {verify_count} da verificare.")
+        # self.notification_requested.emit("Analisi Completata", ...) # Replaced by Toast
+        ToastManager.success("Analisi Completata", f"L'elaborazione è terminata. {archived_count} archiviati, {verify_count} da verificare.", self.window())
 
     def cleanup(self):
         """

@@ -1,142 +1,214 @@
-from PyQt6.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout, QGraphicsDropShadowEffect
-from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QPoint, QEasingCurve, QSize
-from PyQt6.QtGui import QColor, QPainter, QIcon
-from desktop_app.utils import load_colored_icon
+from PyQt6.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout, QGraphicsOpacityEffect, QApplication, QScrollArea
+from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QPoint, QEasingCurve, pyqtSignal, QObject, QRect
+from datetime import datetime
 
 class ToastNotification(QWidget):
-    """
-    A non-blocking toast notification that slides in, stays for a few seconds, and slides out.
-    """
-    def __init__(self, parent, title, message, icon_name="file-text.svg", duration=5000):
+    closed = pyqtSignal()
+
+    def __init__(self, title, message, type="info", parent=None):
         super().__init__(parent)
+        # Use Tool | Frameless | WindowStaysOnTopHint so it floats over everything
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
 
-        self.duration = duration
-        self.parent_widget = parent
+        # Styles
+        colors = {
+            "success": "#10B981", # Green
+            "error": "#EF4444",   # Red
+            "warning": "#F59E0B", # Yellow
+            "info": "#3B82F6"     # Blue
+        }
+        accent_color = colors.get(type, colors["info"])
+        bg_color = "#FFFFFF"
+        text_color = "#1F2937"
+        msg_color = "#6B7280"
 
-        # Style and Layout
-        self.setFixedSize(320, 90)
-        self.setStyleSheet("""
-            QWidget {
-                background-color: #FFFFFF;
+        self.setStyleSheet(f"""
+            QWidget {{
+                background-color: {bg_color};
                 border: 1px solid #E5E7EB;
-                border-radius: 12px;
-            }
-            QLabel#title {
-                color: #1F2937;
-                font-weight: 700;
+                border-radius: 8px;
+            }}
+            QLabel {{
+                background: transparent;
+                border: none;
+            }}
+            QLabel#title {{
+                font-weight: bold;
                 font-size: 14px;
-            }
-            QLabel#message {
-                color: #6B7280;
-                font-size: 13px;
-                line-height: 1.4;
-            }
+                color: {text_color};
+            }}
+            QLabel#message {{
+                font-size: 12px;
+                color: {msg_color};
+            }}
+            QWidget#accent {{
+                background-color: {accent_color};
+                border-top-left-radius: 8px;
+                border-bottom-left-radius: 8px;
+                border: none;
+            }}
         """)
 
-        # Shadow removed to prevent UpdateLayeredWindowIndirect failed errors on Windows
-        # self.setGraphicsEffect(None)
-
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
 
-        # Icon
-        icon_label = QLabel()
-        icon = load_colored_icon(icon_name, "#1D4ED8") # Blue-700
-        if not icon.isNull():
-            icon_label.setPixmap(icon.pixmap(24, 24))
-        icon_label.setStyleSheet("border: none; background: transparent;")
-        layout.addWidget(icon_label, alignment=Qt.AlignmentFlag.AlignTop)
+        # Accent strip
+        accent = QWidget()
+        accent.setObjectName("accent")
+        accent.setFixedWidth(6)
+        layout.addWidget(accent)
 
-        # Text Container
-        text_layout = QVBoxLayout()
-        text_layout.setSpacing(4)
-        text_layout.setContentsMargins(0, 0, 0, 0)
+        # Content
+        content_layout = QVBoxLayout()
+        content_layout.setContentsMargins(10, 10, 20, 10)
+        content_layout.setSpacing(2)
 
-        title_lbl = QLabel(title)
-        title_lbl.setObjectName("title")
-        title_lbl.setStyleSheet("border: none; background: transparent;") # Reset for safety
-        text_layout.addWidget(title_lbl)
+        lbl_title = QLabel(title)
+        lbl_title.setObjectName("title")
+        content_layout.addWidget(lbl_title)
 
-        msg_lbl = QLabel(message)
-        msg_lbl.setObjectName("message")
-        msg_lbl.setWordWrap(True)
-        msg_lbl.setStyleSheet("border: none; background: transparent;")
-        text_layout.addWidget(msg_lbl)
+        if message:
+            lbl_msg = QLabel(message)
+            lbl_msg.setObjectName("message")
+            content_layout.addWidget(lbl_msg)
 
-        layout.addLayout(text_layout)
+        layout.addLayout(content_layout)
 
-        # Timer for auto-close
+        # Opacity Effect
+        self.opacity_effect = QGraphicsOpacityEffect(self)
+        self.setGraphicsEffect(self.opacity_effect)
+
+        # Timer
         self.timer = QTimer(self)
-        self.timer.timeout.connect(self.close_toast)
         self.timer.setSingleShot(True)
+        self.timer.timeout.connect(self.fade_out)
 
-    def show_toast(self):
-        """Shows the toast with animation."""
+        self.adjustSize()
+
+    def show_toast(self, duration=3000):
         self.show()
-
-        # Position: Bottom Right with margin
-        if self.parent_widget:
-            parent_rect = self.parent_widget.geometry()
-            # Calculate global position if parent is not a window?
-            # If parent is the main window, we want it relative to that window or screen?
-            # Usually "notification" is relative to the application window.
-            # Using mapToGlobal might be safer if parent is a widget.
-            # But let's assume parent is Main Window.
-
-            # Position relative to parent's bottom right
-            x = parent_rect.width() - self.width() - 20
-            final_y = parent_rect.height() - self.height() - 20
-            start_y = parent_rect.height() # Start below
-
-            # Since self is a child of parent (passed in __init__), move() uses parent coordinates.
-            # If we used Window flag, we might need global coords.
-            # But we passed `parent` to `super().__init__`, so it's a child widget (or window child).
-            # Wait, `Qt.WindowType.Tool` usually makes it a top-level window.
-            # If it's top-level, we need global coordinates.
-
-            gp = self.parent_widget.mapToGlobal(QPoint(0, 0))
-            x += gp.x()
-            final_y += gp.y()
-            start_y += gp.y()
-        else:
-            # Fallback to screen geometry? Let's assume parent is always passed.
-            return
-
-        self.move(x, start_y)
-
-        self.anim = QPropertyAnimation(self, b"pos")
-        self.anim.setDuration(400)
-        self.anim.setStartValue(QPoint(x, start_y))
-        self.anim.setEndValue(QPoint(x, final_y))
-        self.anim.setEasingCurve(QEasingCurve.Type.OutBack)
+        # Animation Fade In
+        self.anim = QPropertyAnimation(self.opacity_effect, b"opacity")
+        self.anim.setDuration(300)
+        self.anim.setStartValue(0)
+        self.anim.setEndValue(1)
+        self.anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self.anim.start()
 
-        self.timer.start(self.duration)
+        self.timer.start(duration)
 
-    def close_toast(self):
-        # Fade out or Slide down
-        current_pos = self.pos()
-        target_pos = QPoint(current_pos.x(), current_pos.y() + 20)
+    def fade_out(self):
+        self.anim = QPropertyAnimation(self.opacity_effect, b"opacity")
+        self.anim.setDuration(300)
+        self.anim.setStartValue(1)
+        self.anim.setEndValue(0)
+        self.anim.finished.connect(self.close)
+        self.anim.finished.connect(self.closed.emit)
+        self.anim.start()
 
-        self.anim_out = QPropertyAnimation(self, b"pos")
-        self.anim_out.setDuration(300)
-        self.anim_out.setStartValue(current_pos)
-        self.anim_out.setEndValue(target_pos)
-        self.anim_out.setEasingCurve(QEasingCurve.Type.InQuad)
+class ToastManager(QObject):
+    _instance = None
+    history_updated = pyqtSignal()
 
-        # Also fade opacity
-        # Note: Opacity on top-level widgets requires setWindowOpacity
-        self.anim_fade = QPropertyAnimation(self, b"windowOpacity")
-        self.anim_fade.setDuration(300)
-        self.anim_fade.setStartValue(1.0)
-        self.anim_fade.setEndValue(0.0)
+    @staticmethod
+    def instance():
+        if not ToastManager._instance:
+            ToastManager._instance = ToastManager()
+        return ToastManager._instance
 
-        self.anim_out.finished.connect(self.close)
+    def __init__(self):
+        super().__init__()
+        self.active_toasts = []
+        self.history = []
 
-        self.anim_out.start()
-        self.anim_fade.start()
+    def add_to_history(self, type, title, message):
+        entry = {
+            "type": type,
+            "title": title,
+            "message": message,
+            "timestamp": datetime.now()
+        }
+        self.history.insert(0, entry) # Newest first
+        # Limit history size
+        if len(self.history) > 50:
+            self.history.pop()
+        self.history_updated.emit()
+
+    def show_toast(self, parent, type, title, message, duration=3000):
+        # Add to history
+        self.add_to_history(type, title, message)
+
+        toast = ToastNotification(title, message, type, parent)
+
+        # Robust Positioning Logic
+        target_geometry = None
+
+        if parent and parent.isVisible() and not (parent.windowState() & Qt.WindowState.WindowMinimized):
+             # Parent is visible and valid
+             target_geometry = parent.geometry()
+             # If parent is not top-level, map to global
+             if not parent.isWindow():
+                 top_left = parent.mapToGlobal(QPoint(0, 0))
+                 target_geometry = QRect(top_left, parent.size())
+        else:
+             # Fallback to primary screen
+             screen = QApplication.primaryScreen()
+             if screen:
+                 target_geometry = screen.availableGeometry()
+
+        if target_geometry:
+            # Calculate Bottom Right of the target area
+            # We use target_geometry directly (which is already global coords for screen,
+            # or mapped global for widget)
+
+            # Note: parent.geometry() for a Window includes the frame, but mapToGlobal(0,0) usually gives client area.
+            # Ideally we want to position relative to the window frame.
+
+            x = target_geometry.x() + target_geometry.width() - toast.width() - 20
+            y = target_geometry.y() + target_geometry.height() - toast.height() - 20
+
+            # Stack existing toasts
+            offset_y = 0
+            for t in self.active_toasts:
+                if t.isVisible():
+                    offset_y += t.height() + 10
+
+            y -= offset_y
+
+            # Ensure y doesn't go off top of screen
+            if y < target_geometry.y():
+                 y = target_geometry.y() + 20 # Fallback to top if full
+
+            toast.move(x, y)
+
+        toast.show_toast(duration)
+        self.active_toasts.append(toast)
+
+        # Cleanup when closed
+        def cleanup():
+            if toast in self.active_toasts:
+                self.active_toasts.remove(toast)
+        toast.closed.connect(cleanup)
+
+    @staticmethod
+    def success(title, message, parent=None):
+        if not parent: parent = QApplication.activeWindow()
+        ToastManager.instance().show_toast(parent, "success", title, message)
+
+    @staticmethod
+    def error(title, message, parent=None):
+        if not parent: parent = QApplication.activeWindow()
+        ToastManager.instance().show_toast(parent, "error", title, message)
+
+    @staticmethod
+    def warning(title, message, parent=None):
+        if not parent: parent = QApplication.activeWindow()
+        ToastManager.instance().show_toast(parent, "warning", title, message)
+
+    @staticmethod
+    def info(title, message, parent=None):
+        if not parent: parent = QApplication.activeWindow()
+        ToastManager.instance().show_toast(parent, "info", title, message)

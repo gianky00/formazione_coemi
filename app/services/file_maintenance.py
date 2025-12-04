@@ -1,14 +1,14 @@
 import os
 import shutil
 import logging
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import func
 from app.db.models import Certificato, AuditLog
 from app.services import certificate_logic
-from app.services.document_locator import find_document
 from app.core.config import settings, get_user_data_dir
 from app.utils.audit import log_security_action
-from datetime import date
+from app.services.sync_service import clean_all_empty_folders, archive_certificate_file
+from datetime import date, timedelta
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -48,53 +48,47 @@ def organize_expired_files(db: Session):
         status = certificate_logic.get_certificate_status(db, cert)
 
         if status in ["scaduto", "archiviato"]:
-            # Prepare data for locator
-            cert_data = {
-                'nome': f"{cert.dipendente.cognome} {cert.dipendente.nome}" if cert.dipendente else cert.nome_dipendente_raw,
-                'matricola': cert.dipendente.matricola if cert.dipendente else None,
-                'categoria': cert.corso.categoria_corso if cert.corso else None,
-                'data_scadenza': cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else None
-            }
+            if archive_certificate_file(db, cert):
+                moved_count += 1
 
-            if not cert_data['categoria']:
-                continue
+    # Daily Cleanup: Remove empty folders in DOCUMENTI DIPENDENTI
+    docs_path = os.path.join(database_path, "DOCUMENTI DIPENDENTI")
+    if os.path.exists(docs_path):
+        clean_all_empty_folders(docs_path)
 
-            current_path = find_document(database_path, cert_data)
-
-            if current_path and os.path.isfile(current_path):
-                # Check if it is in ATTIVO or IN SCADENZA folder
-                # Path structure: .../CATEGORY/STATUS/filename
-                parent_dir = os.path.dirname(current_path)
-                folder_name = os.path.basename(parent_dir)
-
-                if folder_name in ["ATTIVO", "IN SCADENZA"]:
-                    # Construct new path
-                    # We want to replace the status folder with STORICO
-                    # But we must be careful about the structure.
-                    # Standard structure: DATABASE / DOCUMENTI DIPENDENTI / Name (Matr) / Cat / Status / File
-
-                    # Let's verify structure by going up
-                    cat_dir = os.path.dirname(parent_dir)
-
-                    # Target: .../Category/STORICO/
-                    target_dir = os.path.join(cat_dir, "STORICO")
-
-                    if not os.path.exists(target_dir):
-                        try:
-                            os.makedirs(target_dir)
-                        except OSError as e:
-                            logging.error(f"Failed to create directory {target_dir}: {e}")
-                            continue
-
-                    filename = os.path.basename(current_path)
-                    target_path = os.path.join(target_dir, filename)
-
-                    try:
-                        shutil.move(current_path, target_path)
-                        logging.info(f"Moved expired file to STORICO: {filename}")
-                        moved_count += 1
-                    except Exception as e:
-                        logging.error(f"Failed to move file {current_path} to {target_path}: {e}")
+    # Log Rotation (1 year retention)
+    cleanup_audit_logs(db, retention_days=365)
 
     log_security_action(db, None, "SYSTEM_MAINTENANCE", f"File maintenance completed. Moved {moved_count} files.", category="SYSTEM")
     logging.info(f"File maintenance completed. Moved {moved_count} files to STORICO.")
+
+def cleanup_audit_logs(db: Session, retention_days: int = 365, max_records: int = 100000):
+    """
+    Deletes audit logs older than retention_days AND ensures total count does not exceed max_records.
+    """
+    # 1. Time-based Cleanup
+    cutoff = date.today() - timedelta(days=retention_days)
+    try:
+        deleted = db.query(AuditLog).filter(func.date(AuditLog.timestamp) < cutoff).delete(synchronize_session=False)
+        db.commit()
+        if deleted > 0:
+            logging.info(f"Cleaned up {deleted} old audit logs (older than {retention_days} days).")
+            log_security_action(db, None, "LOG_CLEANUP", f"Deleted {deleted} logs older than {cutoff}", category="SYSTEM")
+    except Exception as e:
+        logging.error(f"Error cleaning audit logs (time-based): {e}")
+        db.rollback()
+
+    # 2. Size-based Cleanup
+    try:
+        count = db.query(AuditLog).count()
+        if count > max_records:
+            excess = count - max_records
+            # Delete oldest 'excess' records
+            subquery = db.query(AuditLog.id).order_by(AuditLog.timestamp.asc()).limit(excess)
+            deleted_excess = db.query(AuditLog).filter(AuditLog.id.in_(subquery)).delete(synchronize_session=False)
+            db.commit()
+            logging.info(f"Cleaned up {deleted_excess} excess audit logs (Limit: {max_records}).")
+            log_security_action(db, None, "LOG_CLEANUP", f"Deleted {deleted_excess} excess logs", category="SYSTEM")
+    except Exception as e:
+        logging.error(f"Error cleaning audit logs (size-based): {e}")
+        db.rollback()

@@ -3,8 +3,26 @@ import sys
 import uuid
 import re
 from PyQt6.QtGui import QIcon, QPixmap
-from PyQt6.QtCore import QByteArray
+from PyQt6.QtCore import QByteArray, QObject, pyqtSignal
 from desktop_app.services.license_manager import LicenseManager
+
+class GlobalLoading(QObject):
+    _instance = None
+    loading_changed = pyqtSignal(bool)
+
+    @staticmethod
+    def instance():
+        if not GlobalLoading._instance:
+            GlobalLoading._instance = GlobalLoading()
+        return GlobalLoading._instance
+
+    @staticmethod
+    def start():
+        GlobalLoading.instance().loading_changed.emit(True)
+
+    @staticmethod
+    def stop():
+        GlobalLoading.instance().loading_changed.emit(False)
 
 def get_device_id():
     """

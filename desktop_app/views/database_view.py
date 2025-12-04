@@ -11,6 +11,7 @@ from ..api_client import APIClient
 from ..components.animated_widgets import AnimatedButton, AnimatedInput, CardWidget
 from ..components.cascade_delegate import CascadeDelegate
 from ..components.custom_dialog import CustomMessageDialog
+from ..components.toast import ToastManager
 from app.services.document_locator import find_document
 import requests
 import pandas as pd
@@ -355,7 +356,7 @@ class DatabaseView(QWidget):
         CustomMessageDialog.show_error(self, "Errore", message)
 
     def _show_success_message(self, message):
-        CustomMessageDialog.show_info(self, "Successo", message)
+        ToastManager.success("Successo", message, self.window())
 
     def edit_data(self):
         if getattr(self, 'is_read_only', False):
@@ -408,7 +409,7 @@ class DatabaseView(QWidget):
         if path:
             try:
                 self.model._data.to_csv(path, index=False)
-                CustomMessageDialog.show_info(self, "Esportazione Riuscita", f"Dati esportati con successo in {path}")
+                ToastManager.success("Esportazione Riuscita", f"Dati esportati con successo.", self.window())
             except Exception as e:
                 self._show_error_message(f"Impossibile salvare il file: {e}")
 

@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional, List
 from datetime import date, datetime
+import re
 
 class DipendenteSchema(BaseModel):
     id: int
@@ -23,6 +24,12 @@ class DipendenteCreateSchema(BaseModel):
     categoria_reparto: Optional[str] = None
     data_assunzione: Optional[date] = None
 
+    @field_validator('nome', 'cognome')
+    def validate_name(cls, v):
+        if v and not re.match(r"^[a-zA-Z\s']+$", v):
+            raise ValueError("Nome e cognome possono contenere solo lettere, spazi e apostrofi.")
+        return v
+
 class DipendenteUpdateSchema(BaseModel):
     matricola: Optional[str] = Field(None, min_length=1)
     nome: Optional[str] = Field(None, min_length=1)
@@ -31,6 +38,12 @@ class DipendenteUpdateSchema(BaseModel):
     email: Optional[str] = None
     categoria_reparto: Optional[str] = None
     data_assunzione: Optional[date] = None
+
+    @field_validator('nome', 'cognome')
+    def validate_name(cls, v):
+        if v and not re.match(r"^[a-zA-Z\s']+$", v):
+            raise ValueError("Nome e cognome possono contenere solo lettere, spazi e apostrofi.")
+        return v
 
 class CertificatoSchema(BaseModel):
     id: int

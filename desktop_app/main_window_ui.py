@@ -3,15 +3,17 @@ import sys
 from datetime import date, datetime
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
                              QPushButton, QStackedWidget, QLabel, QFrame, QSizePolicy,
-                             QScrollArea, QLayout, QApplication)
+                             QScrollArea, QLayout, QApplication, QProgressBar)
 from PyQt6.QtCore import (Qt, QSize, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup,
                           pyqtSignal, QPoint, pyqtProperty, QRect, QTimer, QObject, QThread)
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QBrush, QPen
 
 # Import Utils
-from .utils import get_asset_path, load_colored_icon
+from .utils import get_asset_path, load_colored_icon, GlobalLoading
 from .services.license_manager import LicenseManager
 from .components.custom_dialog import CustomMessageDialog
+from .components.toast import ToastManager
+from .components.notification_center import NotificationCenter
 
 class SystemCheckWorker(QObject):
     result_ready = pyqtSignal(dict)
@@ -28,6 +30,38 @@ class SystemCheckWorker(QObject):
         except:
             pass
         self.finished.emit()
+
+class BellButton(QPushButton):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(40, 40)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setIcon(load_colored_icon("bell.svg", "#6B7280"))
+        self.setIconSize(QSize(20, 20))
+        self.setStyleSheet("border: none; background: transparent; border-radius: 20px;")
+        self.has_badge = False
+
+    def set_badge(self, visible):
+        self.has_badge = visible
+        self.update()
+
+    def enterEvent(self, event):
+        self.setStyleSheet("border: none; background: #F3F4F6; border-radius: 20px;")
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self.setStyleSheet("border: none; background: transparent; border-radius: 20px;")
+        super().leaveEvent(event)
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self.has_badge:
+            painter = QPainter(self)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            painter.setBrush(QBrush(QColor("#EF4444"))) # Red badge
+            painter.setPen(Qt.PenStyle.NoPen)
+            # Draw circle at top right
+            painter.drawEllipse(24, 8, 8, 8)
 
 class SidebarButton(QPushButton):
     def __init__(self, text, icon_name, parent=None):
@@ -358,14 +392,42 @@ class MainDashboardWidget(QWidget):
         self.top_bar.setFixedHeight(60)
         self.top_bar.setStyleSheet("background-color: #FFFFFF; border-bottom: 1px solid #E5E7EB;")
         self.top_bar_layout = QHBoxLayout(self.top_bar)
+        self.top_bar_layout.setContentsMargins(20, 0, 20, 0)
+
         self.page_title = QLabel("Database")
-        self.page_title.setStyleSheet("font-size: 20px; font-weight: 600; color: #1F2937; margin-left: 20px;")
+        self.page_title.setStyleSheet("font-size: 20px; font-weight: 600; color: #1F2937;")
         self.top_bar_layout.addWidget(self.page_title)
+
+        # Global Loading Bar (Center or near Title)
+        self.loading_bar = QProgressBar()
+        self.loading_bar.setFixedHeight(4)
+        self.loading_bar.setTextVisible(False)
+        self.loading_bar.setRange(0, 0) # Indeterminate
+        self.loading_bar.setStyleSheet("""
+            QProgressBar {
+                background: transparent;
+                border: none;
+            }
+            QProgressBar::chunk {
+                background-color: #3B82F6;
+                border-radius: 2px;
+            }
+        """)
+        self.loading_bar.setFixedWidth(200)
+        self.loading_bar.hide()
+
+        self.top_bar_layout.addSpacing(20)
+        self.top_bar_layout.addWidget(self.loading_bar)
 
         self.top_bar_layout.addStretch()
 
+        # Bell Button for Notifications
+        self.bell_btn = BellButton()
+        self.bell_btn.clicked.connect(self.toggle_notifications)
+        self.top_bar_layout.addWidget(self.bell_btn)
+
         self.read_only_label = QLabel("(SOLA LETTURA)")
-        self.read_only_label.setStyleSheet("font-size: 16px; font-weight: 600; color: #DC2626; margin-right: 20px;")
+        self.read_only_label.setStyleSheet("font-size: 16px; font-weight: 600; color: #DC2626; margin-left: 20px;")
         self.read_only_label.setVisible(False)
         self.top_bar_layout.addWidget(self.read_only_label)
 
@@ -376,6 +438,10 @@ class MainDashboardWidget(QWidget):
         self.content_layout.addWidget(self.stacked_widget)
 
         self.main_layout.addWidget(self.content_area)
+
+        # Notification Center Overlay
+        self.notification_center = NotificationCenter(self)
+        self.notification_center.hide()
 
         # Initialize placeholders
         self.views = {
@@ -391,6 +457,12 @@ class MainDashboardWidget(QWidget):
 
         self._connect_signals()
 
+        # Connect Global Loading
+        GlobalLoading.instance().loading_changed.connect(self.update_loading_state)
+
+        # Connect Bell Badge
+        ToastManager.instance().history_updated.connect(self.on_notification_added)
+
         # Step 1: Load Essential View (Database) immediately
         self._load_essential_views()
         self.switch_to("database")
@@ -400,6 +472,43 @@ class MainDashboardWidget(QWidget):
 
         self._init_system_checks()
         QTimer.singleShot(5000, self.trigger_background_maintenance)
+
+    def update_loading_state(self, is_loading):
+        if is_loading:
+            self.loading_bar.show()
+        else:
+            self.loading_bar.hide()
+
+    def on_notification_added(self):
+        if not self.notification_center.isVisible():
+            self.bell_btn.set_badge(True)
+
+    def toggle_notifications(self):
+        if self.notification_center.isVisible():
+            self.notification_center.hide()
+        else:
+            # Position it
+            # Map bell btn to global then to self
+            bell_pos = self.bell_btn.mapToGlobal(QPoint(0, 0))
+            my_pos = self.mapToGlobal(QPoint(0, 0))
+
+            x = bell_pos.x() - my_pos.x() - self.notification_center.width() + self.bell_btn.width()
+            y = bell_pos.y() - my_pos.y() + self.bell_btn.height() + 10
+
+            # Ensure it fits
+            if x < 0: x = 10
+
+            self.notification_center.move(x, y)
+            self.notification_center.raise_()
+            self.notification_center.show()
+            self.bell_btn.set_badge(False)
+
+    # Override mousePressEvent to close notification center when clicking outside
+    def mousePressEvent(self, event):
+        if self.notification_center.isVisible():
+            if not self.notification_center.geometry().contains(event.pos()) and not self.bell_btn.geometry().contains(event.pos()):
+                self.notification_center.hide()
+        super().mousePressEvent(event)
 
     def _load_essential_views(self):
         from .views.database_view import DatabaseView

@@ -76,9 +76,60 @@ class DummyEnum:
     SubWindow = 0
     transparent = 0
     white = 3
+    WindowNoState = 0
+    WindowMinimized = 1
+
+    class WindowState:
+        WindowNoState = 0
+        WindowMinimized = 1
+
     class GlobalColor:
         transparent = 0
         white = 3
+
+    class ItemDataRole:
+        DisplayRole = 0
+        EditRole = 1
+        UserRole = 256
+
+    class ApplicationAttribute:
+        AA_ShareOpenGLContexts = 0
+
+    class AspectRatioMode:
+        KeepAspectRatio = 1
+
+    class TransformationMode:
+        SmoothTransformation = 1
+
+    class CursorShape:
+        PointingHandCursor = 0
+
+    class PenStyle:
+        NoPen = 0
+
+    class WindowType:
+        FramelessWindowHint = 0
+        Tool = 0
+        WindowStaysOnTopHint = 0
+
+    class WidgetAttribute:
+        WA_TranslucentBackground = 0
+        WA_ShowWithoutActivating = 0
+
+    class BrushStyle:
+        NoBrush = 0
+
+    class AlignmentFlag:
+        AlignCenter = 0
+        AlignLeft = 0
+        AlignRight = 0
+        AlignTop = 0
+        AlignBottom = 0
+        AlignVCenter = 0
+        AlignHCenter = 0
+
+    class TextFlag:
+        TextWordWrap = 0
 
 class DummyQLayoutItem:
     def __init__(self, widget):
@@ -142,6 +193,8 @@ class DummyQWidget(DummyQObject):
     TextInteractionFlag = DummyEnum
     PenStyle = DummyEnum
     GlobalColor = DummyEnum
+    BrushStyle = DummyEnum
+    TextFlag = DummyEnum
 
     def __init__(self, text=None, parent=None, *args, **kwargs):
         super().__init__(parent)
@@ -706,12 +759,13 @@ def mock_qt_modules():
 
     mock_core = MagicMock()
     mock_core.PYQT_VERSION = 0x060800 # Mock version 6.8.0
-    mock_core.Qt = DummyQWidget # Reuse Enum
+    mock_core.Qt = DummyEnum # Use Enum
     mock_core.QSize = MagicMock()
     mock_core.QDate = DummyQDate
     mock_core.QObject = DummyQObject
     mock_core.QAbstractTableModel = DummyQAbstractTableModel
     mock_core.QTimer = MagicMock()
+    mock_core.QCoreApplication = MagicMock()
     
     class DummyQPropertyAnimation(MagicMock):
         def __init__(self, target=None, prop_name=None, parent=None, **kwargs):
