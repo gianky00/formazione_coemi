@@ -3,8 +3,9 @@ import shutil
 import logging
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import func
-from app.db.models import Certificato, AuditLog
-from app.services import certificate_logic
+from app.db.models import Certificato, AuditLog, Dipendente
+from app.services import certificate_logic, matcher
+from app.utils.date_parser import parse_date_flexible
 from app.services.document_locator import find_document, construct_certificate_path
 from app.core.config import settings, get_user_data_dir
 from app.utils.audit import log_security_action
@@ -217,3 +218,64 @@ def cleanup_audit_logs(db: Session, retention_days: int = 365):
     except Exception as e:
         logging.error(f"Error cleaning audit logs: {e}")
         db.rollback()
+
+def link_orphaned_certificates(db: Session, dipendente: Dipendente) -> int:
+    """
+    Scans for orphaned certificates that match the given employee and links them.
+    Moves associated files from (N-A) folder to employee folder.
+    """
+    orphans = db.query(Certificato).options(selectinload(Certificato.corso)).filter(Certificato.dipendente_id.is_(None)).all()
+    linked_count = 0
+
+    database_path = settings.DATABASE_PATH or str(get_user_data_dir())
+
+    for cert in orphans:
+        if not cert.nome_dipendente_raw: continue
+
+        dob_raw = parse_date_flexible(cert.data_nascita_raw) if cert.data_nascita_raw else None
+
+        # Optimization: Only check if dob matches (if present)
+        if dob_raw and dipendente.data_nascita and dob_raw != dipendente.data_nascita:
+            continue
+
+        match = matcher.find_employee_by_name(db, cert.nome_dipendente_raw, dob_raw)
+
+        if match and match.id == dipendente.id:
+            # Capture Old Data (Orphan state)
+            old_cert_data = {
+                'nome': cert.nome_dipendente_raw,
+                'matricola': None,
+                'categoria': cert.corso.categoria_corso if cert.corso else None,
+                'data_scadenza': cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else None
+            }
+
+            cert.dipendente_id = dipendente.id
+            linked_count += 1
+
+            # Move File
+            if database_path and old_cert_data['categoria']:
+                try:
+                    old_path = find_document(database_path, old_cert_data)
+                    if old_path and os.path.exists(old_path):
+                        status = certificate_logic.get_certificate_status(db, cert)
+                        target_status = "ATTIVO"
+                        if status == "scaduto": target_status = "SCADUTO"
+                        elif status == "archiviato": target_status = "STORICO"
+
+                        new_cert_data = {
+                            'nome': f"{dipendente.cognome} {dipendente.nome}",
+                            'matricola': dipendente.matricola,
+                            'categoria': old_cert_data['categoria'],
+                            'data_scadenza': old_cert_data['data_scadenza']
+                        }
+
+                        new_path = construct_certificate_path(database_path, new_cert_data, status=target_status)
+
+                        if old_path != new_path:
+                            os.makedirs(os.path.dirname(new_path), exist_ok=True)
+                            shutil.move(old_path, new_path)
+                            remove_empty_folders(os.path.dirname(old_path))
+                except Exception as e:
+                    logging.error(f"Error moving linked orphan file: {e}")
+
+    return linked_count

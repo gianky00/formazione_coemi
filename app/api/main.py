@@ -10,7 +10,7 @@ from app.db.session import get_db
 from app.db.models import Corso, Certificato, ValidationStatus, Dipendente, User as UserModel
 from app.services import ai_extraction, certificate_logic, matcher
 from app.services.document_locator import find_document, construct_certificate_path
-from app.services.file_maintenance import archive_certificate_file
+from app.services.file_maintenance import archive_certificate_file, link_orphaned_certificates
 from app.core.config import settings, get_user_data_dir
 from app.utils.date_parser import parse_date_flexible
 from app.utils.file_security import verify_file_signature
@@ -755,6 +755,10 @@ def create_dipendente(
     db.commit()
     db.refresh(new_dipendente)
 
+    # Link potential orphan certificates
+    link_orphaned_certificates(db, new_dipendente)
+    db.commit()
+
     log_security_action(db, current_user, "DIPENDENTE_CREATE", f"Creato dipendente {dipendente.cognome} {dipendente.nome}", category="DATA")
     return new_dipendente
 
@@ -789,6 +793,10 @@ def update_dipendente(
 
     db.commit()
     db.refresh(dipendente)
+
+    # Link potential orphan certificates (if name changed)
+    link_orphaned_certificates(db, dipendente)
+    db.commit()
 
     log_security_action(db, current_user, "DIPENDENTE_UPDATE", f"Aggiornato dipendente ID {dipendente_id}", category="DATA")
     return dipendente
