@@ -2,10 +2,12 @@ import os
 import shutil
 import logging
 from sqlalchemy.orm import Session
-from app.db.models import Certificato
+from sqlalchemy import func
+from app.db.models import Certificato, AuditLog
 from app.services import certificate_logic
 from app.services.document_locator import find_document
 from app.core.config import settings, get_user_data_dir
+from app.utils.audit import log_security_action
 from datetime import date
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -22,9 +24,19 @@ def organize_expired_files(db: Session):
         logging.warning(f"Database path not found or invalid: {database_path}. Skipping maintenance.")
         return
 
+    # Optimization: Frequency Check - Run only once per day
+    today = date.today()
+    existing_log = db.query(AuditLog).filter(
+        AuditLog.action == "SYSTEM_MAINTENANCE",
+        func.date(AuditLog.timestamp) == today
+    ).first()
+
+    if existing_log:
+        logging.info("Maintenance task already ran today. Skipping.")
+        return
+
     # Optimization: Filter at DB level for potential candidates (expired dates)
     # This avoids iterating thousands of active certificates and triggering 'get_certificate_status' N+1 queries for them.
-    today = date.today()
     certificates = db.query(Certificato).filter(
         Certificato.data_scadenza_calcolata.isnot(None),
         Certificato.data_scadenza_calcolata < today
@@ -84,4 +96,5 @@ def organize_expired_files(db: Session):
                     except Exception as e:
                         logging.error(f"Failed to move file {current_path} to {target_path}: {e}")
 
+    log_security_action(db, None, "SYSTEM_MAINTENANCE", f"File maintenance completed. Moved {moved_count} files.", category="SYSTEM")
     logging.info(f"File maintenance completed. Moved {moved_count} files to STORICO.")

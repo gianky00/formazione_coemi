@@ -1,6 +1,7 @@
 import csv
 import io
 import os
+import shutil
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import IntegrityError
@@ -8,7 +9,7 @@ from sqlalchemy import or_
 from app.db.session import get_db
 from app.db.models import Corso, Certificato, ValidationStatus, Dipendente, User as UserModel
 from app.services import ai_extraction, certificate_logic, matcher
-from app.services.document_locator import find_document
+from app.services.document_locator import find_document, construct_certificate_path
 from app.core.config import settings, get_user_data_dir
 from app.utils.date_parser import parse_date_flexible
 from app.utils.file_security import verify_file_signature
@@ -42,7 +43,11 @@ def health_check():
     return {"status": "ok"}
 
 @router.post("/upload-pdf/", dependencies=[Depends(deps.check_write_permission)])
-async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_pdf(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_user)
+):
     MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 
     # Read file with size limit check
@@ -61,6 +66,7 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
     extracted_data = ai_extraction.extract_entities_with_ai(bytes(pdf_bytes))
     if "error" in extracted_data:
         if extracted_data.get("is_rejected"):
+             log_security_action(db, current_user, "AI_REJECT", f"File rejected by AI: {file.filename}. Reason: {extracted_data['error']}", category="AI_ANALYSIS", severity="MEDIUM")
              raise HTTPException(status_code=422, detail=extracted_data["error"])
         if extracted_data.get("status_code") == 429:
             raise HTTPException(status_code=429, detail=extracted_data["error"])
@@ -316,6 +322,14 @@ def update_certificato(
     if not db_cert:
         raise HTTPException(status_code=404, detail="Certificato non trovato")
 
+    # Capture old state for file renaming
+    old_cert_data = {
+        'nome': f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}" if db_cert.dipendente else db_cert.nome_dipendente_raw,
+        'matricola': db_cert.dipendente.matricola if db_cert.dipendente else None,
+        'categoria': db_cert.corso.categoria_corso if db_cert.corso else None,
+        'data_scadenza': db_cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_cert.data_scadenza_calcolata else None
+    }
+
     update_data = certificato.model_dump(exclude_unset=True)
 
     if 'data_nascita' in update_data:
@@ -379,6 +393,35 @@ def update_certificato(
     db.refresh(db_cert)
     status = certificate_logic.get_certificate_status(db, db_cert)
 
+    # File Synchronization: Rename/Move file if data changed
+    try:
+        new_cert_data = {
+            'nome': f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}" if db_cert.dipendente else db_cert.nome_dipendente_raw,
+            'matricola': db_cert.dipendente.matricola if db_cert.dipendente else None,
+            'categoria': db_cert.corso.categoria_corso if db_cert.corso else None,
+            'data_scadenza': db_cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_cert.data_scadenza_calcolata else None
+        }
+
+        if old_cert_data != new_cert_data:
+            database_path = settings.DATABASE_PATH or str(get_user_data_dir())
+            if database_path:
+                old_file_path = find_document(database_path, old_cert_data)
+
+                if old_file_path and os.path.exists(old_file_path):
+                    # Determine target status folder
+                    if status in ["attivo", "in_scadenza"]:
+                        target_status = "ATTIVO"
+                    else:
+                        target_status = "STORICO"
+
+                    new_file_path = construct_certificate_path(database_path, new_cert_data, status=target_status)
+
+                    if old_file_path != new_file_path:
+                        os.makedirs(os.path.dirname(new_file_path), exist_ok=True)
+                        shutil.move(old_file_path, new_file_path)
+    except Exception as e:
+        print(f"Error synchronizing file for certificate {certificato_id}: {e}")
+
     log_security_action(db, current_user, "CERTIFICATE_UPDATE", f"aggiornato certificato ID {certificato_id}. Campi: {', '.join(update_data.keys())}", category="CERTIFICATE")
 
     dipendente_info = db_cert.dipendente  # Reload the relationship
@@ -423,7 +466,17 @@ def delete_certificato(
             if database_path:
                 file_path = find_document(database_path, cert_data)
                 if file_path and os.path.exists(file_path):
-                    os.remove(file_path)
+                    # Move to Trash (CESTINO) instead of deleting
+                    trash_dir = os.path.join(database_path, "DOCUMENTI DIPENDENTI", "CESTINO")
+                    os.makedirs(trash_dir, exist_ok=True)
+
+                    filename = os.path.basename(file_path)
+                    root, ext = os.path.splitext(filename)
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    new_filename = f"{root}_deleted_{timestamp}{ext}"
+                    dest_path = os.path.join(trash_dir, new_filename)
+
+                    shutil.move(file_path, dest_path)
     except Exception as e:
         print(f"Error deleting file for certificate {certificato_id}: {e}")
         # Proceed with DB deletion regardless of file error
@@ -492,19 +545,8 @@ async def import_dipendenti_csv(
         if not all([cognome, nome, badge]):
             continue
 
-        parsed_data_nascita = None
-        if data_nascita:
-            try:
-                parsed_data_nascita = datetime.strptime(data_nascita, '%d/%m/%Y').date()
-            except ValueError:
-                pass  # Gestisce date non valide o formati diversi
-
-        parsed_data_assunzione = None
-        if data_assunzione:
-            try:
-                parsed_data_assunzione = datetime.strptime(data_assunzione, '%d/%m/%Y').date()
-            except ValueError:
-                pass
+        parsed_data_nascita = parse_date_flexible(data_nascita) if data_nascita else None
+        parsed_data_assunzione = parse_date_flexible(data_assunzione) if data_assunzione else None
 
         # Step 1: Cerca per Matricola (Upsert standard)
         dipendente = db.query(Dipendente).filter(Dipendente.matricola == badge).first()
@@ -560,15 +602,53 @@ async def import_dipendenti_csv(
         raise HTTPException(status_code=400, detail=f"Errore di integrità del database: {str(e)}")
 
     # Re-link orphaned certificates
-    orphaned_certs = db.query(Certificato).filter(Certificato.dipendente_id.is_(None)).all()
+    orphaned_certs = db.query(Certificato).options(selectinload(Certificato.corso)).filter(Certificato.dipendente_id.is_(None)).all()
     linked_count = 0
+
+    database_path = settings.DATABASE_PATH or str(get_user_data_dir())
+
     for cert in orphaned_certs:
         if cert.nome_dipendente_raw:
             dob_raw = parse_date_flexible(cert.data_nascita_raw) if cert.data_nascita_raw else None
             match = matcher.find_employee_by_name(db, cert.nome_dipendente_raw, dob_raw)
             if match:
+                # Capture Old Data (Orphan state) for file logic
+                old_cert_data = {
+                    'nome': cert.nome_dipendente_raw,
+                    'matricola': None,
+                    'categoria': cert.corso.categoria_corso if cert.corso else None,
+                    'data_scadenza': cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else None
+                }
+
+                # Link Employee
                 cert.dipendente_id = match.id
                 linked_count += 1
+
+                # Move File
+                if database_path and old_cert_data['categoria']:
+                    try:
+                        old_path = find_document(database_path, old_cert_data)
+                        if old_path and os.path.exists(old_path):
+                            status = certificate_logic.get_certificate_status(db, cert)
+                            target_status = "ATTIVO"
+                            if status == "scaduto": target_status = "SCADUTO"
+                            elif status == "archiviato": target_status = "STORICO"
+
+                            # Prepare new data
+                            new_cert_data = {
+                                'nome': f"{match.cognome} {match.nome}",
+                                'matricola': match.matricola,
+                                'categoria': old_cert_data['categoria'],
+                                'data_scadenza': old_cert_data['data_scadenza']
+                            }
+
+                            new_path = construct_certificate_path(database_path, new_cert_data, status=target_status)
+
+                            if old_path != new_path:
+                                os.makedirs(os.path.dirname(new_path), exist_ok=True)
+                                shutil.move(old_path, new_path)
+                    except Exception as e:
+                        print(f"Error moving orphan file {old_cert_data}: {e}")
 
     if linked_count > 0:
         db.commit()
@@ -634,6 +714,8 @@ def create_dipendente(
     current_user: UserModel = Depends(deps.get_current_user)
 ):
     if dipendente.matricola:
+        if not dipendente.matricola.strip():
+             raise HTTPException(status_code=400, detail="La matricola non può essere vuota o solo spazi.")
         existing = db.query(Dipendente).filter(Dipendente.matricola == dipendente.matricola).first()
         if existing:
             raise HTTPException(status_code=400, detail="Matricola già esistente.")
@@ -673,6 +755,8 @@ def update_dipendente(
     update_dict = dipendente_data.model_dump(exclude_unset=True)
 
     if "matricola" in update_dict and update_dict["matricola"] != dipendente.matricola:
+        if not update_dict["matricola"].strip():
+             raise HTTPException(status_code=400, detail="La matricola non può essere vuota o solo spazi.")
         existing = db.query(Dipendente).filter(Dipendente.matricola == update_dict["matricola"]).first()
         if existing:
             raise HTTPException(status_code=400, detail="Matricola già esistente.")
