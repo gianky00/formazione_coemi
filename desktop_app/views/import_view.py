@@ -6,6 +6,7 @@ import requests
 import os
 import shutil
 from datetime import datetime
+from app.utils.file_security import sanitize_filename
 from ..api_client import APIClient
 from ..components.animated_widgets import LoadingOverlay
 from ..components.visuals import HolographicScanner
@@ -109,10 +110,15 @@ class PdfWorker(QObject):
                         except ValueError:
                              pass
 
-                    employee_folder_name = f"{nome_completo} ({matricola})"
-                    new_filename = f"{nome_completo} ({matricola}) - {categoria} - {file_scadenza}.pdf"
+                    # Sanitize for filesystem
+                    nome_fs = sanitize_filename(nome_completo)
+                    matricola_fs = sanitize_filename(str(matricola))
+                    categoria_fs = sanitize_filename(categoria)
 
-                    target_dir = os.path.join(self.output_folder, "ERRORI ANALISI", error_category, employee_folder_name, categoria, stato)
+                    employee_folder_name = f"{nome_fs} ({matricola_fs})"
+                    new_filename = f"{nome_fs} ({matricola_fs}) - {categoria_fs} - {file_scadenza}.pdf"
+
+                    target_dir = os.path.join(self.output_folder, "ERRORI ANALISI", error_category, employee_folder_name, categoria_fs, stato)
                     os.makedirs(target_dir, exist_ok=True)
                     shutil.move(source_path, os.path.join(target_dir, new_filename))
                     return
@@ -212,11 +218,16 @@ class PdfWorker(QObject):
                                         stato = 'ATTIVO'
                                     file_scadenza = scadenza_date.strftime('%d_%m_%Y')
 
-                                employee_folder_name = f"{nome_completo} ({matricola})"
-                                new_filename = f"{nome_completo} ({matricola}) - {categoria} - {file_scadenza}.pdf"
+                                # Sanitize for filesystem
+                                nome_fs = sanitize_filename(nome_completo)
+                                matricola_fs = sanitize_filename(str(matricola))
+                                categoria_fs = sanitize_filename(categoria)
+
+                                employee_folder_name = f"{nome_fs} ({matricola_fs})"
+                                new_filename = f"{nome_fs} ({matricola_fs}) - {categoria_fs} - {file_scadenza}.pdf"
 
                                 documenti_folder = os.path.join(self.output_folder, "DOCUMENTI DIPENDENTI")
-                                dest_path = os.path.join(documenti_folder, employee_folder_name, categoria, stato)
+                                dest_path = os.path.join(documenti_folder, employee_folder_name, categoria_fs, stato)
                                 os.makedirs(dest_path, exist_ok=True)
 
                                 shutil.move(current_op_path, os.path.join(dest_path, new_filename))

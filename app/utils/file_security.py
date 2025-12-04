@@ -1,3 +1,5 @@
+import re
+
 def verify_file_signature(file_content: bytes, file_type: str) -> bool:
     """
     Verifies the file signature (magic number) against the expected file type.
@@ -30,3 +32,15 @@ def verify_file_signature(file_content: bytes, file_type: str) -> bool:
         return True
 
     return False
+
+def sanitize_filename(filename: str) -> str:
+    """
+    Sanitizes a string to be safe for use as a filename.
+    Replaces invalid characters with underscores.
+    """
+    if not filename:
+        return ""
+    # Replace invalid chars with _
+    # Windows invalid: < > : " / \ | ? *
+    # Also good to avoid control chars
+    return re.sub(r'[<>:"/\\|?*]', '_', filename).strip()
