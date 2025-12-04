@@ -79,7 +79,7 @@ def get_bulk_certificate_statuses(db: Session, certificati: List[Certificato]) -
 
     # 1. Calcola stati basati sulla data (attivo/in_scadenza/scaduto_preliminare)
     #    E identifica quali certificati scaduti necessitano controllo "archiviato".
-    expired_linked_certs = [] # (cert, dipendente_id, categoria)
+    expired_linked_certs = [] # (cert)
 
     threshold_std = settings.ALERT_THRESHOLD_DAYS
     threshold_med = settings.ALERT_THRESHOLD_DAYS_VISITE
@@ -115,20 +115,18 @@ def get_bulk_certificate_statuses(db: Session, certificati: List[Certificato]) -
     if not expired_linked_certs:
         return status_map
 
-    # 2. Fetch latest release dates for ALL employees/categories in the DB.
-    #    This is O(1) query complexity (aggregator).
-    #    We query for the (dipendente_id, categoria) pairs relevant to our expired list?
-    #    Or just fetch all map? Fetching all map is safer and likely fast enough (group by is efficient).
-    #    Optimization: Filter query to only relevant dipendenti/categorie?
-    #    If we have 7000 certs, filtering might be slower than just scanning.
-    #    Let's try to fetch all max dates.
+    # 2. Fetch latest release dates for RELEVANT employees/categories only.
+    relevant_ids = {c.dipendente_id for c in expired_linked_certs if c.dipendente_id}
+
+    if not relevant_ids:
+        return status_map
 
     stmt = db.query(
         Certificato.dipendente_id,
         Corso.categoria_corso,
         func.max(Certificato.data_rilascio).label('max_rilascio')
     ).join(Corso).filter(
-        Certificato.dipendente_id.isnot(None)
+        Certificato.dipendente_id.in_(relevant_ids)
     ).group_by(
         Certificato.dipendente_id,
         Corso.categoria_corso

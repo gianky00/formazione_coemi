@@ -83,6 +83,14 @@ def migrate_legacy_settings(target_path: Path):
                 data["VOICE_ASSISTANT_ENABLED"] = True
                 changed = True
 
+            if "MAX_UPLOAD_SIZE" not in data:
+                data["MAX_UPLOAD_SIZE"] = 20 * 1024 * 1024 # 20MB
+                changed = True
+
+            if "MAX_CSV_SIZE" not in data:
+                data["MAX_CSV_SIZE"] = 5 * 1024 * 1024 # 5MB
+                changed = True
+
             if changed:
                 with open(target_path, 'w', encoding='utf-8') as f:
                     json.dump(data, f, indent=4)
@@ -118,6 +126,8 @@ class MutableSettings:
             "EMAIL_RECIPIENTS_CC": "gianky.allegretti@gmail.com",
             "ALERT_THRESHOLD_DAYS": 60,
             "ALERT_THRESHOLD_DAYS_VISITE": 30,
+            "MAX_UPLOAD_SIZE": 20 * 1024 * 1024, # 20 MB
+            "MAX_CSV_SIZE": 5 * 1024 * 1024, # 5 MB
         }
         self.load_settings()
 
@@ -239,6 +249,14 @@ class SettingsManager:
     @property
     def DATABASE_PATH(self):
         return self.mutable.get("DATABASE_PATH")
+
+    @property
+    def MAX_UPLOAD_SIZE(self):
+        return self.mutable.get("MAX_UPLOAD_SIZE", 20 * 1024 * 1024)
+
+    @property
+    def MAX_CSV_SIZE(self):
+        return self.mutable.get("MAX_CSV_SIZE", 5 * 1024 * 1024)
 
     def save_mutable_settings(self, new_settings: dict):
         """Updates and saves the mutable settings."""

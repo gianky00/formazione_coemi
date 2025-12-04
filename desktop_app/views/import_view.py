@@ -11,6 +11,7 @@ from ..components.toast import ToastManager
 from ..api_client import APIClient
 from ..components.animated_widgets import LoadingOverlay
 from ..components.visuals import HolographicScanner
+from ..workers.file_scanner_worker import FileScannerWorker
 
 import time
 from collections import deque
@@ -360,20 +361,10 @@ class DropZone(QFrame):
         self.pulse_anim.stop()
         self.update_style("#FFFFFF", "#E5E7EB", "solid")
 
-        files_to_process = []
-        for url in event.mimeData().urls():
-            if url.isLocalFile():
-                path = url.toLocalFile()
-                if os.path.isfile(path) and path.lower().endswith('.pdf'):
-                    files_to_process.append(path)
-                elif os.path.isdir(path):
-                    for root, dirs, files in os.walk(path):
-                        for file in files:
-                            if file.lower().endswith('.pdf'):
-                                files_to_process.append(os.path.join(root, file))
-
-        if files_to_process:
-            self.parent().process_dropped_files(files_to_process)
+        urls = event.mimeData().urls()
+        if urls:
+            # Bug 1 Fix: Offload scanning to thread
+            self.parent().scan_dropped_files(urls)
 
 class ImportView(QWidget):
     import_completed = pyqtSignal(int, int) # archived, verify
@@ -470,9 +461,30 @@ class ImportView(QWidget):
         if files_to_process:
             self.process_dropped_files(files_to_process)
 
+    def scan_dropped_files(self, urls):
+        self.results_display.clear()
+        self.status_label.setText("Scansione file in corso...")
+        self.progress_frame.setVisible(True)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setRange(0, 0) # Indeterminate while scanning
+        self.drop_zone.setEnabled(False)
+
+        self.scanner_thread = FileScannerWorker(urls)
+        self.scanner_thread.finished.connect(self.on_scan_finished)
+        self.scanner_thread.finished.connect(self.scanner_thread.deleteLater)
+        self.scanner_thread.start()
+
+    def on_scan_finished(self, file_paths):
+        self.drop_zone.setEnabled(True)
+        self.progress_bar.setRange(0, 100) # Reset range
+        self.progress_bar.setValue(0)
+        self.process_dropped_files(file_paths)
+
     def process_dropped_files(self, file_paths):
         self.results_display.clear()
         if not file_paths:
+            self.status_label.setText("Nessun file PDF trovato.")
+            self.progress_frame.setVisible(False)
             return
 
         # Get Output Path
