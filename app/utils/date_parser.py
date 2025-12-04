@@ -1,6 +1,7 @@
 from datetime import datetime, date
 from typing import Optional
 import re
+from dateutil import parser as dateutil_parser
 
 def parse_date_flexible(date_str: str) -> Optional[date]:
     """
@@ -11,15 +12,15 @@ def parse_date_flexible(date_str: str) -> Optional[date]:
     - YYYY-MM-DD
     - DD/MM/YY
     - DD.MM.YYYY
+
+    Falls back to dateutil.parser with dayfirst=True for ambiguous dates (e.g. 02/03/2023 -> 2nd March).
     """
     if not date_str:
         return None
 
     date_str = date_str.strip()
 
-    # Remove text like "nato il " if present, though unlikely in raw date fields
-    # simple cleanup
-
+    # Simple manual formats first (fastest and strictly defined)
     formats = [
         '%d/%m/%Y',
         '%d-%m-%Y',
@@ -35,5 +36,12 @@ def parse_date_flexible(date_str: str) -> Optional[date]:
             return datetime.strptime(date_str, fmt).date()
         except ValueError:
             continue
+
+    # Robust fallback for other formats
+    try:
+        dt = dateutil_parser.parse(date_str, dayfirst=True)
+        return dt.date()
+    except (ValueError, TypeError, OverflowError):
+        pass
 
     return None

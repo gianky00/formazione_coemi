@@ -14,6 +14,11 @@ from app.utils.security import obfuscate_string, reveal_string
 from desktop_app.components.custom_dialog import CustomMessageDialog
 from desktop_app.components.toast import ToastManager
 
+# ... (ChangePasswordDialog, UserDialog, UserManagementWidget, OptimizeWorker classes remain same)
+# I will copy them back or use `replace_with_git_merge_diff` to modify ConfigView only?
+# `overwrite_file_with_block` requires full content.
+# I will paste the FULL content including previous classes to avoid deletion.
+
 class ChangePasswordDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -61,13 +66,11 @@ class UserDialog(QDialog):
         self.gender_combo.addItem("Uomo", "M")
         self.gender_combo.addItem("Donna", "F")
 
-        # self.password_input removed as per requirement for Create
         self.is_admin_check = QCheckBox("Amministratore")
 
         self.user_data = user_data
 
         if user_data:
-            # Edit Mode
             self.username_input.setText(user_data.get('username', ''))
             self.account_name_input.setText(user_data.get('account_name', ''))
             self.is_admin_check.setChecked(user_data.get('is_admin', False))
@@ -77,15 +80,10 @@ class UserDialog(QDialog):
             if index >= 0:
                 self.gender_combo.setCurrentIndex(index)
 
-            # For editing existing users (admin override), we might want to allow password reset
-            # But the requirement says "first password is ALWAYS primoaccesso" for NEW accounts.
-            # For existing accounts, admin can reset it.
-            # Adding a field for "Reset Password" only in edit mode
             self.password_input = QLineEdit()
             self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
             self.password_input.setPlaceholderText("Lascia vuoto per mantenere attuale")
         else:
-            # Create Mode
             self.password_info = QLabel("Password di default: <b>primoaccesso</b>")
             self.password_info.setStyleSheet("color: gray;")
 
@@ -114,10 +112,8 @@ class UserDialog(QDialog):
             "is_admin": self.is_admin_check.isChecked()
         }
         if self.user_data:
-            # Edit mode, return password only if set
             data["password"] = self.password_input.text()
         else:
-            # Create mode, no password field (handled by backend or None)
             data["password"] = None
         return data
 
@@ -190,7 +186,6 @@ class UserManagementWidget(QFrame):
         self.layout.addStretch()
 
     def refresh_users(self):
-        # Determine visibility based on admin status
         is_admin = self.api_client.user_info.get("is_admin", False)
         self.admin_container.setVisible(is_admin)
         self.title.setText("Gestione Utenti" if is_admin else "Il Mio Account")
@@ -201,7 +196,7 @@ class UserManagementWidget(QFrame):
                 self.table.setRowCount(len(users))
                 for i, user in enumerate(users):
                     id_item = QTableWidgetItem(str(user['id']))
-                    id_item.setData(Qt.ItemDataRole.UserRole, user) # Store full object
+                    id_item.setData(Qt.ItemDataRole.UserRole, user)
                     self.table.setItem(i, 0, id_item)
                     self.table.setItem(i, 1, QTableWidgetItem(str(user['username'])))
                     self.table.setItem(i, 2, QTableWidgetItem(str(user.get('account_name', ''))))
@@ -217,9 +212,6 @@ class UserManagementWidget(QFrame):
                 CustomMessageDialog.show_warning(self, "Errore", "Il nome utente è obbligatorio.")
                 return
             try:
-                # Password is None (default "primoaccesso" handled by backend)
-                # create_user signature might need update or passing **kwargs
-                # Assuming api_client.create_user supports gender or kwargs
                 self.api_client.create_user(
                     data['username'], data['password'],
                     data['account_name'], data['is_admin'], data['gender']
@@ -236,9 +228,7 @@ class UserManagementWidget(QFrame):
     def edit_user(self):
         user_id = self.get_selected_user_id()
         if not user_id: return
-        current_user_id = self.api_client.user_info.get("id")
 
-        # Retrieve full data from table item
         user_data = self.table.item(self.table.currentRow(), 0).data(Qt.ItemDataRole.UserRole)
         if not user_data: return
 
@@ -275,9 +265,7 @@ class UserManagementWidget(QFrame):
                 response = self.api_client.change_password(data['old_password'], data['new_password'])
                 CustomMessageDialog.show_info(self, "Successo", response.get("message", "Password aggiornata."))
             except Exception as e:
-                # Parse error detail if possible
                 try:
-                    # e might be a Requests Error with .response.json()
                     if hasattr(e, 'response') and e.response is not None:
                         err_json = e.response.json()
                         detail = err_json.get('detail', str(e))
@@ -581,7 +569,8 @@ class AuditLogWidget(QFrame):
              url = f"{self.api_client.base_url}/audit/export"
              headers = self.api_client._get_headers()
 
-             response = requests.get(url, headers=headers, timeout=60)
+             # Use stream=True to handle large files if server supports it, though simple get works for file download
+             response = requests.get(url, headers=headers, timeout=60, stream=True)
              if response.status_code == 200:
                  default_name = "audit_logs.csv"
                  if "Content-Disposition" in response.headers:
@@ -590,10 +579,11 @@ class AuditLogWidget(QFrame):
                      if fname:
                          default_name = fname[0]
 
-                 save_path, _ = QFileDialog.getSaveFileName(self, "Salva CSV Audit", default_name, "CSV Files (*.csv)")
+                 save_path, _ = QFileDialog.getSaveFileName(self, "Salva CSV Audit", default_name, "CSV Files (*.csv *.CSV)")
                  if save_path:
                      with open(save_path, "wb") as f:
-                         f.write(response.content)
+                         for chunk in response.iter_content(chunk_size=8192):
+                             f.write(chunk)
                      CustomMessageDialog.show_info(self, "Esportazione Riuscita", f"Log salvati in:\n{save_path}")
              else:
                  CustomMessageDialog.show_error(self, "Errore", f"Errore server: {response.status_code}")
@@ -670,6 +660,7 @@ class ConfigView(QWidget):
             self.layout.setSpacing(15)
             self.api_client = api_client
             self.current_settings = {}
+            self.unsaved_changes = False
 
             description = QLabel("Gestisci le impostazioni e le chiavi API dell'applicazione.")
             description.setObjectName("viewDescription")
@@ -759,17 +750,45 @@ class ConfigView(QWidget):
             # Connections
             self.email_settings.email_preset_combo.currentIndexChanged.connect(self.apply_email_preset)
             self.database_settings.browse_db_path_button.clicked.connect(self.select_db_path)
+
+            # Connect change signals for Unsaved Changes
+            self._connect_dirty_signals()
+
         except Exception as e:
             print(f"CRITICAL ERROR in ConfigView.__init__: {e}")
             traceback.print_exc()
             # Fallback UI to prevent crash
-            # Check if layout already exists to avoid "Attempting to set QLayout" warning
             if not hasattr(self, 'layout') or self.layout is None:
                 self.layout = QVBoxLayout(self)
 
             error_label = QLabel(f"Errore critico durante l'inizializzazione della vista Configurazione:\n{e}")
             error_label.setStyleSheet("color: red; font-weight: bold;")
             self.layout.addWidget(error_label)
+
+    def _connect_dirty_signals(self):
+        # General
+        self.general_settings.alert_threshold_input.textChanged.connect(self.mark_dirty)
+        self.general_settings.alert_threshold_visite_input.textChanged.connect(self.mark_dirty)
+
+        # API
+        self.api_settings.gemini_analysis_key_input.textChanged.connect(self.mark_dirty)
+        self.api_settings.gemini_chat_key_input.textChanged.connect(self.mark_dirty)
+        self.api_settings.voice_assistant_check.toggled.connect(self.mark_dirty)
+
+        # Email
+        self.email_settings.smtp_host_input.textChanged.connect(self.mark_dirty)
+        self.email_settings.smtp_port_input.textChanged.connect(self.mark_dirty)
+        self.email_settings.smtp_user_input.textChanged.connect(self.mark_dirty)
+        self.email_settings.smtp_password_input.textChanged.connect(self.mark_dirty)
+        self.email_settings.recipients_to_input.textChanged.connect(self.mark_dirty)
+        self.email_settings.recipients_cc_input.textChanged.connect(self.mark_dirty)
+        self.email_settings.email_preset_combo.currentIndexChanged.connect(self.mark_dirty)
+
+        # DB (path)
+        self.database_settings.db_path_input.textChanged.connect(self.mark_dirty)
+
+    def mark_dirty(self):
+        self.unsaved_changes = True
 
     def select_db_path(self):
         file_path, _ = QFileDialog.getSaveFileName(self, "Seleziona o Crea Database", "", "SQLite Database (*.db)")
@@ -786,6 +805,18 @@ class ConfigView(QWidget):
         self.save_button.setToolTip("Database in sola lettura" if is_read_only else "")
 
     def switch_tab(self, index):
+        if self.unsaved_changes:
+            if not CustomMessageDialog.show_question(self, "Modifiche non salvate", "Ci sono modifiche non salvate. Se cambi scheda andranno perse. Vuoi scartarle?"):
+                # Revert selection visually
+                current = self.stacked_widget.currentIndex()
+                if current != -1 and current < len(self.nav_buttons):
+                    self.nav_buttons[current].setChecked(True)
+                    self.nav_buttons[index].setChecked(False)
+                return
+            else:
+                self.unsaved_changes = False
+                self.load_config() # Revert data
+
         self.stacked_widget.setCurrentIndex(index)
         for i, btn in enumerate(self.nav_buttons):
             btn.setChecked(i == index)
@@ -811,7 +842,9 @@ class ConfigView(QWidget):
                 self.load_config()
                 # Default to General tab for Admin
                 if self.stacked_widget.currentIndex() == -1 or self.stacked_widget.currentIndex() == 4:
-                     self.switch_tab(0)
+                     self.stacked_widget.setCurrentIndex(0)
+                     for i, btn in enumerate(self.nav_buttons):
+                         btn.setChecked(i == 0)
             else:
                 # Default (and only) tab for User is Account (index 4)
                 self.switch_tab(4)
@@ -821,6 +854,21 @@ class ConfigView(QWidget):
 
     def load_config(self):
         try:
+            # Block signals to prevent dirty marking during load
+            self.general_settings.alert_threshold_input.blockSignals(True)
+            self.general_settings.alert_threshold_visite_input.blockSignals(True)
+            self.api_settings.gemini_analysis_key_input.blockSignals(True)
+            self.api_settings.gemini_chat_key_input.blockSignals(True)
+            self.api_settings.voice_assistant_check.blockSignals(True)
+            self.email_settings.smtp_host_input.blockSignals(True)
+            self.email_settings.smtp_port_input.blockSignals(True)
+            self.email_settings.smtp_user_input.blockSignals(True)
+            self.email_settings.smtp_password_input.blockSignals(True)
+            self.email_settings.recipients_to_input.blockSignals(True)
+            self.email_settings.recipients_cc_input.blockSignals(True)
+            self.email_settings.email_preset_combo.blockSignals(True)
+            self.database_settings.db_path_input.blockSignals(True)
+
             self.current_settings = self.api_client.get_mutable_config()
 
             # --- API Settings ---
@@ -853,6 +901,23 @@ class ConfigView(QWidget):
             gs_widget.alert_threshold_input.setText(str(self.current_settings.get("ALERT_THRESHOLD_DAYS", "60")))
             gs_widget.alert_threshold_visite_input.setText(str(self.current_settings.get("ALERT_THRESHOLD_DAYS_VISITE", "30")))
 
+            # Unblock
+            self.general_settings.alert_threshold_input.blockSignals(False)
+            self.general_settings.alert_threshold_visite_input.blockSignals(False)
+            self.api_settings.gemini_analysis_key_input.blockSignals(False)
+            self.api_settings.gemini_chat_key_input.blockSignals(False)
+            self.api_settings.voice_assistant_check.blockSignals(False)
+            self.email_settings.smtp_host_input.blockSignals(False)
+            self.email_settings.smtp_port_input.blockSignals(False)
+            self.email_settings.smtp_user_input.blockSignals(False)
+            self.email_settings.smtp_password_input.blockSignals(False)
+            self.email_settings.recipients_to_input.blockSignals(False)
+            self.email_settings.recipients_cc_input.blockSignals(False)
+            self.email_settings.email_preset_combo.blockSignals(False)
+            self.database_settings.db_path_input.blockSignals(False)
+
+            self.unsaved_changes = False
+
         except Exception as e:
             CustomMessageDialog.show_error(self, "Errore", f"Impossibile caricare la configurazione: {e}")
 
@@ -870,7 +935,8 @@ class ConfigView(QWidget):
             es_widget.smtp_port_input.setText("465")
 
     def import_csv(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Seleziona CSV", "", "CSV Files (*.csv)")
+        # Bug 9 Fix: Filter allow uppercase CSV
+        file_path, _ = QFileDialog.getOpenFileName(self, "Seleziona CSV", "", "CSV Files (*.csv *.CSV)")
         if file_path:
             try:
                 response = self.api_client.import_dipendenti_csv(file_path)
@@ -943,6 +1009,6 @@ class ConfigView(QWidget):
 
             self.api_client.update_mutable_config(update_payload)
             ToastManager.success("Salvato", "Configurazione salvata con successo. Le modifiche saranno attive al prossimo riavvio.", self.window())
-            self.load_config() # Reload to update current_settings state
+            self.load_config() # Reload to update current_settings state and clear dirty flag
         except Exception as e:
             CustomMessageDialog.show_error(self, "Errore", f"Impossibile salvare la configurazione: {e}")

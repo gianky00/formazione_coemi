@@ -21,9 +21,21 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 EXCLUDED_CATEGORIES = ['ATEX', 'BLSD', 'DIRETTIVA SEVESO', 'DIRIGENTI E FORMATORI', 'H2S', 'MEDICO COMPETENTE', 'HLO']
 
+def safe_text(text):
+    """
+    Sanitizes text for FPDF (Latin-1) to prevent encoding crashes.
+    Replaces unsupported characters with '?'.
+    """
+    if not text:
+        return ""
+    return str(text).encode('latin-1', 'replace').decode('latin-1')
+
 class PDF(FPDF):
     def header(self):
-        self.image('desktop_app/assets/logo.png', 10, 8, 45)
+        try:
+            self.image('desktop_app/assets/logo.png', 10, 8, 45)
+        except:
+            pass # Skip logo if missing to prevent crash
         self.set_font('Arial', 'B', 15)
         self.cell(80)
         self.cell(0, 10, f"Report scadenze al {date.today().strftime('%d/%m/%Y')}", 0, 0, 'C')
@@ -44,7 +56,7 @@ def generate_pdf_report_in_memory(expiring_visite, expiring_corsi, overdue_certi
 
         def draw_table(title, data, color):
             pdf.set_font('Arial', 'B', 12)
-            pdf.cell(0, 10, title, 0, 1, 'L')
+            pdf.cell(0, 10, safe_text(title), 0, 1, 'L')
             pdf.ln(2)
 
             # Table Header
@@ -53,7 +65,7 @@ def generate_pdf_report_in_memory(expiring_visite, expiring_corsi, overdue_certi
             pdf.set_font('Arial', 'B', 10)
             pdf.set_fill_color(color[0], color[1], color[2])
             for i, header_text in enumerate(header):
-                pdf.cell(col_widths[i], 10, header_text, 1, 0, 'C', 1)
+                pdf.cell(col_widths[i], 10, safe_text(header_text), 1, 0, 'C', 1)
             pdf.ln()
 
             # Table Rows
@@ -65,7 +77,7 @@ def generate_pdf_report_in_memory(expiring_visite, expiring_corsi, overdue_certi
                     pdf.add_page()
                     pdf.set_font('Arial', 'B', 10)
                     for i, header_text in enumerate(header):
-                        pdf.cell(col_widths[i], 10, header_text, 1, 0, 'C', 1)
+                        pdf.cell(col_widths[i], 10, safe_text(header_text), 1, 0, 'C', 1)
                     pdf.ln()
                     pdf.set_font('Arial', '', 9)
 
@@ -75,10 +87,10 @@ def generate_pdf_report_in_memory(expiring_visite, expiring_corsi, overdue_certi
                 data_scadenza = cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else "N/A"
 
                 pdf.cell(col_widths[0], 10, str(row_num), 1, 0, 'C')
-                pdf.cell(col_widths[1], 10, matricola, 1, 0, 'C')
-                pdf.cell(col_widths[2], 10, dipendente_nome, 1, 0, 'L')
-                pdf.cell(col_widths[3], 10, categoria, 1, 0, 'L')
-                pdf.cell(col_widths[4], 10, data_scadenza, 1, 1, 'C')
+                pdf.cell(col_widths[1], 10, safe_text(matricola), 1, 0, 'C')
+                pdf.cell(col_widths[2], 10, safe_text(dipendente_nome), 1, 0, 'L')
+                pdf.cell(col_widths[3], 10, safe_text(categoria), 1, 0, 'L')
+                pdf.cell(col_widths[4], 10, safe_text(data_scadenza), 1, 1, 'C')
                 row_num += 1
             pdf.ln(10) # Space after table
 
@@ -91,11 +103,12 @@ def generate_pdf_report_in_memory(expiring_visite, expiring_corsi, overdue_certi
             draw_table("Certificati scaduti non rinnovati", overdue_certificates, (254, 242, 242))
 
         return pdf.output(dest='S')
-    except FileNotFoundError as e:
-        logging.error(f"Errore durante la generazione del PDF: File non trovato, probabilmente il logo. {e}")
-        raise ValueError(f"Impossibile generare il PDF: assicurarsi che il file 'desktop_app/assets/logo.png' esista.")
     except Exception as e:
         logging.error(f"Errore imprevisto durante la generazione del PDF: {e}", exc_info=True)
+        # We don't raise here to allow email sending even if PDF fails?
+        # No, the caller expects bytes.
+        # But we should log it.
+        # Original code raised ValueError.
         raise ValueError(f"Si è verificato un errore imprevisto durante la creazione del report PDF: {e}")
 
 def send_email_notification(pdf_content_bytes, expiring_corsi_count, expiring_visite_count, overdue_count, corsi_threshold, visite_threshold):
@@ -177,12 +190,15 @@ def send_email_notification(pdf_content_bytes, expiring_corsi_count, expiring_vi
     )
     msg.attach(part)
 
+    # Bug 3: Add timeout to SMTP connection
+    SMTP_TIMEOUT = 30
+
     try:
         if settings.SMTP_PORT == 465:
             # Use SMTP_SSL for a secure connection from the start (for services like Gmail, Aruba SSL)
             conn_method = "SMTP_SSL"
             logging.info(f"Connecting to {settings.SMTP_HOST}:{settings.SMTP_PORT} using {conn_method}.")
-            with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+            with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, timeout=SMTP_TIMEOUT) as server:
                 server.set_debuglevel(1)
                 server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
                 server.send_message(msg, from_addr=settings.SMTP_USER, to_addrs=to_emails + cc_emails)
@@ -190,7 +206,7 @@ def send_email_notification(pdf_content_bytes, expiring_corsi_count, expiring_vi
             # Use standard SMTP and upgrade to TLS (for services like Outlook, Aruba STARTTLS)
             conn_method = "SMTP with STARTTLS"
             logging.info(f"Connecting to {settings.SMTP_HOST}:{settings.SMTP_PORT} using {conn_method}.")
-            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=SMTP_TIMEOUT) as server:
                 server.set_debuglevel(1)
                 server.starttls()
                 server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
@@ -228,13 +244,15 @@ def send_security_alert_email(subject, body_html):
 
     msg.attach(MIMEText(body_html, 'html'))
 
+    SMTP_TIMEOUT = 30
+
     try:
         if settings.SMTP_PORT == 465:
-            with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+            with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, timeout=SMTP_TIMEOUT) as server:
                 server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
                 server.send_message(msg, from_addr=settings.SMTP_USER, to_addrs=to_emails + cc_emails)
         else:
-            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=SMTP_TIMEOUT) as server:
                 server.starttls()
                 server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
                 server.send_message(msg, from_addr=settings.SMTP_USER, to_addrs=to_emails + cc_emails)
