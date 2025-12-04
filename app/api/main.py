@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.db.models import Corso, Certificato, ValidationStatus, Dipendente, User as UserModel
 from app.services import ai_extraction, certificate_logic, matcher
 from app.services.document_locator import find_document, construct_certificate_path
+from app.services.file_maintenance import archive_certificate_file
 from app.core.config import settings, get_user_data_dir
 from app.utils.date_parser import parse_date_flexible
 from app.utils.file_security import verify_file_signature
@@ -255,6 +256,22 @@ def create_certificato(
     matricola_log = dipendente_info.matricola if dipendente_info else "N/A"
     scadenza_log = certificato.data_scadenza if certificato.data_scadenza else "nessuna scadenza"
     log_msg = f"creato certificato per {certificato.nome.upper()} ({matricola_log}) - {certificato.categoria.upper()} - {scadenza_log} (data scadenza)"
+    # Real-time Archiving: Check if this new certificate obsoletes older ones
+    try:
+        older_certs = db.query(Certificato).join(Corso).filter(
+            Certificato.dipendente_id == new_cert.dipendente_id,
+            Corso.categoria_corso == new_cert.corso.categoria_corso,
+            Certificato.id != new_cert.id,
+            Certificato.data_rilascio < new_cert.data_rilascio
+        ).all()
+
+        for old_cert in older_certs:
+            # Check if it is now archiviato
+            if certificate_logic.get_certificate_status(db, old_cert) == "archiviato":
+                archive_certificate_file(db, old_cert)
+    except Exception as e:
+        print(f"Error archiving older certificates: {e}")
+
     log_security_action(db, current_user, "CERTIFICATE_CREATE", log_msg, category="CERTIFICATE")
 
     return CertificatoSchema(

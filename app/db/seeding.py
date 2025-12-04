@@ -3,7 +3,11 @@ from sqlalchemy import text
 from app.db.models import Corso, User, Certificato
 from app.db.session import SessionLocal
 from app.core.security import get_password_hash
-from app.core.config import settings
+from app.core.config import settings, get_user_data_dir
+from app.services.document_locator import find_document
+import os
+import shutil
+from datetime import datetime
 
 def migrate_schema(db: Session):
     """
@@ -141,10 +145,37 @@ def cleanup_deprecated_data(db: Session):
         course_ids = [c.id for c in courses]
 
         if course_ids:
-            # Delete Certificates
-            deleted_certs = db.query(Certificato).filter(Certificato.corso_id.in_(course_ids)).delete(synchronize_session=False)
-            if deleted_certs > 0:
-                print(f"Cleanup: Deleted {deleted_certs} certificates for deprecated category '{deprecated_category}'.")
+            # Delete Certificates and Files
+            certs_to_delete = db.query(Certificato).filter(Certificato.corso_id.in_(course_ids)).all()
+
+            database_path = settings.DATABASE_PATH or str(get_user_data_dir())
+            trash_dir = os.path.join(database_path, "DOCUMENTI DIPENDENTI", "CESTINO") if database_path else None
+            if trash_dir: os.makedirs(trash_dir, exist_ok=True)
+
+            for cert in certs_to_delete:
+                # Move file to trash
+                try:
+                    cert_data = {
+                        'nome': f"{cert.dipendente.cognome} {cert.dipendente.nome}" if cert.dipendente else cert.nome_dipendente_raw,
+                        'matricola': cert.dipendente.matricola if cert.dipendente else None,
+                        'categoria': deprecated_category,
+                        'data_scadenza': cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else None
+                    }
+
+                    if database_path:
+                        file_path = find_document(database_path, cert_data)
+                        if file_path and os.path.exists(file_path):
+                            filename = os.path.basename(file_path)
+                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                            dest = os.path.join(trash_dir, f"{os.path.splitext(filename)[0]}_deprecated_{timestamp}.pdf")
+                            shutil.move(file_path, dest)
+                except Exception as e:
+                    print(f"Error moving deprecated file: {e}")
+
+                db.delete(cert)
+
+            if certs_to_delete:
+                print(f"Cleanup: Deleted {len(certs_to_delete)} certificates for deprecated category '{deprecated_category}'.")
 
             # Delete Courses
             deleted_courses = db.query(Corso).filter(Corso.id.in_(course_ids)).delete(synchronize_session=False)

@@ -8,7 +8,7 @@ from app.services import certificate_logic
 from app.services.document_locator import find_document, construct_certificate_path
 from app.core.config import settings, get_user_data_dir
 from app.utils.audit import log_security_action
-from datetime import date
+from datetime import date, timedelta
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -48,58 +48,16 @@ def organize_expired_files(db: Session):
         status = certificate_logic.get_certificate_status(db, cert)
 
         if status in ["scaduto", "archiviato"]:
-            # Prepare data for locator
-            cert_data = {
-                'nome': f"{cert.dipendente.cognome} {cert.dipendente.nome}" if cert.dipendente else cert.nome_dipendente_raw,
-                'matricola': cert.dipendente.matricola if cert.dipendente else None,
-                'categoria': cert.corso.categoria_corso if cert.corso else None,
-                'data_scadenza': cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else None
-            }
-
-            if not cert_data['categoria']:
-                continue
-
-            current_path = find_document(database_path, cert_data)
-
-            if current_path and os.path.isfile(current_path):
-                # Check if it is in ATTIVO or IN SCADENZA folder
-                # Path structure: .../CATEGORY/STATUS/filename
-                parent_dir = os.path.dirname(current_path)
-                folder_name = os.path.basename(parent_dir)
-
-                if folder_name in ["ATTIVO", "IN SCADENZA"]:
-                    # Construct new path
-                    # We want to replace the status folder with STORICO
-                    # But we must be careful about the structure.
-                    # Standard structure: DATABASE / DOCUMENTI DIPENDENTI / Name (Matr) / Cat / Status / File
-
-                    # Let's verify structure by going up
-                    cat_dir = os.path.dirname(parent_dir)
-
-                    # Target: .../Category/STORICO/
-                    target_dir = os.path.join(cat_dir, "STORICO")
-
-                    if not os.path.exists(target_dir):
-                        try:
-                            os.makedirs(target_dir)
-                        except OSError as e:
-                            logging.error(f"Failed to create directory {target_dir}: {e}")
-                            continue
-
-                    filename = os.path.basename(current_path)
-                    target_path = os.path.join(target_dir, filename)
-
-                    try:
-                        shutil.move(current_path, target_path)
-                        logging.info(f"Moved expired file to STORICO: {filename}")
-                        moved_count += 1
-                    except Exception as e:
-                        logging.error(f"Failed to move file {current_path} to {target_path}: {e}")
+            if archive_certificate_file(db, cert):
+                moved_count += 1
 
     # Daily Cleanup: Remove empty folders in DOCUMENTI DIPENDENTI
     docs_path = os.path.join(database_path, "DOCUMENTI DIPENDENTI")
     if os.path.exists(docs_path):
         clean_all_empty_folders(docs_path)
+
+    # Log Rotation (1 year retention)
+    cleanup_audit_logs(db, retention_days=365)
 
     log_security_action(db, None, "SYSTEM_MAINTENANCE", f"File maintenance completed. Moved {moved_count} files.", category="SYSTEM")
     logging.info(f"File maintenance completed. Moved {moved_count} files to STORICO.")
@@ -203,3 +161,59 @@ def synchronize_all_files(db: Session):
 
     logging.info(f"Sync complete. Moved: {moved}, Missing: {missing}")
     return {"moved": moved, "missing": missing}
+
+def archive_certificate_file(db: Session, cert: Certificato) -> bool:
+    """
+    Moves a certificate's file to the STORICO folder.
+    Returns True if file was moved, False otherwise.
+    """
+    database_path = settings.DATABASE_PATH or str(get_user_data_dir())
+    if not database_path or not os.path.exists(database_path):
+        return False
+
+    # Need course relation for category
+    # Usually lazy loaded if attached to session
+    if not cert.corso:
+        return False
+
+    cert_data = {
+        'nome': f"{cert.dipendente.cognome} {cert.dipendente.nome}" if cert.dipendente else cert.nome_dipendente_raw,
+        'matricola': cert.dipendente.matricola if cert.dipendente else None,
+        'categoria': cert.corso.categoria_corso,
+        'data_scadenza': cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else None
+    }
+
+    current_path = find_document(database_path, cert_data)
+
+    if current_path and os.path.exists(current_path):
+        # Check if already in STORICO?
+        # find_document returns path. If it's already in STORICO, we don't need to move unless logic demands.
+        # But construct_certificate_path(..., status="STORICO") will give target.
+
+        expected_path = construct_certificate_path(database_path, cert_data, status="STORICO")
+
+        if os.path.normpath(current_path) != os.path.normpath(expected_path):
+            try:
+                os.makedirs(os.path.dirname(expected_path), exist_ok=True)
+                shutil.move(current_path, expected_path)
+                remove_empty_folders(os.path.dirname(current_path))
+                logging.info(f"Archived file to: {expected_path}")
+                return True
+            except Exception as e:
+                logging.error(f"Failed to archive file for cert {cert.id}: {e}")
+    return False
+
+def cleanup_audit_logs(db: Session, retention_days: int = 365):
+    """
+    Deletes audit logs older than retention_days.
+    """
+    cutoff = date.today() - timedelta(days=retention_days)
+    try:
+        deleted = db.query(AuditLog).filter(func.date(AuditLog.timestamp) < cutoff).delete(synchronize_session=False)
+        db.commit()
+        if deleted > 0:
+            logging.info(f"Cleaned up {deleted} old audit logs (older than {retention_days} days).")
+            log_security_action(db, None, "LOG_CLEANUP", f"Deleted {deleted} logs older than {cutoff}", category="SYSTEM")
+    except Exception as e:
+        logging.error(f"Error cleaning audit logs: {e}")
+        db.rollback()
