@@ -17,9 +17,6 @@ def test_verify_csv_cp1252():
 def test_verify_csv_binary_null():
     assert verify_file_signature(b"a,b\x00c", "csv") is False
 
-def test_verify_csv_decode_fail():
-    pass
-
 def test_unknown_type():
     assert verify_file_signature(b"content", "exe") is False
 
