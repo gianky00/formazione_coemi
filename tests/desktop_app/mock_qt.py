@@ -1,5 +1,7 @@
 import sys
 import builtins
+import datetime
+from dateutil.relativedelta import relativedelta
 from unittest.mock import MagicMock
 
 class DummySignal:
@@ -474,49 +476,82 @@ class DummyQDialog(DummyQWidget):
         pass
 
 class DummyQDate:
+    def __init__(self, d=None):
+        if d is None:
+            self._date = datetime.date.today()
+        elif isinstance(d, datetime.date):
+            self._date = d
+        else:
+            self._date = datetime.date.today()
+
     @staticmethod
     def currentDate():
-        return DummyQDate()
+        return DummyQDate(datetime.date.today())
+
     @staticmethod
     def fromString(s, f):
+        # Basic parsing for "dd/MM/yyyy" which is used in the view
+        try:
+            if "dd/MM/yyyy" in f:
+                d = datetime.datetime.strptime(s, "%d/%m/%Y").date()
+                return DummyQDate(d)
+        except:
+            pass
         return DummyQDate()
 
     def addDays(self, days):
-        return DummyQDate()
+        return DummyQDate(self._date + datetime.timedelta(days=days))
 
     def addMonths(self, months):
-        return DummyQDate()
+        return DummyQDate(self._date + relativedelta(months=months))
 
     def setDate(self, y, m, d):
-        pass
+        self._date = datetime.date(y, m, d)
 
-    def year(self): return 2025
-    def month(self): return 1
-    def day(self): return 1
+    def year(self): return self._date.year
+    def month(self): return self._date.month
+    def day(self): return self._date.day
 
     def daysTo(self, other):
-        return 10
+        if isinstance(other, DummyQDate):
+            return (other._date - self._date).days
+        return 0
 
     def toString(self, format_str):
-        return "Jan 2025"
+        # Simple mapping for common Qt format strings to strftime
+        fmt = format_str.replace("dd", "%d").replace("MM", "%m").replace("yyyy", "%Y")
+        fmt = fmt.replace("MMM", "%b") # Abbreviated month
+        return self._date.strftime(fmt)
 
     def toPyDate(self):
-        from datetime import date
-        return date.today()
+        return self._date
 
     def isValid(self):
         return True
 
+    def __eq__(self, other):
+        if isinstance(other, DummyQDate):
+            return self._date == other._date
+        return False
+
     def __le__(self, other):
-        return True
+        if isinstance(other, DummyQDate):
+            return self._date <= other._date
+        return False
 
     def __ge__(self, other):
-        return True
+        if isinstance(other, DummyQDate):
+            return self._date >= other._date
+        return False
 
     def __lt__(self, other):
+        if isinstance(other, DummyQDate):
+            return self._date < other._date
         return False
 
     def __gt__(self, other):
+        if isinstance(other, DummyQDate):
+            return self._date > other._date
         return False
 
 class DummyQLocale:
@@ -548,6 +583,47 @@ class DummyQGraphicsTextItem(MagicMock):
         m = MagicMock()
         m.width.return_value = 100
         return m
+
+class DummyQGraphicsRectItem(MagicMock):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+    def setBrush(self, brush): pass
+    def setPen(self, pen): pass
+    def setZValue(self, z): pass
+    def setRect(self, x, y, w, h): pass
+    def rect(self):
+        m = MagicMock()
+        m.x.return_value = 0
+        m.width.return_value = 100
+        return m
+
+class DummyQGraphicsLineItem(MagicMock):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+    def setPen(self, pen): pass
+    def setLine(self, x1, y1, x2, y2): pass
+    def line(self):
+        m = MagicMock()
+        m.x1.return_value = 0
+        m.x2.return_value = 0
+        return m
+
+class DummyQGraphicsScene(DummyQWidget):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        self._items = []
+
+    def addItem(self, item):
+        self._items.append(item)
+
+    def items(self):
+        return self._items
+
+    def clear(self):
+        self._items = []
+
+    def setSceneRect(self, x, y, w, h):
+        pass
 
 class DummyQFormLayout(DummyQWidget):
     class FieldGrowthPolicy:
@@ -614,10 +690,10 @@ def mock_qt_modules():
     mock_widgets.QTreeWidgetItem = DummyQTreeWidgetItem
     mock_widgets.QSplitter = DummyQWidget
     mock_widgets.QGraphicsView = DummyQWidget
-    mock_widgets.QGraphicsScene = DummyQWidget
-    mock_widgets.QGraphicsRectItem = MagicMock
+    mock_widgets.QGraphicsScene = DummyQGraphicsScene
+    mock_widgets.QGraphicsRectItem = DummyQGraphicsRectItem
     mock_widgets.QGraphicsTextItem = DummyQGraphicsTextItem
-    mock_widgets.QGraphicsLineItem = MagicMock
+    mock_widgets.QGraphicsLineItem = DummyQGraphicsLineItem
     mock_widgets.QScrollBar = DummyQWidget
     mock_widgets.QProgressBar = DummyQWidget
     mock_widgets.QMenu = MagicMock()

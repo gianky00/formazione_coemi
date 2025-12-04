@@ -92,3 +92,52 @@ class TestLoginViewLogic:
             login_view.handle_login()
             MockDialog.show_warning.assert_called()
             login_view.api_client.login.assert_not_called()
+
+    def test_on_login_success_read_only(self, login_view):
+        """Test that login success with read_only=True shows a warning with owner info."""
+        response_data = {
+            "username": "user",
+            "access_token": "token",
+            "read_only": True,
+            "lock_owner": {
+                "username": "other_user",
+                "full_name": "Other User",
+                "hostname": "OTHER-PC",
+                "acquired_at": "2023-01-01 12:00:00"
+            }
+        }
+
+        login_view.api_client.get.return_value = []
+        # Crucial: Since api_client is a Mock, set_token won't update user_info.
+        # We must manually set the property to the dict we want.
+        # However, on_login_success calls set_token first.
+        # So we can set a side_effect on set_token to update user_info
+        def side_effect_set_token(data):
+            login_view.api_client.user_info = data
+
+        login_view.api_client.set_token.side_effect = side_effect_set_token
+
+        with patch("desktop_app.views.login_view.CustomMessageDialog") as MockDialog, \
+             patch("desktop_app.views.login_view.QTimer") as MockTimer:
+
+            # Configure QTimer to run callback immediately
+            def side_effect_singleShot(ms, callback):
+                callback()
+            MockTimer.singleShot.side_effect = side_effect_singleShot
+
+            # We need to mock the signal connection
+            mock_signal = MagicMock()
+            login_view.login_success.connect(mock_signal)
+
+            login_view.on_login_success(response_data)
+
+            # Verify warning dialog was shown
+            MockDialog.show_warning.assert_called()
+            args = MockDialog.show_warning.call_args
+            # args[0] is self (view), args[1] is title, args[2] is message
+            assert args[0][1] == "Modalità Sola Lettura"
+            assert "Utente: other_user" in args[0][2]
+            assert "Host: OTHER-PC" in args[0][2]
+
+            # Verify login success signal was still emitted
+            mock_signal.assert_called()
