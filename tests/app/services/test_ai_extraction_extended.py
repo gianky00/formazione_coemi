@@ -25,9 +25,9 @@ def test_gemini_client_missing_key():
     # Mock settings to return empty key
     # We need to patch the settings object that GeminiClient imports
     with patch("app.services.ai_extraction.settings") as mock_settings:
-        mock_settings.GEMINI_API_KEY = None
+        mock_settings.GEMINI_API_KEY_ANALYSIS = None
 
-        with pytest.raises(ValueError, match="GEMINI_API_KEY not configured"):
+        with pytest.raises(ValueError, match="GEMINI_API_KEY_ANALYSIS not configured"):
             ai_extraction.GeminiClient()
 
 def test_extract_entities_json_decode_error(mocker):

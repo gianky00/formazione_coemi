@@ -629,6 +629,7 @@ def mock_qt_modules():
     mock_widgets.QFileDialog = MagicMock()
 
     mock_core = MagicMock()
+    mock_core.PYQT_VERSION = 0x060800 # Mock version 6.8.0
     mock_core.Qt = DummyQWidget # Reuse Enum
     mock_core.QSize = MagicMock()
     mock_core.QDate = DummyQDate
