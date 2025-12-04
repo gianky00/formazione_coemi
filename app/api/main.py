@@ -9,7 +9,7 @@ from sqlalchemy import or_
 from app.db.session import get_db
 from app.db.models import Corso, Certificato, ValidationStatus, Dipendente, User as UserModel
 from app.services import ai_extraction, certificate_logic, matcher
-from app.services.document_locator import find_document
+from app.services.document_locator import find_document, construct_certificate_path
 from app.core.config import settings, get_user_data_dir
 from app.utils.date_parser import parse_date_flexible
 from app.utils.file_security import verify_file_signature
@@ -317,6 +317,14 @@ def update_certificato(
     if not db_cert:
         raise HTTPException(status_code=404, detail="Certificato non trovato")
 
+    # Capture old state for file renaming
+    old_cert_data = {
+        'nome': f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}" if db_cert.dipendente else db_cert.nome_dipendente_raw,
+        'matricola': db_cert.dipendente.matricola if db_cert.dipendente else None,
+        'categoria': db_cert.corso.categoria_corso if db_cert.corso else None,
+        'data_scadenza': db_cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_cert.data_scadenza_calcolata else None
+    }
+
     update_data = certificato.model_dump(exclude_unset=True)
 
     if 'data_nascita' in update_data:
@@ -379,6 +387,35 @@ def update_certificato(
     db.commit()
     db.refresh(db_cert)
     status = certificate_logic.get_certificate_status(db, db_cert)
+
+    # File Synchronization: Rename/Move file if data changed
+    try:
+        new_cert_data = {
+            'nome': f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}" if db_cert.dipendente else db_cert.nome_dipendente_raw,
+            'matricola': db_cert.dipendente.matricola if db_cert.dipendente else None,
+            'categoria': db_cert.corso.categoria_corso if db_cert.corso else None,
+            'data_scadenza': db_cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_cert.data_scadenza_calcolata else None
+        }
+
+        if old_cert_data != new_cert_data:
+            database_path = settings.DATABASE_PATH or str(get_user_data_dir())
+            if database_path:
+                old_file_path = find_document(database_path, old_cert_data)
+
+                if old_file_path and os.path.exists(old_file_path):
+                    # Determine target status folder
+                    if status in ["attivo", "in_scadenza"]:
+                        target_status = "ATTIVO"
+                    else:
+                        target_status = "STORICO"
+
+                    new_file_path = construct_certificate_path(database_path, new_cert_data, status=target_status)
+
+                    if old_file_path != new_file_path:
+                        os.makedirs(os.path.dirname(new_file_path), exist_ok=True)
+                        shutil.move(old_file_path, new_file_path)
+    except Exception as e:
+        print(f"Error synchronizing file for certificate {certificato_id}: {e}")
 
     log_security_action(db, current_user, "CERTIFICATE_UPDATE", f"aggiornato certificato ID {certificato_id}. Campi: {', '.join(update_data.keys())}", category="CERTIFICATE")
 
