@@ -146,3 +146,32 @@ def test_save_to_disk_read_only_block(manager):
 
     assert result is False
     mock_file.assert_not_called()
+
+def test_optimize_database(manager):
+    manager.active_connection = MagicMock()
+    manager.is_read_only = False
+
+    with patch.object(manager, "save_to_disk") as mock_save:
+        manager.optimize_database()
+
+    manager.active_connection.execute.assert_any_call("VACUUM")
+    manager.active_connection.execute.assert_any_call("ANALYZE")
+    mock_save.assert_called_once()
+
+def test_move_database_success(manager, mock_paths):
+    root, db, lock = mock_paths
+    new_dir = root / "new_location"
+    new_db = new_dir / db.name
+
+    # Setup
+    manager.is_read_only = False
+    with open(db, "w") as f: f.write("DB CONTENT")
+
+    with patch("app.core.db_security.settings.save_mutable_settings") as mock_save_settings:
+        manager.move_database(new_dir)
+
+    assert new_db.exists()
+    assert new_db.read_text() == "DB CONTENT"
+    assert not db.exists() # Moved
+    assert manager.db_path == new_db
+    mock_save_settings.assert_called_with({"DATABASE_PATH": str(new_dir)})
