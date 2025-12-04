@@ -11,6 +11,7 @@ import requests
 from ..api_client import APIClient
 from ..components.animated_widgets import AnimatedButton, LoadingOverlay
 from ..components.custom_dialog import CustomMessageDialog
+from ..components.toast import ToastManager
 from ..workers.data_worker import FetchCertificatesWorker
 from ..workers.worker import Worker
 from collections import defaultdict
@@ -391,7 +392,7 @@ class ScadenzarioView(QWidget):
 
     def _on_email_sent(self, response):
         if response.status_code == 200:
-            CustomMessageDialog.show_info(self, "Successo", "Richiesta di invio email inviata con successo.")
+            ToastManager.success("Successo", "Richiesta di invio email inviata con successo.", self.window())
         else:
             error_data = response.json()
             error_detail = error_data.get("detail", "Errore sconosciuto dal server.")
@@ -421,7 +422,7 @@ class ScadenzarioView(QWidget):
             try:
                 with open(path, 'wb') as f:
                     f.write(response.content)
-                CustomMessageDialog.show_info(self, "Esportazione Riuscita", f"Report esportato con successo in {path}")
+                ToastManager.success("Esportazione Riuscita", f"Report esportato con successo.", self.window())
             except Exception as e:
                 CustomMessageDialog.show_error(self, "Errore", f"Impossibile salvare il file: {e}")
         else:

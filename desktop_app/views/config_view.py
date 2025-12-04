@@ -7,11 +7,12 @@ from PyQt6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QDialog, QDialogButtonBox, QCheckBox,
     QStackedWidget, QHeaderView, QDateEdit
 )
-from PyQt6.QtCore import Qt, QDate, QTimer
+from PyQt6.QtCore import Qt, QDate, QTimer, QThread, pyqtSignal
 from PyQt6.QtGui import QColor
 from desktop_app.api_client import APIClient
 from app.utils.security import obfuscate_string, reveal_string
 from desktop_app.components.custom_dialog import CustomMessageDialog
+from desktop_app.components.toast import ToastManager
 
 class ChangePasswordDialog(QDialog):
     def __init__(self, parent=None):
@@ -299,6 +300,32 @@ class UserManagementWidget(QFrame):
             except Exception as e:
                 CustomMessageDialog.show_error(self, "Errore", str(e))
 
+class OptimizeWorker(QThread):
+    finished = pyqtSignal(dict) # result
+    error = pyqtSignal(str)
+
+    def __init__(self, api_client):
+        super().__init__()
+        self.api_client = api_client
+
+    def run(self):
+        try:
+            import requests
+            url = f"{self.api_client.base_url}/system/optimize"
+            headers = self.api_client._get_headers()
+            start = datetime.now()
+            response = requests.post(url, headers=headers, timeout=300) # Increased timeout
+            duration = (datetime.now() - start).total_seconds()
+
+            if response.status_code == 200:
+                res = response.json()
+                res['duration'] = duration
+                self.finished.emit(res)
+            else:
+                self.error.emit(f"Errore server: {response.text}")
+        except Exception as e:
+            self.error.emit(str(e))
+
 class DatabaseSettingsWidget(QFrame):
     def __init__(self, api_client, parent=None):
         super().__init__(parent)
@@ -335,19 +362,31 @@ class DatabaseSettingsWidget(QFrame):
         self.layout.addStretch()
 
     def optimize_db(self):
-        if CustomMessageDialog.show_question(self, "Conferma Ottimizzazione", "Questa operazione potrebbe richiedere alcuni secondi. Continuare?"):
-            try:
-                import requests
-                url = f"{self.api_client.base_url}/system/optimize"
-                headers = self.api_client._get_headers()
-                response = requests.post(url, headers=headers, timeout=60)
+        if CustomMessageDialog.show_question(self, "Conferma Ottimizzazione", "Questa operazione potrebbe richiedere del tempo. Continuare?"):
+            ToastManager.info("Ottimizzazione Avviata", "L'operazione è in corso in background...", self.window())
+            self.optimize_btn.setEnabled(False)
+            self.optimize_btn.setText("Ottimizzazione in corso...")
 
-                if response.status_code == 200:
-                    CustomMessageDialog.show_info(self, "Successo", "Database ottimizzato correttamente.")
-                else:
-                    CustomMessageDialog.show_error(self, "Errore", f"Errore server: {response.text}")
-            except Exception as e:
-                CustomMessageDialog.show_error(self, "Errore", str(e))
+            self.worker = OptimizeWorker(self.api_client)
+            self.worker.finished.connect(self.on_optimize_finished)
+            self.worker.error.connect(self.on_optimize_error)
+            self.worker.start()
+
+    def on_optimize_finished(self, result):
+        self.optimize_btn.setEnabled(True)
+        self.optimize_btn.setText("Ottimizza Database Ora")
+        duration = result.get('duration', 0)
+        stats = result.get('sync_stats', {})
+        moved = stats.get('moved', 0)
+        missing = stats.get('missing', 0)
+
+        msg = f"Completata in {duration:.1f}s.\nFile spostati: {moved}. File mancanti: {missing}."
+        ToastManager.success("Ottimizzazione Completata", msg, self.window())
+
+    def on_optimize_error(self, error):
+        self.optimize_btn.setEnabled(True)
+        self.optimize_btn.setText("Ottimizza Database Ora")
+        ToastManager.error("Errore Ottimizzazione", error, self.window())
 
 class APISettingsWidget(QFrame):
     def __init__(self, parent=None):
@@ -835,7 +874,7 @@ class ConfigView(QWidget):
         if file_path:
             try:
                 response = self.api_client.import_dipendenti_csv(file_path)
-                CustomMessageDialog.show_info(self, "Importazione Completata", response.get("message", "Successo"))
+                ToastManager.success("Importazione Completata", response.get("message", "Successo"), self.window())
             except Exception as e:
                 CustomMessageDialog.show_error(self, "Errore", f"Impossibile importare: {e}")
 
@@ -892,7 +931,7 @@ class ConfigView(QWidget):
         # --- End of smart comparison ---
 
         if not update_payload:
-            CustomMessageDialog.show_info(self, "Nessuna Modifica", "Nessuna modifica da salvare.")
+            ToastManager.info("Nessuna Modifica", "Nessuna modifica da salvare.", self.window())
             return
 
         try:
@@ -903,7 +942,7 @@ class ConfigView(QWidget):
                 self.api_client.move_database(new_db_path)
 
             self.api_client.update_mutable_config(update_payload)
-            CustomMessageDialog.show_info(self, "Salvato", "Configurazione salvata con successo. Le modifiche saranno attive al prossimo riavvio.")
+            ToastManager.success("Salvato", "Configurazione salvata con successo. Le modifiche saranno attive al prossimo riavvio.", self.window())
             self.load_config() # Reload to update current_settings state
         except Exception as e:
             CustomMessageDialog.show_error(self, "Errore", f"Impossibile salvare la configurazione: {e}")
