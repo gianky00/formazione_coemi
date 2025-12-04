@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from sqlalchemy.orm import Session
 from app.schemas.system import SystemAction
-from app.db.session import SessionLocal
-from app.services.file_maintenance import organize_expired_files
+from app.db.session import SessionLocal, get_db
+from app.services.file_maintenance import organize_expired_files, synchronize_all_files
 from app.api import deps
 import logging
 
@@ -54,14 +55,21 @@ def get_lock_status():
     return {"read_only": db_security.is_read_only}
 
 @router.post("/optimize", dependencies=[Depends(deps.get_current_active_admin)])
-def optimize_system():
+def optimize_system(db: Session = Depends(get_db)):
     """
-    Triggers database optimization (VACUUM & ANALYZE).
+    Triggers database optimization (VACUUM & ANALYZE) AND Mass File Synchronization.
     """
     from app.core.db_security import db_security
     try:
         db_security.optimize_database()
-        return {"message": "Ottimizzazione database completata."}
+
+        # Run Mass File Synchronization
+        sync_result = synchronize_all_files(db)
+
+        return {
+            "message": "Ottimizzazione database e sincronizzazione file completata.",
+            "sync_stats": sync_result
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Optimization failed: {e}")
 
