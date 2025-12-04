@@ -5,6 +5,7 @@ from app.db.session import SessionLocal
 from app.core.security import get_password_hash
 from app.core.config import settings, get_user_data_dir
 from app.services.document_locator import find_document
+from app.services.sync_service import remove_empty_folders
 import os
 import shutil
 from datetime import datetime
@@ -169,6 +170,7 @@ def cleanup_deprecated_data(db: Session):
                             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                             dest = os.path.join(trash_dir, f"{os.path.splitext(filename)[0]}_deprecated_{timestamp}.pdf")
                             shutil.move(file_path, dest)
+                            remove_empty_folders(os.path.dirname(file_path))
                 except Exception as e:
                     print(f"Error moving deprecated file: {e}")
 

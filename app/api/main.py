@@ -10,7 +10,7 @@ from app.db.session import get_db
 from app.db.models import Corso, Certificato, ValidationStatus, Dipendente, User as UserModel
 from app.services import ai_extraction, certificate_logic, matcher
 from app.services.document_locator import find_document, construct_certificate_path
-from app.services.file_maintenance import archive_certificate_file, link_orphaned_certificates
+from app.services.sync_service import archive_certificate_file, link_orphaned_certificates
 from app.core.config import settings, get_user_data_dir
 from app.utils.date_parser import parse_date_flexible
 from app.utils.file_security import verify_file_signature
@@ -406,18 +406,35 @@ def update_certificato(
         db_cert.data_scadenza_calcolata = datetime.strptime(scadenza, '%d/%m/%Y').date() if scadenza and scadenza.strip() and scadenza.lower() != 'none' else None
 
     db_cert.stato_validazione = ValidationStatus.MANUAL
-    db.commit()
-    db.refresh(db_cert)
-    status = certificate_logic.get_certificate_status(db, db_cert)
+
+    # Check constraints before file move
+    try:
+        db.flush()
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=f"Errore di integrità: {e}")
 
     # File Synchronization: Rename/Move file if data changed
+    file_moved = False
+    old_file_path = None
+    new_file_path = None
+
     try:
+        # We construct new data from db_cert.
+        # Ensure relations are loaded.
+        if not db_cert.dipendente and db_cert.dipendente_id:
+             db_cert.dipendente = db.query(Dipendente).get(db_cert.dipendente_id)
+        if not db_cert.corso:
+             db_cert.corso = db.query(Corso).get(db_cert.corso_id)
+
         new_cert_data = {
             'nome': f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}" if db_cert.dipendente else db_cert.nome_dipendente_raw,
             'matricola': db_cert.dipendente.matricola if db_cert.dipendente else None,
             'categoria': db_cert.corso.categoria_corso if db_cert.corso else None,
             'data_scadenza': db_cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_cert.data_scadenza_calcolata else None
         }
+
+        status = certificate_logic.get_certificate_status(db, db_cert)
 
         if old_cert_data != new_cert_data:
             database_path = settings.DATABASE_PATH or str(get_user_data_dir())
@@ -436,8 +453,27 @@ def update_certificato(
                     if old_file_path != new_file_path:
                         os.makedirs(os.path.dirname(new_file_path), exist_ok=True)
                         shutil.move(old_file_path, new_file_path)
+                        file_moved = True
+    except PermissionError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Impossibile spostare il file: File in uso o permessi negati.")
     except Exception as e:
-        print(f"Error synchronizing file for certificate {certificato_id}: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Errore durante la sincronizzazione del file: {e}")
+
+    # Commit Transaction
+    try:
+        db.commit()
+        db.refresh(db_cert)
+    except Exception as e:
+        db.rollback()
+        # Rollback File Move if needed
+        if file_moved and old_file_path and new_file_path:
+            try:
+                shutil.move(new_file_path, old_file_path)
+            except Exception as rollback_err:
+                print(f"CRITICAL: Failed to rollback file move for cert {certificato_id}: {rollback_err}")
+        raise HTTPException(status_code=500, detail=f"Errore durante il salvataggio nel database: {e}")
 
     log_security_action(db, current_user, "CERTIFICATE_UPDATE", f"aggiornato certificato ID {certificato_id}. Campi: {', '.join(update_data.keys())}", category="CERTIFICATE")
 

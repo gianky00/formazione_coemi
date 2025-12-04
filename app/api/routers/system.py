@@ -2,7 +2,8 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from sqlalchemy.orm import Session
 from app.schemas.system import SystemAction
 from app.db.session import SessionLocal, get_db
-from app.services.file_maintenance import organize_expired_files, synchronize_all_files
+from app.services.file_maintenance import organize_expired_files
+from app.services.sync_service import synchronize_all_files
 from app.api import deps
 import logging
 
