@@ -25,3 +25,8 @@ def test_verify_csv_decode_fail():
 
 def test_unknown_type():
     assert verify_file_signature(b"content", "exe") is False
+
+def test_verify_csv_latin1_fallback():
+    # Only valid in latin-1, invalid in utf-8
+    content = b"\xe9" # é in latin-1. In utf-8 it's a start byte requiring more.
+    assert verify_file_signature(content, "csv") is True

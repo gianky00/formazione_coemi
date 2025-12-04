@@ -176,3 +176,7 @@ def override_user_auth(db_session):
     app.dependency_overrides[deps.get_current_user] = override
     yield
     # Clean up handled by db_session rollback/close
+
+@pytest.fixture
+def anyio_backend():
+    return 'asyncio'
