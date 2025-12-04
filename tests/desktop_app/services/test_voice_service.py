@@ -2,7 +2,7 @@ import pytest
 import os
 import sys
 import asyncio
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import MagicMock, patch, AsyncMock, ANY
 
 # Add the project root to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../')))
@@ -63,7 +63,8 @@ def test_voice_service_speak():
             # Case 1: Enabled
             service.speak("Test")
             
-            MockWorkerClass.assert_called_with("Test")
+            # Use ANY for voice parameter as it might have a default value
+            MockWorkerClass.assert_called_with("Test", voice=ANY)
             mock_worker_instance.start.assert_called_once()
 
             # Case 2: Disabled via Settings

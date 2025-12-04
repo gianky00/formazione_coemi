@@ -89,10 +89,12 @@ class DBSecurityManager:
         if not self.lock_path.exists():
             return
 
+        should_remove = False
+        reason = ""
+
         try:
             # We use LockManager to safely read metadata without locking
-            # We instantiate a temporary manager just for this check
-            temp_mgr = LockManager(str(self.lock_path))
+            # (temp_mgr removed as it was unused)
 
             with open(self.lock_path, 'rb') as f:
                 # Byte 0 is lock byte, Byte 1+ is JSON
@@ -105,41 +107,47 @@ class DBSecurityManager:
                     metadata = json.loads(data.decode('utf-8'))
                 except:
                     # Corrupt JSON -> Force Clean
-                    logger.warning("Stale Lock Recovery: Corrupt lock file found. Deleting.")
-                    self._force_remove_lock()
-                    return
-
-                pid = metadata.get("pid")
-                if not pid:
-                    return # No PID to check
-
-                # CHECK PID EXISTENCE - HARDENED LOGIC
-                # If psutil says PID is gone, we delete the lock. Period.
-                if not psutil.pid_exists(pid):
-                    logger.warning(f"Stale Lock Recovery: PID {pid} is DEAD. Removing lock immediately.")
-                    self._force_remove_lock()
+                    should_remove = True
+                    reason = "Corrupt lock file found"
                 else:
-                    # PID exists, but is it US or Python/Intelleo?
-                    try:
-                        proc = psutil.Process(pid)
-                        name = proc.name().lower()
-                        # If process is definitely NOT related to us (e.g. Chrome, System), kill lock
-                        valid_names = ["python", "intelleo", "main", "launcher", "boot_loader"]
-                        is_valid = any(v in name for v in valid_names)
+                    if not should_remove:
+                        pid = metadata.get("pid")
+                        if not pid:
+                            return # No PID to check
 
-                        if not is_valid:
-                            logger.warning(f"Stale Lock Recovery: PID {pid} exists ({name}) but is unrelated. Removing lock.")
-                            self._force_remove_lock()
+                        # CHECK PID EXISTENCE - HARDENED LOGIC
+                        # If psutil says PID is gone, we delete the lock. Period.
+                        if not psutil.pid_exists(pid):
+                            should_remove = True
+                            reason = f"PID {pid} is DEAD"
                         else:
-                            logger.info(f"Lock file belongs to active process {pid} ({name}). Respecting lock.")
+                            # PID exists, but is it US or Python/Intelleo?
+                            try:
+                                proc = psutil.Process(pid)
+                                name = proc.name().lower()
+                                # If process is definitely NOT related to us (e.g. Chrome, System), kill lock
+                                valid_names = ["python", "intelleo", "main", "launcher", "boot_loader"]
+                                is_valid = any(v in name for v in valid_names)
 
-                    except psutil.NoSuchProcess:
-                         # Process died during check
-                         logger.warning(f"Stale Lock Recovery: Process {pid} died during check. Removing lock.")
-                         self._force_remove_lock()
+                                if not is_valid:
+                                    should_remove = True
+                                    reason = f"PID {pid} exists ({name}) but is unrelated"
+                                else:
+                                    logger.info(f"Lock file belongs to active process {pid} ({name}). Respecting lock.")
+
+                            except psutil.NoSuchProcess:
+                                 # Process died during check
+                                 should_remove = True
+                                 reason = f"Process {pid} died during check"
 
         except Exception as e:
             logger.error(f"Stale Lock Recovery failed: {e}")
+            return
+
+        # Perform removal outside the 'with open' block to avoid WinError 32
+        if should_remove:
+            logger.warning(f"Stale Lock Recovery: {reason}. Removing lock immediately.")
+            self._force_remove_lock()
 
     def _force_remove_lock(self):
         try:

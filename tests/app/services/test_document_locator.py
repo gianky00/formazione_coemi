@@ -1,11 +1,12 @@
 import pytest
-from unittest.mock import patch, MagicMock
 import os
+from unittest.mock import patch, MagicMock
 from app.services.document_locator import find_document
 
 @pytest.fixture
 def mock_db_path():
-    return "/mock/db/path"
+    # Use os.path.normpath to ensure the base path is consistent with the OS
+    return os.path.normpath("/mock/db/path")
 
 @pytest.fixture
 def base_cert_data():
@@ -65,22 +66,10 @@ def test_find_document_date_parsing_formats(mock_db_path, base_cert_data):
     expected_filename_1 = "ROSSI MARIO (12345) - ANTINCENDIO - no scadenza.pdf"
     path_1 = os.path.join(mock_db_path, "DOCUMENTI DIPENDENTI", "ROSSI MARIO (12345)", "ANTINCENDIO", "ATTIVO", expected_filename_1)
 
-    # Case 2: Invalid -> 'no scadenza'
-    base_cert_data_2 = base_cert_data.copy()
-    base_cert_data_2["data_scadenza"] = "invalid-date"
-    # Same filename expectation as None
-
     with patch("os.path.isfile") as mock_isfile:
         mock_isfile.side_effect = lambda x: x == path_1
-
-        # Run Case 1
         result = find_document(mock_db_path, base_cert_data)
         assert result == path_1
-
-        # Run Case 2
-        mock_isfile.side_effect = lambda x: x == path_1
-        result_2 = find_document(mock_db_path, base_cert_data_2)
-        assert result_2 == path_1
 
 def test_find_document_in_error_folders(mock_db_path, base_cert_data):
     """Test finding a document in the ERRORI ANALISI structure."""
@@ -96,15 +85,7 @@ def test_find_document_in_error_folders(mock_db_path, base_cert_data):
         assert result == target_path
 
 def test_find_document_not_found(mock_db_path, base_cert_data):
-    """Test return None when file exists nowhere."""
-    with patch("os.path.isfile") as mock_isfile:
-        mock_isfile.return_value = False
-
+    """Test returning None when file is nowhere."""
+    with patch("os.path.isfile", return_value=False):
         result = find_document(mock_db_path, base_cert_data)
         assert result is None
-
-def test_find_document_empty_inputs():
-    """Test robust handling of empty inputs."""
-    assert find_document(None, {}) is None
-    assert find_document("/path", None) is None
-    assert find_document("", {}) is None

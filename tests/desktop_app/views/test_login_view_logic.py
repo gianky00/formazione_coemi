@@ -22,7 +22,14 @@ class TestLoginViewLogic:
         login_view.username_input.text.return_value = "user"
         login_view.password_input.text.return_value = "pass"
 
-        with patch("desktop_app.views.login_view.LoginWorker") as MockLoginWorker:
+        with patch("desktop_app.views.login_view.LoginWorker") as MockLoginWorker, \
+             patch("desktop_app.views.login_view.QTimer") as MockTimer: # Patch QTimer
+
+            # Configure QTimer.singleShot to execute the callback immediately
+            def side_effect_singleShot(ms, callback):
+                callback()
+            MockTimer.singleShot.side_effect = side_effect_singleShot
+
             mock_worker_instance = MockLoginWorker.return_value
             mock_worker_instance.finished_success = MagicMock()
             mock_worker_instance.finished_error = MagicMock()
@@ -53,6 +60,7 @@ class TestLoginViewLogic:
             login_view.api_client.get.assert_called_with("certificati", params={"validated": "false"})
 
             # mock_signal is the slot. It is called directly.
+            # Note: response_data is modified in place inside on_login_success, so we assert against the modified version
             mock_signal.assert_called_with(response_data)
 
     def test_handle_login_failure(self, login_view):
