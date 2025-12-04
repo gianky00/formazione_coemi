@@ -65,10 +65,16 @@ class EditCertificatoDialog(QDialog):
 
         self.scadenza_checkbox.toggled.connect(self.data_scadenza_edit.setEnabled)
 
+        self.warning_label = QLabel("⚠️ Verifica la data di scadenza")
+        self.warning_label.setStyleSheet("color: #F59E0B; font-weight: bold; font-size: 12px;")
+        self.warning_label.setVisible(False)
+        self.data_rilascio_edit.dateChanged.connect(lambda: self.warning_label.setVisible(True))
+
         self.form_layout.addRow(QLabel("Dipendente:"), self.nome_edit)
         self.form_layout.addRow(QLabel("Documento:"), self.corso_edit)
         self.form_layout.addRow(QLabel("Categoria:"), self.categoria_edit)
         self.form_layout.addRow(QLabel("Data emissione:"), self.data_rilascio_edit)
+        self.form_layout.addRow(self.warning_label)
         self.form_layout.addRow(self.scadenza_checkbox, self.data_scadenza_edit)
 
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)

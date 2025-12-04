@@ -608,15 +608,53 @@ async def import_dipendenti_csv(
         raise HTTPException(status_code=400, detail=f"Errore di integrità del database: {str(e)}")
 
     # Re-link orphaned certificates
-    orphaned_certs = db.query(Certificato).filter(Certificato.dipendente_id.is_(None)).all()
+    orphaned_certs = db.query(Certificato).options(selectinload(Certificato.corso)).filter(Certificato.dipendente_id.is_(None)).all()
     linked_count = 0
+
+    database_path = settings.DATABASE_PATH or str(get_user_data_dir())
+
     for cert in orphaned_certs:
         if cert.nome_dipendente_raw:
             dob_raw = parse_date_flexible(cert.data_nascita_raw) if cert.data_nascita_raw else None
             match = matcher.find_employee_by_name(db, cert.nome_dipendente_raw, dob_raw)
             if match:
+                # Capture Old Data (Orphan state) for file logic
+                old_cert_data = {
+                    'nome': cert.nome_dipendente_raw,
+                    'matricola': None,
+                    'categoria': cert.corso.categoria_corso if cert.corso else None,
+                    'data_scadenza': cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else None
+                }
+
+                # Link Employee
                 cert.dipendente_id = match.id
                 linked_count += 1
+
+                # Move File
+                if database_path and old_cert_data['categoria']:
+                    try:
+                        old_path = find_document(database_path, old_cert_data)
+                        if old_path and os.path.exists(old_path):
+                            status = certificate_logic.get_certificate_status(db, cert)
+                            target_status = "ATTIVO"
+                            if status == "scaduto": target_status = "SCADUTO"
+                            elif status == "archiviato": target_status = "STORICO"
+
+                            # Prepare new data
+                            new_cert_data = {
+                                'nome': f"{match.cognome} {match.nome}",
+                                'matricola': match.matricola,
+                                'categoria': old_cert_data['categoria'],
+                                'data_scadenza': old_cert_data['data_scadenza']
+                            }
+
+                            new_path = construct_certificate_path(database_path, new_cert_data, status=target_status)
+
+                            if old_path != new_path:
+                                os.makedirs(os.path.dirname(new_path), exist_ok=True)
+                                shutil.move(old_path, new_path)
+                    except Exception as e:
+                        print(f"Error moving orphan file {old_cert_data}: {e}")
 
     if linked_count > 0:
         db.commit()
