@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.services import certificate_logic
 from app.utils.audit import log_security_action
 import logging
+import threading
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -274,11 +275,19 @@ def get_report_data(db: Session):
 
     return expiring_visite, expiring_corsi, overdue_certificates
 
+# Bug 3: Global lock to prevent race conditions
+_email_lock = threading.Lock()
+
 def check_and_send_alerts():
     """
     Checks for certificates that are expiring soon or are overdue and sends
     a single summary email with a PDF report if any are found.
     """
+    # Bug 3: Race Condition Prevention
+    if not _email_lock.acquire(blocking=False):
+        logging.warning("Email alert task already running. Skipping concurrent execution.")
+        return
+
     db = SessionLocal()
     try:
         expiring_visite, expiring_corsi, overdue_certificates = get_report_data(db)
@@ -311,5 +320,21 @@ def check_and_send_alerts():
         else:
             logging.info("Nessuna notifica di scadenza da inviare oggi.")
 
+    except Exception as e:
+        logging.error(f"Errore durante check_and_send_alerts: {e}", exc_info=True)
+        # Bug 5: Feedback via Audit Log
+        try:
+            log_security_action(
+                db,
+                None,
+                "SYSTEM_ALERT_FAILURE",
+                f"Failed to send email alert: {str(e)}",
+                category="CRITICAL",
+                severity="CRITICAL"
+            )
+        except Exception as log_err:
+            logging.error(f"Failed to log critical error to AuditLog: {log_err}")
+
     finally:
         db.close()
+        _email_lock.release()
