@@ -121,3 +121,24 @@ def test_release_handle_close_error(mock_path):
     # Should log error but not crash
     mgr.release()
     assert mgr._lock_handle is None
+
+def test_acquire_retry_logic(mock_path):
+    mgr = LockManager(mock_path)
+    # Fail locking
+    with patch("fcntl.flock", side_effect=BlockingIOError), \
+         patch("time.sleep") as mock_sleep:
+
+         mgr.acquire({"uuid": "1"}, retries=2, delay=0.1)
+         assert mock_sleep.call_count == 2
+
+def test_acquire_read_metadata_fail(mock_path):
+    mgr = LockManager(mock_path)
+    # Create empty lock file
+    with open(mock_path, "wb") as f: f.write(b'\0')
+
+    with patch("fcntl.flock", side_effect=BlockingIOError):
+        with patch.object(mgr, "_read_metadata", side_effect=Exception("Read Fail")):
+             success, owner = mgr.acquire({"uuid": "1"}, retries=0)
+
+    assert success is False
+    assert "Unknown" in owner["error"]

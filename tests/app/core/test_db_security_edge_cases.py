@@ -84,3 +84,41 @@ def test_move_database_same_path(manager, tmp_path):
     current = manager.db_path
     manager.move_database(current) # Should do nothing
     assert manager.db_path == current
+
+def test_create_backup_failure(manager, tmp_path):
+    manager.db_path = tmp_path / "test.db"
+    manager.db_path.write_text("data")
+
+    with patch("shutil.copy2", side_effect=Exception("Backup Fail")):
+        # Should catch and log, not raise
+        manager.create_backup()
+
+def test_rotate_backups_failure(manager, tmp_path):
+    b_dir = tmp_path / "Backups"
+    b_dir.mkdir()
+
+    with patch("pathlib.Path.glob", side_effect=Exception("Glob Fail")):
+        manager.rotate_backups(b_dir)
+
+def test_optimize_failure(manager):
+    manager.active_connection = MagicMock()
+    manager.is_read_only = False
+    manager.active_connection.execute.side_effect = Exception("Vacuum Fail")
+
+    with pytest.raises(Exception, match="Vacuum Fail"):
+        manager.optimize_database()
+
+def test_move_database_failure(manager, tmp_path):
+    manager.is_read_only = False
+    manager.db_path = tmp_path / "src.db"
+    manager.db_path.write_text("data")
+
+    with patch("shutil.move", side_effect=OSError("Move Fail")):
+        # The method re-raises
+        with pytest.raises(OSError):
+            manager.move_database(tmp_path / "dst")
+
+def test_sync_db_alias(manager):
+    with patch.object(manager, "save_to_disk") as mock_save:
+        manager.sync_db()
+        mock_save.assert_called_once()

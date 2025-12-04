@@ -105,3 +105,10 @@ def test_maintenance_task():
 def test_maintenance_task_failure():
     with patch("app.main.SessionLocal", side_effect=Exception("DB Fail")):
         run_maintenance_task() # Should print error but not crash
+
+def test_startup_error_middleware_ok():
+    app.state.startup_error = None
+    client = TestClient(app)
+    response = client.get("/api/v1/health")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
