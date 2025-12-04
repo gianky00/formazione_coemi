@@ -2,19 +2,6 @@ import pytest
 from unittest.mock import MagicMock
 from app.db.models import User
 
-def test_get_stats_summary(test_client, admin_token_headers):
-    # Mock DB counts via patches or by relying on existing DB if seeded.
-    # The current test setup likely uses an empty DB or whatever is in db_session.
-    # It's better to create some data in the session.
-
-    # We rely on the `db_session` fixture injected into test_client via dependency override.
-    # But for stats we need specific counts.
-    # Ideally, we insert records.
-
-    # But wait, test_client uses 'db_session' which is reset per function.
-    # So we can just add data.
-    pass # Placeholder, will implement logic below
-
 # We will implement real tests using the DB session rather than mocking everything,
 # as it's more robust for "integration" style router tests.
 
