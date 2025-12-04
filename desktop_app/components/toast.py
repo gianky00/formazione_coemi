@@ -1,5 +1,6 @@
-from PyQt6.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout, QGraphicsOpacityEffect, QApplication
-from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QPoint, QEasingCurve, pyqtSignal
+from PyQt6.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout, QGraphicsOpacityEffect, QApplication, QScrollArea
+from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QPoint, QEasingCurve, pyqtSignal, QObject, QRect
+from datetime import datetime
 
 class ToastNotification(QWidget):
     closed = pyqtSignal()
@@ -108,8 +109,9 @@ class ToastNotification(QWidget):
         self.anim.finished.connect(self.closed.emit)
         self.anim.start()
 
-class ToastManager:
+class ToastManager(QObject):
     _instance = None
+    history_updated = pyqtSignal()
 
     @staticmethod
     def instance():
@@ -118,31 +120,67 @@ class ToastManager:
         return ToastManager._instance
 
     def __init__(self):
+        super().__init__()
         self.active_toasts = []
+        self.history = []
+
+    def add_to_history(self, type, title, message):
+        entry = {
+            "type": type,
+            "title": title,
+            "message": message,
+            "timestamp": datetime.now()
+        }
+        self.history.insert(0, entry) # Newest first
+        # Limit history size
+        if len(self.history) > 50:
+            self.history.pop()
+        self.history_updated.emit()
 
     def show_toast(self, parent, type, title, message, duration=3000):
+        # Add to history
+        self.add_to_history(type, title, message)
+
         toast = ToastNotification(title, message, type, parent)
 
-        if parent:
-            # Position: Bottom Right of parent window
-            # If parent is not visible or minimized, mapToGlobal might act weird,
-            # but usually called when active.
+        # Robust Positioning Logic
+        target_geometry = None
 
-            # Map (0,0) of parent to global
-            parent_top_left = parent.mapToGlobal(QPoint(0,0))
+        if parent and parent.isVisible() and not (parent.windowState() & Qt.WindowState.WindowMinimized):
+             # Parent is visible and valid
+             target_geometry = parent.geometry()
+             # If parent is not top-level, map to global
+             if not parent.isWindow():
+                 top_left = parent.mapToGlobal(QPoint(0, 0))
+                 target_geometry = QRect(top_left, parent.size())
+        else:
+             # Fallback to primary screen
+             screen = QApplication.primaryScreen()
+             if screen:
+                 target_geometry = screen.availableGeometry()
 
-            # Calculate Bottom Right
-            x = parent_top_left.x() + parent.width() - toast.width() - 20
-            y = parent_top_left.y() + parent.height() - toast.height() - 20
+        if target_geometry:
+            # Calculate Bottom Right of the target area
+            # We use target_geometry directly (which is already global coords for screen,
+            # or mapped global for widget)
 
-            # Stack existing toasts?
-            # If there are active toasts, move up.
+            # Note: parent.geometry() for a Window includes the frame, but mapToGlobal(0,0) usually gives client area.
+            # Ideally we want to position relative to the window frame.
+
+            x = target_geometry.x() + target_geometry.width() - toast.width() - 20
+            y = target_geometry.y() + target_geometry.height() - toast.height() - 20
+
+            # Stack existing toasts
             offset_y = 0
             for t in self.active_toasts:
                 if t.isVisible():
                     offset_y += t.height() + 10
 
             y -= offset_y
+
+            # Ensure y doesn't go off top of screen
+            if y < target_geometry.y():
+                 y = target_geometry.y() + 20 # Fallback to top if full
 
             toast.move(x, y)
 
