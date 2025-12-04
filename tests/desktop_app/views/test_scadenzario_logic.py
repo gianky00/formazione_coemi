@@ -57,7 +57,8 @@ def test_on_data_loaded_populates_tree(scadenzario_view):
     # mock_qt mocks QTreeWidgetItem.
     # The view calls QTreeWidgetItem(parent, strings).
 
-    with patch("desktop_app.views.scadenzario_view.QTreeWidgetItem") as MockItem:
+    with patch("desktop_app.views.scadenzario_view.QTreeWidgetItem") as MockItem, \
+         patch("desktop_app.views.scadenzario_view.GanttBarItem"):
         scadenzario_view._on_data_loaded(data)
 
         # Check if items were created
@@ -90,7 +91,8 @@ def test_update_gantt_chart(scadenzario_view):
         # Default zoom is 3 months. (-1 to +2 months from today).
         # Both dates are close to today, so they should be visible.
         assert MockBar.call_count >= 1 # At least one should be visible
-        assert scadenzario_view.gantt_scene.addItem.called
+        # scadenzario_view.gantt_scene is a DummyQGraphicsScene (real object), so addItem is not a mock
+        assert len(scadenzario_view.gantt_scene.items()) > 0
 
 def test_export_pdf(scadenzario_view):
     """Test export PDF triggers backend endpoint."""

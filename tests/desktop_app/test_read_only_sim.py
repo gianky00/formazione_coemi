@@ -36,10 +36,16 @@ class TestReadOnlyEnforcement(unittest.TestCase):
         Verifies that on_login_success(read_only=True) calls set_read_only_mode(True)
         on the dashboard.
         """
-        # Mock user info with read_only=True
+        # Mock user info with read_only=True and lock_owner info
         user_info = {
             "username": "testuser",
-            "read_only": True
+            "read_only": True,
+            "lock_owner": {
+                "username": "admin_1",
+                "full_name": "Administrator One",
+                "hostname": "PC-ADMIN",
+                "acquired_at": "2025-01-01 10:00:00"
+            }
         }
 
         # Mock certificates response for expiring check
