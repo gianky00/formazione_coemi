@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from app.utils.file_security import sanitize_filename
 
 def find_document(database_path: str, cert_data: dict) -> str | None:
     """
@@ -25,6 +26,11 @@ def find_document(database_path: str, cert_data: dict) -> str | None:
     categoria = cert_data.get('categoria') or 'ALTRO'
     data_scadenza_str = cert_data.get('data_scadenza')
 
+    # Sanitize components for file system usage
+    nome_fs = sanitize_filename(nome)
+    matricola_fs = sanitize_filename(str(matricola))
+    categoria_fs = sanitize_filename(categoria)
+
     # Date Formatting: API DD/MM/YYYY -> Filename DD_MM_YYYY
     file_scadenza = "no scadenza"
     if data_scadenza_str and str(data_scadenza_str).lower() != "none" and str(data_scadenza_str).strip() != "":
@@ -35,11 +41,11 @@ def find_document(database_path: str, cert_data: dict) -> str | None:
             pass
 
     # Construct Path Components
-    employee_folder = f"{nome} ({matricola})"
-    filename = f"{nome} ({matricola}) - {categoria} - {file_scadenza}.pdf"
+    employee_folder = f"{nome_fs} ({matricola_fs})"
+    filename = f"{nome_fs} ({matricola_fs}) - {categoria_fs} - {file_scadenza}.pdf"
 
     # Structure: DATABASE / DOCUMENTI DIPENDENTI / Name (Matr) / Cat / Status / File
-    base_search_path = os.path.join(database_path, "DOCUMENTI DIPENDENTI", employee_folder, categoria)
+    base_search_path = os.path.join(database_path, "DOCUMENTI DIPENDENTI", employee_folder, categoria_fs)
 
     # Statuses to check (order doesn't strictly matter if filename is unique per expiration,
     # but strictly speaking a file exists in only one status folder at a time)
@@ -56,7 +62,7 @@ def find_document(database_path: str, cert_data: dict) -> str | None:
     error_categories = ["ASSENZA MATRICOLE", "CATEGORIA NON TROVATA", "DUPLICATI", "ALTRI ERRORI"]
 
     for err_cat in error_categories:
-        base_error_path = os.path.join(database_path, "ERRORI ANALISI", err_cat, employee_folder, categoria)
+        base_error_path = os.path.join(database_path, "ERRORI ANALISI", err_cat, employee_folder, categoria_fs)
         for status in statuses:
              candidate = os.path.join(base_error_path, status, filename)
              if os.path.isfile(candidate):
