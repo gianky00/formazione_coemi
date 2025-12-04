@@ -48,12 +48,31 @@ def test_delete_certificate_deletes_file(test_client, db_session, test_dirs):
     assert response.status_code == 200
 
     # 4. Verify DB deletion
-    # Need to query checking for it being gone
-    # Note: DB session in test_client override is separate if we don't manage it carefully,
-    # but `db_session` fixture yields the same session used by override.
     assert db_session.get(Certificato, cert_id) is None
 
-    # 5. Verify File deletion
-    # This assertion will FAIL if the bug is present (file is not deleted)
+    # 5. Verify File deletion from original location
     if os.path.exists(file_path):
-        pytest.fail("File was not deleted from disk after certificate deletion.")
+        pytest.fail("File was not removed from original location.")
+
+    # 6. Verify Move to Trash (CESTINO)
+    trash_dir = os.path.join(str(test_dirs), "DOCUMENTI DIPENDENTI", "CESTINO")
+    assert os.path.exists(trash_dir), "Trash directory was not created"
+
+    # Check if a file with similar name exists in trash
+    # Original filename format: ...root.pdf
+    # Trash filename format: ...root_deleted_YYYYMMDD_HHMMSS.pdf
+
+    original_root, _ = os.path.splitext(filename)
+    found_in_trash = False
+
+    # List files in trash
+    trash_files = os.listdir(trash_dir)
+    print(f"Trash files: {trash_files}")
+
+    for f in trash_files:
+        # Check start and pattern
+        if f.startswith(original_root) and "_deleted_" in f and f.endswith(".pdf"):
+            found_in_trash = True
+            break
+
+    assert found_in_trash, f"File not found in CESTINO. Trash contents: {trash_files}"

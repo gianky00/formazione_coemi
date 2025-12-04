@@ -1,6 +1,7 @@
 import csv
 import io
 import os
+import shutil
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import IntegrityError
@@ -423,7 +424,17 @@ def delete_certificato(
             if database_path:
                 file_path = find_document(database_path, cert_data)
                 if file_path and os.path.exists(file_path):
-                    os.remove(file_path)
+                    # Move to Trash (CESTINO) instead of deleting
+                    trash_dir = os.path.join(database_path, "DOCUMENTI DIPENDENTI", "CESTINO")
+                    os.makedirs(trash_dir, exist_ok=True)
+
+                    filename = os.path.basename(file_path)
+                    root, ext = os.path.splitext(filename)
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    new_filename = f"{root}_deleted_{timestamp}{ext}"
+                    dest_path = os.path.join(trash_dir, new_filename)
+
+                    shutil.move(file_path, dest_path)
     except Exception as e:
         print(f"Error deleting file for certificate {certificato_id}: {e}")
         # Proceed with DB deletion regardless of file error
