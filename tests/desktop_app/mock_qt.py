@@ -410,6 +410,9 @@ class DummyQWidget(DummyQObject):
     def installEventFilter(self, filterObj):
         pass
 
+    def parent(self):
+        return None
+
     # Signals
     @builtins.property
     def clicked(self):
@@ -484,8 +487,12 @@ class DummyQDate:
     def addMonths(self, months):
         return DummyQDate()
 
-    def day(self):
-        return 1
+    def setDate(self, y, m, d):
+        pass
+
+    def year(self): return 2025
+    def month(self): return 1
+    def day(self): return 1
 
     def daysTo(self, other):
         return 10
@@ -505,6 +512,42 @@ class DummyQDate:
 
     def __ge__(self, other):
         return True
+
+    def __lt__(self, other):
+        return False
+
+    def __gt__(self, other):
+        return False
+
+class DummyQLocale:
+    Language = MagicMock()
+    Country = MagicMock()
+    def __init__(self, *args):
+        pass
+    def toString(self, date, fmt):
+        return "Jan 2025"
+
+class DummyQTreeWidgetItem(MagicMock):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        # Consume parent args to avoid MagicMock confusion if any
+
+    def setData(self, col, role, value):
+        pass
+
+    def data(self, col, role):
+        return None
+
+class DummyQGraphicsTextItem(MagicMock):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+    def setFont(self, font): pass
+    def setPos(self, x, y): pass
+    def setDefaultTextColor(self, color): pass
+    def boundingRect(self):
+        m = MagicMock()
+        m.width.return_value = 100
+        return m
 
 class DummyQFormLayout(DummyQWidget):
     class FieldGrowthPolicy:
@@ -568,12 +611,12 @@ def mock_qt_modules():
     mock_widgets.QDialogButtonBox = DummyQWidget
     mock_widgets.QListView = DummyQWidget
     mock_widgets.QTreeWidget = DummyQWidget
-    mock_widgets.QTreeWidgetItem = MagicMock
+    mock_widgets.QTreeWidgetItem = DummyQTreeWidgetItem
     mock_widgets.QSplitter = DummyQWidget
     mock_widgets.QGraphicsView = DummyQWidget
     mock_widgets.QGraphicsScene = DummyQWidget
     mock_widgets.QGraphicsRectItem = MagicMock
-    mock_widgets.QGraphicsTextItem = MagicMock
+    mock_widgets.QGraphicsTextItem = DummyQGraphicsTextItem
     mock_widgets.QGraphicsLineItem = MagicMock
     mock_widgets.QScrollBar = DummyQWidget
     mock_widgets.QProgressBar = DummyQWidget
@@ -643,6 +686,7 @@ def mock_qt_modules():
     mock_core.QParallelAnimationGroup = MagicMock()
     mock_core.QUrl = MagicMock()
     mock_core.QUrl.fromLocalFile = MagicMock()
+    mock_core.QLocale = DummyQLocale
 
     mock_media = MagicMock()
     mock_media.QSoundEffect = MagicMock()
