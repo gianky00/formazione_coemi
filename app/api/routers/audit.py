@@ -1,7 +1,7 @@
 from typing import Any, List, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, Body, HTTPException, Request
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from app.db.session import get_db
@@ -10,7 +10,8 @@ from app.db.models import AuditLog, User as UserModel
 from app.schemas.schemas import AuditLogSchema
 from app.utils.audit import log_security_action
 import pandas as pd
-from io import BytesIO
+import csv
+import io
 
 router = APIRouter()
 
@@ -26,39 +27,52 @@ def read_audit_categories(
     # Flatten list of tuples
     return sorted([c[0] for c in categories if c[0]])
 
-@router.get("/export", response_class=Response)
+@router.get("/export", response_class=StreamingResponse)
 def export_audit_logs(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_admin),
 ) -> Any:
     """
-    Export all audit logs as CSV.
+    Export all audit logs as CSV via streaming to prevent OOM.
     """
-    query = db.query(AuditLog).order_by(AuditLog.timestamp.desc())
-    logs = query.all()
-
-    data = []
-    for log in logs:
-        data.append({
-            "Timestamp": log.timestamp.isoformat() if log.timestamp else "",
-            "Category": log.category,
-            "Action": log.action,
-            "User": log.username or (f"ID {log.user_id}" if log.user_id else "System"),
-            "Details": log.details,
-            "IP Address": log.ip_address,
-            "Severity": log.severity,
-            "Device ID": log.device_id
-        })
-
-    df = pd.DataFrame(data)
-    output = BytesIO()
-    # UTF-8 with BOM for Excel compatibility
-    df.to_csv(output, index=False, encoding='utf-8-sig', sep=';')
-
     filename = f"audit_logs_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
 
-    return Response(
-        content=output.getvalue(),
+    def iter_logs():
+        # BOM for Excel compatibility
+        yield '\ufeff'
+
+        # Buffer for writing CSV rows
+        output = io.StringIO()
+        writer = csv.writer(output, delimiter=';', quoting=csv.QUOTE_MINIMAL)
+
+        # Write Header
+        writer.writerow(["Timestamp", "Category", "Action", "User", "Details", "IP Address", "Severity", "Device ID"])
+        yield output.getvalue()
+        output.seek(0)
+        output.truncate(0)
+
+        # Query with yield_per to fetch in chunks from DB cursor
+        # This prevents loading all objects into RAM
+        query = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).yield_per(1000)
+
+        for log in query:
+            user_str = log.username or (f"ID {log.user_id}" if log.user_id else "System")
+            writer.writerow([
+                log.timestamp.isoformat() if log.timestamp else "",
+                log.category,
+                log.action,
+                user_str,
+                log.details,
+                log.ip_address,
+                log.severity,
+                log.device_id
+            ])
+            yield output.getvalue()
+            output.seek(0)
+            output.truncate(0)
+
+    return StreamingResponse(
+        iter_logs(),
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )

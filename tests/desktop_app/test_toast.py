@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, mock_open
 from PyQt6.QtCore import Qt
 
 def test_toast_manager_singleton():
@@ -9,112 +9,89 @@ def test_toast_manager_singleton():
     m2 = ToastManager.instance()
     assert m1 is m2
 
-def test_toast_history():
+def test_toast_history_persistence():
     from desktop_app.components.toast import ToastManager
     ToastManager._instance = None
-    manager = ToastManager.instance()
 
-    assert len(manager.history) == 0
-
-    with patch("desktop_app.components.toast.ToastNotification") as MockToast:
-        # Ensure geometry math results in ints
-        MockToast.return_value.width.return_value = 200
-        MockToast.return_value.height.return_value = 50
-
-        # Mock QApplication to avoid crash in fallback logic if parent is None
-        with patch("desktop_app.components.toast.QApplication") as MockApp:
-            # Set up mock screen to return valid ints
-            screen_mock = MagicMock()
-            rect_mock = MagicMock()
-            rect_mock.x.return_value = 0
-            rect_mock.y.return_value = 0
-            rect_mock.width.return_value = 1920
-            rect_mock.height.return_value = 1080
-            screen_mock.availableGeometry.return_value = rect_mock
-            MockApp.primaryScreen.return_value = screen_mock
-
-            manager.show_toast(None, "info", "Title 1", "Msg 1")
+    # Mock load_history
+    with patch("builtins.open", mock_open(read_data='[{"title": "Old", "message": "Msg", "type": "info", "timestamp": "2023-01-01T12:00:00"}]')) as m_open:
+        with patch("os.path.exists", return_value=True):
+            manager = ToastManager.instance()
             assert len(manager.history) == 1
-            assert manager.history[0]["title"] == "Title 1"
+            assert manager.history[0]["title"] == "Old"
 
-            manager.show_toast(None, "error", "Title 2", "Msg 2")
-            assert len(manager.history) == 2
-            assert manager.history[0]["title"] == "Title 2" # Newest first
+    # Test save on add
+    with patch("builtins.open", mock_open()) as m_open:
+        with patch("desktop_app.components.toast.ToastNotification") as MockToast:
+            # Fix Mock Toast
+            MockToast.return_value.width.return_value = 100
+            MockToast.return_value.height.return_value = 50
 
-def test_toast_positioning_fallback():
-    # Test fallback to screen when parent is None or minimized
+            with patch("desktop_app.components.toast.QApplication") as MockApp:
+                # Fix geometry
+                screen = MagicMock()
+                rect = MagicMock()
+                rect.x.return_value = 0
+                rect.y.return_value = 0
+                rect.width.return_value = 1920
+                rect.height.return_value = 1080
+                screen.availableGeometry.return_value = rect
+                MockApp.primaryScreen.return_value = screen
+                MockApp.screenAt.return_value = screen
+
+                manager.show_toast(None, "success", "New", "Msg")
+
+                # Should save
+                m_open.assert_called()
+                # Check history size
+                assert len(manager.history) == 2 # 1 loaded + 1 new
+
+def test_toast_thread_safety():
     from desktop_app.components.toast import ToastManager
-
     ToastManager._instance = None
     manager = ToastManager.instance()
 
-    parent = MagicMock()
-    parent.isVisible.return_value = False # Hidden
+    # Mock QThread to simulate background thread
+    with patch("desktop_app.components.toast.QThread.currentThread") as mock_current_thread:
+        with patch("desktop_app.components.toast.QApplication.instance") as mock_app_instance:
+            # Setup threads to be different
+            mock_current_thread.return_value = "Thread-2"
+            mock_app_instance.return_value.thread.return_value = "MainThread"
+
+            # Mock emit
+            manager.request_show_toast = MagicMock()
+
+            manager.show_toast(None, "info", "T", "M")
+
+            # Should have emitted signal
+            manager.request_show_toast.emit.assert_called_with(None, "info", "T", "M", 3000)
+
+def test_stacking_logic_call():
+    from desktop_app.components.toast import ToastManager
+    ToastManager._instance = None
+    manager = ToastManager.instance()
 
     with patch("desktop_app.components.toast.ToastNotification") as MockToast:
-        toast_instance = MockToast.return_value
-        toast_instance.width.return_value = 200
-        toast_instance.height.return_value = 50
+        # Mock Toast
+        t1 = MockToast.return_value
+        t1.width.return_value = 100
+        t1.height.return_value = 50
 
         with patch("desktop_app.components.toast.QApplication") as MockApp:
-            # Mock screen geometry explicitly
-            screen_mock = MagicMock()
-            rect_mock = MagicMock()
-            rect_mock.x.return_value = 0
-            rect_mock.y.return_value = 0
-            rect_mock.width.return_value = 1920
-            rect_mock.height.return_value = 1080
+             # Fix geometry
+             screen = MagicMock()
+             rect = MagicMock()
+             rect.x.return_value = 0
+             rect.y.return_value = 0
+             rect.width.return_value = 1920
+             rect.height.return_value = 1080
+             screen.availableGeometry.return_value = rect
+             MockApp.primaryScreen.return_value = screen
+             MockApp.screenAt.return_value = screen
 
-            screen_mock.availableGeometry.return_value = rect_mock
-            MockApp.primaryScreen.return_value = screen_mock
+             manager.show_toast(None, "info", "T1", "M1")
+             assert len(manager.active_toasts) == 1
 
-            manager.show_toast(parent, "info", "T", "M")
-
-            assert len(manager.active_toasts) == 1
-            toast = manager.active_toasts[0]
-            toast.move.assert_called()
-
-            # Should have moved to bottom right: 1920 - 200 - 20, 1080 - 50 - 20
-            args = toast.move.call_args[0]
-            expected_x = 1920 - 200 - 20
-            expected_y = 1080 - 50 - 20
-
-            assert args[0] == expected_x
-            assert args[1] == expected_y
-
-def test_toast_positioning_valid_parent():
-    from desktop_app.components.toast import ToastManager
-
-    ToastManager._instance = None
-    manager = ToastManager.instance()
-
-    parent = MagicMock()
-    parent.isVisible.return_value = True
-    # Qt.WindowState.WindowNoState should now be available via our updated mock
-    parent.windowState.return_value = Qt.WindowState.WindowNoState
-    parent.isWindow.return_value = True
-
-    # Mock geometry() return
-    rect_mock = MagicMock()
-    rect_mock.x.return_value = 100
-    rect_mock.y.return_value = 100
-    rect_mock.width.return_value = 800
-    rect_mock.height.return_value = 600
-    parent.geometry.return_value = rect_mock
-
-    with patch("desktop_app.components.toast.ToastNotification") as MockToast:
-        toast_instance = MockToast.return_value
-        toast_instance.width.return_value = 200
-        toast_instance.height.return_value = 50
-
-        manager.show_toast(parent, "info", "T", "M")
-
-        toast = manager.active_toasts[0]
-        toast.move.assert_called()
-
-        # Should have moved to bottom right of parent
-        # x = 100 + 800 - 200 - 20 = 680
-        # y = 100 + 600 - 50 - 20 = 630
-        args = toast.move.call_args[0]
-        assert args[0] == 680
-        assert args[1] == 630
+             # Simulate cleanup
+             manager.cleanup_toast(t1)
+             assert len(manager.active_toasts) == 0

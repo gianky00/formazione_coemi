@@ -133,10 +133,15 @@ Se il documento è VALIDO, estrai le seguenti informazioni:
 JSON:
 """
 
+# Bug 10 Fix: Robust Retry Policy
 @retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=2, min=2, max=10),
-    retry=retry_if_exception_type(exceptions.ResourceExhausted),
+    stop=stop_after_attempt(6), # Increased attempts
+    wait=wait_exponential(multiplier=2, min=5, max=60), # Wait up to 60s
+    retry=retry_if_exception_type((
+        exceptions.ResourceExhausted,
+        exceptions.ServiceUnavailable,
+        exceptions.InternalServerError
+    )),
     reraise=True
 )
 def _generate_content_with_retry(model, pdf_file_part, prompt):
@@ -188,7 +193,10 @@ def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
 
     except exceptions.ResourceExhausted as e:
         logging.error(f"Max retries reached for ResourceExhausted. Error: {e}")
-        return {"error": f"AI call failed: {e}", "status_code": 429}
+        return {"error": f"AI call failed (Quota/Limit): {e}", "status_code": 429}
+    except (exceptions.ServiceUnavailable, exceptions.InternalServerError) as e:
+        logging.error(f"Max retries reached for Service Error. Error: {e}")
+        return {"error": f"AI service unavailable: {e}"}
     except json.JSONDecodeError as e:
         logging.error(f"Error parsing JSON from AI response: {e}. AI response: {response.text}")
         return {"error": f"Invalid JSON from AI: {e}"}

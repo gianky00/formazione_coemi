@@ -10,7 +10,7 @@ from app.db.session import get_db
 from app.db.models import Corso, Certificato, ValidationStatus, Dipendente, User as UserModel
 from app.services import ai_extraction, certificate_logic, matcher
 from app.services.document_locator import find_document, construct_certificate_path
-from app.services.sync_service import archive_certificate_file, link_orphaned_certificates
+from app.services.sync_service import archive_certificate_file, link_orphaned_certificates, get_unique_filename
 from app.core.config import settings, get_user_data_dir
 from app.utils.date_parser import parse_date_flexible
 from app.utils.file_security import verify_file_signature
@@ -451,7 +451,14 @@ def update_certificato(
                     new_file_path = construct_certificate_path(database_path, new_cert_data, status=target_status)
 
                     if old_file_path != new_file_path:
-                        os.makedirs(os.path.dirname(new_file_path), exist_ok=True)
+                        # Bug 5 Fix: Prevent Overwrite
+                        dest_dir = os.path.dirname(new_file_path)
+                        os.makedirs(dest_dir, exist_ok=True)
+
+                        filename = os.path.basename(new_file_path)
+                        unique_filename = get_unique_filename(dest_dir, filename)
+                        new_file_path = os.path.join(dest_dir, unique_filename)
+
                         shutil.move(old_file_path, new_file_path)
                         file_moved = True
     except PermissionError:
@@ -706,7 +713,7 @@ async def import_dipendenti_csv(
     if linked_count > 0:
         db.commit()
 
-    log_security_action(db, current_user, "DIPENDENTI_IMPORT", f"Importato CSV: {file.filename}. Orfani collegati: {linked_count}", category="DATA")
+    log_security_action(db, current_user, "DIPENDENTE_CREATE", f"Importato CSV: {file.filename}. Orfani collegati: {linked_count}", category="DATA")
 
     return {
         "message": f"Importazione completata con successo. {linked_count} certificati orfani collegati.",

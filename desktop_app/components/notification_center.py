@@ -2,6 +2,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QScrollArea,
                              QPushButton, QHBoxLayout, QFrame, QSizePolicy)
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter, QBrush
+from datetime import datetime
 
 from .toast import ToastManager
 from ..utils import load_colored_icon
@@ -10,6 +11,7 @@ class NotificationItem(QFrame):
     def __init__(self, data, parent=None):
         super().__init__(parent)
         self.setObjectName("notification_item")
+        self.data = data # Store for smart refresh comparison
 
         # Styles
         colors = {
@@ -70,8 +72,19 @@ class NotificationItem(QFrame):
 
         header_layout.addStretch()
 
-        ts = data.get("timestamp")
-        time_str = ts.strftime("%H:%M") if ts else ""
+        ts_str = data.get("timestamp")
+        time_str = ""
+        if ts_str:
+            try:
+                if isinstance(ts_str, str):
+                    dt = datetime.fromisoformat(ts_str)
+                    # Convert to local time for display
+                    time_str = dt.astimezone().strftime("%H:%M")
+                elif isinstance(ts_str, datetime):
+                    time_str = ts_str.strftime("%H:%M")
+            except:
+                pass
+
         time_lbl = QLabel(time_str)
         time_lbl.setObjectName("time")
         header_layout.addWidget(time_lbl)
@@ -156,36 +169,64 @@ class NotificationCenter(QWidget):
         self.empty_label = QLabel("Nessuna notifica")
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.empty_label.setStyleSheet("color: #9CA3AF; margin-top: 20px; border: none; background: transparent;")
-        self.container_layout.addWidget(self.empty_label)
-        self.empty_label.hide()
 
         # Connect to manager
         ToastManager.instance().history_updated.connect(self.refresh)
 
         self.refresh()
 
-    def refresh(self):
-        # Clear existing
+    def clear_layout(self):
         while self.container_layout.count():
             item = self.container_layout.takeAt(0)
             widget = item.widget()
             if widget:
                 widget.deleteLater()
 
+    def refresh(self):
+        # Bug 9: Smart Scroll / Refresh
         history = ToastManager.instance().history
 
         if not history:
+            self.clear_layout()
             self.container_layout.addWidget(self.empty_label)
             self.empty_label.show()
             return
 
-        self.empty_label.hide()
-        for data in history:
-            item = NotificationItem(data)
-            self.container_layout.addWidget(item)
+        # Ensure empty label is removed
+        if self.empty_label.parent() == self.container:
+             self.empty_label.setParent(None)
+             self.container_layout.removeWidget(self.empty_label)
+             self.empty_label.hide()
+
+        # Update items
+        for i, data in enumerate(history):
+            # Get existing widget at this index
+            # Note: layout itemAt includes spacers if any, but we only add widgets.
+            item = self.container_layout.itemAt(i)
+            widget = item.widget() if item else None
+
+            # Check if match
+            if isinstance(widget, NotificationItem) and widget.data == data:
+                continue
+
+            # If mismatch or missing, insert new
+            # If there was a widget here but it didn't match, we insert BEFORE it?
+            # Or we assume history insertion order is consistent.
+            # History is [Newest, ..., Oldest].
+            # If we inserted a new item at 0, everything shifts down.
+
+            new_item = NotificationItem(data)
+            self.container_layout.insertWidget(i, new_item)
+
+        # Remove excess
+        while self.container_layout.count() > len(history):
+            item = self.container_layout.takeAt(len(history))
+            if item.widget():
+                item.widget().deleteLater()
 
     def clear_all(self):
         ToastManager.instance().history.clear()
+        ToastManager.instance().save_history() # Ensure clear is persisted
         ToastManager.instance().history_updated.emit()
 
     def paintEvent(self, event):

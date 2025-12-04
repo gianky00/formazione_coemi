@@ -111,10 +111,13 @@ class DummyEnum:
         FramelessWindowHint = 0
         Tool = 0
         WindowStaysOnTopHint = 0
+        Dialog = 0
+        SubWindow = 0
 
     class WidgetAttribute:
         WA_TranslucentBackground = 0
         WA_ShowWithoutActivating = 0
+        WA_DeleteOnClose = 0
 
     class BrushStyle:
         NoBrush = 0
@@ -467,6 +470,9 @@ class DummyQWidget(DummyQObject):
 
     def parent(self):
         return None
+
+    def window(self):
+        return self
 
     # Signals
     @builtins.property
@@ -821,6 +827,10 @@ def mock_qt_modules():
         def wait(self): pass
         def isRunning(self): return False
         def run(self): pass
+
+        @staticmethod
+        def currentThread():
+            return "MainThread"
 
     mock_core.QThread = DummyQThread
     mock_core.QRunnable = MagicMock

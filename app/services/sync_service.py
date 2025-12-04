@@ -53,6 +53,24 @@ def clean_all_empty_folders(root_path):
 
     logging.info(f"Cleaned {removed_count} empty folders.")
 
+def get_unique_filename(directory, filename):
+    """
+    Generates a unique filename if the target already exists to prevent overwrites.
+    Appends _1, _2, etc.
+    """
+    if not os.path.exists(os.path.join(directory, filename)):
+        return filename
+
+    name, ext = os.path.splitext(filename)
+    counter = 1
+    new_filename = f"{name}_{counter}{ext}"
+
+    while os.path.exists(os.path.join(directory, new_filename)):
+        counter += 1
+        new_filename = f"{name}_{counter}{ext}"
+
+    return new_filename
+
 def archive_certificate_file(db: Session, cert: Certificato) -> bool:
     """
     Moves a certificate's file to the STORICO folder.
@@ -79,10 +97,17 @@ def archive_certificate_file(db: Session, cert: Certificato) -> bool:
 
         if os.path.normpath(current_path) != os.path.normpath(expected_path):
             try:
-                os.makedirs(os.path.dirname(expected_path), exist_ok=True)
-                shutil.move(current_path, expected_path)
+                dest_dir = os.path.dirname(expected_path)
+                os.makedirs(dest_dir, exist_ok=True)
+
+                # Prevent overwrite
+                filename = os.path.basename(expected_path)
+                unique_filename = get_unique_filename(dest_dir, filename)
+                final_path = os.path.join(dest_dir, unique_filename)
+
+                shutil.move(current_path, final_path)
                 remove_empty_folders(os.path.dirname(current_path))
-                logging.info(f"Archived file to: {expected_path}")
+                logging.info(f"Archived file to: {final_path}")
                 return True
             except Exception as e:
                 logging.error(f"Failed to archive file for cert {cert.id}: {e}")
@@ -138,8 +163,14 @@ def link_orphaned_certificates(db: Session, dipendente: Dipendente) -> int:
                         new_path = construct_certificate_path(database_path, new_cert_data, status=target_status)
 
                         if old_path != new_path:
-                            os.makedirs(os.path.dirname(new_path), exist_ok=True)
-                            shutil.move(old_path, new_path)
+                            dest_dir = os.path.dirname(new_path)
+                            os.makedirs(dest_dir, exist_ok=True)
+
+                            filename = os.path.basename(new_path)
+                            unique_filename = get_unique_filename(dest_dir, filename)
+                            final_path = os.path.join(dest_dir, unique_filename)
+
+                            shutil.move(old_path, final_path)
                             remove_empty_folders(os.path.dirname(old_path))
                 except Exception as e:
                     logging.error(f"Error moving linked orphan file: {e}")
@@ -185,8 +216,14 @@ def synchronize_all_files(db: Session):
         if current_path and os.path.exists(current_path):
             if os.path.normpath(current_path) != os.path.normpath(expected_path):
                 try:
-                    os.makedirs(os.path.dirname(expected_path), exist_ok=True)
-                    shutil.move(current_path, expected_path)
+                    dest_dir = os.path.dirname(expected_path)
+                    os.makedirs(dest_dir, exist_ok=True)
+
+                    filename = os.path.basename(expected_path)
+                    unique_filename = get_unique_filename(dest_dir, filename)
+                    final_path = os.path.join(dest_dir, unique_filename)
+
+                    shutil.move(current_path, final_path)
                     moved += 1
                     remove_empty_folders(os.path.dirname(current_path))
                 except Exception as e:
