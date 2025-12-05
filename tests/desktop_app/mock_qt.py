@@ -78,10 +78,22 @@ class DummyEnum:
     white = 3
     WindowNoState = 0
     WindowMinimized = 1
+    NoFrame = 0
+
+    class Orientation:
+        Horizontal = 1
+        Vertical = 2
+
+    class ContextMenuPolicy:
+        CustomContextMenu = 1
 
     class WindowState:
         WindowNoState = 0
         WindowMinimized = 1
+
+    class Shape:
+        NoFrame = 0
+        HLine = 1
 
     class GlobalColor:
         transparent = 0
@@ -118,6 +130,7 @@ class DummyEnum:
         WA_TranslucentBackground = 0
         WA_ShowWithoutActivating = 0
         WA_DeleteOnClose = 0
+        WA_TransparentForMouseEvents = 0
 
     class BrushStyle:
         NoBrush = 0
@@ -222,18 +235,30 @@ class DummyQWidget(DummyQObject):
         pass
     def setVisible(self, visible):
         pass
+    def isVisible(self):
+        return True
+    def blockSignals(self, block):
+        return False
+    def setUpdatesEnabled(self, enable):
+        pass
     def setWindowTitle(self, title):
         pass
     def setWindowFlags(self, flags):
         pass
     def windowFlags(self):
         return 0
+    def windowState(self):
+        return DummyEnum.WindowNoState
+    def isWindow(self):
+        return False
     def setAttribute(self, attr, on=True):
         pass
     def raise_(self):
         pass
     def resize(self, *args):
         pass
+    def size(self):
+        return MagicMock()
     def setGeometry(self, *args):
         pass
     def geometry(self):
@@ -246,8 +271,12 @@ class DummyQWidget(DummyQObject):
         pass
     def setFixedWidth(self, width):
         pass
+    def width(self):
+        return 100
     def setFixedHeight(self, height):
         pass
+    def height(self):
+        return 100
     def setFixedSize(self, w, h):
         pass
     def setMinimumWidth(self, width):
@@ -348,7 +377,7 @@ class DummyQWidget(DummyQObject):
     def selectionModel(self):
         m = MagicMock()
         m.hasSelection.return_value = True
-        m.selectedRows.return_value = [1]
+        m.selectedRows.return_value = [DummyQModelIndex(0, 0)]
         m.selectionChanged = DummySignal()
         return m
     def setCurrentIndex(self, index):
@@ -834,10 +863,43 @@ def mock_qt_modules():
 
     mock_core.QThread = DummyQThread
     mock_core.QRunnable = MagicMock
-    mock_core.QPoint = MagicMock()
-    mock_core.QPointF = MagicMock()
-    mock_core.QRect = MagicMock()
-    mock_core.QRectF = MagicMock()
+
+    class DummyQPoint:
+        def __init__(self, x=0, y=0):
+            self._x = x
+            self._y = y
+        def x(self): return self._x
+        def y(self): return self._y
+
+    class DummyQRect:
+        def __init__(self, x=0, y=0, w=0, h=0):
+            if hasattr(x, 'x') and hasattr(x, 'y'): # QRect(QPoint top_left, QSize size)
+                self._x = x.x()
+                self._y = x.y()
+                # y is size (MagicMock)
+                self._w = 100
+                self._h = 100
+                if hasattr(y, 'width'):
+                    try: self._w = int(y.width())
+                    except: pass
+                if hasattr(y, 'height'):
+                    try: self._h = int(y.height())
+                    except: pass
+            else:
+                self._x = x
+                self._y = y
+                self._w = w
+                self._h = h
+        def x(self): return self._x
+        def y(self): return self._y
+        def width(self): return self._w
+        def height(self): return self._h
+        def contains(self, *args): return False
+
+    mock_core.QPoint = DummyQPoint
+    mock_core.QPointF = DummyQPoint
+    mock_core.QRect = DummyQRect
+    mock_core.QRectF = DummyQRect
     mock_core.QVariantAnimation = MagicMock()
     mock_core.QParallelAnimationGroup = MagicMock()
     mock_core.QUrl = MagicMock()

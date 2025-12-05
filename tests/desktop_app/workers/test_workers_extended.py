@@ -28,7 +28,8 @@ class TestWorkersExtended:
             mock_put.assert_called_with(
                 "http://api/certificati/1",
                 json={"data": "val"},
-                headers={}
+                headers={},
+                timeout=30
             )
             worker.signals.result.emit.assert_called_with(True)
             worker.signals.finished.emit.assert_called()

@@ -131,12 +131,12 @@ def test_send_manual_alert(scadenzario_view):
 
 def test_send_manual_alert_success_handling(scadenzario_view):
     """Test handling of email sent success signal."""
-    with patch("desktop_app.views.scadenzario_view.CustomMessageDialog.show_info") as mock_info:
+    with patch("desktop_app.views.scadenzario_view.ToastManager.success") as mock_success:
         mock_response = MagicMock()
         mock_response.status_code = 200
 
         scadenzario_view._on_email_sent(mock_response)
-        mock_info.assert_called_with(scadenzario_view, "Successo", ANY)
+        mock_success.assert_called_with("Successo", ANY, scadenzario_view.window())
 
 def test_zoom_levels(scadenzario_view):
     """Test zoom level changes."""

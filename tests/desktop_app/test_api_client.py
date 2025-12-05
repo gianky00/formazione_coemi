@@ -28,7 +28,8 @@ def test_import_dipendenti_csv_success(mock_post):
     file_content = b"some,csv,data"
 
     with patch("builtins.open", mock_open(read_data=file_content)) as mock_file:
-        result = client.import_dipendenti_csv("path/to/file.csv")
+        with patch("os.path.getsize", return_value=1024):
+            result = client.import_dipendenti_csv("path/to/file.csv")
 
         assert result == {"message": "Success"}
         mock_post.assert_called_once()
@@ -51,5 +52,6 @@ def test_import_dipendenti_csv_failure(mock_post):
     client = APIClient()
 
     with patch("builtins.open", mock_open(read_data=b"data")):
-        with pytest.raises(requests.exceptions.HTTPError):
-            client.import_dipendenti_csv("path/to/file.csv")
+        with patch("os.path.getsize", return_value=1024):
+            with pytest.raises(requests.exceptions.HTTPError):
+                client.import_dipendenti_csv("path/to/file.csv")
