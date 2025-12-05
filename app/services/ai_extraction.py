@@ -1,6 +1,7 @@
 import google.generativeai as genai
 import logging
 import json
+import re
 import threading
 from google.api_core import exceptions
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -171,7 +172,20 @@ def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
         # Call the decorated function
         response = _generate_content_with_retry(model, pdf_file_part, prompt)
 
-        json_text = response.text.strip().replace("```json", "").replace("```", "")
+        # Bug 1 Fix: Robust JSON extraction using regex
+        text_response = response.text.strip()
+        match = re.search(r'```json\s*(\{.*?\})\s*```', text_response, re.DOTALL)
+        if match:
+             json_text = match.group(1)
+        else:
+             # Fallback: try to find the first { and last }
+             match_loose = re.search(r'(\{.*\})', text_response, re.DOTALL)
+             if match_loose:
+                 json_text = match_loose.group(1)
+             else:
+                 # Last resort: simple replace
+                 json_text = text_response.replace("```json", "").replace("```", "")
+
         data = json.loads(json_text)
 
         if isinstance(data, list):

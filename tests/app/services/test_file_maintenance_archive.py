@@ -1,38 +1,45 @@
 import pytest
 import os
-import shutil
 from unittest.mock import MagicMock, patch
 from app.services import file_maintenance
-from app.db.models import Certificato, Dipendente, Corso
+from app.db.models import Certificato, Dipendente, Corso, AuditLog
 from datetime import date, timedelta
 
-def test_organize_expired_files_does_not_move_archived():
+def test_organize_expired_files_moves_archived():
     # Setup Data
     dip = Dipendente(nome="Mario", cognome="Rossi", matricola="123")
     corso = Corso(categoria_corso="SICUREZZA")
     cert = Certificato(dipendente=dip, corso=corso, data_scadenza_calcolata=date.today() - timedelta(days=1))
 
     mock_db_session = MagicMock()
-    mock_db_session.query.return_value.filter.return_value.all.return_value = [cert]
 
-    # Use OS-specific paths
+    def query_side_effect(model):
+        if model == AuditLog:
+            mock_query = MagicMock()
+            mock_query.filter.return_value.first.return_value = None
+            return mock_query
+        elif model == Certificato:
+            mock_query = MagicMock()
+            mock_query.filter.return_value.all.return_value = [cert]
+            return mock_query
+        return MagicMock()
+
+    mock_db_session.query.side_effect = query_side_effect
+
     base_path = os.path.join("mock", "db", "path")
-    src_path = os.path.join(base_path, "DOCUMENTI DIPENDENTI", "Mario Rossi (123)", "SICUREZZA", "ATTIVO", "file.pdf")
-    dst_path = os.path.join(base_path, "DOCUMENTI DIPENDENTI", "Mario Rossi (123)", "SICUREZZA", "STORICO", "file.pdf")
 
     # Mocks
     with patch("app.services.file_maintenance.settings") as mock_settings, \
          patch("app.services.file_maintenance.certificate_logic.get_certificate_status", return_value="archiviato"), \
-         patch("app.services.file_maintenance.find_document", return_value=src_path), \
-         patch("os.path.exists", return_value=True), \
-         patch("os.path.isfile", return_value=True), \
-         patch("shutil.move") as mock_move:
+         patch("app.services.file_maintenance.archive_certificate_file", return_value=True) as mock_archive_func, \
+         patch("app.services.file_maintenance.scan_and_archive_orphans", return_value=0), \
+         patch("app.services.file_maintenance.clean_all_empty_folders"), \
+         patch("app.services.file_maintenance.cleanup_audit_logs"), \
+         patch("os.path.exists", return_value=True): # Fix: Mock existence of database path
 
          mock_settings.DATABASE_PATH = base_path
 
          file_maintenance.organize_expired_files(mock_db_session)
 
-         # THIS SHOULD FAIL if the bug exists (it won't move because status is 'archiviato', not 'scaduto')
-         # If existing logic only checks "scaduto", mock_move will NOT be called.
-         # We assert it IS called to demonstrate the desired behavior (and thus fail now).
-         mock_move.assert_called_with(src_path, dst_path)
+         # Assert that archive_certificate_file was called with the certificate
+         mock_archive_func.assert_called_with(mock_db_session, cert)

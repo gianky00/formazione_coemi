@@ -76,7 +76,10 @@ def load_colored_icon(icon_name, color_hex):
 
     except Exception as e:
         print(f"Error loading icon {icon_name}: {e}")
-        return QIcon(path) # Fallback
+        # Bug 5 Fix: Return empty QIcon if path is bad, avoiding crashes with invalid paths
+        if os.path.exists(path):
+             return QIcon(path)
+        return QIcon()
 
 def clean_text_for_display(text: str) -> str:
     """
