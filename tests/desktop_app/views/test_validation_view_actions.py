@@ -53,6 +53,9 @@ def test_load_data_error(validation_view):
 
 def test_validate_selected(validation_view):
     """Test validating selected rows."""
+    # Ensure view is not read-only
+    validation_view.is_read_only = False
+
     # Mock selection
     validation_view.get_selected_ids = MagicMock(return_value=["1", "2"])
 
@@ -76,10 +79,12 @@ def test_validate_selected(validation_view):
         validation_view._on_action_completed({"success": 2, "errors": []}, "validate")
 
         # Should reload data
-        validation_view.threadpool.start.assert_called() # Called again for reload
+        # Check that start was called at least once more (total > 1)
+        assert validation_view.threadpool.start.call_count > 1
 
 def test_delete_selected(validation_view):
     """Test deleting selected rows."""
+    validation_view.is_read_only = False
     validation_view.get_selected_ids = MagicMock(return_value=["1"])
 
     with patch("desktop_app.views.validation_view.CustomMessageDialog.show_question", return_value=True), \
@@ -106,7 +111,7 @@ def test_edit_data_success(validation_view):
          patch("desktop_app.views.validation_view.EditCertificatoDialog") as MockDialog:
 
         # Setup Get
-        mock_get.return_value.json.return_value = {"id": 1, "nome": "ROSSI MARIO"}
+        mock_get.return_value.json.return_value = {"id": 1, "nome": "ROSSI MARIO", "corso": "CORSO TEST"}
         mock_get.return_value.raise_for_status = MagicMock()
 
         # Setup Dialog

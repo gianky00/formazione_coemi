@@ -896,6 +896,13 @@ def mock_qt_modules():
         def height(self): return self._h
         def contains(self, *args): return False
 
+        def translated(self, x, y):
+            if hasattr(x, 'x') and hasattr(x, 'y'):
+                dx, dy = x.x(), x.y()
+            else:
+                dx, dy = x, y
+            return DummyQRect(self._x + dx, self._y + dy, self._w, self._h)
+
     mock_core.QPoint = DummyQPoint
     mock_core.QPointF = DummyQPoint
     mock_core.QRect = DummyQRect
