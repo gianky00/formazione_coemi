@@ -160,6 +160,40 @@ def _generate_content_with_retry(model, pdf_file_part, prompt):
         genai.configure(api_key=settings.GEMINI_API_KEY_ANALYSIS)
         return model.generate_content([pdf_file_part, prompt])
 
+def _extract_json_block(text: str) -> str:
+    """
+    Robustly extracts the first valid JSON block from text, handling nested structures.
+    Bug 2 & 9 Fix: Handles list/object and nested braces correctly.
+    """
+    text = text.strip()
+    
+    # Fast path: checks if wrapped in markdown
+    match = re.search(r'```json\s*(.*?)```', text, re.DOTALL)
+    if match:
+        text = match.group(1).strip()
+    
+    # Simple heuristic: find first { or [
+    start_idx = -1
+    stack = []
+    
+    for i, char in enumerate(text):
+        if char == '{' or char == '[':
+            if start_idx == -1:
+                start_idx = i
+            stack.append(char)
+        elif char == '}' or char == ']':
+            if stack:
+                last = stack[-1]
+                if (last == '{' and char == '}') or (last == '[' and char == ']'):
+                    stack.pop()
+                    if not stack and start_idx != -1:
+                        # Found complete block
+                        return text[start_idx:i+1]
+    
+    # Fallback if stack method fails (e.g. unbalanced or simple string)
+    # We return the original text stripped, hoping json.loads handles it or throws specific error
+    return text
+
 def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
     model = get_gemini_model()
     if model is None:
@@ -174,24 +208,21 @@ def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
 
         # Bug 1 Fix: Robust JSON extraction using regex
         text_response = response.text.strip()
-        match = re.search(r'```json\s*(\{.*?\})\s*```', text_response, re.DOTALL)
-        if match:
-             json_text = match.group(1)
-        else:
-             # Fallback: try to find the first { and last }
-             match_loose = re.search(r'(\{.*\})', text_response, re.DOTALL)
-             if match_loose:
-                 json_text = match_loose.group(1)
-             else:
-                 # Last resort: simple replace
-                 json_text = text_response.replace("```json", "").replace("```", "")
+        
+        # Bug 2 & 9 Fix: Use robust stack-based extraction
+        json_text = _extract_json_block(text_response)
 
         data = json.loads(json_text)
 
         if isinstance(data, list):
             if not data:
                 raise ValueError("AI returned an empty list.")
-            data = data[0]
+            # Bug 2 Fix: Warn user if multiple certificates are found but only one is processed.
+            first_item = data[0]
+            if len(data) > 1:
+                logging.warning(f"AI returned {len(data)} items. Processing only the first one.")
+                first_item["warning"] = "multiple_certificates_found_check_file"
+            data = first_item
 
         # Handle Rejection
         if data.get("status") == "REJECT":
@@ -201,14 +232,18 @@ def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
 
         data.setdefault("categoria", "ALTRO")
 
-        # Aggiungiamo ATEX alle categorie valide consentite
-        valid_categories = list(CATEGORIE_STATICHE)
-        if "ATEX" not in valid_categories:
-            valid_categories.append("ATEX")
+        # Bug 10 Fix: Allow Dynamic Categories.
+        # Do not force unknown categories to "ALTRO". The system supports auto-creation.
+        # We still validate against ATEX as it's a known special case in seeding but not in static constant?
+        # Actually, if we allow dynamic, we don't need this block at all.
+        
+        # valid_categories = list(CATEGORIE_STATICHE)
+        # if "ATEX" not in valid_categories:
+        #     valid_categories.append("ATEX")
 
-        if data["categoria"] not in valid_categories:
-            logging.warning(f"Invalid category '{data['categoria']}'. Defaulting to 'ALTRO'.")
-            data["categoria"] = "ALTRO"
+        # if data["categoria"] not in valid_categories:
+        #     logging.warning(f"Invalid category '{data['categoria']}'. Defaulting to 'ALTRO'.")
+        #     data["categoria"] = "ALTRO"
 
         logging.info(f"Successfully extracted data: {data}")
         return data

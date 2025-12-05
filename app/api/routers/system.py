@@ -16,6 +16,7 @@ MAINTENANCE_RUNNING = False
 def run_maintenance_task():
     """
     Wrapper to run maintenance in a separate thread/session.
+    Bug Fix: Ensures own DB session is created for background task.
     """
     global MAINTENANCE_RUNNING
     if MAINTENANCE_RUNNING:
@@ -23,8 +24,8 @@ def run_maintenance_task():
         return
 
     MAINTENANCE_RUNNING = True
+    db = SessionLocal() # Create independent session
     try:
-        db = SessionLocal()
         logger.info("Starting background maintenance task...")
         organize_expired_files(db)
         logger.info("Background maintenance task completed.")
@@ -56,20 +57,22 @@ def get_lock_status():
     return {"read_only": db_security.is_read_only}
 
 @router.post("/optimize", dependencies=[Depends(deps.get_current_active_admin)])
-def optimize_system(db: Session = Depends(get_db)):
+def optimize_system(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """
     Triggers database optimization (VACUUM & ANALYZE) AND Mass File Synchronization.
+    Bug 8 Fix: Run synchronization in background to prevent HTTP timeout.
     """
     from app.core.db_security import db_security
     try:
+        # Optimization is fast enough to run sync
         db_security.optimize_database()
 
-        # Run Mass File Synchronization
-        sync_result = synchronize_all_files(db)
+        # Bug 8 Fix: Run Mass File Synchronization in background
+        background_tasks.add_task(run_maintenance_task)
 
         return {
-            "message": "Ottimizzazione database e sincronizzazione file completata.",
-            "sync_stats": sync_result
+            "message": "Ottimizzazione database completata. Sincronizzazione file avviata in background.",
+            "status": "background_task_started"
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Optimization failed: {e}")

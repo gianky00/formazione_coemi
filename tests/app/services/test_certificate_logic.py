@@ -24,6 +24,13 @@ def test_calculate_expiration_date_returns_date_object():
     # This assertion should fail before the fix because it will return a datetime object
     assert type(expiration_date) == date
 
+def test_calculate_expiration_none():
+    """
+    Bug 1: calculate_expiration_date crashes if issue_date is None.
+    Expectation: Return None.
+    """
+    assert calculate_expiration_date(None, 12) is None
+
 def test_get_certificate_status(db_session: Session):
     """
     Testa gli stati 'attivo' e 'scaduto'.

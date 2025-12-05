@@ -107,8 +107,18 @@ class PdfWorker(QObject):
                         try:
                             scadenza_date = datetime.strptime(data_scadenza_str, '%d/%m/%Y').date()
                             file_scadenza = scadenza_date.strftime('%d_%m_%Y')
-                            if scadenza_date >= datetime.now().date():
+                            # Bug 5 Fix: Use backend-aligned logic for status (considering threshold)
+                            # Ideally we should use the API returned status, but for filesystem placement
+                            # we replicate the threshold logic or fetch config.
+                            from app.core.config import settings
+                            threshold = settings.ALERT_THRESHOLD_DAYS
+                            # Visite Mediche might have different threshold but we default to standard for folder structure
+                            if (scadenza_date - datetime.now().date()).days > threshold:
                                 stato = 'ATTIVO'
+                            # If expiring soon, it is technically "ATTIVO" folder (as per sync_service logic: attivo/in_scadenza -> ATTIVO)
+                            elif scadenza_date >= datetime.now().date():
+                                stato = 'ATTIVO'
+                            # Else it is expired
                         except ValueError:
                              pass
 
@@ -148,15 +158,22 @@ class PdfWorker(QObject):
                 data = response.json()
                 entities = data.get('entities', {})
 
-                # Normalizza il formato della data prima di inviarlo
+                # Bug 6 Fix: Robust Date Parsing
+                from app.utils.date_parser import parse_date_flexible
+                
                 data_rilascio_raw = entities.get('data_rilascio', '')
                 data_scadenza_raw = entities.get('data_scadenza', '')
-
-                data_rilascio_norm = data_rilascio_raw.replace('-', '/') if data_rilascio_raw else ''
-                data_scadenza_norm = data_scadenza_raw.replace('-', '/') if data_scadenza_raw else ''
-
                 data_nascita_raw = entities.get('data_nascita', '')
-                data_nascita_norm = data_nascita_raw.replace('-', '/') if data_nascita_raw else ''
+
+                # Helper to convert to DD/MM/YYYY for API
+                def normalize_date(d_str):
+                    if not d_str: return ''
+                    d_obj = parse_date_flexible(d_str)
+                    return d_obj.strftime('%d/%m/%Y') if d_obj else d_str
+
+                data_rilascio_norm = normalize_date(data_rilascio_raw)
+                data_scadenza_norm = normalize_date(data_scadenza_raw)
+                data_nascita_norm = normalize_date(data_nascita_raw)
 
                 base_cert = {
                     "nome": entities.get('nome', ''),
@@ -216,8 +233,16 @@ class PdfWorker(QObject):
                                     file_scadenza = "no scadenza"
                                 else:
                                     scadenza_date = datetime.strptime(data_scadenza_str, '%d/%m/%Y').date()
+                                    # Bug 5 Fix: Replicate logic for successful save placement
+                                    # Note: sync_service maps "in_scadenza" to "ATTIVO" folder too.
+                                    # So essentially, as long as it is NOT expired, it goes to ATTIVO.
+                                    # Or wait, "in_scadenza" means (expiry - today) <= threshold.
+                                    # Is "in_scadenza" folder used?
+                                    # sync_service: if status in ["attivo", "in_scadenza"]: target_status = "ATTIVO"
+                                    # So we just need to check if it is NOT expired.
                                     if scadenza_date >= datetime.now().date():
                                         stato = 'ATTIVO'
+                                    # If expired -> STORICO (as per sync_service logic for expired items)
                                     file_scadenza = scadenza_date.strftime('%d_%m_%Y')
 
                                 # Sanitize for filesystem

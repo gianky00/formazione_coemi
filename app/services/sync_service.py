@@ -10,19 +10,27 @@ from app.utils.date_parser import parse_date_flexible
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def remove_empty_folders(path):
+def remove_empty_folders(path, root_path=None):
     """
     Recursively removes empty folders starting from the given path and moving upwards.
     Stops if a folder is not empty or if it reaches the database root.
     """
     if not os.path.isdir(path):
         return
+    
+    # Bug 7 Fix: Safety check to prevent deleting root DB folder
+    if root_path and os.path.normpath(path) == os.path.normpath(root_path):
+        return
+    
+    # Also hard stop at drive root or crazy short paths just in case
+    if len(path) < 4: 
+        return
 
     # Try to remove the leaf
     try:
         os.rmdir(path)
         # Recurse up
-        remove_empty_folders(os.path.dirname(path))
+        remove_empty_folders(os.path.dirname(path), root_path=root_path)
     except OSError:
         # Directory not empty or other error
         return
@@ -105,10 +113,14 @@ def archive_certificate_file(db: Session, cert: Certificato) -> bool:
                 unique_filename = get_unique_filename(dest_dir, filename)
                 final_path = os.path.join(dest_dir, unique_filename)
 
+                # Bug 4 Fix: Handle PermissionError (File Locked) gracefully
                 shutil.move(current_path, final_path)
-                remove_empty_folders(os.path.dirname(current_path))
+                remove_empty_folders(os.path.dirname(current_path), root_path=database_path)
                 logging.info(f"Archived file to: {final_path}")
                 return True
+            except PermissionError as e:
+                logging.warning(f"File locked, skipping archive for cert {cert.id}: {e}")
+                return False
             except Exception as e:
                 logging.error(f"Failed to archive file for cert {cert.id}: {e}")
     return False
@@ -170,8 +182,11 @@ def link_orphaned_certificates(db: Session, dipendente: Dipendente) -> int:
                             unique_filename = get_unique_filename(dest_dir, filename)
                             final_path = os.path.join(dest_dir, unique_filename)
 
+                            # Bug 4 Fix: Handle PermissionError
                             shutil.move(old_path, final_path)
-                            remove_empty_folders(os.path.dirname(old_path))
+                            remove_empty_folders(os.path.dirname(old_path), root_path=database_path)
+                except PermissionError as e:
+                    logging.warning(f"File locked, could not move orphan file: {e}")
                 except Exception as e:
                     logging.error(f"Error moving linked orphan file: {e}")
 
@@ -190,6 +205,9 @@ def synchronize_all_files(db: Session):
 
     certs = db.query(Certificato).options(selectinload(Certificato.dipendente), selectinload(Certificato.corso)).all()
 
+    # Bug 3 Fix: Bulk Status Calculation (Optimization)
+    status_map = certificate_logic.get_bulk_certificate_statuses(db, certs)
+
     moved = 0
     missing = 0
 
@@ -203,7 +221,7 @@ def synchronize_all_files(db: Session):
             'data_scadenza': cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else None
         }
 
-        status = certificate_logic.get_certificate_status(db, cert)
+        status = status_map.get(cert.id, "attivo")
 
         if status in ["attivo", "in_scadenza"]:
             target_status = "ATTIVO"
@@ -223,9 +241,12 @@ def synchronize_all_files(db: Session):
                     unique_filename = get_unique_filename(dest_dir, filename)
                     final_path = os.path.join(dest_dir, unique_filename)
 
+                    # Bug 4 Fix: Handle PermissionError
                     shutil.move(current_path, final_path)
                     moved += 1
-                    remove_empty_folders(os.path.dirname(current_path))
+                    remove_empty_folders(os.path.dirname(current_path), root_path=database_path)
+                except PermissionError as e:
+                    logging.warning(f"File locked, skipping sync for cert {cert.id}: {e}")
                 except Exception as e:
                     logging.error(f"Failed to sync file for cert {cert.id}: {e}")
         else:

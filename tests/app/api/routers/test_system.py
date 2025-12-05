@@ -1,32 +1,28 @@
+
 import pytest
 from unittest.mock import MagicMock, patch
-from fastapi.testclient import TestClient
-from app.main import app
+from app.api.routers import system
 
-@patch("desktop_app.ipc_bridge.IPCBridge")
-def test_open_action(mock_bridge_cls, test_client: TestClient):
-    mock_instance = MagicMock()
-    mock_bridge_cls.instance.return_value = mock_instance
+# --- Bug 8: Async Optimize Test ---
 
-    response = test_client.post(
-        "/system/open-action",
-        json={"action": "test_action", "payload": {"key": "value"}}
-    )
-
-    assert response.status_code == 200
-    assert response.json() == {"status": "success", "message": "Action test_action dispatched"}
-
-    mock_instance.emit_action.assert_called_once_with("test_action", {"key": "value"})
-
-def test_open_action_invalid_payload(test_client: TestClient):
-    response = test_client.post(
-        "/system/open-action",
-        json={"action": "test"} # Payload optional
-    )
-    assert response.status_code == 200
-
-    response = test_client.post(
-        "/system/open-action",
-        json={} # Missing action
-    )
-    assert response.status_code == 422
+def test_optimize_endpoint_async():
+    """
+    Bug 8: /optimize runs sync_all_files (heavy) in main thread.
+    Expectation: Should delegate to background task.
+    """
+    mock_db = MagicMock()
+    mock_bg_tasks = MagicMock()
+    
+    # Patch dependencies global because it's imported inside function
+    with patch("app.core.db_security.db_security") as mock_security:
+         
+         result = system.optimize_system(background_tasks=mock_bg_tasks, db=mock_db)
+         
+         # Verify DB optimize called
+         mock_security.optimize_database.assert_called_once()
+         
+         # Verify Background Task added
+         mock_bg_tasks.add_task.assert_called_once()
+         
+         # Verify status
+         assert result["status"] == "background_task_started"

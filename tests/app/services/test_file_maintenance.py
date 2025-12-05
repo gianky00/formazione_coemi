@@ -41,11 +41,25 @@ def test_organize_expired_files_move_success(mock_settings, mock_db_session):
 
     # Mocks
     with patch("app.services.file_maintenance.certificate_logic.get_certificate_status", return_value="scaduto"), \
-         patch("app.services.file_maintenance.find_document", return_value=src_path), \
+         patch("app.services.sync_service.find_document", return_value=src_path), \
+         patch("app.services.sync_service.construct_certificate_path", return_value=dst_path), \
          patch("os.path.exists") as mock_exists, \
          patch("os.path.isfile", return_value=True), \
          patch("os.makedirs") as mock_makedirs, \
          patch("shutil.move") as mock_move:
+
+         # Mock Audit Log check (return None so it runs)
+         def query_side_effect(model):
+             m = MagicMock()
+             if model.__name__ == 'AuditLog':
+                 m.filter.return_value.first.return_value = None # No existing log today
+                 return m
+             elif model.__name__ == 'Certificato':
+                 m.filter.return_value.all.return_value = [cert]
+                 return m
+             return m
+         
+         mock_db_session.query.side_effect = query_side_effect
 
          # os.path.exists side effect: True for DB path, False for STORICO dir (so it creates it)
          def exists_side_effect(path):

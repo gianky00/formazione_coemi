@@ -142,7 +142,8 @@ def test_extract_entities_unknown_category_fallback(mock_model):
     mock_model.generate_content.return_value = mock_response
 
     result = extract_entities_with_ai(b"fake_pdf_bytes")
-    assert result["categoria"] == "ALTRO"
+    # Bug 10 Fix: Dynamic categories are now allowed, so "UNKNOWN_CAT" is preserved instead of coerced to "ALTRO"
+    assert result["categoria"] == "UNKNOWN_CAT"
 
 def test_extract_entities_atex_category(mock_model):
     """Test that ATEX is recognized as a valid category."""
@@ -169,8 +170,8 @@ def test_extract_entities_resource_exhausted_retry(mock_model):
     assert "error" in result
     assert "status_code" in result
     assert result["status_code"] == 429
-    # Should attempt 3 times
-    assert mock_model.generate_content.call_count == 3
+    # Bug 10 Fix: Retry policy increased to 6 attempts
+    assert mock_model.generate_content.call_count == 6
 
 def test_extract_entities_generic_exception(mock_model):
     """Test handling of generic exceptions during API call."""

@@ -17,6 +17,9 @@ def calculate_expiration_date(issue_date: date, validity_months: int) -> Optiona
     Returns:
         La data di scadenza calcolata, o None se la validità è zero.
     """
+    if issue_date is None:
+        return None
+
     if validity_months > 0:
         result = issue_date + relativedelta(months=validity_months)
         if isinstance(result, datetime):
