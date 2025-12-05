@@ -517,6 +517,9 @@ class AuditLogWidget(QFrame):
         self.search_timer.setInterval(500)
         self.search_timer.timeout.connect(self.refresh_logs)
 
+        # Bug 9 Fix: Search Request Counter for Race Condition
+        self.last_search_req_id = 0
+
         self.table = QTableWidget()
         self.table.setColumnCount(6)
         self.table.setHorizontalHeaderLabels(["Data/Ora", "Severità", "Utente", "Azione", "Categoria", "Dettagli"])
@@ -600,6 +603,10 @@ class AuditLogWidget(QFrame):
         start = self.start_date.date().toPyDate()
         end = self.end_date.date().toPyDate()
 
+        # Increment request ID
+        self.last_search_req_id += 1
+        current_req_id = self.last_search_req_id
+
         try:
             logs = self.api_client.get_audit_logs(
                 user_id=user_id,
@@ -608,6 +615,10 @@ class AuditLogWidget(QFrame):
                 start_date=start,
                 end_date=end
             )
+
+            # Check for race condition
+            if current_req_id != self.last_search_req_id:
+                return
 
             self.table.setRowCount(0)
             self.table.setRowCount(len(logs))
@@ -957,19 +968,36 @@ class ConfigView(QWidget):
         plain_analysis_key = api.gemini_analysis_key_input.text()
         plain_chat_key = api.gemini_chat_key_input.text()
 
+        # Bug 2 & 3 Fix: Validation Logic
+        try:
+            smtp_port_val = int(email.smtp_port_input.text()) if email.smtp_port_input.text().isdigit() else None
+            if smtp_port_val and (smtp_port_val < 1 or smtp_port_val > 65535):
+                 raise ValueError("Porta SMTP non valida (1-65535).")
+
+            alert_days = int(gs.alert_threshold_input.text()) if gs.alert_threshold_input.text().isdigit() else 60
+            if alert_days <= 0:
+                 raise ValueError("La soglia avviso deve essere > 0.")
+
+            alert_visite = int(gs.alert_threshold_visite_input.text()) if gs.alert_threshold_visite_input.text().isdigit() else 30
+            if alert_visite <= 0:
+                 raise ValueError("La soglia visite deve essere > 0.")
+        except ValueError as e:
+            CustomMessageDialog.show_warning(self, "Errore Validazione", str(e))
+            return
+
         new_settings = {
             "DATABASE_PATH": db.db_path_input.text(),
             "GEMINI_API_KEY_ANALYSIS": obfuscate_string(plain_analysis_key),
             "GEMINI_API_KEY_CHAT": obfuscate_string(plain_chat_key),
             "VOICE_ASSISTANT_ENABLED": api.voice_assistant_check.isChecked(),
             "SMTP_HOST": email.smtp_host_input.text(),
-            "SMTP_PORT": int(email.smtp_port_input.text()) if email.smtp_port_input.text().isdigit() else None,
+            "SMTP_PORT": smtp_port_val,
             "SMTP_USER": email.smtp_user_input.text(),
             "SMTP_PASSWORD": email.smtp_password_input.text(),
             "EMAIL_RECIPIENTS_TO": email.recipients_to_input.text(),
             "EMAIL_RECIPIENTS_CC": email.recipients_cc_input.text(),
-            "ALERT_THRESHOLD_DAYS": int(gs.alert_threshold_input.text()) if gs.alert_threshold_input.text().isdigit() else 60,
-            "ALERT_THRESHOLD_DAYS_VISITE": int(gs.alert_threshold_visite_input.text()) if gs.alert_threshold_visite_input.text().isdigit() else 30,
+            "ALERT_THRESHOLD_DAYS": alert_days,
+            "ALERT_THRESHOLD_DAYS_VISITE": alert_visite,
         }
 
         # --- Smart comparison for API Keys ---

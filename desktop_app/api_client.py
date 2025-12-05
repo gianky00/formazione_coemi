@@ -58,7 +58,10 @@ class APIClient:
     def get(self, endpoint, params=None):
         """
         Performs a generic GET request to a given endpoint.
-        Gracefully handles network errors by returning an offline state.
+        Bug 10 Fix: Raise Exception instead of returning a dict if the caller expects a list.
+        Or better, wrap the return. But changing signature breaks callers.
+        So we will RAISE ConnectionError so callers can handle it in try/except blocks
+        instead of iterating over a dict key.
         """
         # Ensure endpoint starts with a slash
         if not endpoint.startswith('/'):
@@ -71,9 +74,10 @@ class APIClient:
             response = requests.get(url, params=params, headers=self._get_headers(), timeout=10)
             response.raise_for_status()
             return response.json()
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
-            # OFFLINE MODE / NETWORK ERROR
-            return {"error": "Network Unreachable", "offline_mode": True}
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+            # Bug 10 Fix: Don't silently return a dict that breaks List expectations
+            # Raise a custom OfflineError or just re-raise
+            raise ConnectionError(f"Offline: {e}")
 
     def login(self, username, password):
         url = f"{self.base_url}/auth/login"
@@ -164,8 +168,15 @@ class APIClient:
     def import_dipendenti_csv(self, file_path):
         """
         Uploads a CSV file to import employee data.
+        Bug 4 Fix: Check size before loading to avoid Memory Bomb.
         """
+        MAX_CSV_SIZE = 5 * 1024 * 1024 # 5MB limit matching backend
+
+        if os.path.getsize(file_path) > MAX_CSV_SIZE:
+             raise ValueError(f"Il file supera il limite massimo di {MAX_CSV_SIZE // (1024*1024)}MB.")
+
         url = f"{self.base_url}/dipendenti/import-csv"
+        # Streaming upload is automatic with open() file object in requests
         with open(file_path, 'rb') as f:
             files = {'file': (os.path.basename(file_path), f, 'text/csv')}
             response = requests.post(url, files=files, headers=self._get_headers(), timeout=60)

@@ -438,6 +438,12 @@ class LoginView(QWidget):
             target_y = self.center_pos.y() + (12 * ny)
             self.container.move(int(target_x), int(target_y))
 
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        # Bug 7 Fix: Stop animation timer when view is hidden to save resources
+        if self._anim_timer.isActive():
+            self._anim_timer.stop()
+
     def paintEvent(self, event):
         painter = QPainter(self)
         if not painter.isActive():
@@ -654,8 +660,17 @@ class LoginView(QWidget):
             user_info = self.api_client.user_info
 
             if user_info.get("require_password_change"):
+                # Bug 6 Fix: Check Read-Only before entering the loop
                 if user_info.get("read_only"):
                      CustomMessageDialog.show_warning(self, "Attenzione", "È richiesto il cambio password, ma il database è in sola lettura. Riprova più tardi.")
+                     # We proceed to login anyway, or logout?
+                     # Standard behavior: logout if mandatory.
+                     # But user might need RO access.
+                     # We allow RO access without password change for now?
+                     # No, strict security says change mandatory.
+                     # But we are trapped.
+                     # Let's show warning and then continue to Read-Only mode, skipping the loop.
+                     pass
                 else:
                     while True:
                         dialog = ForcePasswordChangeDialog(self)
