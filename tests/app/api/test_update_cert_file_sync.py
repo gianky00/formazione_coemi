@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 from app.db.models import Certificato, Corso, Dipendente
 from app.utils.file_security import sanitize_filename
+from unittest.mock import patch
 
 def test_update_certificate_moves_file(test_client, db_session, test_dirs):
     # Setup
@@ -32,7 +33,14 @@ def test_update_certificate_moves_file(test_client, db_session, test_dirs):
 
     # Update cert to point to Luigi
     payload = {"nome": "Verdi Luigi"}
+    
+    # Explicitly update the settings object used by the app for this test
+    # Because sometimes session-scoped fixtures don't propagate to the runtime config in some test runners
+    from app.core.config import settings
+    settings.mutable._data["DATABASE_PATH"] = str(test_dirs)
+    
     response = test_client.put(f"/certificati/{cert.id}", json=payload)
+        
     assert response.status_code == 200
 
     # Check File Moved

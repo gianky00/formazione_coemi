@@ -22,6 +22,17 @@ def test_migrate_schema_adds_column():
             created_at DATETIME
         )
     """))
+    # Also create 'audit_logs' table (even if empty) because migrate_schema runs backfill queries on it
+    db.execute(text("""
+        CREATE TABLE audit_logs (
+            id INTEGER PRIMARY KEY,
+            user_id INTEGER,
+            username VARCHAR,
+            action VARCHAR,
+            details VARCHAR,
+            timestamp DATETIME
+        )
+    """))
     db.commit()
 
     # Verify column is missing

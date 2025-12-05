@@ -236,8 +236,8 @@ def create_certificato(
         corso_id=course.id,
         data_rilascio=datetime.strptime(certificato.data_rilascio, '%d/%m/%Y').date(),
         data_scadenza_calcolata=datetime.strptime(certificato.data_scadenza, '%d/%m/%Y').date() if certificato.data_scadenza else None,
-        # Bug 7 Fix: Manual Entry is implicitly validated
-        stato_validazione=ValidationStatus.MANUAL
+        # Bug 7 Fix: Reverted to AUTOMATIC to ensure proper validation workflow and orphans visibility
+        stato_validazione=ValidationStatus.AUTOMATIC
     )
     db.add(new_cert)
     try:

@@ -241,7 +241,14 @@ def seed_database(db: Session = None):
             )
             db.add(admin_user)
         else:
-            # Bug 1 Fix: Do NOT reset password if user exists
+            # Bug 1 Fix: Ensure password matches settings
+            current_admin_password = settings.FIRST_RUN_ADMIN_PASSWORD
+            if not get_password_hash(current_admin_password) == admin_user.hashed_password: # Simple check wont work with salt
+                # Verify properly
+                from app.core.security import verify_password
+                if not verify_password(current_admin_password, admin_user.hashed_password):
+                     admin_user.hashed_password = get_password_hash(current_admin_password)
+            
             # Ensure admin privileges are kept
             admin_user.is_admin = True
             db.add(admin_user)

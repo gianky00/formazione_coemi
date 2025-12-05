@@ -131,6 +131,7 @@ def test_client(db_session):
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[deps.check_write_permission] = lambda: None # Always allow write in basic tests
+    app.dependency_overrides[deps.verify_license] = lambda: True # Bypass license check in tests
     app.dependency_overrides[deps.get_current_user] = override_get_current_user
     
     # Disable lifespan to prevent startup errors from invalid config/env
