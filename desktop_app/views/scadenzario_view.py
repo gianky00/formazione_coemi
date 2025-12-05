@@ -209,149 +209,159 @@ class ScadenzarioView(QWidget):
             self.category_colors[category] = self.color_palette[i % len(self.color_palette)]
 
     def populate_tree(self):
+        # Bug 5 Fix: Disable updates during bulk population
+        self.employee_tree.setUpdatesEnabled(False)
         self.employee_tree.clear()
-        data_by_category = defaultdict(lambda: defaultdict(list))
-        for item in self.certificates:
-            status = "SCADUTI" if QDate.currentDate() > QDate.fromString(item['data_scadenza'], "dd/MM/yyyy") else "IN SCADENZA"
-            data_by_category[item['categoria']][status].append(item)
+        try:
+            data_by_category = defaultdict(lambda: defaultdict(list))
+            for item in self.certificates:
+                status = "SCADUTI" if QDate.currentDate() > QDate.fromString(item['data_scadenza'], "dd/MM/yyyy") else "IN SCADENZA"
+                data_by_category[item['categoria']][status].append(item)
 
-        for category, statuses in sorted(data_by_category.items()):
-            category_item = QTreeWidgetItem(self.employee_tree, [category])
-            category_item.setData(0, Qt.ItemDataRole.UserRole, "category")
-            for status in ["IN SCADENZA", "SCADUTI"]:
-                if status in statuses:
-                    status_item = QTreeWidgetItem(category_item, [status])
-                    status_item.setData(0, Qt.ItemDataRole.UserRole, "status_folder")
-                    for cert in sorted(statuses[status], key=lambda x: x['Dipendente']):
-                        child_item = QTreeWidgetItem(status_item, [f"{cert['Dipendente']} ({cert.get('matricola', 'N/A')})"])
-                        child_item.setData(0, Qt.ItemDataRole.UserRole, cert)
+            for category, statuses in sorted(data_by_category.items()):
+                category_item = QTreeWidgetItem(self.employee_tree, [category])
+                category_item.setData(0, Qt.ItemDataRole.UserRole, "category")
+                for status in ["IN SCADENZA", "SCADUTI"]:
+                    if status in statuses:
+                        status_item = QTreeWidgetItem(category_item, [status])
+                        status_item.setData(0, Qt.ItemDataRole.UserRole, "status_folder")
+                        for cert in sorted(statuses[status], key=lambda x: x['Dipendente']):
+                            child_item = QTreeWidgetItem(status_item, [f"{cert['Dipendente']} ({cert.get('matricola', 'N/A')})"])
+                            child_item.setData(0, Qt.ItemDataRole.UserRole, cert)
+        finally:
+             self.employee_tree.setUpdatesEnabled(True)
 
     def redraw_gantt_scene(self):
-        self.gantt_scene.clear()
-        bar_height = 18
-        bar_spacing = 4
-        row_height = bar_height + bar_spacing
-        header_height = 30
+        # Bug 5 Fix: Disable updates for smooth rendering
+        self.gantt_view.setUpdatesEnabled(False)
+        try:
+            self.gantt_scene.clear()
+            bar_height = 18
+            bar_spacing = 4
+            row_height = bar_height + bar_spacing
+            header_height = 30
 
-        today = QDate.currentDate()
-        # Use current_date directly to respect exact "1 month before today" logic
-        start_date = self.current_date
-        days_total = int(30.44 * self.zoom_months)
-        end_date = start_date.addDays(days_total)
-        total_days = max(1, start_date.daysTo(end_date))
+            today = QDate.currentDate()
+            # Use current_date directly to respect exact "1 month before today" logic
+            start_date = self.current_date
+            days_total = int(30.44 * self.zoom_months)
+            end_date = start_date.addDays(days_total)
+            total_days = max(1, start_date.daysTo(end_date))
 
-        scene_width = self.gantt_view.viewport().width()
-        if scene_width <= 0: scene_width = 700
-        col_width = scene_width / total_days
+            scene_width = self.gantt_view.viewport().width()
+            if scene_width <= 0: scene_width = 700
+            col_width = scene_width / total_days
 
-        zone_definitions = {
-            "scaduto": (start_date, today.addDays(-1), QColor(239, 68, 68, 30)),
-            "in_scadenza": (today, today.addDays(30), QColor(249, 115, 22, 30)),
-            "avviso": (today.addDays(31), today.addDays(90), QColor(251, 191, 36, 30))
-        }
+            zone_definitions = {
+                "scaduto": (start_date, today.addDays(-1), QColor(239, 68, 68, 30)),
+                "in_scadenza": (today, today.addDays(30), QColor(249, 115, 22, 30)),
+                "avviso": (today.addDays(31), today.addDays(90), QColor(251, 191, 36, 30))
+            }
 
-        zone_labels = {"scaduto": "SCADUTI", "in_scadenza": "IN SCADENZA", "avviso": "AVVISI"}
+            zone_labels = {"scaduto": "SCADUTI", "in_scadenza": "IN SCADENZA", "avviso": "AVVISI"}
 
-        for name, (zone_start, zone_end, color) in zone_definitions.items():
-            start_x = max(0, start_date.daysTo(zone_start) * col_width)
-            end_x = min(scene_width, start_date.daysTo(zone_end) * col_width)
-            if end_x > start_x:
-                zone_rect = QGraphicsRectItem(start_x, 0, end_x - start_x, 2000)
-                zone_rect.setBrush(QBrush(color))
-                zone_rect.setPen(QPen(Qt.PenStyle.NoPen))
-                zone_rect.setZValue(-1)
-                self.gantt_scene.addItem(zone_rect)
+            for name, (zone_start, zone_end, color) in zone_definitions.items():
+                start_x = max(0, start_date.daysTo(zone_start) * col_width)
+                end_x = min(scene_width, start_date.daysTo(zone_end) * col_width)
+                if end_x > start_x:
+                    zone_rect = QGraphicsRectItem(start_x, 0, end_x - start_x, 2000)
+                    zone_rect.setBrush(QBrush(color))
+                    zone_rect.setPen(QPen(Qt.PenStyle.NoPen))
+                    zone_rect.setZValue(-1)
+                    self.gantt_scene.addItem(zone_rect)
 
-                # Zone Title (Top Right)
-                label_text = zone_labels.get(name, name.upper())
-                lbl = QGraphicsTextItem(label_text)
-                font = QFont()
-                font.setBold(True)
-                font.setPointSize(12)
-                lbl.setFont(font)
-                lbl.setDefaultTextColor(QColor(0, 0, 0, 100))
+                    # Zone Title (Top Right)
+                    label_text = zone_labels.get(name, name.upper())
+                    lbl = QGraphicsTextItem(label_text)
+                    font = QFont()
+                    font.setBold(True)
+                    font.setPointSize(12)
+                    lbl.setFont(font)
+                    lbl.setDefaultTextColor(QColor(0, 0, 0, 100))
 
-                lbl_width = lbl.boundingRect().width()
-                lbl_x = end_x - lbl_width - 10
-                if lbl_x < start_x: lbl_x = start_x + 5 # Clamp left
+                    lbl_width = lbl.boundingRect().width()
+                    lbl_x = end_x - lbl_width - 10
+                    if lbl_x < start_x: lbl_x = start_x + 5 # Clamp left
 
-                lbl.setPos(lbl_x, 5) # Top margin
-                self.gantt_scene.addItem(lbl)
+                    lbl.setPos(lbl_x, 5) # Top margin
+                    self.gantt_scene.addItem(lbl)
 
-        current_draw_date = start_date
-        while current_draw_date <= end_date:
-            # Snap to start of month for labeling, but handle partial first month
-            if current_draw_date.day() != 1:
-                # If we are inside a month, find the NEXT 1st
-                next_month = current_draw_date.addMonths(1)
-                next_month.setDate(next_month.year(), next_month.month(), 1)
+            current_draw_date = start_date
+            while current_draw_date <= end_date:
+                # Snap to start of month for labeling, but handle partial first month
+                if current_draw_date.day() != 1:
+                    # If we are inside a month, find the NEXT 1st
+                    next_month = current_draw_date.addMonths(1)
+                    next_month.setDate(next_month.year(), next_month.month(), 1)
 
-                # Check if we should label the CURRENT month if it's visible enough?
-                # Usually standard Gantt labels 1st of month.
-                # If we start on 15 Nov, next 1st is 1 Dec. 15 Nov - 30 Nov is unlabeled?
-                # Let's label the *current* month start even if it's before start_date? No.
-                # Just draw next month.
-                current_draw_date = next_month
-                continue
+                    # Check if we should label the CURRENT month if it's visible enough?
+                    # Usually standard Gantt labels 1st of month.
+                    # If we start on 15 Nov, next 1st is 1 Dec. 15 Nov - 30 Nov is unlabeled?
+                    # Let's label the *current* month start even if it's before start_date? No.
+                    # Just draw next month.
+                    current_draw_date = next_month
+                    continue
 
-            days_from_start = start_date.daysTo(current_draw_date)
-            if days_from_start <= total_days:
-                locale = QLocale(QLocale.Language.Italian, QLocale.Country.Italy)
-                month_name = locale.toString(current_draw_date, "MMM yyyy").capitalize()
-                text = QGraphicsTextItem(month_name)
+                days_from_start = start_date.daysTo(current_draw_date)
+                if days_from_start <= total_days:
+                    locale = QLocale(QLocale.Language.Italian, QLocale.Country.Italy)
+                    month_name = locale.toString(current_draw_date, "MMM yyyy").capitalize()
+                    text = QGraphicsTextItem(month_name)
 
-                # Bold Header
-                font = QFont()
-                font.setBold(True)
-                font.setPointSize(12)
-                text.setFont(font)
+                    # Bold Header
+                    font = QFont()
+                    font.setBold(True)
+                    font.setPointSize(12)
+                    text.setFont(font)
 
-                text.setPos(days_from_start * col_width, 0)
-                self.gantt_scene.addItem(text)
-            current_draw_date = current_draw_date.addMonths(1)
+                    text.setPos(days_from_start * col_width, 0)
+                    self.gantt_scene.addItem(text)
+                current_draw_date = current_draw_date.addMonths(1)
 
-        if start_date <= today <= end_date:
-            today_x = start_date.daysTo(today) * col_width
-            today_line = QGraphicsLineItem(today_x, 0, today_x, 2000)
-            today_line.setPen(QPen(QColor("#1D4ED8"), 2))
-            self.gantt_scene.addItem(today_line)
+            if start_date <= today <= end_date:
+                today_x = start_date.daysTo(today) * col_width
+                today_line = QGraphicsLineItem(today_x, 0, today_x, 2000)
+                today_line.setPen(QPen(QColor("#1D4ED8"), 2))
+                self.gantt_scene.addItem(today_line)
 
-        visible_certs = [
-            cert for cert in self.certificates
-            if (QDate.fromString(cert['data_scadenza'], "dd/MM/yyyy").addDays(-30) <= end_date) and \
-               (QDate.fromString(cert['data_scadenza'], "dd/MM/yyyy") >= start_date)
-        ]
-        sorted_certs = sorted(visible_certs, key=lambda x: QDate.fromString(x['data_scadenza'], "dd/MM/yyyy"))
+            visible_certs = [
+                cert for cert in self.certificates
+                if (QDate.fromString(cert['data_scadenza'], "dd/MM/yyyy").addDays(-30) <= end_date) and \
+                   (QDate.fromString(cert['data_scadenza'], "dd/MM/yyyy") >= start_date)
+            ]
+            sorted_certs = sorted(visible_certs, key=lambda x: QDate.fromString(x['data_scadenza'], "dd/MM/yyyy"))
 
-        y_pos = header_height
-        for cert_data in sorted_certs:
-            expiry_date = QDate.fromString(cert_data['data_scadenza'], "dd/MM/yyyy")
-            days_to_expiry = today.daysTo(expiry_date)
-            bar_start_date = expiry_date.addDays(-30)
+            y_pos = header_height
+            for cert_data in sorted_certs:
+                expiry_date = QDate.fromString(cert_data['data_scadenza'], "dd/MM/yyyy")
+                days_to_expiry = today.daysTo(expiry_date)
+                bar_start_date = expiry_date.addDays(-30)
 
-            start_x = start_date.daysTo(bar_start_date) * col_width
-            end_x = start_date.daysTo(expiry_date) * col_width
-            bar_width = max(2, end_x - start_x)
+                start_x = start_date.daysTo(bar_start_date) * col_width
+                end_x = start_date.daysTo(expiry_date) * col_width
+                bar_width = max(2, end_x - start_x)
 
-            color = self.category_colors.get(cert_data['categoria'], QColor("gray"))
-            gradient = QLinearGradient(start_x, y_pos, start_x + bar_width, y_pos)
-            gradient.setColorAt(0, color.lighter(120))
-            gradient.setColorAt(1, color)
+                color = self.category_colors.get(cert_data['categoria'], QColor("gray"))
+                gradient = QLinearGradient(start_x, y_pos, start_x + bar_width, y_pos)
+                gradient.setColorAt(0, color.lighter(120))
+                gradient.setColorAt(1, color)
 
-            rect = GanttBarItem(start_x, y_pos, bar_width, bar_height, QBrush(gradient), color, cert_data)
-            self.gantt_scene.addItem(rect)
-            y_pos += row_height
+                rect = GanttBarItem(start_x, y_pos, bar_width, bar_height, QBrush(gradient), color, cert_data)
+                self.gantt_scene.addItem(rect)
+                y_pos += row_height
 
-        total_height = y_pos
-        self.gantt_scene.setSceneRect(0, 0, scene_width, total_height)
+            total_height = y_pos
+            self.gantt_scene.setSceneRect(0, 0, scene_width, total_height)
 
-        for item in self.gantt_scene.items():
-            if isinstance(item, QGraphicsRectItem) and item.zValue() == -1:
-                item.setRect(item.rect().x(), 0, item.rect().width(), total_height)
-            elif isinstance(item, QGraphicsLineItem) and 'today_line' in locals() and item is today_line:
-                item.setLine(item.line().x1(), 0, item.line().x2(), total_height)
+            for item in self.gantt_scene.items():
+                if isinstance(item, QGraphicsRectItem) and item.zValue() == -1:
+                    item.setRect(item.rect().x(), 0, item.rect().width(), total_height)
+                elif isinstance(item, QGraphicsLineItem) and 'today_line' in locals() and item is today_line:
+                    item.setLine(item.line().x1(), 0, item.line().x2(), total_height)
 
-        self._update_legend(visible_certs)
+            self._update_legend(visible_certs)
+        finally:
+             self.gantt_view.setUpdatesEnabled(True)
 
     def _update_legend(self, visible_certs):
         while self.legend_layout.count() > 1:
