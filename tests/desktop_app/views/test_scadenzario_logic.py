@@ -80,7 +80,12 @@ def test_update_gantt_chart(scadenzario_view):
     ]
 
     # Mock GanttBarItem to verify instantiation
-    with patch("desktop_app.views.scadenzario_view.GanttBarItem") as MockBar:
+    class MockGanttItem(MagicMock):
+        def __init__(self, *args, **kwargs):
+            super().__init__()
+
+    # Use side_effect=MockGanttItem to accept any arguments safely
+    with patch("desktop_app.views.scadenzario_view.GanttBarItem", side_effect=MockGanttItem) as MockBar:
         scadenzario_view._on_data_loaded(data)
 
         # Check if bars were added to scene.
