@@ -36,20 +36,20 @@ def read_root():
     return {"message": "Welcome to the Scadenziario IA API"}
 
 @router.get("/corsi")
-def get_corsi(db: Session = Depends(get_db)):
+def get_corsi(db: Session = Depends(get_db), license: bool = Depends(deps.verify_license)):
     return db.query(Corso).all()
 
 @router.get("/health")
 def health_check():
     return {"status": "ok"}
 
-@router.post("/upload-pdf/", dependencies=[Depends(deps.check_write_permission)])
+@router.post("/upload-pdf/", dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
 async def upload_pdf(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_user)
 ):
-    MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
+    MAX_FILE_SIZE = settings.MAX_UPLOAD_SIZE
 
     # Read file with size limit check
     pdf_bytes = bytearray()
@@ -59,7 +59,7 @@ async def upload_pdf(
             break
         pdf_bytes.extend(chunk)
         if len(pdf_bytes) > MAX_FILE_SIZE:
-            raise HTTPException(status_code=413, detail="Il file supera il limite massimo di 20MB.")
+            raise HTTPException(status_code=413, detail=f"Il file supera il limite massimo di {MAX_FILE_SIZE // (1024*1024)}MB.")
 
     if not verify_file_signature(bytes(pdf_bytes), 'pdf'):
          raise HTTPException(status_code=400, detail="File non valido: firma digitale PDF non riconosciuta.")
@@ -96,7 +96,7 @@ async def upload_pdf(
 
     return {"filename": file.filename, "entities": extracted_data}
 
-@router.get("/certificati/", response_model=List[CertificatoSchema])
+@router.get("/certificati/", response_model=List[CertificatoSchema], dependencies=[Depends(deps.verify_license)])
 def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depends(get_db)):
     query = db.query(Certificato).options(selectinload(Certificato.dipendente), selectinload(Certificato.corso))
     if validated is not None:
@@ -138,7 +138,7 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
         ))
     return result
 
-@router.get("/certificati/{certificato_id}", response_model=CertificatoSchema)
+@router.get("/certificati/{certificato_id}", response_model=CertificatoSchema, dependencies=[Depends(deps.verify_license)])
 def get_certificato(certificato_id: int, db: Session = Depends(get_db)):
     db_cert = db.get(Certificato, certificato_id)
     if not db_cert:
@@ -167,7 +167,7 @@ def get_certificato(certificato_id: int, db: Session = Depends(get_db)):
         stato_certificato=status
     )
 
-@router.post("/certificati/", response_model=CertificatoSchema, dependencies=[Depends(deps.check_write_permission)])
+@router.post("/certificati/", response_model=CertificatoSchema, dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
 def create_certificato(
     certificato: CertificatoCreazioneSchema,
     db: Session = Depends(get_db),
@@ -236,7 +236,8 @@ def create_certificato(
         corso_id=course.id,
         data_rilascio=datetime.strptime(certificato.data_rilascio, '%d/%m/%Y').date(),
         data_scadenza_calcolata=datetime.strptime(certificato.data_scadenza, '%d/%m/%Y').date() if certificato.data_scadenza else None,
-        stato_validazione=ValidationStatus.AUTOMATIC
+        # Bug 7 Fix: Manual Entry is implicitly validated
+        stato_validazione=ValidationStatus.MANUAL
     )
     db.add(new_cert)
     try:
@@ -287,7 +288,7 @@ def create_certificato(
         assegnazione_fallita_ragione=ragione_fallimento
     )
 
-@router.put("/certificati/{certificato_id}/valida", response_model=CertificatoSchema, dependencies=[Depends(deps.check_write_permission)])
+@router.put("/certificati/{certificato_id}/valida", response_model=CertificatoSchema, dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
 def valida_certificato(
     certificato_id: int,
     db: Session = Depends(get_db),
@@ -328,7 +329,7 @@ def valida_certificato(
         stato_certificato=status
     )
 
-@router.put("/certificati/{certificato_id}", response_model=CertificatoSchema, dependencies=[Depends(deps.check_write_permission)])
+@router.put("/certificati/{certificato_id}", response_model=CertificatoSchema, dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
 def update_certificato(
     certificato_id: int,
     certificato: CertificatoAggiornamentoSchema,
@@ -498,7 +499,7 @@ def update_certificato(
         stato_certificato=status
     )
 
-@router.delete("/certificati/{certificato_id}", dependencies=[Depends(deps.check_write_permission)])
+@router.delete("/certificati/{certificato_id}", dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
 def delete_certificato(
     certificato_id: int,
     db: Session = Depends(get_db),
@@ -548,13 +549,13 @@ def delete_certificato(
 
     return {"message": "Certificato cancellato con successo"}
 
-@router.post("/dipendenti/import-csv", dependencies=[Depends(deps.check_write_permission)])
+@router.post("/dipendenti/import-csv", dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
 async def import_dipendenti_csv(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_user)
 ):
-    MAX_CSV_SIZE = 5 * 1024 * 1024  # 5 MB
+    MAX_CSV_SIZE = settings.MAX_CSV_SIZE
 
     # Read content with size check
     content_bytes = bytearray()
@@ -564,7 +565,7 @@ async def import_dipendenti_csv(
             break
         content_bytes.extend(chunk)
         if len(content_bytes) > MAX_CSV_SIZE:
-            raise HTTPException(status_code=413, detail="Il file CSV supera il limite massimo di 5MB.")
+            raise HTTPException(status_code=413, detail=f"Il file CSV supera il limite massimo di {MAX_CSV_SIZE // (1024*1024)}MB.")
 
     content = bytes(content_bytes)
 
@@ -720,11 +721,11 @@ async def import_dipendenti_csv(
         "warnings": warnings
     }
 
-@router.get("/dipendenti", response_model=List[DipendenteSchema])
+@router.get("/dipendenti", response_model=List[DipendenteSchema], dependencies=[Depends(deps.verify_license)])
 def get_dipendenti(db: Session = Depends(get_db)):
     return db.query(Dipendente).all()
 
-@router.get("/dipendenti/{dipendente_id}", response_model=DipendenteDetailSchema)
+@router.get("/dipendenti/{dipendente_id}", response_model=DipendenteDetailSchema, dependencies=[Depends(deps.verify_license)])
 def get_dipendente_detail(dipendente_id: int, db: Session = Depends(get_db)):
     dipendente = db.query(Dipendente).options(
         selectinload(Dipendente.certificati).selectinload(Certificato.corso)
@@ -767,7 +768,7 @@ def get_dipendente_detail(dipendente_id: int, db: Session = Depends(get_db)):
         certificati=cert_schemas
     )
 
-@router.post("/dipendenti/", response_model=DipendenteSchema, dependencies=[Depends(deps.check_write_permission)])
+@router.post("/dipendenti/", response_model=DipendenteSchema, dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
 def create_dipendente(
     dipendente: DipendenteCreateSchema,
     db: Session = Depends(get_db),
@@ -805,7 +806,7 @@ def create_dipendente(
     log_security_action(db, current_user, "DIPENDENTE_CREATE", f"Creato dipendente {dipendente.cognome} {dipendente.nome}", category="DATA")
     return new_dipendente
 
-@router.put("/dipendenti/{dipendente_id}", response_model=DipendenteSchema, dependencies=[Depends(deps.check_write_permission)])
+@router.put("/dipendenti/{dipendente_id}", response_model=DipendenteSchema, dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
 def update_dipendente(
     dipendente_id: int,
     dipendente_data: DipendenteUpdateSchema,
@@ -844,7 +845,7 @@ def update_dipendente(
     log_security_action(db, current_user, "DIPENDENTE_UPDATE", f"Aggiornato dipendente ID {dipendente_id}", category="DATA")
     return dipendente
 
-@router.delete("/dipendenti/{dipendente_id}", dependencies=[Depends(deps.check_write_permission)])
+@router.delete("/dipendenti/{dipendente_id}", dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
 def delete_dipendente(
     dipendente_id: int,
     db: Session = Depends(get_db),

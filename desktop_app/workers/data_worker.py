@@ -32,7 +32,7 @@ class FetchCertificatesWorker(QRunnable):
                 f"{self.api_client.base_url}/certificati/",
                 params=params,
                 headers=self.api_client._get_headers(),
-                timeout=30
+                timeout=60 # Bug 5 Fix: Increased timeout
             )
             response.raise_for_status()
             data = response.json()
@@ -62,7 +62,7 @@ class DeleteCertificatesWorker(QRunnable):
                     response = requests.delete(
                         f"{self.api_client.base_url}/certificati/{cert_id}",
                         headers=self.api_client._get_headers(),
-                        timeout=10
+                        timeout=30
                     )
                     response.raise_for_status()
                     success_count += 1
@@ -71,7 +71,11 @@ class DeleteCertificatesWorker(QRunnable):
 
             self.signals.result.emit({"success": success_count, "errors": errors})
         except Exception as e:
-            self.signals.error.emit(str(e))
+            # Bug 6 Fix: Emit partial result even on catastrophic failure if some succeeded
+            if success_count > 0 or errors:
+                 self.signals.result.emit({"success": success_count, "errors": errors + [f"Critical Stop: {str(e)}"]})
+            else:
+                 self.signals.error.emit(str(e))
         finally:
             self.signals.finished.emit()
 
@@ -89,7 +93,7 @@ class UpdateCertificateWorker(QRunnable):
                 f"{self.api_client.base_url}/certificati/{self.cert_id}",
                 json=self.data,
                 headers=self.api_client._get_headers(),
-                timeout=10
+                timeout=30
             )
             response.raise_for_status()
             self.signals.result.emit(True)
@@ -116,7 +120,7 @@ class ValidateCertificatesWorker(QRunnable):
                     response = requests.put(
                         f"{self.api_client.base_url}/certificati/{cert_id}/valida",
                         headers=self.api_client._get_headers(),
-                        timeout=10
+                        timeout=30
                     )
                     response.raise_for_status()
                     success_count += 1
@@ -125,6 +129,10 @@ class ValidateCertificatesWorker(QRunnable):
 
             self.signals.result.emit({"success": success_count, "errors": errors})
         except Exception as e:
-            self.signals.error.emit(str(e))
+            # Bug 6 Fix: Partial result logic
+            if success_count > 0 or errors:
+                 self.signals.result.emit({"success": success_count, "errors": errors + [f"Critical Stop: {str(e)}"]})
+            else:
+                 self.signals.error.emit(str(e))
         finally:
             self.signals.finished.emit()

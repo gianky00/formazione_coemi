@@ -6,6 +6,7 @@ from google.api_core import exceptions
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from app.core.config import settings
 from app.core.constants import CATEGORIE_STATICHE
+from app.core.ai_lock import ai_global_lock
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -24,8 +25,12 @@ class GeminiClient:
                         if not settings.GEMINI_API_KEY_ANALYSIS:
                             logging.error("GEMINI_API_KEY_ANALYSIS not found.")
                             raise ValueError("GEMINI_API_KEY_ANALYSIS not configured.")
-                        genai.configure(api_key=settings.GEMINI_API_KEY_ANALYSIS)
-                        cls._model = genai.GenerativeModel('models/gemini-2.5-pro')
+
+                        # Configure with lock to prevent race with Chat
+                        with ai_global_lock:
+                            genai.configure(api_key=settings.GEMINI_API_KEY_ANALYSIS)
+                            cls._model = genai.GenerativeModel('models/gemini-2.5-pro')
+
                         logging.info("Gemini model 'models/gemini-2.5-pro' initialized successfully.")
                     except Exception as e:
                         logging.error(f"Failed to initialize Gemini model: {e}")
@@ -135,8 +140,8 @@ JSON:
 
 # Bug 10 Fix: Robust Retry Policy
 @retry(
-    stop=stop_after_attempt(6), # Increased attempts
-    wait=wait_exponential(multiplier=2, min=5, max=60), # Wait up to 60s
+    stop=stop_after_attempt(6),
+    wait=wait_exponential(multiplier=2, min=5, max=60),
     retry=retry_if_exception_type((
         exceptions.ResourceExhausted,
         exceptions.ServiceUnavailable,
@@ -149,7 +154,10 @@ def _generate_content_with_retry(model, pdf_file_part, prompt):
     Wrapper for model.generate_content with tenacity retry logic.
     """
     logging.info("Calling AI for entity extraction...")
-    return model.generate_content([pdf_file_part, prompt])
+    # Bug 2 Fix: Lock and configure for this specific call
+    with ai_global_lock:
+        genai.configure(api_key=settings.GEMINI_API_KEY_ANALYSIS)
+        return model.generate_content([pdf_file_part, prompt])
 
 def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
     model = get_gemini_model()

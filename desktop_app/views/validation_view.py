@@ -154,6 +154,53 @@ class ValidationView(QWidget):
         self.validate_button.setEnabled(has_selection)
         self.delete_button.setEnabled(has_selection)
 
+    def _get_selection_info(self):
+        # Bug 4 Fix: Capture selection state
+        if not self.table_view.selectionModel() or not self.table_view.selectionModel().hasSelection():
+            return {'mode': 'none'}
+
+        selected_rows = self.table_view.selectionModel().selectedRows()
+        if not selected_rows: return {'mode': 'none'}
+
+        first_row = min(r.row() for r in selected_rows)
+
+        # Try to capture ID
+        if hasattr(self, 'df') and not self.df.empty and 'id' in self.df.columns:
+             try:
+                 # Ensure we are accessing the correct row in dataframe
+                 if first_row < len(self.df):
+                     return {'mode': 'reselect_by_id', 'id': self.df.iloc[first_row]['id'], 'fallback_row': first_row}
+             except:
+                 pass
+
+        return {'mode': 'reselect_by_row', 'row': first_row}
+
+    def _restore_selection(self, selection_info):
+        # Bug 4 Fix: Restore selection
+        if not selection_info or selection_info.get('mode') == 'none':
+            return
+
+        if self.df.empty: return
+
+        row_to_select = -1
+
+        if selection_info['mode'] == 'reselect_by_id':
+            target_id = selection_info.get('id')
+            if 'id' in self.df.columns:
+                # Find index of row with this ID
+                matches = self.df.index[self.df['id'] == target_id].tolist()
+                if matches:
+                    row_to_select = matches[0]
+                else:
+                    # Fallback to similar row position
+                    row_to_select = min(selection_info.get('fallback_row', 0), len(self.df) - 1)
+
+        elif selection_info['mode'] == 'reselect_by_row':
+            row_to_select = min(selection_info.get('row', 0), len(self.df) - 1)
+
+        if row_to_select != -1 and hasattr(self, 'model') and row_to_select < self.model.rowCount():
+            self.table_view.selectRow(row_to_select)
+
     def edit_data(self):
         if getattr(self, 'is_read_only', False): return
 
@@ -175,6 +222,9 @@ class ValidationView(QWidget):
                 update_response = requests.put(f"{self.api_client.base_url}/certificati/{cert_id}", json=updated_data, headers=self.api_client._get_headers(), timeout=10)
                 update_response.raise_for_status()
                 CustomMessageDialog.show_info(self, "Successo", "Certificato aggiornato con successo.")
+
+                # Capture selection preference before reload
+                self._pending_selection = self._get_selection_info()
                 self.load_data()
         except requests.exceptions.RequestException as e:
             CustomMessageDialog.show_error(self, "Errore", f"Impossibile modificare il certificato: {e}")
@@ -238,6 +288,11 @@ class ValidationView(QWidget):
             self.table_view.selectionModel().selectionChanged.connect(self.update_button_states)
 
         self.update_button_states()
+
+        # Restore selection if requested
+        if hasattr(self, '_pending_selection'):
+            self._restore_selection(self._pending_selection)
+            del self._pending_selection
 
     def get_selected_ids(self):
         if self.df.empty:

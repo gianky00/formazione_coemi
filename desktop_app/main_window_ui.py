@@ -695,6 +695,10 @@ class MainDashboardWidget(QWidget):
         self._start_system_check_thread()
 
     def _start_system_check_thread(self):
+        # Bug 4 Fix: Prevent Thread Leak
+        if hasattr(self, 'check_thread') and self.check_thread.isRunning():
+            return
+
         # Create a new thread for each check to ensure clean state
         # Alternatively, keep one worker alive. But creating simple worker is fine.
         self.check_thread = QThread()

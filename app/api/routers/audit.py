@@ -27,6 +27,15 @@ def read_audit_categories(
     # Flatten list of tuples
     return sorted([c[0] for c in categories if c[0]])
 
+def sanitize_csv_cell(value):
+    """
+    Sanitizes a CSV cell value to prevent Formula Injection (CSV Injection).
+    Prepends a single quote if the value starts with =, @, +, or -.
+    """
+    if isinstance(value, str) and value.startswith(('=', '@', '+', '-')):
+        return "'" + value
+    return value
+
 @router.get("/export", response_class=StreamingResponse)
 def export_audit_logs(
     db: Session = Depends(get_db),
@@ -34,6 +43,7 @@ def export_audit_logs(
 ) -> Any:
     """
     Export all audit logs as CSV via streaming to prevent OOM.
+    Sanitizes values to prevent CSV Injection.
     """
     filename = f"audit_logs_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
 
@@ -52,12 +62,12 @@ def export_audit_logs(
         output.truncate(0)
 
         # Query with yield_per to fetch in chunks from DB cursor
-        # This prevents loading all objects into RAM
         query = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).yield_per(1000)
 
         for log in query:
             user_str = log.username or (f"ID {log.user_id}" if log.user_id else "System")
-            writer.writerow([
+
+            row = [
                 log.timestamp.isoformat() if log.timestamp else "",
                 log.category,
                 log.action,
@@ -66,7 +76,12 @@ def export_audit_logs(
                 log.ip_address,
                 log.severity,
                 log.device_id
-            ])
+            ]
+
+            # Sanitize row
+            sanitized_row = [sanitize_csv_cell(val) for val in row]
+
+            writer.writerow(sanitized_row)
             yield output.getvalue()
             output.seek(0)
             output.truncate(0)

@@ -9,6 +9,7 @@ from app.db.models import User, BlacklistedToken
 from app.schemas.schemas import TokenData
 from app.utils.audit import log_security_action
 from app.core.db_security import db_security
+from app.core.license_checker import LicenseChecker
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
 
@@ -68,4 +69,14 @@ def check_write_permission():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Database in sola lettura. Operazione non consentita."
+        )
+
+def verify_license():
+    """
+    Dependency that raises 403 if the license is invalid or expired.
+    """
+    if not LicenseChecker.is_license_valid():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Licenza non valida o scaduta."
         )

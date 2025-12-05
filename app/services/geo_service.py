@@ -1,31 +1,46 @@
 import os
 import geoip2.database
 from typing import Optional
+import threading
 
 class GeoLocationService:
     _reader = None
-    _db_path = "GeoLite2-City.mmdb" # Expecting it in root or configured path
+    _db_path = "GeoLite2-City.mmdb"
+    _lock = threading.Lock()
+
+    @classmethod
+    def get_reader(cls):
+        if cls._reader:
+            return cls._reader
+
+        with cls._lock:
+            if cls._reader: return cls._reader
+
+            paths = [
+                cls._db_path,
+                os.path.join("app", "assets", cls._db_path),
+                # Fallback for frozen/different cwd
+                os.path.join(os.path.dirname(__file__), "..", "assets", cls._db_path)
+            ]
+
+            for path in paths:
+                if os.path.exists(path):
+                    try:
+                        cls._reader = geoip2.database.Reader(path)
+                        return cls._reader
+                    except Exception:
+                        pass
+            return None
 
     @classmethod
     def get_location(cls, ip: str) -> str:
         if ip in ("127.0.0.1", "::1", "localhost"):
             return "Localhost"
 
-        # Try to find the DB file
-        if not cls._reader:
+        reader = cls.get_reader()
+        if reader:
             try:
-                # check current dir
-                if os.path.exists(cls._db_path):
-                    cls._reader = geoip2.database.Reader(cls._db_path)
-                # check app/assets if we decide to put it there
-                elif os.path.exists(os.path.join("app", "assets", cls._db_path)):
-                     cls._reader = geoip2.database.Reader(os.path.join("app", "assets", cls._db_path))
-            except Exception:
-                pass
-
-        if cls._reader:
-            try:
-                response = cls._reader.city(ip)
+                response = reader.city(ip)
                 city = response.city.name or ""
                 country = response.country.name or ""
                 if city and country:
@@ -41,5 +56,7 @@ class GeoLocationService:
 
     @classmethod
     def close(cls):
-        if cls._reader:
-            cls._reader.close()
+        with cls._lock:
+            if cls._reader:
+                cls._reader.close()
+                cls._reader = None
