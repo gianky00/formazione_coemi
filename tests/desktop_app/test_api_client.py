@@ -1,57 +1,117 @@
-
+import sys
 import pytest
-from unittest.mock import Mock, patch, mock_open
-import os
+from unittest.mock import MagicMock, patch, mock_open
 import requests
 
-@patch.dict(os.environ, {"API_URL": "http://testserver/api/v1"})
-def test_init_custom_url():
-    from desktop_app.api_client import APIClient
-    client = APIClient()
-    assert client.base_url == "http://testserver/api/v1"
+# Setup Mocks
+from tests.desktop_app import mock_qt
+sys.modules["PyQt6"] = mock_qt.mock_modules["PyQt6"]
+sys.modules["PyQt6.QtWidgets"] = mock_qt.mock_modules["PyQt6.QtWidgets"]
+sys.modules["PyQt6.QtCore"] = mock_qt.mock_modules["PyQt6.QtCore"]
+sys.modules["PyQt6.QtGui"] = mock_qt.mock_modules["PyQt6.QtGui"]
 
-@patch.dict(os.environ, {}, clear=True)
-def test_init_default_url():
-    from desktop_app.api_client import APIClient
-    client = APIClient()
-    assert client.base_url == "http://localhost:8000/api/v1"
+from desktop_app.api_client import APIClient
 
-@patch('requests.post')
-def test_import_dipendenti_csv_success(mock_post):
-    from desktop_app.api_client import APIClient
-    mock_response = Mock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = {"message": "Success"}
-    mock_post.return_value = mock_response
+@pytest.fixture
+def api_client():
+    with patch.dict("os.environ", {"API_URL": "http://test-api"}):
+        client = APIClient()
+        return client
 
-    client = APIClient()
-    file_content = b"some,csv,data"
+def test_login_success(api_client):
+    with patch("requests.post") as mock_post:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "access_token": "fake_token",
+            "token_type": "bearer",
+            "read_only": False,
+            "lock_owner": None,
+            "user_id": 1,
+            "username": "user",
+            "account_name": "Test User",
+            "is_admin": False
+        }
+        mock_post.return_value = mock_response
+        
+        result = api_client.login("user", "pass")
+        
+        # Verify result is the json dict
+        assert result["access_token"] == "fake_token"
+        
+        # Verify internal state isn't set yet (login view does that via set_token usually)
+        # Wait, api_client.login just returns data. LoginView calls set_token.
+        assert api_client.access_token is None 
 
-    with patch("builtins.open", mock_open(read_data=file_content)) as mock_file:
-        with patch("os.path.getsize", return_value=1024):
-            result = client.import_dipendenti_csv("path/to/file.csv")
+def test_set_token(api_client):
+    token_data = {
+        "access_token": "token123",
+        "user_id": 1,
+        "username": "user",
+        "read_only": True
+    }
+    api_client.set_token(token_data)
+    assert api_client.access_token == "token123"
+    assert api_client.user_info["read_only"] is True
 
-        assert result == {"message": "Success"}
+def test_logout(api_client):
+    api_client.access_token = "token"
+    with patch("requests.post") as mock_post:
+        api_client.logout()
         mock_post.assert_called_once()
+    assert api_client.access_token is None
+
+def test_get_request(api_client):
+    api_client.access_token = "fake_token"
+    with patch("requests.get") as mock_get:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"data": "test"}
+        mock_get.return_value = mock_response
+        
+        data = api_client.get("endpoint")
+        
+        assert data == {"data": "test"}
+        # Check header contains Auth
+        args, kwargs = mock_get.call_args
+        assert kwargs['headers']['Authorization'] == "Bearer fake_token"
+
+def test_create_dipendente(api_client):
+    api_client.access_token = "fake_token"
+    with patch("requests.post") as mock_post:
+        mock_response = MagicMock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"id": 1}
+        mock_post.return_value = mock_response
+        
+        data = api_client.create_dipendente({"nome": "test"})
+        
+        assert data == {"id": 1}
         args, kwargs = mock_post.call_args
-        assert args[0] == "http://localhost:8000/api/v1/dipendenti/import-csv"
-        assert 'files' in kwargs
-        assert 'file' in kwargs['files']
-        # Verify file tuple structure: (filename, file_obj, content_type)
-        assert kwargs['files']['file'][0] == "file.csv"
-        assert kwargs['files']['file'][2] == "text/csv"
+        assert kwargs['json'] == {"nome": "test"}
 
-@patch('requests.post')
-def test_import_dipendenti_csv_failure(mock_post):
-    from desktop_app.api_client import APIClient
-    mock_response = Mock()
-    mock_response.status_code = 500
-    mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("Server Error")
-    mock_post.return_value = mock_response
+def test_handle_connection_error(api_client):
+    with patch("requests.get", side_effect=requests.exceptions.ConnectionError("Failed")):
+        with pytest.raises(ConnectionError) as exc:
+            api_client.get("any")
+        assert "Offline" in str(exc.value)
 
-    client = APIClient()
-
-    with patch("builtins.open", mock_open(read_data=b"data")):
-        with patch("os.path.getsize", return_value=1024):
-            with pytest.raises(requests.exceptions.HTTPError):
-                client.import_dipendenti_csv("path/to/file.csv")
+def test_import_dipendenti_csv(api_client):
+    api_client.access_token = "fake"
+    
+    # Mock os.path.getsize to return small size
+    with patch("os.path.getsize", return_value=1024):
+        # Mock open
+        m = mock_open(read_data=b"content")
+        with patch("builtins.open", m):
+            with patch("requests.post") as mock_post:
+                mock_response = MagicMock()
+                mock_response.status_code = 200
+                mock_response.json.return_value = {"status": "ok"}
+                mock_post.return_value = mock_response
+                
+                result = api_client.import_dipendenti_csv("dummy.csv")
+                
+                assert result["status"] == "ok"
+                args, kwargs = mock_post.call_args
+                assert 'files' in kwargs

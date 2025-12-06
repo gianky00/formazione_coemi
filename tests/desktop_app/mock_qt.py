@@ -45,6 +45,8 @@ class DummyEnum:
     HLine = 1
     Ok = 1
     Cancel = 2
+    Yes = 3
+    No = 4
     AdjustToContents = 0
     WindowMaximizeButtonHint = 0
     AlignCenter = 0
@@ -146,6 +148,18 @@ class DummyEnum:
 
     class TextFlag:
         TextWordWrap = 0
+
+    class EditTrigger:
+        NoEditTriggers = 0
+        DoubleClicked = 1
+
+    class SelectionBehavior:
+        SelectRows = 1
+        SelectItems = 0
+
+    class SelectionMode:
+        ExtendedSelection = 1
+        SingleSelection = 0
 
 class DummyQLayoutItem:
     def __init__(self, widget):
@@ -256,6 +270,12 @@ class DummyQWidget(DummyQObject):
     GlobalColor = DummyEnum
     BrushStyle = DummyEnum
     TextFlag = DummyEnum
+    
+    # We add these as attributes for instances that access them as nested classes
+    EditTrigger = DummyEnum.EditTrigger
+    SelectionBehavior = DummyEnum.SelectionBehavior
+    SelectionMode = DummyEnum.SelectionMode
+    StandardButton = DummyEnum # Expose StandardButton on DummyQWidget
 
     def __init__(self, text=None, parent=None, *args, **kwargs):
         super().__init__(parent)
@@ -279,9 +299,16 @@ class DummyQWidget(DummyQObject):
     def hide(self):
         pass
     def setVisible(self, visible):
+        self._visible = visible
+    def showEvent(self, event):
         pass
-    def isVisible(self):
+    def closeEvent(self, event):
+        pass
+    def close(self):
+        self.closeEvent(None)
         return True
+    def isVisible(self):
+        return getattr(self, '_visible', True)
     def blockSignals(self, block):
         return False
     def setUpdatesEnabled(self, enable):
@@ -296,9 +323,15 @@ class DummyQWidget(DummyQObject):
         return DummyEnum.WindowNoState
     def isWindow(self):
         return False
+    def showMaximized(self):
+        pass
+    def activateWindow(self):
+        pass
     def setAttribute(self, attr, on=True):
         pass
     def raise_(self):
+        pass
+    def resizeEvent(self, event):
         pass
     def resize(self, *args):
         pass
@@ -328,6 +361,10 @@ class DummyQWidget(DummyQObject):
         pass
     def setMinimumHeight(self, height):
         pass
+    def setMinimumDate(self, date):
+        pass
+    def setSpecialValueText(self, text):
+        pass
     def setMaximumWidth(self, width):
         pass
     def setContentsMargins(self, l, t, r, b):
@@ -348,6 +385,11 @@ class DummyQWidget(DummyQObject):
         pass
     def property(self, name):
         return "mock_property"
+    def findChild(self, type, name=""):
+        # Return a mock that can handle setText, etc.
+        m = MagicMock()
+        m.setText = MagicMock()
+        return m
     def style(self):
         m = MagicMock()
         m.unpolish = MagicMock()
@@ -365,6 +407,8 @@ class DummyQWidget(DummyQObject):
         return None
     def addSpacing(self, spacing):
         pass
+    def setStretch(self, index, stretch):
+        pass
     def setEchoMode(self, mode):
         pass
     def setPlaceholderText(self, text):
@@ -380,9 +424,9 @@ class DummyQWidget(DummyQObject):
     def currentIndex(self):
         return 0
     def addItems(self, items):
-        pass
+        self.widgets.extend(items)
     def addItem(self, item, userData=None):
-        pass
+        self.widgets.append(item)
     def setFrameShape(self, shape):
         pass
     def setFrameShadow(self, shadow):
@@ -413,6 +457,14 @@ class DummyQWidget(DummyQObject):
         return getattr(self, '_checked', True)
     def setCurrentWidget(self, widget):
         pass
+    def currentWidget(self):
+        if self.widgets:
+            return self.widgets[0]
+        return None
+    def widget(self, index):
+        if 0 <= index < len(self.widgets):
+            return self.widgets[index]
+        return None
     def count(self):
         return len(self.widgets)
     def setEnabled(self, enabled):
@@ -440,6 +492,8 @@ class DummyQWidget(DummyQObject):
     def setSelectionBehavior(self, behavior):
         pass
     def setSelectionMode(self, mode):
+        pass
+    def setEditTriggers(self, triggers):
         pass
     def setAlternatingRowColors(self, enable):
         pass
@@ -500,9 +554,20 @@ class DummyQWidget(DummyQObject):
     def setTextVisible(self, v):
         pass
     def setValue(self, v):
-        pass
+        self._value = v
+    def value(self):
+        return getattr(self, '_value', 0)
+    def maximum(self):
+        return 100
     def setMaximum(self, m):
         pass
+    def rect(self):
+        # Return a DummyQRect compatible with paintEvent expectations
+        return DummyQRect(0, 0, 100, 30)
+    def indexOf(self, widget):
+        if widget in self.widgets:
+            return self.widgets.index(widget)
+        return -1
     def insertWidget(self, i, w):
         pass
     def takeAt(self, i):
@@ -514,7 +579,9 @@ class DummyQWidget(DummyQObject):
     def setFont(self, font):
         pass
     def clear(self):
-        pass
+        self.widgets = []
+        if getattr(self, '_model', None):
+            self._model._data = []
     def setStartValue(self, v):
         pass
     def setEndValue(self, v):
@@ -547,6 +614,11 @@ class DummyQWidget(DummyQObject):
 
     def window(self):
         return self
+
+    def setWindowOpacity(self, opacity):
+        self._window_opacity = opacity
+    def windowOpacity(self):
+        return getattr(self, '_window_opacity', 1.0)
 
     # Signals
     @builtins.property
@@ -609,11 +681,13 @@ class DummyQDialog(DummyQWidget):
         pass
 
 class DummyQDate:
-    def __init__(self, d=None):
-        if d is None:
+    def __init__(self, y=None, m=None, d=None):
+        if y is None:
             self._date = datetime.date.today()
-        elif isinstance(d, datetime.date):
-            self._date = d
+        elif m is not None and d is not None:
+            self._date = datetime.date(y, m, d)
+        elif isinstance(y, datetime.date):
+            self._date = y
         else:
             self._date = datetime.date.today()
 
@@ -815,15 +889,19 @@ def mock_qt_modules():
     mock_widgets.QComboBox = DummyQWidget
     mock_widgets.QVBoxLayout = DummyQWidget
     mock_widgets.QHBoxLayout = DummyQWidget
+    mock_widgets.QGridLayout = DummyQWidget
     mock_widgets.QFormLayout = DummyQFormLayout
     mock_widgets.QStackedWidget = DummyQWidget
     mock_widgets.QMessageBox = MagicMock()
+    mock_widgets.QMessageBox.StandardButton = DummyEnum
     mock_widgets.QTableView = DummyQTableView
     mock_widgets.QHeaderView = DummyQHeaderView
     mock_widgets.QDateEdit = DummyQWidget
     mock_widgets.QCheckBox = DummyQWidget
     mock_widgets.QDialogButtonBox = DummyQWidget
     mock_widgets.QListView = DummyQWidget
+    mock_widgets.QListWidget = DummyQWidget
+    mock_widgets.QListWidgetItem = MagicMock
     mock_widgets.QTreeWidget = DummyQWidget
     mock_widgets.QTreeWidgetItem = DummyQTreeWidgetItem
     mock_widgets.QSplitter = DummyQWidget
@@ -849,6 +927,7 @@ def mock_qt_modules():
     mock_core.QDate = DummyQDate
     mock_core.QObject = DummyQObject
     mock_core.QAbstractTableModel = DummyQAbstractTableModel
+    mock_widgets.QAbstractItemView = DummyQWidget # Use DummyQWidget as base for QAbstractItemView enum access
     mock_core.QTimer = MagicMock()
     mock_core.QCoreApplication = MagicMock()
     
