@@ -1,36 +1,37 @@
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from app.core.db_security import DBSecurityManager
 from pathlib import Path
 import time
+import shutil
 
 def test_backup_filename_format(tmp_path):
-    # Setup ambiente mockato
-    with patch("app.core.db_security.settings") as mock_settings, \
-         patch("app.core.db_security.get_user_data_dir", return_value=tmp_path):
+    # Setup paths
+    data_dir = tmp_path / "app_data"
+    data_dir.mkdir()
+    db_path = data_dir / "database_documenti.db"
+    db_path.touch()
 
-        mock_settings.DATABASE_PATH = None 
+    # Instantiate Manager and FORCE paths to ensure test isolation
+    manager = DBSecurityManager()
+    manager.data_dir = data_dir
+    manager.db_path = db_path
 
-        manager = DBSecurityManager()
-        # Simuliamo esistenza DB
-        manager.db_path = tmp_path / "database_documenti.db"
-        manager.db_path.touch()
+    # Ensure backups dir doesn't exist yet
+    backup_dir = data_dir / "Backups"
+    if backup_dir.exists():
+        shutil.rmtree(backup_dir)
 
-        # Instead of patching time which is flaky with module imports,
-        # we let it run and check if a file with the correct pattern exists.
-        manager.create_backup()
+    # Run action
+    manager.create_backup()
 
-        # Check in Backups folder
-        backup_dir = tmp_path / "Backups"
-        assert backup_dir.exists()
+    # Verify
+    assert backup_dir.exists(), f"Backup directory {backup_dir} not created"
 
-        # Look for any .bak file starting with database_documenti_
-        backups = list(backup_dir.glob("database_documenti_*.bak"))
-        assert len(backups) > 0, "Backup file was not created"
+    backups = list(backup_dir.glob("database_documenti_*.bak"))
+    assert len(backups) > 0, "No backup file found"
 
-        # Verify the name format structure (roughly)
-        # database_documenti_DD-MM-YYYY_ore_HH-MM.bak
-        backup_name = backups[0].name
-        assert "database_documenti_" in backup_name
-        assert "_ore_" in backup_name
-        assert backup_name.endswith(".bak")
+    backup_name = backups[0].name
+    assert "database_documenti_" in backup_name
+    assert "_ore_" in backup_name
+    assert backup_name.endswith(".bak")

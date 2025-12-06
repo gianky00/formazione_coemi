@@ -2,36 +2,37 @@
 import sys
 import pytest
 import unittest
+import importlib
 from unittest.mock import MagicMock, patch
 
 # Mock modules
 from tests.desktop_app.mock_qt import mock_qt_modules
 sys.modules.update(mock_qt_modules())
 
-from desktop_app.views.login_view import LoginView
-from desktop_app.services.license_manager import LicenseManager
+def reload_login_view():
+    if 'desktop_app.views.login_view' in sys.modules:
+        importlib.reload(sys.modules['desktop_app.views.login_view'])
 
 class TestLoginViewLicense(unittest.TestCase):
 
     def setUp(self):
         self.mock_api = MagicMock()
+        reload_login_view()
+        # Must re-import class after reload
+        from desktop_app.views.login_view import LoginView
+        self.LoginViewClass = LoginView
 
     def test_login_view_reads_license(self):
-        # Setup Mock for LicenseManager
         mock_data = {
             "Cliente": "Test Corp",
             "Scadenza Licenza": "01/01/2030",
             "Hardware ID": "HWID-123"
         }
 
-        # Patching the method on the class in the VIEW module
-        # Because LoginView imports LicenseManager from services directly
         with patch('desktop_app.views.login_view.LicenseManager.get_license_data', return_value=mock_data):
-            # Also mock get_machine_id which is used in init
             with patch('desktop_app.views.login_view.get_machine_id', return_value='HWID-123'):
-                view = LoginView(api_client=self.mock_api)
+                view = self.LoginViewClass(api_client=self.mock_api)
 
-                # Verify text content
                 text, data = view.read_license_info()
 
                 assert "Test Corp" in text
@@ -40,7 +41,7 @@ class TestLoginViewLicense(unittest.TestCase):
     def test_login_view_missing_license(self):
         with patch('desktop_app.views.login_view.LicenseManager.get_license_data', return_value=None):
              with patch('desktop_app.views.login_view.get_machine_id', return_value='HWID-123'):
-                view = LoginView(api_client=self.mock_api)
+                view = self.LoginViewClass(api_client=self.mock_api)
                 text, data = view.read_license_info()
 
                 assert "non disponibili" in text

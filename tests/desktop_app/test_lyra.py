@@ -1,5 +1,6 @@
 
 import sys
+import pytest
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -7,24 +8,38 @@ from unittest.mock import MagicMock, patch
 from tests.desktop_app.mock_qt import mock_qt_modules
 sys.modules.update(mock_qt_modules())
 
-from desktop_app.services.voice_service import VoiceService
-
 class TestLyraRefactor(unittest.TestCase):
 
-    @patch('desktop_app.services.voice_service.TTSWorker')
-    @patch('desktop_app.services.voice_service.QMediaPlayer') # Mock Player to prevent segfaults/errors
-    def test_voice_service_speak(self, MockPlayer, MockTTSWorker):
+    def test_voice_service_speak(self):
         """Test VoiceService speaks with correct params."""
-        # We need to mock settings import inside voice_service
+        # Clean import to ensure patches take effect on the correct module object
+        if 'desktop_app.services.voice_service' in sys.modules:
+            del sys.modules['desktop_app.services.voice_service']
+
+        from desktop_app.services.voice_service import VoiceService, TTSWorker
+
+        # Patch settings where VoiceService imports it
         with patch('desktop_app.services.voice_service.settings') as mock_settings:
             mock_settings.VOICE_ASSISTANT_ENABLED = True
 
-            service = VoiceService()
-            service.speak("Hello")
+            # Patch TTSWorker class in the module
+            with patch('desktop_app.services.voice_service.TTSWorker') as MockTTSWorker:
+                # Patch QMediaPlayer via mock_qt injection or direct patch
+                with patch('desktop_app.services.voice_service.QMediaPlayer'):
 
-            MockTTSWorker.assert_called_with("Hello", voice="it-IT-IsabellaNeural")
+                    service = VoiceService()
+                    service.speak("Hello")
+
+                    # Verify
+                    MockTTSWorker.assert_called_with("Hello", voice="it-IT-IsabellaNeural")
 
     def test_voice_service_disabled(self):
+        # Clean import
+        if 'desktop_app.services.voice_service' in sys.modules:
+            del sys.modules['desktop_app.services.voice_service']
+
+        from desktop_app.services.voice_service import VoiceService
+
         with patch('desktop_app.services.voice_service.settings') as mock_settings:
             mock_settings.VOICE_ASSISTANT_ENABLED = False
 

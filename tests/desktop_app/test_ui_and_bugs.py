@@ -2,9 +2,14 @@ import pytest
 from unittest.mock import MagicMock, patch
 from datetime import date, timedelta
 import sys
+import importlib
 
 # Assicuriamo che desktop_app sia importabile
 sys.path.append(".")
+
+def reload_ui_modules():
+    if 'desktop_app.main_window_ui' in sys.modules:
+        del sys.modules['desktop_app.main_window_ui']
 
 def test_toast_manager_singleton():
     from desktop_app.components.toast import ToastManager
@@ -15,10 +20,10 @@ def test_toast_manager_singleton():
 @patch('desktop_app.main_window_ui.load_colored_icon')
 @patch('desktop_app.main_window_ui.LicenseManager.get_license_data')
 def test_sidebar_license_expired(mock_get_license, mock_load_icon):
+    reload_ui_modules()
     from desktop_app.main_window_ui import Sidebar
     mock_load_icon.return_value = MagicMock()
 
-    # Expiry date in past
     past_date = (date.today() - timedelta(days=5)).strftime("%d/%m/%Y")
     mock_get_license.return_value = {
         "Hardware ID": "12345",
@@ -27,7 +32,6 @@ def test_sidebar_license_expired(mock_get_license, mock_load_icon):
     }
 
     sidebar = Sidebar()
-    # Check labels for "Licenza SCADUTA"
     labels = []
     for i in range(sidebar.license_layout.count()):
         item = sidebar.license_layout.itemAt(i)
