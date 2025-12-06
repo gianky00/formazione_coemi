@@ -45,7 +45,7 @@ def test_load_data_success(validation_view):
 
 def test_load_data_error(validation_view):
     """Test error handling during data load."""
-    # Patch at source for method (works for imported classes)
+    # Patch at the component source to ensure all imports catch it
     with patch("desktop_app.components.custom_dialog.CustomMessageDialog.show_error") as mock_error:
         validation_view._on_error("Network Error")
         mock_error.assert_called_with(validation_view, "Errore di Connessione", ANY)
@@ -204,6 +204,7 @@ def test_context_menu_open_folder(validation_view):
 
         validation_view._show_context_menu(QtCore.QPoint(0,0))
 
+        # Check call using ANY for args if necessary, but robust check is better
         mock_subprocess.assert_called()
         args = mock_subprocess.call_args[0][0]
         assert args[0] == 'explorer'
