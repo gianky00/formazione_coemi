@@ -661,7 +661,7 @@ class DummyQTreeWidgetItem(MagicMock):
     def data(self, col, role):
         return None
 
-class DummyQGraphicsTextItem(MagicMock):
+class DummyQGraphicsTextItem(DummyQObject):
     def __init__(self, *args, **kwargs):
         super().__init__()
     def setFont(self, font): pass
@@ -672,20 +672,25 @@ class DummyQGraphicsTextItem(MagicMock):
         m.width.return_value = 100
         return m
 
-class DummyQGraphicsRectItem(MagicMock):
+class DummyQGraphicsRectItem(DummyQObject):
     def __init__(self, *args, **kwargs):
         super().__init__()
+        self._z = 0
+
     def setBrush(self, brush): pass
     def setPen(self, pen): pass
-    def setZValue(self, z): pass
+    def setZValue(self, z): self._z = z
+    def zValue(self): return self._z
     def setRect(self, x, y, w, h): pass
     def rect(self):
         m = MagicMock()
         m.x.return_value = 0
         m.width.return_value = 100
         return m
+    def setData(self, key, value): pass
+    def setToolTip(self, text): pass
 
-class DummyQGraphicsLineItem(MagicMock):
+class DummyQGraphicsLineItem(DummyQObject):
     def __init__(self, *args, **kwargs):
         super().__init__()
     def setPen(self, pen): pass
