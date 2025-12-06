@@ -194,12 +194,16 @@ class DummyQPoint:
         self._y = y
     def x(self): return self._x
     def y(self): return self._y
+    def __add__(self, other):
+        return DummyQPoint(self._x + other.x(), self._y + other.y())
+    def __sub__(self, other):
+        return DummyQPoint(self._x - other.x(), self._y - other.y())
 
 class DummyQRect:
     def __init__(self, x=0, y=0, w=0, h=0):
         if hasattr(x, 'x') and hasattr(x, 'y'): # QRect(QPoint top_left, QSize size)
-            self._x = x.x()
-            self._y = x.y()
+            self._x = int(x.x())
+            self._y = int(x.y())
             # y is size (MagicMock)
             self._w = 100
             self._h = 100
@@ -215,11 +219,12 @@ class DummyQRect:
             self._w = int(w)
             self._h = int(h)
 
-    def x(self): return self._x
-    def y(self): return self._y
-    def width(self): return self._w
-    def height(self): return self._h
+    def x(self): return int(self._x)
+    def y(self): return int(self._y)
+    def width(self): return int(self._w)
+    def height(self): return int(self._h)
     def contains(self, *args): return False
+    def isValid(self): return True
 
     def translated(self, x, y):
         if hasattr(x, 'x') and hasattr(x, 'y'):
