@@ -686,6 +686,7 @@ class MainDashboardWidget(QWidget):
         self.views["import"].upload_path(path)
 
     def _init_system_checks(self):
+        self.check_thread = None
         self.system_check_timer = QTimer(self)
         self.system_check_timer.setInterval(10000)
         self.system_check_timer.timeout.connect(self._start_system_check_thread)
@@ -694,9 +695,12 @@ class MainDashboardWidget(QWidget):
         self._last_license_check = 0
         self._start_system_check_thread()
 
+    def _cleanup_check_thread(self):
+        self.check_thread = None
+
     def _start_system_check_thread(self):
-        # Bug 4 Fix: Prevent Thread Leak
-        if hasattr(self, 'check_thread') and self.check_thread.isRunning():
+        # Prevent starting a new thread if one exists
+        if self.check_thread is not None:
             return
 
         # Create a new thread for each check to ensure clean state
@@ -709,6 +713,7 @@ class MainDashboardWidget(QWidget):
         self.check_worker.finished.connect(self.check_thread.quit)
         self.check_worker.finished.connect(self.check_worker.deleteLater)
         self.check_thread.finished.connect(self.check_thread.deleteLater)
+        self.check_thread.finished.connect(self._cleanup_check_thread)
         self.check_thread.start()
 
     def _on_system_check_result(self, status):
