@@ -185,8 +185,7 @@ def test_context_menu_open_folder(validation_view):
 
         validation_view._show_context_menu(QtCore.QPoint(0,0))
 
-        # Check call, ignoring exact list formatting issues if necessary, but here we can be precise
-        # or use ANY for the exact list if we suspect quoting issues
+        # Check call using ANY for args if necessary, but robust check is better
         mock_subprocess.assert_called()
         args = mock_subprocess.call_args[0][0]
         assert args[0] == 'explorer'

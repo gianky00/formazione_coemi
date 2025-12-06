@@ -149,7 +149,8 @@ def test_send_manual_alert_success_handling(scadenzario_view):
     # Ensure window() returns a mock that can be passed to ToastManager
     scadenzario_view.window = MagicMock(return_value=MagicMock())
 
-    with patch("desktop_app.views.scadenzario_view.ToastManager.success") as mock_success:
+    # Patch the global class method to ensure it's caught
+    with patch("desktop_app.components.toast.ToastManager.success") as mock_success:
         mock_response = MagicMock()
         mock_response.status_code = 200
 
