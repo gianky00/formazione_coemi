@@ -22,7 +22,8 @@ def test_verify_license_files_user_dir(mocker):
     mocker.patch("desktop_app.services.path_service.get_app_install_dir", return_value="/tmp/install_dir")
 
     def side_effect(path):
-        if "/tmp/user_license_dir" in path: return True
+        normalized_path = path.replace("\\", "/")
+        if "/tmp/user_license_dir" in normalized_path: return True
         return False
 
     mocker.patch("os.path.exists", side_effect=side_effect)
@@ -38,16 +39,21 @@ def test_verify_license_files_install_dir(mocker):
     mocker.patch("desktop_app.services.path_service.get_app_install_dir", return_value="/tmp/install_dir")
 
     def side_effect(path):
-        if "/tmp/user_license_dir" in path: return False
-        if "/tmp/install_dir/Licenza" in path: return True
+        normalized_path = path.replace("\\", "/")
+        if "/tmp/user_license_dir" in normalized_path: return False
+        if "/tmp/install_dir/Licenza" in normalized_path: return True
         return False
 
     mocker.patch("os.path.exists", side_effect=side_effect)
 
     ok = launcher.verify_license_files()
     assert ok
-    # Verify sys.path modification
-    assert "/tmp/install_dir/Licenza" in sys.path
+    # Verify sys.path modification (path will be platform dependent, so check for string presence)
+    # launcher.py does sys.path.insert(0, legacy_lic_dir)
+    # legacy_lic_dir is constructed via os.path.join.
+    # We just check if *something* looking like the path was added.
+    path_found = any("/tmp/install_dir/Licenza" in p.replace("\\", "/") for p in sys.path)
+    assert path_found
 
 def test_check_port_open(mocker):
     with patch("socket.socket") as mock_sock:

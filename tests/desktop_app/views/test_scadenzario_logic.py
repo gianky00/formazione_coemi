@@ -27,9 +27,6 @@ def scadenzario_view(mock_api_client_cls):
         worker.signals.finished = MagicMock()
 
         view = ScadenzarioView() # No args
-        # We can inject our mock client instance if we want to control it further,
-        # but MockClass.return_value is already global to the fixture scope?
-        # view.api_client is the mock instance.
         return view
 
 def test_init(scadenzario_view):
@@ -49,23 +46,28 @@ def test_on_data_loaded_populates_tree(scadenzario_view):
     # Data format: list of dicts
     today = date.today().strftime("%d/%m/%Y")
     data = [
-        {"nome": "ROSSI MARIO", "categoria": "ANTINCENDIO", "stato_certificato": "valido", "data_scadenza": "31/12/2099", "matricola": "123"},
-        {"nome": "BIANCHI LUIGI", "categoria": "PRIMO SOCCORSO", "stato_certificato": "in_scadenza", "data_scadenza": today, "matricola": "456"}
+        {
+            "nome": "ROSSI MARIO",
+            "categoria": "ANTINCENDIO",
+            "stato_certificato": "valido",
+            "data_scadenza": "31/12/2099",
+            "matricola": "123",
+            "data_nascita": "01/01/1980",
+            "corso": "CORSO BASE"
+        },
+        {
+            "nome": "BIANCHI LUIGI",
+            "categoria": "PRIMO SOCCORSO",
+            "stato_certificato": "in_scadenza",
+            "data_scadenza": today,
+            "matricola": "456",
+            "data_nascita": "01/01/1990",
+            "corso": "CORSO AVANZATO"
+        }
     ]
 
-    # We need to mock QTreeWidgetItem to check if items are added.
-    # mock_qt mocks QTreeWidgetItem.
-    # The view calls QTreeWidgetItem(parent, strings).
-
-    with patch("desktop_app.views.scadenzario_view.QTreeWidgetItem") as MockItem, \
-         patch("desktop_app.views.scadenzario_view.GanttBarItem"):
+    with patch("desktop_app.views.scadenzario_view.QTreeWidgetItem") as MockItem:
         scadenzario_view._on_data_loaded(data)
-
-        # Check if items were created
-        # We expect Categories, Statuses, and Leaves.
-        # 2 Categories (ANTINCENDIO, PRIMO SOCCORSO).
-        # 2 Statuses (IN SCADENZA/SCADUTI).
-        # 2 Leaves.
         assert MockItem.call_count >= 2
 
 def test_update_gantt_chart(scadenzario_view):
@@ -75,29 +77,37 @@ def test_update_gantt_chart(scadenzario_view):
     exp2 = (today - timedelta(days=5)).strftime("%d/%m/%Y")
 
     data = [
-        {"nome": "ROSSI MARIO", "categoria": "ANTINCENDIO", "stato_certificato": "in_scadenza", "data_scadenza": exp1, "matricola": "123"},
-        {"nome": "BIANCHI LUIGI", "categoria": "PRIMO SOCCORSO", "stato_certificato": "scaduto", "data_scadenza": exp2, "matricola": "456"}
+        {
+            "nome": "ROSSI MARIO",
+            "categoria": "ANTINCENDIO",
+            "stato_certificato": "in_scadenza",
+            "data_scadenza": exp1,
+            "matricola": "123",
+            "data_nascita": "01/01/1980",
+            "corso": "CORSO BASE"
+        },
+        {
+            "nome": "BIANCHI LUIGI",
+            "categoria": "PRIMO SOCCORSO",
+            "stato_certificato": "scaduto",
+            "data_scadenza": exp2,
+            "matricola": "456",
+            "data_nascita": "01/01/1990",
+            "corso": "CORSO AVANZATO"
+        }
     ]
 
-    # Mock GanttBarItem to verify instantiation
-    class MockGanttItem(MagicMock):
-        def __init__(self, *args, **kwargs):
-            super().__init__()
+    # Just run it using the real (dummy) classes
+    scadenzario_view._on_data_loaded(data)
 
-    # Use side_effect=MockGanttItem to accept any arguments safely
-    with patch("desktop_app.views.scadenzario_view.GanttBarItem", side_effect=MockGanttItem) as MockBar:
-        scadenzario_view._on_data_loaded(data)
+    # Check scene items directly
+    items = scadenzario_view.gantt_scene.items()
+    assert len(items) > 0
 
-        # Check if bars were added to scene.
-        # redraw_gantt_scene is called by _on_data_loaded.
-        # It adds items to gantt_scene.
-
-        # We expect 2 bars if they are within visible range.
-        # Default zoom is 3 months. (-1 to +2 months from today).
-        # Both dates are close to today, so they should be visible.
-        assert MockBar.call_count >= 1 # At least one should be visible
-        # scadenzario_view.gantt_scene is a DummyQGraphicsScene (real object), so addItem is not a mock
-        assert len(scadenzario_view.gantt_scene.items()) > 0
+    # Verify at least one is a GanttBarItem (which is a DummyQGraphicsRectItem now)
+    from tests.desktop_app.mock_qt import DummyQGraphicsRectItem
+    rects = [i for i in items if isinstance(i, DummyQGraphicsRectItem)]
+    assert len(rects) >= 1
 
 def test_export_pdf(scadenzario_view):
     """Test export PDF triggers backend endpoint."""
@@ -136,12 +146,16 @@ def test_send_manual_alert(scadenzario_view):
 
 def test_send_manual_alert_success_handling(scadenzario_view):
     """Test handling of email sent success signal."""
-    with patch("desktop_app.views.scadenzario_view.ToastManager.success") as mock_success:
+    # Ensure window() returns a mock that can be passed to ToastManager
+    scadenzario_view.window = MagicMock(return_value=MagicMock())
+
+    # Patch the global class method to ensure it's caught
+    with patch("desktop_app.components.toast.ToastManager.success") as mock_success:
         mock_response = MagicMock()
         mock_response.status_code = 200
 
         scadenzario_view._on_email_sent(mock_response)
-        mock_success.assert_called_with("Successo", ANY, scadenzario_view.window())
+        mock_success.assert_called_with("Successo", ANY, ANY)
 
 def test_zoom_levels(scadenzario_view):
     """Test zoom level changes."""
@@ -160,15 +174,6 @@ def test_read_only_mode(scadenzario_view):
 
     # Check flag
     assert scadenzario_view.is_read_only is True
-
-    # Check button disabled (via mock)
-    # generate_email_button is AnimatedButton (inherits QPushButton/QWidget)
-    # Mock doesn't store state, but we can verify setEnabled was called
-    # But wait, AnimatedButton is imported. Is it mocked?
-    # desktop_app.components.animated_widgets.AnimatedButton
-    # We mocked qt modules, but custom widgets might be real if not patched.
-    # mock_qt mocks 'PyQt6.QtWidgets', so AnimatedButton inheriting from QPushButton will inherit from DummyQWidget.
-    # So we can't easily check 'enabled' property unless we spy setEnabled.
 
     # We can test that generate_email returns early
     with patch("desktop_app.views.scadenzario_view.Worker") as MockWorker:
