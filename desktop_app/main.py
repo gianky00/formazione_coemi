@@ -3,6 +3,9 @@ import requests
 from PyQt6.QtWidgets import QApplication, QMainWindow, QMessageBox
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt, QTimer, QObject, pyqtSignal, QEvent
+import sentry_sdk
+import os
+import traceback as tb
 
 # --- IMPORT FONDAMENTALE ---
 from .main_window_ui import MainDashboardWidget
@@ -692,17 +695,38 @@ def exception_hook(exctype, value, traceback):
     """
     Global exception handler to ensure database cleanup on crash.
     """
+    # 1. Capture to Sentry (if initialized here)
+    if sentry_sdk.is_initialized():
+        sentry_sdk.capture_exception(value)
+
+    # 2. Print Traceback
     print(f"[CRITICAL] Unhandled exception: {exctype}, {value}")
     import traceback as tb
     tb.print_tb(traceback)
+
+    # 3. DB Cleanup
     try:
         print("[CRITICAL] Attempting emergency DB cleanup...")
         db_security.cleanup()
     except Exception as e:
         print(f"[CRITICAL] Emergency cleanup failed: {e}")
+        if sentry_sdk.is_initialized():
+             sentry_sdk.capture_exception(e)
     sys.exit(1)
 
 if __name__ == "__main__":
+    # --- SENTRY INTEGRATION FOR DEV ---
+    if not sentry_sdk.is_initialized():
+        environment = "production" if getattr(sys, 'frozen', False) else "development"
+        SENTRY_DSN = os.environ.get("SENTRY_DSN", "https://f252d598aaf7e70fe94d533474b76639@o4510490492600320.ingest.de.sentry.io/4510490526744656")
+
+        sentry_sdk.init(
+            dsn=SENTRY_DSN,
+            environment=environment,
+            traces_sample_rate=1.0,
+            send_default_pii=True
+        )
+
     sys.excepthook = exception_hook
     app = QApplication(sys.argv)
     setup_styles(app)

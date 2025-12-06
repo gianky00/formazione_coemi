@@ -34,3 +34,4 @@ edge-tts
 psutil
 pytest-qt
 platformdirs
+sentry-sdk[fastapi]
