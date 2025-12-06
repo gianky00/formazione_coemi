@@ -9,6 +9,54 @@ import argparse
 import requests
 import platform
 import sqlite3
+import traceback as tb
+
+# --- SENTRY INTEGRATION ---
+import sentry_sdk
+
+def init_sentry():
+    """Initializes Sentry SDK for error tracking."""
+    # Environment detection
+    environment = "production" if getattr(sys, 'frozen', False) else "development"
+
+    # DSN Resolution (Env Var -> Hardcoded Fallback)
+    SENTRY_DSN = os.environ.get("SENTRY_DSN", "https://f252d598aaf7e70fe94d533474b76639@o4510490492600320.ingest.de.sentry.io/4510490526744656")
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        environment=environment,
+        traces_sample_rate=1.0,
+        send_default_pii=True
+    )
+
+def sentry_exception_hook(exctype, value, traceback):
+    """
+    Global exception handler that captures errors to Sentry
+    AND ensures database security cleanup.
+    """
+    # 1. Capture to Sentry
+    sentry_sdk.capture_exception(value)
+
+    # 2. Print Traceback (for local logging/debugging)
+    print(f"[CRITICAL] Unhandled exception: {exctype}, {value}")
+    tb.print_tb(traceback)
+
+    # 3. Database Cleanup (CRITICAL)
+    try:
+        from app.core.db_security import db_security
+        print("[CRITICAL] Attempting emergency DB cleanup...")
+        db_security.cleanup()
+    except Exception as e:
+        print(f"[CRITICAL] Emergency cleanup failed: {e}")
+        sentry_sdk.capture_exception(e) # Capture cleanup failure too
+
+    # 4. Exit
+    sys.exit(1)
+
+# Initialize Sentry immediately
+init_sentry()
+# Override global exception hook
+sys.excepthook = sentry_exception_hook
 
 # --- CRITICAL: IMPORT WEBENGINE & SET ATTRIBUTE BEFORE QAPPLICATION ---
 from PyQt6.QtWebEngineWidgets import QWebEngineView

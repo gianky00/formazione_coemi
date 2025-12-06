@@ -18,6 +18,21 @@ from app.db.session import SessionLocal
 from app.utils.logging import setup_logging
 from datetime import datetime, timedelta
 import logging
+import sentry_sdk
+import os
+import sys
+
+# --- SENTRY INTEGRATION ---
+if not sentry_sdk.is_initialized():
+    environment = "production" if getattr(sys, 'frozen', False) else "development"
+    SENTRY_DSN = os.environ.get("SENTRY_DSN", "https://f252d598aaf7e70fe94d533474b76639@o4510490492600320.ingest.de.sentry.io/4510490526744656")
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        environment=environment,
+        traces_sample_rate=1.0,
+        send_default_pii=True
+    )
 
 # Configure logger
 logger = logging.getLogger(__name__)
