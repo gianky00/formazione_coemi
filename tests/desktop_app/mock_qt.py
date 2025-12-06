@@ -295,9 +295,9 @@ class DummyQWidget(DummyQObject):
     def layout(self):
         return MagicMock()
     def show(self):
-        pass
+        self._visible = True
     def hide(self):
-        pass
+        self._visible = False
     def setVisible(self, visible):
         self._visible = visible
     def showEvent(self, event):

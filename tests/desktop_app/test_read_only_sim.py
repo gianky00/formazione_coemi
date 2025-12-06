@@ -21,7 +21,8 @@ class TestReadOnlyEnforcement(unittest.TestCase):
 
     def setUp(self):
         # Mock API Client
-        self.mock_api = MagicMock(spec=APIClient)
+        # Removing spec=APIClient to prevent InvalidSpecError since APIClient is already a Mock
+        self.mock_api = MagicMock()
         self.mock_api.base_url = "http://mock-api"
 
         # Patch APIClient instantiation in ApplicationController

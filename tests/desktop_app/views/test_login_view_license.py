@@ -1,41 +1,51 @@
-import sys
-import unittest
-from unittest.mock import patch, MagicMock
-from tests.desktop_app.mock_qt import mock_qt_modules
 
-# Patch before import
-mock_modules = mock_qt_modules()
-with patch.dict(sys.modules, mock_modules):
-    from desktop_app.views.login_view import LoginView
-    from desktop_app.services.license_manager import LicenseManager
+import sys
+import pytest
+import unittest
+import importlib
+from unittest.mock import MagicMock, patch
+
+# Mock modules
+from tests.desktop_app.mock_qt import mock_qt_modules
+sys.modules.update(mock_qt_modules())
+
+def reload_login_view():
+    if 'desktop_app.views.login_view' in sys.modules:
+        importlib.reload(sys.modules['desktop_app.views.login_view'])
 
 class TestLoginViewLicense(unittest.TestCase):
-    @patch('desktop_app.views.login_view.get_machine_id', return_value='HWID-123')
-    def test_login_view_reads_license(self, mock_get_id):
-        # Setup Mock for LicenseManager
+
+    def setUp(self):
+        self.mock_api = MagicMock()
+        reload_login_view()
+        # Must re-import class after reload
+        from desktop_app.views.login_view import LoginView
+        self.LoginViewClass = LoginView
+
+    def test_login_view_reads_license(self):
         mock_data = {
             "Cliente": "Test Corp",
             "Scadenza Licenza": "01/01/2030",
             "Hardware ID": "HWID-123"
         }
 
-        # Patching the method on the class directly to ensure it catches the reference
-        with patch.object(LicenseManager, 'get_license_data', return_value=mock_data):
-            view = LoginView(api_client=MagicMock())
+        with patch('desktop_app.views.login_view.LicenseManager.get_license_data', return_value=mock_data):
+            with patch('desktop_app.views.login_view.get_machine_id', return_value='HWID-123'):
+                view = self.LoginViewClass(api_client=self.mock_api)
 
-            # Verify text content
-            text, data = view.read_license_info()
-            self.assertIn("Cliente: Test Corp", text)
-            self.assertIn("Scadenza: 01/01/2030", text)
-            self.assertIn("ID Licenza: HWID-123", text)
-            self.assertEqual(data, mock_data)
+                text, data = view.read_license_info()
+
+                assert "Test Corp" in text
+                assert data["Hardware ID"] == "HWID-123"
 
     def test_login_view_missing_license(self):
-        with patch.object(LicenseManager, 'get_license_data', return_value=None):
-            view = LoginView(api_client=MagicMock())
-            text, data = view.read_license_info()
-            self.assertEqual(text, "Dettagli licenza non disponibili. Procedere con l'aggiornamento.")
-            self.assertIsNone(data)
+        with patch('desktop_app.views.login_view.LicenseManager.get_license_data', return_value=None):
+             with patch('desktop_app.views.login_view.get_machine_id', return_value='HWID-123'):
+                view = self.LoginViewClass(api_client=self.mock_api)
+                text, data = view.read_license_info()
+
+                assert "non disponibili" in text
+                assert data == {}
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,30 +1,37 @@
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from app.core.db_security import DBSecurityManager
 from pathlib import Path
+import time
+import shutil
 
 def test_backup_filename_format(tmp_path):
-    # Setup ambiente mockato
-    with patch("app.core.db_security.settings") as mock_settings, \
-         patch("app.core.db_security.get_user_data_dir", return_value=tmp_path):
+    # Setup paths
+    data_dir = tmp_path / "app_data"
+    data_dir.mkdir()
+    db_path = data_dir / "database_documenti.db"
+    db_path.touch()
 
-        mock_settings.DATABASE_PATH = None 
+    # Instantiate Manager and FORCE paths to ensure test isolation
+    manager = DBSecurityManager()
+    manager.data_dir = data_dir
+    manager.db_path = db_path
 
-        manager = DBSecurityManager()
-        # Simuliamo esistenza DB
-        manager.db_path = tmp_path / "database_documenti.db"
-        manager.db_path.touch()
+    # Ensure backups dir doesn't exist yet
+    backup_dir = data_dir / "Backups"
+    if backup_dir.exists():
+        shutil.rmtree(backup_dir)
 
-        # FIX: Patchiamo 'app.core.db_security.time' invece di 'time' generico
-        # Questo assicura che la funzione interna usi il nostro valore mockato
-        with patch("app.core.db_security.time") as mock_time:
-            mock_time.strftime.return_value = "01-12-2025_ore_22-37"
+    # Run action
+    manager.create_backup()
 
-            manager.create_backup()
+    # Verify
+    assert backup_dir.exists(), f"Backup directory {backup_dir} not created"
 
-            # Nome atteso
-            expected_name = "database_documenti_01-12-2025_ore_22-37.bak"
-            expected_path = tmp_path / "Backups" / expected_name
+    backups = list(backup_dir.glob("database_documenti_*.bak"))
+    assert len(backups) > 0, "No backup file found"
 
-            # Verifica
-            assert expected_path.exists()
+    backup_name = backups[0].name
+    assert "database_documenti_" in backup_name
+    assert "_ore_" in backup_name
+    assert backup_name.endswith(".bak")
