@@ -424,7 +424,7 @@ def update_certificato(
         # We construct new data from db_cert.
         # Ensure relations are loaded.
         if not db_cert.dipendente and db_cert.dipendente_id:
-             db_cert.dipendente = db.query(Dipendente).get(db_cert.dipendente_id)
+             db_cert.dipendente = db.get(Dipendente, db_cert.dipendente_id)
         if not db_cert.corso:
              db_cert.corso = db.query(Corso).get(db_cert.corso_id)
 

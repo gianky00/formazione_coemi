@@ -2,6 +2,11 @@
 .\Scripts\activate
 python -m pytest tests
 
+.\Scripts\activate
+python -m pytest --cov=. --cov-report=term-missing
+
+
+
 # CREA GUIDA
 winget install OpenJS.NodeJS 
 
