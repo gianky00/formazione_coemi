@@ -590,7 +590,8 @@ class LoginView(QWidget):
         data = LicenseManager.get_license_data()
 
         if not data:
-            return "Dettagli licenza non disponibili. Procedere con l'aggiornamento.", None
+            # FIX: Returns a tuple consistent with the signature (text, dict)
+            return "Dettagli licenza non disponibili. Procedere con l'aggiornamento.", {}
 
         lines = []
         if "Cliente" in data:
