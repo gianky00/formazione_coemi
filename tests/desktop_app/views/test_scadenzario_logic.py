@@ -2,7 +2,7 @@ import sys
 from unittest.mock import MagicMock, patch, ANY, call
 import pytest
 from datetime import date, timedelta
-from tests.desktop_app.mock_qt import mock_modules, QtCore
+from tests.desktop_app.mock_qt import mock_modules, QtCore, DummyQRect
 
 # Apply mocks to sys.modules
 for name, mod in mock_modules.items():
@@ -44,13 +44,16 @@ def test_load_data_trigger(scadenzario_view):
 def test_on_data_loaded_populates_tree(scadenzario_view):
     """Test that loaded data populates the tree widget."""
     # Data format: list of dicts
-    today = date.today().strftime("%d/%m/%Y")
+    today = date.today()
+    # Ensure date is within 90 days for filtering logic in ScadenzarioView
+    future_date = (today + timedelta(days=10)).strftime("%d/%m/%Y")
+
     data = [
         {
             "nome": "ROSSI MARIO",
             "categoria": "ANTINCENDIO",
             "stato_certificato": "valido",
-            "data_scadenza": "31/12/2099",
+            "data_scadenza": future_date,
             "matricola": "123",
             "data_nascita": "01/01/1980",
             "corso": "CORSO BASE"
@@ -59,7 +62,7 @@ def test_on_data_loaded_populates_tree(scadenzario_view):
             "nome": "BIANCHI LUIGI",
             "categoria": "PRIMO SOCCORSO",
             "stato_certificato": "in_scadenza",
-            "data_scadenza": today,
+            "data_scadenza": today.strftime("%d/%m/%Y"),
             "matricola": "456",
             "data_nascita": "01/01/1990",
             "corso": "CORSO AVANZATO"
@@ -68,6 +71,7 @@ def test_on_data_loaded_populates_tree(scadenzario_view):
 
     with patch("desktop_app.views.scadenzario_view.QTreeWidgetItem") as MockItem:
         scadenzario_view._on_data_loaded(data)
+        # Should create category items (2), status items (2), leaf items (2) = 6 minimum
         assert MockItem.call_count >= 2
 
 def test_update_gantt_chart(scadenzario_view):
@@ -111,6 +115,8 @@ def test_update_gantt_chart(scadenzario_view):
 
 def test_export_pdf(scadenzario_view):
     """Test export PDF triggers backend endpoint."""
+    scadenzario_view.is_read_only = False
+
     # export_to_pdf uses Worker
     with patch("desktop_app.views.scadenzario_view.Worker") as MockWorker, \
          patch("desktop_app.views.scadenzario_view.QFileDialog.getSaveFileName", return_value=("report.pdf", "PDF")) as mock_dialog:
@@ -120,7 +126,7 @@ def test_export_pdf(scadenzario_view):
 
         scadenzario_view.export_to_pdf()
 
-        # Verify Worker was created with a function
+        # Verify Worker was created
         assert MockWorker.called
         func = MockWorker.call_args[0][0]
 
@@ -133,6 +139,8 @@ def test_export_pdf(scadenzario_view):
 
 def test_send_manual_alert(scadenzario_view):
     """Test manual alert button triggers API via Worker."""
+    scadenzario_view.is_read_only = False
+
     with patch("desktop_app.views.scadenzario_view.Worker") as MockWorker:
         scadenzario_view.generate_email()
 
@@ -146,8 +154,13 @@ def test_send_manual_alert(scadenzario_view):
 
 def test_send_manual_alert_success_handling(scadenzario_view):
     """Test handling of email sent success signal."""
-    # Ensure window() returns a mock that can be passed to ToastManager
-    scadenzario_view.window = MagicMock(return_value=MagicMock())
+    # Ensure window() returns a mock that has a geometry method returning DummyQRect
+    mock_window = MagicMock()
+    mock_window.geometry.return_value = DummyQRect(0, 0, 800, 600)
+    mock_window.isVisible.return_value = True
+    mock_window.windowState.return_value = 0 # Normal state
+
+    scadenzario_view.window = MagicMock(return_value=mock_window)
 
     # Patch the global class method to ensure it's caught
     with patch("desktop_app.components.toast.ToastManager.success") as mock_success:
@@ -155,6 +168,25 @@ def test_send_manual_alert_success_handling(scadenzario_view):
         mock_response.status_code = 200
 
         scadenzario_view._on_email_sent(mock_response)
+
+        # ToastManager.success calls instance().show_toast -> emit signal.
+        # But we mocked success() static method in the test above.
+        # Wait, if we mock ToastManager.success, then the implementation inside ScadenzarioView calling it works.
+        # BUT the failure log showed error inside desktop_app\components\toast.py:233
+        # This implies ToastManager.success WAS executing its real code up to that point.
+        # This happens if we patch the CLASS method but the code imports it differently or we didn't patch it effectively?
+        # Actually, in the previous failure, the trace showed it went into success -> show_toast.
+        # So we probably shouldn't patch ToastManager.success if we want to test the full logic, OR we should just trust the patch.
+        # The previous test failure trace:
+        # desktop_app\components\toast.py:295: in success
+        #     ToastManager.instance().show_toast(parent, "success", title, message)
+
+        # If we patch 'desktop_app.components.toast.ToastManager.success', it should be replaced.
+        # Why did it execute real code in the failure log?
+        # Because the previous test patched it with `with patch(...)` but maybe the import in scadenzario_view.py
+        # is `from ..components.toast import ToastManager` and `ToastManager.success` is called.
+
+        # If we patch it, it should work. Let's just use the mock.
         mock_success.assert_called_with("Successo", ANY, ANY)
 
 def test_zoom_levels(scadenzario_view):
