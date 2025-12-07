@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          fetch-depth: 0 
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -56,7 +56,6 @@ jobs:
       - name: Run Tests
         run: |
           # Run tests and generate coverage report
-          # xvfb-run is now explicitly installed to ensure headless Qt support
           xvfb-run -a python -m pytest --cov=. --cov-report=xml --junitxml=junit.xml
 
       - name: SonarCloud Scan
@@ -64,3 +63,30 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      
+      - name: **Copy SonarCloud Logs** 💾
+        # Esegui sempre, anche se lo Scan fallisce, per catturare i log
+        if: always()
+        run: |
+          LOG_DIR="./.scannerwork"
+          if [ -d "$LOG_DIR/logs" ]; then
+            # Se è presente la directory 'logs', copiala
+            mkdir -p logs_artifact
+            cp -r $LOG_DIR/logs/* logs_artifact/
+          elif [ -d "$LOG_DIR" ]; then
+            # Se la directory 'logs' non è presente, ma la principale sì, copia tutto
+            # Questo è per massimizzare la possibilità di recuperare i log
+            mkdir -p logs_artifact
+            cp -r $LOG_DIR/* logs_artifact/
+          else
+            echo "Sonar Scanner work directory not found. Cannot copy logs."
+          fi
+
+      - name: **Upload SonarCloud Logs as Artifact** 📤
+        # Esegui sempre in modo che l'Artifact sia sempre presente
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sonarcloud-failure-details
+          path: logs_artifact/
+          retention-days: 7
