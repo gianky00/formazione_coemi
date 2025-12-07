@@ -13,53 +13,53 @@ logger = logging.getLogger(__name__)
 
 class ChatService:
     def __init__(self):
+        # S1186: Empty method implementation
+        # Service initialization logic if needed
         pass
 
-    def get_rag_context(self, db: Session, user: User) -> str:
-        """
-        Retrieves context from the database to ground the AI.
-        Optimized for performance and privacy.
-        """
-        today = date.today()
-        threshold_date = today + timedelta(days=settings.ALERT_THRESHOLD_DAYS)
+    def _format_cert_info(self, cert, status):
+        """Helper to format certificate info with privacy masking."""
+        emp_name = cert.dipendente.nome if cert.dipendente else (cert.nome_dipendente_raw or "Sconosciuto")
+        parts = emp_name.split()
+        masked_name = f"{parts[0]} {parts[1][0]}." if len(parts) > 1 else emp_name
+        date_str = cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else "N/A"
+        return f"- {masked_name}: {cert.corso.nome_corso} ({status.upper()}, Scade: {date_str})"
 
-        # 1. Statistics (Efficient Counts)
-        total_certs = db.query(func.count(Certificato.id)).scalar()
-        total_employees = db.query(func.count(Dipendente.id)).scalar()
-        
-        # 2. Expiring / Expired (Limit 50 for context window)
-        relevant_certs = db.query(Certificato).join(Dipendente, isouter=True).filter(
+    def _get_relevant_certs(self, db, threshold_date):
+        return db.query(Certificato).join(Dipendente, isouter=True).filter(
             or_(
                 Certificato.data_scadenza_calcolata <= threshold_date,
                 Certificato.data_scadenza_calcolata == None
             )
         ).limit(50).all()
 
+    def get_rag_context(self, db: Session, user: User) -> str:
+        """
+        Retrieves context from the database to ground the AI.
+        Optimized for performance and privacy.
+        """
+        # S3776: Refactored to reduce complexity
+        today = date.today()
+        threshold_date = today + timedelta(days=settings.ALERT_THRESHOLD_DAYS)
+
+        total_certs = db.query(func.count(Certificato.id)).scalar()
+        total_employees = db.query(func.count(Dipendente.id)).scalar()
+        
+        relevant_certs = self._get_relevant_certs(db, threshold_date)
+        statuses = get_bulk_certificate_statuses(db, relevant_certs)
+
         expiring_list = []
         expired_list = []
         
-        statuses = get_bulk_certificate_statuses(db, relevant_certs)
-        
         for cert in relevant_certs:
             status = statuses.get(cert.id, "attivo")
-            
-            # Privacy Masking: "Rossi Mario" -> "Rossi M."
-            emp_name = cert.dipendente.nome if cert.dipendente else (cert.nome_dipendente_raw or "Sconosciuto")
-            parts = emp_name.split()
-            if len(parts) > 1:
-                masked_name = f"{parts[0]} {parts[1][0]}."
-            else:
-                masked_name = emp_name
-
-            date_str = cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else "N/A"
-            info = f"- {masked_name}: {cert.corso.nome_corso} ({status.upper()}, Scade: {date_str})"
+            info = self._format_cert_info(cert, status)
             
             if status == "scaduto":
                 expired_list.append(info)
             elif status == "in_scadenza":
                 expiring_list.append(info)
 
-        # 3. Orphans (Issues) - Limit 20
         orphans = db.query(Certificato).filter(Certificato.dipendente_id == None).limit(20).all()
         orphans_list = []
         for c in orphans:
@@ -68,8 +68,7 @@ class ChatService:
             masked_raw = f"{parts[0]} {parts[1][0]}." if len(parts) > 1 else raw
             orphans_list.append(f"- {c.corso.nome_corso} (Rilevato: {masked_raw})")
 
-        # Construct Context String
-        context = f"""
+        return f"""
 DATI DI CONTESTO ATTUALI (Aggiornati al {today.strftime('%d/%m/%Y')}):
 
 UTENTE ATTUALE: {user.username}
@@ -90,14 +89,13 @@ DOCUMENTI DA VALIDARE/ORFANI (Top {len(orphans_list)}):
 {chr(10).join(orphans_list)}
 {'... (altri omessi)' if len(orphans) > 20 else ''}
 """
-        return context
 
     def chat_with_intelleo(self, message: str, history: List[Dict[str, str]], context: str) -> str:
         api_key = settings.GEMINI_API_KEY_CHAT
 
+        # S1066: Merged if
         if not api_key or "obf:" in api_key:
-             if not api_key:
-                 return "Errore: Chiave API Chat non configurata."
+             return "Errore: Chiave API Chat non configurata."
 
         # Bug 2 Fix: Lock the configuration
         with ai_global_lock:

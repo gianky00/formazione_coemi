@@ -40,7 +40,7 @@ class HolographicScanner(QWidget):
             else:
                 p['life'] = 0 # Arrived
                 
-            # p['life'] -= 0.01
+            # S125: Removed commented out code
             
         self.particles = [p for p in self.particles if p['life'] > 0]
         self.update()

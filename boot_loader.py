@@ -16,7 +16,7 @@ def show_error(title, message):
         try:
             # 0x10 = MB_ICONHAND (Error icon)
             ctypes.windll.user32.MessageBoxW(0, message, title, 0x10)
-        except:
+        except Exception: # S5754: Specify exception to avoid catching SystemExit
             pass # Se fallisce anche questo, non possiamo farci nulla.
     else:
         # Fallback per Linux/Mac (solo print)
@@ -45,7 +45,8 @@ Traceback:
     try:
         with open("CRASH_LOG.txt", "a", encoding="utf-8") as f:
             f.write(log_content)
-    except: pass
+    except Exception: # S5754: Specify exception
+        pass
 
     # 2. Scrivi sul Desktop dell'utente (per massima visibilità)
     if os.name == 'nt':
@@ -54,7 +55,8 @@ Traceback:
             if os.path.exists(desktop):
                 with open(os.path.join(desktop, "INTELLEO_CRASH_LOG.txt"), "a", encoding="utf-8") as f:
                     f.write(log_content)
-        except: pass
+        except Exception: # S5754: Specify exception
+            pass
 
 def main():
     try:

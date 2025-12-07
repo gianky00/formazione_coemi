@@ -18,11 +18,12 @@ class GuideBridge(QObject):
         self.closeRequested.emit()
 
 class CustomWebEnginePage(QWebEnginePage):
-    def javaScriptConsoleMessage(self, level, message, lineNumber, sourceID):
+    def javaScriptConsoleMessage(self, level, message, line_number, source_id):
+        # S117: Renamed parameters lineNumber -> line_number, sourceID -> source_id
         # Suppress specific router warnings that clutter the console
         if "No routes matched location" in message:
             return
-        super().javaScriptConsoleMessage(level, message, lineNumber, sourceID)
+        super().javaScriptConsoleMessage(level, message, line_number, source_id)
 
 class ModernGuideView(QWidget):
     def __init__(self, parent=None):

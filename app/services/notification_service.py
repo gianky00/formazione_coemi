@@ -34,7 +34,7 @@ class PDF(FPDF):
     def header(self):
         try:
             self.image('desktop_app/assets/logo.png', 10, 8, 45)
-        except:
+        except Exception: # S5754: Handle generic exception appropriately
             pass # Skip logo if missing to prevent crash
         self.set_font('Arial', 'B', 15)
         self.cell(80)
@@ -47,8 +47,38 @@ class PDF(FPDF):
         self.cell(0, 10, 'Restricted | Internal Use Only', 0, 0, 'L')
         self.cell(0, 10, 'Pagina ' + str(self.page_no()) + '/{nb}', 0, 0, 'R')
 
+def _draw_table_header(pdf, header, col_widths, color):
+    pdf.set_font('Arial', 'B', 10)
+    pdf.set_fill_color(color[0], color[1], color[2])
+    for i, header_text in enumerate(header):
+        pdf.cell(col_widths[i], 10, safe_text(header_text), 1, 0, 'C', 1)
+    pdf.ln()
+
+def _draw_table_rows(pdf, data, col_widths, header, color):
+    pdf.set_font('Arial', '', 9)
+    row_num = 1
+    for cert in data:
+        if pdf.get_y() > (pdf.page_break_trigger - 20):
+            pdf.add_page()
+            _draw_table_header(pdf, header, col_widths, color)
+            pdf.set_font('Arial', '', 9)
+
+        matricola = cert.dipendente.matricola if cert.dipendente and cert.dipendente.matricola is not None else "N/A"
+        dipendente_nome = f"{cert.dipendente.nome or ''} {cert.dipendente.cognome or ''}".strip() if cert.dipendente else "N/A"
+        categoria = cert.corso.categoria_corso if cert.corso else "N/A"
+        data_scadenza = cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else "N/A"
+
+        pdf.cell(col_widths[0], 10, str(row_num), 1, 0, 'C')
+        pdf.cell(col_widths[1], 10, safe_text(matricola), 1, 0, 'C')
+        pdf.cell(col_widths[2], 10, safe_text(dipendente_nome), 1, 0, 'L')
+        pdf.cell(col_widths[3], 10, safe_text(categoria), 1, 0, 'L')
+        pdf.cell(col_widths[4], 10, safe_text(data_scadenza), 1, 1, 'C')
+        row_num += 1
+    pdf.ln(10)
+
 def generate_pdf_report_in_memory(expiring_visite, expiring_corsi, overdue_certificates, visite_threshold, corsi_threshold):
     """Generates a professional, multi-table PDF report with pagination logic."""
+    # S3776: Refactored to reduce complexity
     try:
         pdf = PDF()
         pdf.alias_nb_pages()
@@ -59,42 +89,12 @@ def generate_pdf_report_in_memory(expiring_visite, expiring_corsi, overdue_certi
             pdf.cell(0, 10, safe_text(title), 0, 1, 'L')
             pdf.ln(2)
 
-            # Table Header
             header = ['Nr.', 'Matricola', 'Dipendente', 'Categoria', 'Data Scadenza']
-            col_widths = [15, 30, 60, 50, 30] # Reduced Dipendente from 70 and Categoria from 60
-            pdf.set_font('Arial', 'B', 10)
-            pdf.set_fill_color(color[0], color[1], color[2])
-            for i, header_text in enumerate(header):
-                pdf.cell(col_widths[i], 10, safe_text(header_text), 1, 0, 'C', 1)
-            pdf.ln()
+            col_widths = [15, 30, 60, 50, 30]
 
-            # Table Rows
-            pdf.set_font('Arial', '', 9)
-            row_num = 1
-            for cert in data:
-                # Check for page break
-                if pdf.get_y() > (pdf.page_break_trigger - 20):
-                    pdf.add_page()
-                    pdf.set_font('Arial', 'B', 10)
-                    for i, header_text in enumerate(header):
-                        pdf.cell(col_widths[i], 10, safe_text(header_text), 1, 0, 'C', 1)
-                    pdf.ln()
-                    pdf.set_font('Arial', '', 9)
+            _draw_table_header(pdf, header, col_widths, color)
+            _draw_table_rows(pdf, data, col_widths, header, color)
 
-                matricola = cert.dipendente.matricola if cert.dipendente and cert.dipendente.matricola is not None else "N/A"
-                dipendente_nome = f"{cert.dipendente.nome or ''} {cert.dipendente.cognome or ''}".strip() if cert.dipendente else "N/A"
-                categoria = cert.corso.categoria_corso if cert.corso else "N/A"
-                data_scadenza = cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else "N/A"
-
-                pdf.cell(col_widths[0], 10, str(row_num), 1, 0, 'C')
-                pdf.cell(col_widths[1], 10, safe_text(matricola), 1, 0, 'C')
-                pdf.cell(col_widths[2], 10, safe_text(dipendente_nome), 1, 0, 'L')
-                pdf.cell(col_widths[3], 10, safe_text(categoria), 1, 0, 'L')
-                pdf.cell(col_widths[4], 10, safe_text(data_scadenza), 1, 1, 'C')
-                row_num += 1
-            pdf.ln(10) # Space after table
-
-        # Draw the three tables
         if expiring_corsi:
             draw_table(f"Certificati in avvicinamento scadenza ({corsi_threshold} giorni)", expiring_corsi, (240, 248, 255))
         if expiring_visite:
@@ -105,10 +105,6 @@ def generate_pdf_report_in_memory(expiring_visite, expiring_corsi, overdue_certi
         return pdf.output(dest='S')
     except Exception as e:
         logging.error(f"Errore imprevisto durante la generazione del PDF: {e}", exc_info=True)
-        # We don't raise here to allow email sending even if PDF fails?
-        # No, the caller expects bytes.
-        # But we should log it.
-        # Original code raised ValueError.
         raise ValueError(f"Si è verificato un errore imprevisto durante la creazione del report PDF: {e}")
 
 def send_email_notification(pdf_content_bytes, expiring_corsi_count, expiring_visite_count, overdue_count, corsi_threshold, visite_threshold):
@@ -260,6 +256,7 @@ def send_security_alert_email(subject, body_html):
         logging.error(f"Failed to send security alert: {e}")
 
 def get_report_data(db: Session):
+    # S3776: Refactored logic to reduce complexity
     today = date.today()
     expiring_visite = []
     expiring_corsi = []

@@ -13,8 +13,9 @@ def _force_load_qt_modules():
         import PyQt6.QtWebChannel
         import PyQt6.QtNetwork
         import PyQt6.QtPrintSupport
-    except ImportError as e:
+    except ImportError:
         # Ignora errori in fase di hook, verranno gestiti dal main se bloccanti
+        # S1481: Unused variable removed
         pass
 
 _force_load_qt_modules()

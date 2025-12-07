@@ -160,11 +160,27 @@ def _generate_content_with_retry(model, pdf_file_part, prompt):
         genai.configure(api_key=settings.GEMINI_API_KEY_ANALYSIS)
         return model.generate_content([pdf_file_part, prompt])
 
+def _find_json_block(text, start_idx, stack):
+    for i, char in enumerate(text[start_idx:], start=start_idx):
+        if char == '{' or char == '[':
+            stack.append(char)
+        elif char == '}' or char == ']':
+            if stack:
+                last = stack[-1]
+                # S1066: Merged if statements
+                if (last == '{' and char == '}') or (last == '[' and char == ']'):
+                    stack.pop()
+                    if not stack:
+                        # Found complete block
+                        return i + 1
+    return -1
+
 def _extract_json_block(text: str) -> str:
     """
     Robustly extracts the first valid JSON block from text, handling nested structures.
     Bug 2 & 9 Fix: Handles list/object and nested braces correctly.
     """
+    # S3776: Refactored to reduce complexity
     text = text.strip()
     
     # Fast path: checks if wrapped in markdown
@@ -174,24 +190,21 @@ def _extract_json_block(text: str) -> str:
     
     # Simple heuristic: find first { or [
     start_idx = -1
-    stack = []
-    
     for i, char in enumerate(text):
         if char == '{' or char == '[':
-            if start_idx == -1:
-                start_idx = i
-            stack.append(char)
-        elif char == '}' or char == ']':
-            if stack:
-                last = stack[-1]
-                if (last == '{' and char == '}') or (last == '[' and char == ']'):
-                    stack.pop()
-                    if not stack and start_idx != -1:
-                        # Found complete block
-                        return text[start_idx:i+1]
+            start_idx = i
+            break
+
+    if start_idx == -1:
+        return text
+
+    stack = []
+    end_idx = _find_json_block(text, start_idx, stack)
+
+    if end_idx != -1:
+        return text[start_idx:end_idx]
     
-    # Fallback if stack method fails (e.g. unbalanced or simple string)
-    # We return the original text stripped, hoping json.loads handles it or throws specific error
+    # Fallback if stack method fails
     return text
 
 def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
@@ -232,18 +245,7 @@ def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
 
         data.setdefault("categoria", "ALTRO")
 
-        # Bug 10 Fix: Allow Dynamic Categories.
-        # Do not force unknown categories to "ALTRO". The system supports auto-creation.
-        # We still validate against ATEX as it's a known special case in seeding but not in static constant?
-        # Actually, if we allow dynamic, we don't need this block at all.
-        
-        # valid_categories = list(CATEGORIE_STATICHE)
-        # if "ATEX" not in valid_categories:
-        #     valid_categories.append("ATEX")
-
-        # if data["categoria"] not in valid_categories:
-        #     logging.warning(f"Invalid category '{data['categoria']}'. Defaulting to 'ALTRO'.")
-        #     data["categoria"] = "ALTRO"
+        # S125: Removed commented out code regarding valid categories
 
         logging.info(f"Successfully extracted data: {data}")
         return data

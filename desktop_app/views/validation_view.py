@@ -9,6 +9,7 @@ from app.services.document_locator import find_document
 from ..workers.data_worker import FetchCertificatesWorker, DeleteCertificatesWorker, ValidateCertificatesWorker
 from ..components.animated_widgets import LoadingOverlay
 from ..components.custom_dialog import CustomMessageDialog
+from desktop_app.constants import STATUS_READ_ONLY
 import subprocess
 import os
 
@@ -136,9 +137,10 @@ class ValidationView(QWidget):
             self.edit_button.setEnabled(False)
             self.validate_button.setEnabled(False)
             self.delete_button.setEnabled(False)
-            self.edit_button.setToolTip("Database in sola lettura")
-            self.validate_button.setToolTip("Database in sola lettura")
-            self.delete_button.setToolTip("Database in sola lettura")
+            # S1192: Use constant
+            self.edit_button.setToolTip(STATUS_READ_ONLY)
+            self.validate_button.setToolTip(STATUS_READ_ONLY)
+            self.delete_button.setToolTip(STATUS_READ_ONLY)
             return
         else:
             self.edit_button.setToolTip("")
@@ -169,7 +171,7 @@ class ValidationView(QWidget):
                  # Ensure we are accessing the correct row in dataframe
                  if first_row < len(self.df):
                      return {'mode': 'reselect_by_id', 'id': self.df.iloc[first_row]['id'], 'fallback_row': first_row}
-             except:
+             except Exception: # S5754: Handle exception
                  pass
 
         return {'mode': 'reselect_by_row', 'row': first_row}
@@ -244,6 +246,7 @@ class ValidationView(QWidget):
         self._on_data_loaded([])
 
     def _on_data_loaded(self, data):
+        # S3776: Refactored logic to reduce complexity
         if not data:
             self.df = pd.DataFrame()
         else:
@@ -254,9 +257,6 @@ class ValidationView(QWidget):
                 'corso': 'DOCUMENTO',
                 'assegnazione_fallita_ragione': 'CAUSA'
             }, inplace=True)
-
-        self.model = SimpleTableModel(self.df, self)
-        self.table_view.setModel(self.model)
 
         if not self.df.empty:
             if 'stato_certificato' in self.df.columns:
@@ -269,22 +269,15 @@ class ValidationView(QWidget):
             existing_columns = [col for col in column_order if col in self.df.columns]
             self.df = self.df[existing_columns]
 
-            self.model = SimpleTableModel(self.df, self)
-            self.table_view.setModel(self.model)
+        self.model = SimpleTableModel(self.df, self)
+        self.table_view.setModel(self.model)
 
-            if 'id' in self.df.columns:
-                id_col_index = self.df.columns.get_loc('id')
-                self.table_view.setColumnHidden(id_col_index, True)
+        if not self.df.empty and 'id' in self.df.columns:
+            id_col_index = self.df.columns.get_loc('id')
+            self.table_view.setColumnHidden(id_col_index, True)
 
-            self.table_view.verticalHeader().setDefaultSectionSize(50)
-            header = self.table_view.horizontalHeader()
-            header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-            if 'DIPENDENTE' in self.df.columns:
-                header.setSectionResizeMode(self.df.columns.get_loc('DIPENDENTE'), QHeaderView.ResizeMode.Stretch)
-            if 'DOCUMENTO' in self.df.columns:
-                header.setSectionResizeMode(self.df.columns.get_loc('DOCUMENTO'), QHeaderView.ResizeMode.Stretch)
-            if 'data_nascita' in self.df.columns:
-                header.setSectionResizeMode(self.df.columns.get_loc('data_nascita'), QHeaderView.ResizeMode.ResizeToContents)
+        self.table_view.verticalHeader().setDefaultSectionSize(50)
+        self._adjust_headers()
 
         if self.table_view.selectionModel():
             self.table_view.selectionModel().selectionChanged.connect(self.update_button_states)
@@ -295,6 +288,16 @@ class ValidationView(QWidget):
         if hasattr(self, '_pending_selection'):
             self._restore_selection(self._pending_selection)
             del self._pending_selection
+
+    def _adjust_headers(self):
+        header = self.table_view.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        if 'DIPENDENTE' in self.df.columns:
+            header.setSectionResizeMode(self.df.columns.get_loc('DIPENDENTE'), QHeaderView.ResizeMode.Stretch)
+        if 'DOCUMENTO' in self.df.columns:
+            header.setSectionResizeMode(self.df.columns.get_loc('DOCUMENTO'), QHeaderView.ResizeMode.Stretch)
+        if 'data_nascita' in self.df.columns:
+            header.setSectionResizeMode(self.df.columns.get_loc('data_nascita'), QHeaderView.ResizeMode.ResizeToContents)
 
     def get_selected_ids(self):
         if self.df.empty:

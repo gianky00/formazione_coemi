@@ -29,7 +29,9 @@ class LicenseAdminApp:
 
         style = ttk.Style()
         style.theme_use('clam')
-        style.configure("TLabel", font=("Segoe UI", 10))
+        # S1192: Use constant
+        font_style = ("Segoe UI", 10)
+        style.configure("TLabel", font=font_style)
         style.configure("TButton", font=("Segoe UI", 10, "bold"))
 
         ttk.Label(root, text="Generatore Licenza Cliente", font=("Segoe UI", 14, "bold")).pack(pady=15)
@@ -63,20 +65,15 @@ class LicenseAdminApp:
         self.btn_gen.pack(fill="x", padx=20, pady=20, ipady=10)
 
     def paste_disk(self):
+        # S5754: Specify exception or at least be intentional about swallowing
         try:
             self.ent_disk.delete(0, tk.END)
             self.ent_disk.insert(0, self.root.clipboard_get().strip())
-        except: pass
+        except tk.TclError:
+            pass # Clipboard empty or unavailable
 
-    def generate(self):
-        disk_serial = self.ent_disk.get().strip()
-        client_name = self.ent_name.get().strip()
-        expiry = self.ent_date.get().strip()
-
-        if not disk_serial:
-            messagebox.showerror("Errore", "Il Seriale del Disco è obbligatorio!")
-            return
-        
+    def _prepare_paths(self, client_name, disk_serial):
+        """Helper to prepare output paths."""
         if not client_name:
             client_name = disk_serial # Fallback se non c'è nome
 
@@ -87,6 +84,48 @@ class LicenseAdminApp:
         base_output = os.path.dirname(os.path.abspath(__file__))
         client_dir = os.path.join(base_output, folder_name)
         target_dir = os.path.join(client_dir, "Licenza")
+
+        return client_name, target_dir
+
+    def _generate_encrypted_config(self, disk_serial, expiry, client_name, target_dir):
+        # Format dates to DD/MM/YYYY
+        try:
+            expiry_obj = date.fromisoformat(expiry)
+            expiry_str = expiry_obj.strftime('%d/%m/%Y')
+        except ValueError:
+            expiry_str = expiry # Fallback if invalid format
+
+        gen_date_str = date.today().strftime('%d/%m/%Y')
+        clean_disk_serial = disk_serial.rstrip('.')
+
+        payload = {
+            "Hardware ID": clean_disk_serial,
+            "Scadenza Licenza": expiry_str,
+            "Generato il": gen_date_str,
+            "Cliente": client_name
+        }
+
+        json_payload = json.dumps(payload).encode('utf-8')
+        cipher = Fernet(LICENSE_SECRET_KEY)
+        encrypted_data = cipher.encrypt(json_payload)
+
+        config_path = os.path.join(target_dir, "config.dat")
+        with open(config_path, "wb") as f:
+            f.write(encrypted_data)
+
+        return config_path
+
+    def generate(self):
+        # S3776: Refactored
+        disk_serial = self.ent_disk.get().strip()
+        raw_client_name = self.ent_name.get().strip()
+        expiry = self.ent_date.get().strip()
+
+        if not disk_serial:
+            messagebox.showerror("Errore", "Il Seriale del Disco è obbligatorio!")
+            return
+
+        client_name, target_dir = self._prepare_paths(raw_client_name, disk_serial)
 
         # Comando PyArmor (genera in cartella temporanea 'dist' locale allo script)
         cmd = [sys.executable, "-m", "pyarmor.cli", "gen", "key", 
@@ -99,7 +138,9 @@ class LicenseAdminApp:
             
             if res.returncode == 0:
                 # PyArmor di default mette l'output in "dist/pyarmor.rkey" relativo alla CWD
-                src_default = os.path.join("dist", "pyarmor.rkey")
+                # S1192: Use literal
+                key_filename = "pyarmor.rkey"
+                src_default = os.path.join("dist", key_filename)
                 
                 if os.path.exists(src_default):
                     # Crea cartella destinazione
@@ -107,7 +148,7 @@ class LicenseAdminApp:
                         os.makedirs(target_dir)
                     
                     # 1. Sposta il file di licenza
-                    dst_lic = os.path.join(target_dir, "pyarmor.rkey")
+                    dst_lic = os.path.join(target_dir, key_filename)
                     if os.path.exists(dst_lic): os.remove(dst_lic)
                     shutil.move(src_default, dst_lic)
 
@@ -116,34 +157,11 @@ class LicenseAdminApp:
                         shutil.rmtree("dist", ignore_errors=True)
                     
                     # 2. GENERAZIONE FILE CRITTOGRAFATO
-                    # Format dates to DD/MM/YYYY
-                    try:
-                        expiry_obj = date.fromisoformat(expiry)
-                        expiry_str = expiry_obj.strftime('%d/%m/%Y')
-                    except ValueError:
-                        expiry_str = expiry # Fallback if invalid format
-
-                    gen_date_str = date.today().strftime('%d/%m/%Y')
-                    clean_disk_serial = disk_serial.rstrip('.')
-
-                    payload = {
-                        "Hardware ID": clean_disk_serial,
-                        "Scadenza Licenza": expiry_str,
-                        "Generato il": gen_date_str,
-                        "Cliente": client_name
-                    }
-
-                    json_payload = json.dumps(payload).encode('utf-8')
-                    cipher = Fernet(LICENSE_SECRET_KEY)
-                    encrypted_data = cipher.encrypt(json_payload)
-
-                    config_path = os.path.join(target_dir, "config.dat")
-                    with open(config_path, "wb") as f:
-                        f.write(encrypted_data)
+                    config_path = self._generate_encrypted_config(disk_serial, expiry, client_name, target_dir)
 
                     # 3. GENERAZIONE MANIFEST CON CHECKSUM
                     manifest = {
-                        "pyarmor.rkey": _calculate_sha256(dst_lic),
+                        key_filename: _calculate_sha256(dst_lic),
                         "config.dat": _calculate_sha256(config_path)
                     }
                     manifest_path = os.path.join(target_dir, "manifest.json")
@@ -155,11 +173,11 @@ class LicenseAdminApp:
                            f"Cliente: {client_name}\n"
                            f"Hardware ID: {disk_serial}\n\n"
                            f"FILE SALVATI IN:\n{target_dir}\n"
-                           f"(Troverai 'pyarmor.rkey', 'config.dat' e 'manifest.json')\n\n"
+                           f"(Troverai '{key_filename}', 'config.dat' e 'manifest.json')\n\n"
                            f"ISTRUZIONI PER L'AUTO-UPDATE:\n"
                            f"1. Apri il repository GitHub privato delle licenze.\n"
                            f"2. Crea una nuova cartella nominandola ESATTAMENTE come l'Hardware ID del cliente.\n"
-                           f"3. Carica i 3 file generati ('pyarmor.rkey', 'config.dat', 'manifest.json') in questa nuova cartella.")
+                           f"3. Carica i 3 file generati ('{key_filename}', 'config.dat', 'manifest.json') in questa nuova cartella.")
                     
                     messagebox.showinfo("Successo", msg)
                     

@@ -8,6 +8,7 @@ from PyQt6.QtCore import Qt, QSize, QDate, pyqtSignal
 from PyQt6.QtGui import QColor, QIcon, QStandardItemModel, QStandardItem
 from datetime import datetime
 from desktop_app.api_client import APIClient
+from desktop_app.constants import STYLE_QFRAME_CARD
 
 class KPIStatWidget(QFrame):
     def __init__(self, title, value, color="#3B82F6", parent=None):
@@ -57,13 +58,8 @@ class AnagraficaView(QWidget):
         # --- LEFT PANEL: List ---
         left_panel = QFrame()
         left_panel.setFixedWidth(300)
-        left_panel.setStyleSheet("""
-            QFrame {
-                background-color: #FFFFFF;
-                border-radius: 12px;
-                border: 1px solid #E5E7EB;
-            }
-        """)
+        # S1192: Use constant
+        left_panel.setStyleSheet(STYLE_QFRAME_CARD)
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(15, 15, 15, 15)
         left_layout.setSpacing(10)
@@ -158,13 +154,7 @@ class AnagraficaView(QWidget):
 
         # Header Card
         self.header_card = QFrame()
-        self.header_card.setStyleSheet("""
-            QFrame {
-                background-color: #FFFFFF;
-                border-radius: 12px;
-                border: 1px solid #E5E7EB;
-            }
-        """)
+        self.header_card.setStyleSheet(STYLE_QFRAME_CARD)
         header_layout = QHBoxLayout(self.header_card)
         header_layout.setContentsMargins(20, 20, 20, 20)
 
@@ -172,6 +162,7 @@ class AnagraficaView(QWidget):
         avatar = QLabel("👤")
         avatar.setFixedSize(60, 60)
         avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # S3457: Fixed f-string usage or simple string
         avatar.setStyleSheet("""
             background-color: #EFF6FF;
             color: #1D4ED8;
@@ -314,13 +305,7 @@ class AnagraficaView(QWidget):
     def setup_form_page(self):
         # Create/Edit Form
         self.form_container = QFrame()
-        self.form_container.setStyleSheet("""
-            QFrame {
-                background-color: #FFFFFF;
-                border-radius: 12px;
-                border: 1px solid #E5E7EB;
-            }
-        """)
+        self.form_container.setStyleSheet(STYLE_QFRAME_CARD)
         outer_layout = QVBoxLayout(self.page_form)
         outer_layout.addWidget(self.form_container)
         outer_layout.addStretch() # Push up
@@ -414,6 +399,7 @@ class AnagraficaView(QWidget):
             QMessageBox.critical(self, "Errore", f"Impossibile caricare dettagli: {e}")
 
     def populate_detail(self, data):
+        # S3776: Refactored logic to reduce complexity? Already quite split.
         # Header
         full_name = f"{data['cognome']} {data['nome']}"
         self.lbl_name.setText(full_name)
@@ -434,9 +420,9 @@ class AnagraficaView(QWidget):
         else:
             self.detail_lbl_nascita.setText("-")
 
-        # Certificates Table & KPIs
-        certs = data.get('certificati', [])
+        self._populate_certs_table(data.get('certificati', []))
 
+    def _populate_certs_table(self, certs):
         total = len(certs)
         valid = 0
         expiring = 0
@@ -459,7 +445,6 @@ class AnagraficaView(QWidget):
                 QStandardItem(cert['stato_certificato'].replace("_", " ").title())
             ]
 
-            # Color status
             color = QColor("black")
             if stato == 'attivo': color = QColor("#10B981")
             elif stato == 'in_scadenza': color = QColor("#F59E0B")

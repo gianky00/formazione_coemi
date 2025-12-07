@@ -72,7 +72,8 @@ def get_network_time():
         client.settimeout(3)  # 3-second timeout
         data = b'\x1b' + 47 * b'\0'
         client.sendto(data, (NTP_SERVER, 123))
-        data, address = client.recvfrom(1024)
+        # S1481: Unused address replaced with _
+        data, _ = client.recvfrom(1024)
         if data:
             t = struct.unpack('!12I', data)[10]
             t -= TIME1970

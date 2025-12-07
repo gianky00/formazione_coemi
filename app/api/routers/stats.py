@@ -27,16 +27,11 @@ def get_stats_summary(db: Session = Depends(get_db), current_user = Depends(deps
         Certificato.data_scadenza_calcolata <= threshold
     ).count()
 
-    # "Validi" in stats usually means "Not Expired".
-    # But strictly "Attivo" means > threshold.
-    # Let's count "Compliance" as (Total - Scaduti) / Total.
-    # So "In Scadenza" counts as compliant (valid until today).
-
     validi_safe = base_query.filter(Certificato.data_scadenza_calcolata > threshold).count()
 
     compliance = 0
     if total_certificati > 0:
-        # Compliance = (Total - Scaduti) / Total
+        # S125: Removed commented out code
         compliance = int(((total_certificati - scaduti) / total_certificati) * 100)
 
     return {
@@ -52,9 +47,6 @@ def get_stats_summary(db: Session = Depends(get_db), current_user = Depends(deps
 def get_compliance_by_category(db: Session = Depends(get_db), current_user = Depends(deps.get_current_user)):
     today = date.today()
 
-    # We filter only manual validation
-    # Join Certificato -> Corso
-
     results = db.query(
         Corso.categoria_corso,
         func.count(Certificato.id).label("total"),
@@ -68,7 +60,6 @@ def get_compliance_by_category(db: Session = Depends(get_db), current_user = Dep
         cat = row[0]
         total = row[1]
         scaduti = row[2] or 0
-        # Compliance: % not expired
         valid_cnt = total - scaduti
         percent = int((valid_cnt / total) * 100) if total > 0 else 0
         data.append({
@@ -78,6 +69,5 @@ def get_compliance_by_category(db: Session = Depends(get_db), current_user = Dep
             "compliance": percent
         })
 
-    # Sort by lowest compliance first
     data.sort(key=lambda x: x['compliance'])
     return data

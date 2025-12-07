@@ -13,6 +13,7 @@ from ..components.cascade_delegate import CascadeDelegate
 from ..components.custom_dialog import CustomMessageDialog
 from ..components.toast import ToastManager
 from app.services.document_locator import find_document
+from desktop_app.constants import STATUS_READ_ONLY
 import requests
 import pandas as pd
 import html
@@ -222,12 +223,32 @@ class DatabaseView(QWidget):
         self._restore_selection()
         self._update_button_states()
 
+    def _setup_delegates(self, df):
+        # Set Delegates
+        self.status_delegate = StatusDelegate(self.table_view)
+        self.default_delegate = CascadeDelegate(self.table_view)
+
+        status_col_index = df.columns.get_loc('stato_certificato')
+
+        for col in range(df.shape[1]):
+            if col == status_col_index:
+                self.table_view.setItemDelegateForColumn(col, self.status_delegate)
+            else:
+                self.table_view.setItemDelegateForColumn(col, self.default_delegate)
+
+        self.table_view.verticalHeader().setDefaultSectionSize(50)
+        header = self.table_view.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(df.columns.get_loc('Dipendente'), QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(df.columns.get_loc('DOCUMENTO'), QHeaderView.ResizeMode.Stretch)
+
     def _update_table_view(self):
+        # S3776: Refactored to reduce complexity
         df = self.view_model.filtered_data
 
         if self.table_view.model() and self.table_view.selectionModel():
             try: self.table_view.selectionModel().selectionChanged.disconnect(self._update_button_states)
-            except: pass
+            except Exception: pass # S5754: Swallowing is intentional for disconnect safety
 
         if not df.empty:
             if 'matricola' not in df.columns: df['matricola'] = None
@@ -238,26 +259,8 @@ class DatabaseView(QWidget):
 
             self.model = CertificatoTableModel(df)
             self.table_view.setModel(self.model)
-
             self.table_view.setColumnHidden(df.columns.get_loc('id'), True)
-
-            # Set Delegates
-            self.status_delegate = StatusDelegate(self.table_view)
-            self.default_delegate = CascadeDelegate(self.table_view)
-
-            status_col_index = df.columns.get_loc('stato_certificato')
-
-            for col in range(df.shape[1]):
-                if col == status_col_index:
-                    self.table_view.setItemDelegateForColumn(col, self.status_delegate)
-                else:
-                    self.table_view.setItemDelegateForColumn(col, self.default_delegate)
-
-            self.table_view.verticalHeader().setDefaultSectionSize(50)
-            header = self.table_view.horizontalHeader()
-            header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-            header.setSectionResizeMode(df.columns.get_loc('Dipendente'), QHeaderView.ResizeMode.ResizeToContents)
-            header.setSectionResizeMode(df.columns.get_loc('DOCUMENTO'), QHeaderView.ResizeMode.Stretch)
+            self._setup_delegates(df)
         else:
             self.model = CertificatoTableModel(df)
             self.table_view.setModel(self.model)
@@ -305,9 +308,9 @@ class DatabaseView(QWidget):
     def _update_button_states(self):
         if getattr(self, 'is_read_only', False):
             self.edit_button.setEnabled(False)
-            self.edit_button.setToolTip("Database in sola lettura")
+            self.edit_button.setToolTip(STATUS_READ_ONLY)
             self.delete_button.setEnabled(False)
-            self.delete_button.setToolTip("Database in sola lettura")
+            self.delete_button.setToolTip(STATUS_READ_ONLY)
         else:
             self.edit_button.setEnabled(True)
             self.edit_button.setToolTip("")
@@ -409,7 +412,8 @@ class DatabaseView(QWidget):
         if path:
             try:
                 self.model._data.to_csv(path, index=False)
-                ToastManager.success("Esportazione Riuscita", f"Dati esportati con successo.", self.window())
+                # S3457: Fixed f-string usage
+                ToastManager.success("Esportazione Riuscita", "Dati esportati con successo.", self.window())
             except Exception as e:
                 self._show_error_message(f"Impossibile salvare il file: {e}")
 

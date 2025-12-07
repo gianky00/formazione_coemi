@@ -231,4 +231,5 @@ REGOLE FONDAMENTALI:
         self.response_ready.emit(f"Errore: {error_msg}")
 
     def _on_worker_cleanup(self):
+        # S1186: Intentionally empty slot for future cleanup
         pass
