@@ -8,12 +8,12 @@ from tests.desktop_app.mock_qt import mock_qt_modules
 sys.modules.update(mock_qt_modules())
 
 # Force reload of modules that might have been imported by other tests with real PyQt
-import desktop_app.components.animated_widgets
-import desktop_app.components.custom_dialog
-import desktop_app.views.login_view
+# Use 'from' imports to ensure we have the module objects directly, avoiding AttributeError on package access
+from desktop_app.components import animated_widgets, custom_dialog
+from desktop_app.views import login_view
 
 # Wrap reload in try/except to handle CI environments where modules might not be in sys.modules yet
-for module in [desktop_app.components.animated_widgets, desktop_app.components.custom_dialog, desktop_app.views.login_view]:
+for module in [animated_widgets, custom_dialog, login_view]:
     try:
         importlib.reload(module)
     except ImportError:
