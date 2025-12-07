@@ -17,6 +17,7 @@ from app.services.file_maintenance import organize_expired_files
 from app.db.session import SessionLocal
 from app.utils.logging import setup_logging
 from datetime import datetime, timedelta
+from app import __version__
 import logging
 import sentry_sdk
 import os
@@ -124,7 +125,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Intelleo",
     description="API for the Intelleo desktop application.",
-    version="1.0.0",
+    version=__version__,
     lifespan=lifespan
 )
 

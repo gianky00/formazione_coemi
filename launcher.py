@@ -10,9 +10,68 @@ import requests
 import platform
 import sqlite3
 import traceback as tb
+import logging
+import logging.handlers
+
+# --- PHASE 2: LOGGING CONFIGURATION ---
+# Must be configured BEFORE any other imports to capture everything
+def setup_global_logging():
+    try:
+        from desktop_app.services.path_service import get_user_data_dir
+
+        # 1. Determine Log Path
+        log_dir = os.path.join(get_user_data_dir(), "logs")
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = os.path.join(log_dir, "intelleo.log")
+
+        # 2. Configure Root Logger
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.INFO)
+
+        # Remove existing handlers (e.g. from previous runs or other libs)
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
+
+        # 3. Rotating File Handler
+        file_handler = logging.handlers.RotatingFileHandler(
+            log_file,
+            maxBytes=5 * 1024 * 1024, # 5MB
+            backupCount=3,
+            encoding='utf-8'
+        )
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(formatter)
+        root_logger.addHandler(file_handler)
+
+        # 4. Console Handler (for dev/debugging)
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(formatter)
+        root_logger.addHandler(console_handler)
+
+        # 5. Noise Reduction (Silence noisy libraries)
+        # Suppress request logs for PostHog/Sentry/UpdateChecks unless critical
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
+        logging.getLogger("requests").setLevel(logging.WARNING)
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("asyncio").setLevel(logging.WARNING)
+        logging.getLogger("multipart").setLevel(logging.WARNING)
+        logging.getLogger("watchfiles").setLevel(logging.WARNING)
+        logging.getLogger("uqi").setLevel(logging.WARNING) # Common noisy lib
+
+        # Uvicorn Access Log - Keep it at WARNING to avoid flooding with every health check
+        logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+        logging.getLogger("uvicorn.error").setLevel(logging.INFO)
+
+        logging.info("Global logging initialized.")
+
+    except Exception as e:
+        print(f"[CRITICAL] Failed to setup logging: {e}")
+
+setup_global_logging()
 
 # --- SENTRY INTEGRATION ---
 import sentry_sdk
+from app import __version__
 
 def init_sentry():
     """Initializes Sentry SDK for error tracking."""
@@ -25,6 +84,7 @@ def init_sentry():
     sentry_sdk.init(
         dsn=SENTRY_DSN,
         environment=environment,
+        release=__version__,
         traces_sample_rate=1.0,
         send_default_pii=True
     )
@@ -34,6 +94,9 @@ def sentry_exception_hook(exctype, value, traceback):
     Global exception handler that captures errors to Sentry
     AND ensures database security cleanup.
     """
+    # 0. Log Locally
+    logging.critical("Unhandled exception", exc_info=(exctype, value, traceback))
+
     # 1. Capture to Sentry
     sentry_sdk.capture_exception(value)
 
@@ -57,6 +120,69 @@ def sentry_exception_hook(exctype, value, traceback):
 init_sentry()
 # Override global exception hook
 sys.excepthook = sentry_exception_hook
+
+# --- PHASE 2: POSTHOG ANALYTICS ---
+import posthog
+
+def init_posthog():
+    """Initializes PostHog Analytics (Async)."""
+    try:
+        from app.core.config import settings
+
+        # Check explicit disable flag (GDPR)
+        analytics_enabled = True
+
+        # Configure PostHog Module-Global
+        posthog.project_api_key = "phc_jCIZrEiPMQ1fE8ympKiJGc84GUvbqqo7T2sQDlGyUd8"
+        # Backwards compatibility / library quirk fallback
+        posthog.api_key = posthog.project_api_key
+        posthog.host = "https://eu.i.posthog.com"
+
+        # Track App Start
+        # Run in thread to not block UI
+        def track_start():
+            try:
+                # Identification (Anonymous Machine ID or User ID if logged in - here we use machine ID for basic tracking)
+                from desktop_app.services.hardware_id_service import get_machine_id
+                distinct_id = get_machine_id()
+
+                # Re-assert config in thread just in case
+                if not posthog.api_key:
+                    posthog.project_api_key = "phc_jCIZrEiPMQ1fE8ympKiJGc84GUvbqqo7T2sQDlGyUd8"
+                    posthog.api_key = posthog.project_api_key
+                    posthog.host = "https://eu.i.posthog.com"
+
+                posthog.capture(
+                    'app_started',
+                    distinct_id=distinct_id,
+                    properties={
+                        'version': __version__,
+                        'os': platform.system(),
+                        'os_release': platform.release(),
+                        'environment': "production" if getattr(sys, 'frozen', False) else "development"
+                    }
+                )
+            except Exception as e:
+                logging.warning(f"PostHog track failed: {e}")
+
+        threading.Thread(target=track_start, daemon=True).start()
+
+        # Register Exit Handler
+        import atexit
+        def track_exit():
+            try:
+                from desktop_app.services.hardware_id_service import get_machine_id
+                posthog.capture('app_closed', distinct_id=get_machine_id())
+                posthog.flush() # Ensure sent
+            except: pass
+
+        atexit.register(track_exit)
+
+    except Exception as e:
+        logging.error(f"Failed to init PostHog: {e}")
+
+init_posthog()
+
 
 # --- CRITICAL: IMPORT WEBENGINE & SET ATTRIBUTE BEFORE QAPPLICATION ---
 from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -108,14 +234,10 @@ def find_free_port(start_port=8000, max_port=8010):
 def start_server(port):
     from app.main import app
     # Disable duplicate logs
-    logging_config = {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "formatters": { "default": { "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s" } },
-        "handlers": { "console": { "class": "logging.StreamHandler", "formatter": "default" } },
-        "root": { "level": "INFO", "handlers": ["console"] },
-    }
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="critical")
+    # We already configured root logger. Uvicorn will use it if we don't override too much.
+    # But we want to ensure Uvicorn doesn't spam console if we are using file logging.
+
+    uvicorn.run(app, host="127.0.0.1", port=port, log_config=None) # log_config=None to inherit root logger
 
 def check_port(host, port):
     try:
@@ -505,6 +627,8 @@ def main():
 
         except Exception as e:
             splash.show_error(f"Errore caricamento interfaccia: {e}")
+            # Log full traceback locally as logging is now configured
+            logging.critical("UI Load Error", exc_info=True)
             sys.exit(1)
 
     worker.progress_update.connect(on_progress)
