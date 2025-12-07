@@ -51,19 +51,60 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          
+          # Assicurati che pytest-cov sia installato
+          pip install pytest pytest-cov
+
       - name: Run Tests and Generate Reports
-        # Necessario per inviare i fallimenti e la copertura a SonarCloud.
-        # Continua in caso di errore per garantire che la scansione avvenga.
+        # Continua anche se i test falliscono per permettere l'analisi SonarCloud
         continue-on-error: true
         run: |
-          # Genera coverage.xml (come specificato nel tuo sonar-project.properties)
-          # e junit.xml (per i risultati dei test)
-          xvfb-run -a python -m pytest --cov=. --cov-report=xml --junitxml=junit.xml
+          # Esegui pytest con:
+          # --cov=. : coverage per tutto il progetto
+          # --cov-report=xml : genera coverage.xml per SonarCloud
+          # --cov-report=term-missing : mostra nel log le linee mancanti
+          # --junitxml=junit.xml : genera report test in formato JUnit
+          xvfb-run -a python -m pytest \
+            --cov=. \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --junitxml=junit.xml \
+            -v
+          
+      - name: Verify Reports Generated
+        # Verifica che i file di report esistano prima della scansione
+        run: |
+          echo "📊 Verifica file di report..."
+          
+          if [ -f "coverage.xml" ]; then
+            echo "✅ coverage.xml trovato ($(wc -l < coverage.xml) righe)"
+          else
+            echo "❌ coverage.xml NON trovato!"
+          fi
+          
+          if [ -f "junit.xml" ]; then
+            echo "✅ junit.xml trovato ($(wc -l < junit.xml) righe)"
+            # Mostra un riepilogo dei test
+            echo "📋 Riepilogo test:"
+            grep -oP 'tests="\K[^"]+' junit.xml | head -1 || true
+            grep -oP 'failures="\K[^"]+' junit.xml | head -1 || true
+            grep -oP 'errors="\K[^"]+' junit.xml | head -1 || true
+          else
+            echo "❌ junit.xml NON trovato!"
+          fi
 
       - name: SonarCloud Scan
-        # Usa l'azione aggiornata e pulita, poiché le proprietà sono nel file .properties.
         uses: SonarSource/sonarqube-scan-action@v5.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          
+      - name: Upload Test Reports as Artifact
+        # Opzionale: salva i report come artifact per debug
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            coverage.xml
+            junit.xml
+          retention-days: 7
