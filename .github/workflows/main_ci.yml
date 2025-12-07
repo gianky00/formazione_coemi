@@ -64,7 +64,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       
-      - name: **Copy SonarCloud Logs** 💾
+      - name: Copy SonarCloud Logs
         # Esegui sempre, anche se lo Scan fallisce, per catturare i log
         if: always()
         run: |
@@ -82,7 +82,7 @@ jobs:
             echo "Sonar Scanner work directory not found. Cannot copy logs."
           fi
 
-      - name: **Upload SonarCloud Logs as Artifact** 📤
+      - name: Upload SonarCloud Logs as Artifact
         # Esegui sempre in modo che l'Artifact sia sempre presente
         if: always()
         uses: actions/upload-artifact@v4
