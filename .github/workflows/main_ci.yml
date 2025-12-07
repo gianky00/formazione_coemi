@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          fetch-depth: 0  # Necessario per l'analisi Sonar
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -31,22 +31,20 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          # Si presume che requirements.txt contenga pytest-cov e mock
           pip install -r requirements.txt
 
-      - name: Run Tests
+      - name: Run Tests and Generate Coverage Report (FIX MKL/Exit Code 3)
+        # Esegue i test direttamente senza xvfb-run per evitare l'errore di libreria MKL/binario
         run: |
-          # Run tests and generate coverage report
-          # Using xvfb-run to support headless PyQt6 tests if needed, though most should be mocked
-          # But for safety in CI environment:
-          if command -v xvfb-run >/dev/null 2>&1; then
-             PREFIX="xvfb-run -a"
-          else
-             PREFIX=""
-          fi
-          $PREFIX python -m pytest --cov=. --cov-report=xml --junitxml=junit.xml
+          python -m pytest --cov=. --cov-report=xml --junitxml=junit.xml
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@master
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # TOKEN SEGRETO RICHIESTO PER L'AUTENTICAZIONE
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          # Passaggio delle chiavi del progetto
+          projectKey: gianky00_formazione_coemi
+          organization: gianky00
