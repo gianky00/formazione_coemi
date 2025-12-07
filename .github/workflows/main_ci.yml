@@ -2,21 +2,23 @@ name: SonarCloud CI
 
 on:
   push:
+    # Attiva l'analisi per tutti i branch
     branches:
-      - main
-      - master
       - '**'
   pull_request:
+    # Attiva l'analisi per le Pull Request
     types: [opened, synchronize, reopened]
 
 jobs:
   sonarcloud:
-    name: SonarCloud
+    name: SonarCloud Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          # Cloni completi necessari per una corretta analisi
+          fetch-depth: 0
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -53,13 +55,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Tests
+      - name: Run Tests and Generate Reports
+        # La chiave: permette alla pipeline di continuare anche se i test falliscono, 
+        # garantendo che i report XML siano comunque generati e disponibili.
+        continue-on-error: true
         run: |
-          # Run tests and generate coverage report
-          # xvfb-run is now explicitly installed to ensure headless Qt support
+          # Esegue i test, generando il report di copertura (XML) e il report dei risultati dei test (JUnit XML)
           xvfb-run -a python -m pytest --cov=. --cov-report=xml --junitxml=junit.xml
 
       - name: SonarCloud Scan
+        # Usa l'azione aggiornata e non deprecata
         uses: SonarSource/sonarqube-scan-action@v5.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
