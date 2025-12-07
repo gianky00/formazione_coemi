@@ -11,9 +11,13 @@ sys.modules.update(mock_qt_modules())
 import desktop_app.components.animated_widgets
 import desktop_app.components.custom_dialog
 import desktop_app.views.login_view
-importlib.reload(desktop_app.components.animated_widgets)
-importlib.reload(desktop_app.components.custom_dialog)
-importlib.reload(desktop_app.views.login_view)
+
+# Wrap reload in try/except to handle CI environments where modules might not be in sys.modules yet
+for module in [desktop_app.components.animated_widgets, desktop_app.components.custom_dialog, desktop_app.views.login_view]:
+    try:
+        importlib.reload(module)
+    except ImportError:
+        pass
 
 from PyQt6.QtWidgets import QMessageBox
 from desktop_app.views.login_view import LoginView
