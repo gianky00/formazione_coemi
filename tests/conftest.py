@@ -22,34 +22,41 @@ os.environ["GCS_BUCKET_NAME"] = "test-bucket"
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+# --- ROBUST CRASH PREVENTION ---
+# We use pytest_configure to mock dangerous modules BEFORE any test collection happens.
+# This prevents launcher.py or other modules from importing the real 'hardware_id_service'
+# or 'posthog' and registering atexit handlers that crash on exit.
+
+def pytest_configure(config):
+    """
+    Global initialization hook to mock unsafe modules before collection.
+    """
+    # 1. Mock Hardware ID Service (WMI calls cause Access Violation on Windows in tests)
+    mock_hw = MagicMock()
+    mock_hw.get_machine_id.return_value = "TEST_MACHINE_ID"
+    mock_hw._get_windows_disk_serial.return_value = "TEST_DISK_SERIAL"
+    mock_hw._get_mac_address.return_value = "00:00:00:00:00:00"
+    sys.modules["desktop_app.services.hardware_id_service"] = mock_hw
+
+    # 2. Mock PostHog (Prevents background threads and network calls)
+    mock_ph = MagicMock()
+    mock_ph.capture.return_value = None
+    mock_ph.flush.return_value = None
+    sys.modules["posthog"] = mock_ph
+
+    # 3. Mock Sentry (Prevents transport threads)
+    sys.modules["sentry_sdk"] = MagicMock()
+
+    # 4. Mock launcher.py internals if necessary (optional, but safe)
+    # This prevents 'atexit' registration if launcher is imported during collection
+    if "launcher" in sys.modules:
+        del sys.modules["launcher"] # Force reload with mocks if already loaded (unlikely at configure time)
+
 @pytest.fixture(scope="session")
 def test_dirs(tmp_path_factory):
     """Creates a temporary directory for data storage."""
     d = tmp_path_factory.mktemp("data")
     return d
-
-@pytest.fixture(scope="session", autouse=True)
-def mock_hardware_safety(test_dirs):
-    """
-    Prevents Access Violations and Threading issues during tests by mocking:
-    1. Hardware ID Service (WMI calls)
-    2. PostHog (Analytics threads)
-    """
-    # 1. Mock Hardware ID Service modules to prevent WMI usage
-    sys.modules["desktop_app.services.hardware_id_service"] = MagicMock()
-    sys.modules["desktop_app.services.hardware_id_service"].get_machine_id.return_value = "TEST_MACHINE_ID"
-    sys.modules["desktop_app.services.hardware_id_service"]._get_windows_disk_serial.return_value = "TEST_DISK_SERIAL"
-    sys.modules["desktop_app.services.hardware_id_service"]._get_mac_address.return_value = "00:00:00:00:00:00"
-
-    # 2. Mock PostHog to prevent background threads
-    sys.modules["posthog"] = MagicMock()
-    sys.modules["posthog"].capture.return_value = None
-    sys.modules["posthog"].flush.return_value = None
-
-    # 3. Mock Sentry
-    sys.modules["sentry_sdk"] = MagicMock()
-
-    yield
 
 @pytest.fixture(scope="session", autouse=True)
 def mock_settings(test_dirs):

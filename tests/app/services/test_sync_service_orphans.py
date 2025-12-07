@@ -1,5 +1,6 @@
 
 import pytest
+import os
 from unittest.mock import MagicMock, patch, PropertyMock
 from app.services import sync_service
 from app.db.models import Certificato, Dipendente
@@ -39,15 +40,14 @@ def test_link_orphans_success(mock_db, mock_dipendente):
     # Setup Query Result
     mock_db.query.return_value.options.return_value.filter.return_value.all.return_value = [orphan]
 
-    # Setup Mocks
-    # Bug Fix: We must mock get_unique_filename or be careful with os.path.exists
-    # because get_unique_filename has a 'while os.path.exists' loop.
-    # If we mock os.path.exists to ALWAYS return True, that loop never ends.
-    # So we simply mock get_unique_filename to bypass the loop entirely.
+    # Setup Paths (Platform Agnostic)
+    orphan_path = os.path.join("tmp", "orphan", "Mario Rossi.pdf")
+    linked_path = os.path.join("tmp", "linked", "Mario Rossi.pdf")
+    db_path = os.path.join("tmp", "db")
 
     with patch("app.services.sync_service.matcher.find_employee_by_name") as mock_matcher, \
-         patch("app.services.sync_service.find_document", return_value="/tmp/orphan/Mario Rossi.pdf") as mock_find, \
-         patch("app.services.sync_service.construct_certificate_path", return_value="/tmp/linked/Mario Rossi.pdf") as mock_construct, \
+         patch("app.services.sync_service.find_document", return_value=orphan_path) as mock_find, \
+         patch("app.services.sync_service.construct_certificate_path", return_value=linked_path) as mock_construct, \
          patch("app.services.sync_service.certificate_logic.get_certificate_status", return_value="attivo"), \
          patch("app.services.sync_service.get_unique_filename", return_value="Mario Rossi.pdf"), \
          patch("os.path.exists", return_value=True), \
@@ -56,7 +56,7 @@ def test_link_orphans_success(mock_db, mock_dipendente):
          patch("app.services.sync_service.remove_empty_folders") as mock_cleanup, \
          patch("app.services.sync_service.settings") as mock_settings:
 
-        mock_settings.DATABASE_PATH = "/tmp/db"
+        mock_settings.DATABASE_PATH = db_path
 
         # Matcher returns the target employee
         mock_matcher.return_value = mock_dipendente
@@ -74,7 +74,7 @@ def test_link_orphans_success(mock_db, mock_dipendente):
         # Verify File Move
         mock_find.assert_called()
         mock_construct.assert_called()
-        mock_move.assert_called_with("/tmp/orphan/Mario Rossi.pdf", "/tmp/linked/Mario Rossi.pdf")
+        mock_move.assert_called_with(orphan_path, linked_path)
         mock_cleanup.assert_called()
 
 def test_link_orphans_dob_mismatch(mock_db, mock_dipendente):
@@ -131,9 +131,14 @@ def test_link_orphans_file_locked(mock_db, mock_dipendente):
 
     mock_db.query.return_value.options.return_value.filter.return_value.all.return_value = [orphan]
 
+    # Platform agnostic paths
+    orphan_path = os.path.join("tmp", "orphan.pdf")
+    linked_path = os.path.join("tmp", "linked.pdf")
+    db_path = os.path.join("tmp", "db")
+
     with patch("app.services.sync_service.matcher.find_employee_by_name", return_value=mock_dipendente), \
-         patch("app.services.sync_service.find_document", return_value="/tmp/orphan.pdf"), \
-         patch("app.services.sync_service.construct_certificate_path", return_value="/tmp/linked.pdf"), \
+         patch("app.services.sync_service.find_document", return_value=orphan_path), \
+         patch("app.services.sync_service.construct_certificate_path", return_value=linked_path), \
          patch("app.services.sync_service.certificate_logic.get_certificate_status", return_value="attivo"), \
          patch("app.services.sync_service.get_unique_filename", return_value="linked.pdf"), \
          patch("os.path.exists", return_value=True), \
@@ -141,7 +146,7 @@ def test_link_orphans_file_locked(mock_db, mock_dipendente):
          patch("shutil.move", side_effect=PermissionError("File in use")), \
          patch("app.services.sync_service.settings") as mock_settings:
 
-        mock_settings.DATABASE_PATH = "/tmp/db"
+        mock_settings.DATABASE_PATH = db_path
 
         # Should not raise exception
         count = sync_service.link_orphaned_certificates(mock_db, mock_dipendente)
@@ -166,7 +171,7 @@ def test_link_orphans_file_not_found(mock_db, mock_dipendente):
          patch("shutil.move") as mock_move, \
          patch("app.services.sync_service.settings") as mock_settings:
 
-        mock_settings.DATABASE_PATH = "/tmp/db"
+        mock_settings.DATABASE_PATH = os.path.join("tmp", "db")
 
         count = sync_service.link_orphaned_certificates(mock_db, mock_dipendente)
 
