@@ -7,9 +7,11 @@ import asyncio
 @pytest.fixture(autouse=True)
 def reset_app_state():
     """Reset app state before each test."""
-    app.state.startup_error = None
+    if hasattr(app.state, 'startup_error'):
+        delattr(app.state, 'startup_error')
     yield
-    app.state.startup_error = None
+    if hasattr(app.state, 'startup_error'):
+        delattr(app.state, 'startup_error')
 
 @pytest.mark.anyio
 async def test_lifespan_success():
@@ -21,7 +23,12 @@ async def test_lifespan_success():
          patch("app.main.scheduler") as mock_sched, \
          patch("app.main.settings") as mock_settings:
 
+        # Ensure settings allow analysis so genai is configured (or not)
         mock_settings.GEMINI_API_KEY_ANALYSIS = "key"
+
+        # Mock load_memory_db to succeed
+        mock_sec.load_memory_db.return_value = None
+        mock_sec.db_path.exists.return_value = True
 
         # Run lifespan
         async with lifespan(app):
@@ -95,19 +102,24 @@ def test_health_check_with_error():
     assert response.json()["detail"] == "Broken"
 
 def test_maintenance_task():
-    with patch("app.main.SessionLocal") as mock_session, \
+    with patch("app.main.SessionLocal") as mock_session_cls, \
          patch("app.main.organize_expired_files") as mock_org:
 
+        mock_db = mock_session_cls.return_value
+
         run_maintenance_task()
-        mock_org.assert_called()
-        mock_session.return_value.close.assert_called()
+
+        mock_org.assert_called_once_with(mock_db)
+        mock_db.close.assert_called_once()
 
 def test_maintenance_task_failure():
     with patch("app.main.SessionLocal", side_effect=Exception("DB Fail")):
         run_maintenance_task() # Should print error but not crash
 
 def test_startup_error_middleware_ok():
-    app.state.startup_error = None
+    if hasattr(app.state, 'startup_error'):
+        delattr(app.state, 'startup_error')
+
     client = TestClient(app)
     response = client.get("/api/v1/health")
     assert response.status_code == 200

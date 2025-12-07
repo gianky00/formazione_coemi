@@ -1,10 +1,19 @@
 import sys
 import unittest
+import importlib
 from unittest.mock import MagicMock, patch
 
-# Inject mocks
+# Inject mocks - MUST BE DONE BEFORE IMPORTING APP MODULES
 from tests.desktop_app.mock_qt import mock_qt_modules
 sys.modules.update(mock_qt_modules())
+
+# Force reload of modules that might have been imported by other tests with real PyQt
+import desktop_app.components.animated_widgets
+import desktop_app.components.custom_dialog
+import desktop_app.views.login_view
+importlib.reload(desktop_app.components.animated_widgets)
+importlib.reload(desktop_app.components.custom_dialog)
+importlib.reload(desktop_app.views.login_view)
 
 from PyQt6.QtWidgets import QMessageBox
 from desktop_app.views.login_view import LoginView
@@ -62,9 +71,11 @@ class TestLoginViewCoverage(unittest.TestCase):
         view.username_input.setText("")
         view.password_input.setText("")
         
-        with patch('desktop_app.views.login_view.CustomMessageDialog') as mock_dialog:
-            view.handle_login()
-            mock_dialog.show_warning.assert_called()
+        # Ensure shake_window doesn't cause issues
+        with patch.object(view, 'shake_window'):
+            with patch('desktop_app.views.login_view.CustomMessageDialog') as mock_dialog:
+                view.handle_login()
+                mock_dialog.show_warning.assert_called()
 
     def test_login_success_flow(self):
         view = LoginView(self.mock_api_client)
@@ -96,11 +107,7 @@ class TestLoginViewCoverage(unittest.TestCase):
         
         response = {"access_token": "tok", "require_password_change": True, "read_only": False}
         
-        # The key is to mock CustomMessageDialog as well, in case logic branches
-        # And ensure api_client.user_info is set so that logic inside on_login_success (reading user_info) works
-        
-        # Wait, on_login_success calls self.api_client.set_token(response) FIRST.
-        # So we need to ensure api_client.set_token updates api_client.user_info in our mock
+        # Helper to set user_info side effect
         def side_effect(token):
              self.mock_api_client.user_info = {"require_password_change": True, "read_only": False}
         self.mock_api_client.set_token.side_effect = side_effect
@@ -110,7 +117,9 @@ class TestLoginViewCoverage(unittest.TestCase):
             mock_dlg.exec.return_value = True
             mock_dlg.get_data.return_value = ("new", "new")
             
-            view.on_login_success(response)
+            # Mock CustomMessageDialog to catch "Success" info
+            with patch('desktop_app.views.login_view.CustomMessageDialog'):
+                view.on_login_success(response)
             
             self.mock_api_client.change_password.assert_called_with("primoaccesso", "new")
 
