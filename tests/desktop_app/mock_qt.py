@@ -3,6 +3,7 @@ import builtins
 import datetime
 from dateutil.relativedelta import relativedelta
 from unittest.mock import MagicMock
+import traceback
 
 class DummySignal:
     def __init__(self):
@@ -13,7 +14,10 @@ class DummySignal:
 
     def emit(self, *args, **kwargs):
         for slot in self._slots:
-            slot(*args, **kwargs)
+            try:
+                slot(*args, **kwargs)
+            except Exception:
+                traceback.print_exc()
 
 class DummyPyQtSignal:
     def __init__(self, *args):
@@ -81,6 +85,7 @@ class DummyEnum:
     WindowNoState = 0
     WindowMinimized = 1
     NoFrame = 0
+    RichText = 1
 
     class Orientation:
         Horizontal = 1
@@ -163,6 +168,9 @@ class DummyEnum:
     class SelectionMode:
         ExtendedSelection = 1
         SingleSelection = 0
+    
+    class TextFormat:
+        RichText = 1
 
 class DummyQLayoutItem:
     def __init__(self, widget):
@@ -273,6 +281,7 @@ class DummyQWidget(DummyQObject):
     GlobalColor = DummyEnum
     BrushStyle = DummyEnum
     TextFlag = DummyEnum
+    TextFormat = DummyEnum
     
     # We add these as attributes for instances that access them as nested classes
     EditTrigger = DummyEnum.EditTrigger
@@ -471,9 +480,9 @@ class DummyQWidget(DummyQObject):
     def count(self):
         return len(self.widgets)
     def setEnabled(self, enabled):
-        pass
+        self._enabled = enabled
     def isEnabled(self):
-        return True
+        return getattr(self, '_enabled', True)
     def selectionModel(self):
         m = MagicMock()
         m.hasSelection.return_value = True
@@ -502,7 +511,8 @@ class DummyQWidget(DummyQObject):
         pass
     def setModel(self, model):
         self._model = model
-        self.setModel_called = True
+    def model(self):
+        return getattr(self, '_model', None)
     def setColumnHidden(self, col, hidden):
         pass
     def selectRow(self, row):
@@ -610,6 +620,12 @@ class DummyQWidget(DummyQObject):
     def exec(self, *args):
         pass
     def installEventFilter(self, filterObj):
+        pass
+    def setTextFormat(self, fmt):
+        pass
+    def setOpenExternalLinks(self, open):
+        pass
+    def setItemDelegateForColumn(self, col, delegate):
         pass
 
     def parent(self):
