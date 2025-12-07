@@ -25,14 +25,6 @@ class LockManager:
     def acquire(self, owner_metadata: Dict, retries: int = 3, delay: float = 0.5) -> Tuple[bool, Optional[Dict]]:
         """
         Attempts to acquire an exclusive lock on the file with retry logic.
-
-        Args:
-            owner_metadata: Dict containing info about the current process.
-            retries: Number of times to retry acquiring the lock (handles network latency).
-            delay: Seconds to wait between retries.
-
-        Returns:
-            (success, current_owner_info)
         """
         for attempt in range(retries + 1):
             try:
@@ -45,6 +37,7 @@ class LockManager:
                     with open(self.lock_file_path, 'wb') as f:
                         f.write(b'\0') # Initialize with at least one byte
 
+                # Use explicit open() call, managed via try...finally for closure in error cases
                 self._lock_handle = open(self.lock_file_path, 'r+b')
 
                 # Try to lock the first byte
@@ -64,9 +57,7 @@ class LockManager:
                 # Lock is held by someone else, or file access error (network)
                 if attempt < retries:
                     logger.warning(f"Lock acquisition failed (Attempt {attempt+1}/{retries+1}). Retrying in {delay}s...")
-                    if self._lock_handle:
-                        self._lock_handle.close()
-                        self._lock_handle = None
+                    self._cleanup_handle()
                     time.sleep(delay)
                     continue
 
@@ -74,34 +65,44 @@ class LockManager:
                 logger.info("Database is locked by another process.")
                 self._is_locked = False
 
-                # Read metadata
+                # Read metadata to return to caller
+                owner_data = {"error": "Unknown (Could not read lock file)"}
                 try:
                     if self._lock_handle:
+                        # Attempt to read metadata from the handle we failed to lock (since we opened it)
+                        # NOTE: Reading from a file locked by another process might fail on Windows if opened exclusively.
+                        # However, we opened with 'r+b'. Locking happens on Byte 0.
+                        # Reading Byte 1+ might succeed if locking is advisory or partial.
+                        # If locking is mandatory/exclusive on whole file, open() itself would have failed.
+                        # If we passed open() but failed locking(), we have a handle.
                         owner_data = self._read_metadata()
-                        self._lock_handle.close()
-                        self._lock_handle = None
-                        return False, owner_data
                 except Exception as e:
                     logger.error(f"Failed to read lock metadata: {e}")
-                    if self._lock_handle:
-                        self._lock_handle.close()
-                        self._lock_handle = None
-                    return False, {"error": "Unknown (Could not read lock file)"}
+                finally:
+                     self._cleanup_handle()
+
+                return False, owner_data
 
             except Exception as e:
                 logger.error(f"Unexpected error acquiring lock: {e}")
-                if self._lock_handle:
-                    self._lock_handle.close()
-                    self._lock_handle = None
+                self._cleanup_handle()
                 return False, {"error": f"Error: {e}"}
 
         return False, {"error": "Retries exhausted"}
 
+    def _cleanup_handle(self):
+        """Helper to safely close and clear the lock handle."""
+        if self._lock_handle:
+            try:
+                self._lock_handle.close()
+            except Exception as e:
+                logger.error(f"Error closing lock handle during cleanup: {e}")
+            finally:
+                self._lock_handle = None
+
     def update_heartbeat(self) -> bool:
         """
         Updates the timestamp in the lock file to prove we are still alive.
-        Verifies identity (UUID/PID) before writing to prevent "Zombie Writer" scenarios.
-        STRICT MODE: If verification fails (e.g. read error), we do NOT write.
         """
         if not self._is_locked or not self.current_metadata:
             return False
@@ -111,9 +112,7 @@ class LockManager:
             current_on_disk = self._read_metadata()
 
             # 2. Strict Verification
-            # If we cannot confirm it's us (e.g. read error, empty file, corruption), we assume risk and FAIL.
             if not isinstance(current_on_disk, dict) or "uuid" not in current_on_disk:
-                # Backward compatibility: if no uuid on disk but we have one, check PID/Host
                 if isinstance(current_on_disk, dict) and "pid" in current_on_disk:
                      # Check Legacy Identity (PID + Host)
                      if current_on_disk.get("pid") != self.current_metadata.get("pid") or \
@@ -121,7 +120,6 @@ class LockManager:
                          logger.critical("SPLIT BRAIN DETECTED (Legacy Check): Identity mismatch.")
                          return False
                 else:
-                    # Metadata corrupted or unreadable
                     logger.error(f"Heartbeat Verification Failed: Could not read valid metadata. content: {current_on_disk}")
                     return False
             else:
@@ -141,7 +139,6 @@ class LockManager:
     def release(self):
         """
         Explicitly releases the lock by closing the file handle.
-        Attempts to remove the lock file to keep the directory clean.
         """
         if self._lock_handle:
             try:
@@ -153,30 +150,28 @@ class LockManager:
                 self._is_locked = False
                 self.current_metadata = None
 
-                # Attempt to remove the file (Requested by user: "eliminare il .lock")
-                # On Windows, this will fail safely if another process has already opened it.
-                # On Linux, this might cause a race condition, but target is Windows.
+                # Attempt to remove the file
                 try:
                     if os.path.exists(self.lock_file_path):
                         os.remove(self.lock_file_path)
                         logger.info("Lock file removed.")
                 except Exception as e:
-                    # Ignore errors (e.g., race condition, permission, file already gone)
                     logger.debug(f"Could not remove lock file (likely taken by another process): {e}")
+
+    def __del__(self):
+        """Destructor to ensure handle is closed."""
+        self.release()
 
     def _lock_byte_0(self):
         """
         Platform-specific locking of the first byte.
-        Raises exception if locked.
         """
         if os.name == 'nt':
             import msvcrt
-            # Lock 1 byte at offset 0. LK_NBLCK throws IOError if locked.
             self._lock_handle.seek(0)
             msvcrt.locking(self._lock_handle.fileno(), msvcrt.LK_NBLCK, 1)
         else:
             import fcntl
-            # Exclusive non-blocking lock
             fcntl.flock(self._lock_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
 
     def _write_metadata(self, metadata: Dict):
@@ -184,20 +179,17 @@ class LockManager:
         Writes metadata starting at byte 1.
         """
         try:
-            # Ensure Byte 0 is null/sentinel
             self._lock_handle.seek(0)
             self._lock_handle.write(b'\0')
 
-            # Write JSON at Byte 1
             json_bytes = json.dumps(metadata).encode('utf-8')
             self._lock_handle.seek(1)
             self._lock_handle.write(json_bytes)
-            self._lock_handle.truncate() # Remove any old trailing data
+            self._lock_handle.truncate()
             self._lock_handle.flush()
-            # Note: Do NOT close handle!
         except Exception as e:
             logger.error(f"Failed to write metadata: {e}")
-            raise # Propagate error to caller (update_heartbeat needs to know)
+            raise
 
     def _read_metadata(self) -> Dict:
         """

@@ -71,7 +71,9 @@ class LoginWorker(QThread):
                  try:
                      detail = e.response.json().get('detail')
                      if detail: error_msg = detail
-                 except: pass
+                 except Exception:
+                     # Fallback to string representation if parsing fails
+                     pass
             self.finished_error.emit(error_msg)
 
 class LicenseUpdateWorker(QThread):
@@ -782,7 +784,7 @@ class LoginView(QWidget):
                                 err = str(e)
                                 if hasattr(e, 'response'):
                                     try: err = e.response.json()['detail']
-                                    except: pass
+                                    except Exception: pass
                                 CustomMessageDialog.show_error(self, "Errore", f"Errore cambio password: {err}")
                         else:
                             self.api_client.logout()

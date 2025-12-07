@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -56,6 +56,7 @@ jobs:
       - name: Run Tests
         run: |
           # Run tests and generate coverage report
+          # xvfb-run is now explicitly installed to ensure headless Qt support
           xvfb-run -a python -m pytest --cov=. --cov-report=xml --junitxml=junit.xml
 
       - name: SonarCloud Scan
@@ -63,33 +64,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      
-      - name: Copy SonarCloud Logs
-        # Esegui sempre, anche se lo Scan fallisce, per trovare i log.
-        if: always()
-        run: |
-          # Percorso universale dello spazio di lavoro del runner
-          WORKSPACE_DIR="${{ github.workspace }}"
-          LOG_DIR_CANDIDATE="$WORKSPACE_DIR/.scannerwork/logs"
-          
-          # Tentativo 1: Percorso comune di Sonar Scanner
-          if [ -d "$LOG_DIR_CANDIDATE" ]; then
-            echo "Found logs at common path."
-            mkdir -p logs_artifact
-            cp -r $LOG_DIR_CANDIDATE/* logs_artifact/
-          else
-            # Tentativo 2: Se non trovi la cartella logs, cattura l'output completo del job
-            # Questa è una soluzione di fallback che cattura il log di console in un file.
-            echo "Common log path not found. Capturing console output for analysis."
-            mkdir -p logs_artifact
-            echo "Please manually inspect the 'SonarCloud Scan' step output for failure details." > logs_artifact/console_fallback_report.txt
-          fi
-
-      - name: Upload SonarCloud Logs as Artifact
-        # Esegui sempre per garantire che l'Artifact sia sempre presente, anche se è vuoto (Warning)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: sonarcloud-failure-details
-          path: logs_artifact/
-          retention-days: 7
