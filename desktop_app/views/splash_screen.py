@@ -265,7 +265,8 @@ class CustomSplashScreen(QWidget):
 
         footer_layout.addStretch()
 
-        self.version_label = QLabel("v1.0.0")
+        from app import __version__
+        self.version_label = QLabel(f"v{__version__}")
         self.version_label.setStyleSheet("""
             color: #6B7280;
             font-size: 12px;

@@ -440,6 +440,38 @@ class ApplicationController:
         # Check Backend Health to catch Startup Errors (e.g. DB Lock)
         self.check_backend_health()
 
+        # Phase 2: Check for Updates (Non-blocking)
+        QTimer.singleShot(3000, self.start_update_check)
+
+    def start_update_check(self):
+        """Starts the async update check worker."""
+        try:
+            from desktop_app.services.update_checker import UpdateWorker
+            self.update_worker = UpdateWorker()
+            self.update_worker.update_available.connect(self.prompt_update)
+            # Ensure cleanup
+            self.update_worker.finished.connect(self.update_worker.deleteLater)
+            self.update_worker.start()
+        except Exception as e:
+            print(f"[ERROR] Failed to start update check: {e}")
+
+    def prompt_update(self, version, url):
+        """Displays a dialog asking the user to update."""
+        from PyQt6.QtGui import QDesktopServices
+        from PyQt6.QtCore import QUrl
+
+        reply = QMessageBox.question(
+            self.master_window,
+            "Aggiornamento Disponibile",
+            f"È disponibile una nuova versione ({version}).\n"
+            "Vuoi scaricarla ora?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            QDesktopServices.openUrl(QUrl(url))
+
     def setup_jumplist(self):
         """
         Attempts to create Windows Taskbar Jumplist shortcuts.
