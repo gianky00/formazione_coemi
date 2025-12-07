@@ -396,7 +396,7 @@ class LoginView(QWidget):
         self.version_label = QLabel(f"Intelleo Security • v{__version__}")
         self.version_label.setStyleSheet("color: #6B7280; font-size: 13px;")
         self.version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.version_label.setCursor(Qt.CursorShape.ArrowCursor) # Default
+        self.version_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
 
         # Enable link activation manually
         self.version_label.linkActivated.connect(self.on_footer_click)
