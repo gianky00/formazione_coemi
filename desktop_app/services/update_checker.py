@@ -5,7 +5,7 @@ from app import __version__
 from PyQt6.QtCore import QThread, pyqtSignal, QObject
 
 # Placeholder for now, can be changed via config later if needed
-UPDATE_URL = "https://tuo-sito.com/version.json"
+UPDATE_URL = "https://intelleo-updates.netlify.app/version.json"
 
 class UpdateChecker:
     """
