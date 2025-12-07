@@ -24,19 +24,18 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 # --- ROBUST CRASH PREVENTION ---
 # We use pytest_configure to mock dangerous modules BEFORE any test collection happens.
-# This prevents launcher.py or other modules from importing the real 'hardware_id_service'
-# or 'posthog' and registering atexit handlers that crash on exit.
 
 def pytest_configure(config):
     """
     Global initialization hook to mock unsafe modules before collection.
     """
-    # 1. Mock Hardware ID Service (WMI calls cause Access Violation on Windows in tests)
-    mock_hw = MagicMock()
-    mock_hw.get_machine_id.return_value = "TEST_MACHINE_ID"
-    mock_hw._get_windows_disk_serial.return_value = "TEST_DISK_SERIAL"
-    mock_hw._get_mac_address.return_value = "00:00:00:00:00:00"
-    sys.modules["desktop_app.services.hardware_id_service"] = mock_hw
+    # 1. Mock 'wmi' module globally.
+    # This prevents Access Violations if hardware_id_service is imported and run.
+    # It allows tests to import hardware_id_service but prevents it from touching the OS.
+    mock_wmi = MagicMock()
+    # Ensure any instantiation of WMI() returns a mock that doesn't crash
+    mock_wmi.WMI.return_value = MagicMock()
+    sys.modules["wmi"] = mock_wmi
 
     # 2. Mock PostHog (Prevents background threads and network calls)
     mock_ph = MagicMock()
@@ -44,13 +43,14 @@ def pytest_configure(config):
     mock_ph.flush.return_value = None
     sys.modules["posthog"] = mock_ph
 
-    # 3. Mock Sentry (Prevents transport threads)
+    # 3. Mock Sentry
     sys.modules["sentry_sdk"] = MagicMock()
 
-    # 4. Mock launcher.py internals if necessary (optional, but safe)
-    # This prevents 'atexit' registration if launcher is imported during collection
-    if "launcher" in sys.modules:
-        del sys.modules["launcher"] # Force reload with mocks if already loaded (unlikely at configure time)
+    # 4. Disable atexit handlers from launcher.py
+    # This prevents the 'track_exit' function from running after tests finish,
+    # which was causing the logging/WMI crashes in the logs.
+    import atexit
+    atexit.register = MagicMock()
 
 @pytest.fixture(scope="session")
 def test_dirs(tmp_path_factory):
