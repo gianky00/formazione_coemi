@@ -24,8 +24,11 @@ def log_security_action(db: Session, user: Optional[User], action: str, details:
             # Resolve geolocation
             if ip_address:
                 geolocation = GeoLocationService.get_location(ip_address)
-        except Exception:
-            pass # resilient logging
+        except Exception as e:
+            # Resilient logging - don't crash if IP/headers are missing
+            # But log the error for debugging
+            import logging
+            logging.getLogger(__name__).warning(f"Error extracting request details for audit: {e}")
 
     log_entry = AuditLog(
         user_id=user.id if user else None,

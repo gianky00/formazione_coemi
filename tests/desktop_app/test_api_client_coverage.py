@@ -4,9 +4,9 @@ import io
 from unittest.mock import MagicMock, patch, mock_open
 import requests
 
-# Patch get_device_id BEFORE importing APIClient
-# This ensures that even if APIClient imports it, we can patch it where it is used.
-with patch('desktop_app.utils.get_device_id') as mock_dev:
+# Patch get_device_id GLOBALLY in desktop_app.utils
+# This handles all imports of it
+with patch('desktop_app.utils.get_device_id', return_value="device_123"):
     from desktop_app.api_client import APIClient
 
 class TestAPIClientCoverage(unittest.TestCase):
@@ -36,8 +36,8 @@ class TestAPIClientCoverage(unittest.TestCase):
         self.assertIsNone(self.client.user_info)
 
     def test_get_headers(self):
-        # We need to patch desktop_app.api_client.get_device_id because it is imported into that namespace
-        with patch('desktop_app.api_client.get_device_id', return_value="device_123"):
+        # We patch where it is DEFINED to ensure consistent behavior
+        with patch('desktop_app.utils.get_device_id', return_value="device_123"):
             # No token
             headers = self.client._get_headers()
             self.assertEqual(headers.get("X-Device-ID"), "device_123")

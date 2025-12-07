@@ -1,21 +1,27 @@
 import sys
 import unittest
 import importlib
+import types
 from unittest.mock import MagicMock, patch
 
-# Inject mocks - MUST BE DONE BEFORE IMPORTING APP MODULES
+# Inject mocks - MUST BE DONE BEFORE IMPORTING APP MODULES to ensure they bind to mocks
 from tests.desktop_app.mock_qt import mock_qt_modules
 sys.modules.update(mock_qt_modules())
 
 # Force reload of modules that might have been imported by other tests with real PyQt
-import desktop_app.components.animated_widgets
-import desktop_app.components.custom_dialog
-import desktop_app.views.login_view
-importlib.reload(desktop_app.components.animated_widgets)
-importlib.reload(desktop_app.components.custom_dialog)
-importlib.reload(desktop_app.views.login_view)
+# We import the module objects directly to avoid package attribute errors
+from desktop_app.components import animated_widgets, custom_dialog
+from desktop_app.views import login_view
 
-from PyQt6.QtWidgets import QMessageBox
+# Reload critical modules to pick up the mocked PyQt6
+for module in [animated_widgets, custom_dialog, login_view]:
+    try:
+        if isinstance(module, types.ModuleType):
+            importlib.reload(module)
+    except (ImportError, TypeError):
+        pass
+
+# Re-import LoginView from the reloaded module to get the class using Mocks
 from desktop_app.views.login_view import LoginView
 
 class TestLoginViewCoverage(unittest.TestCase):

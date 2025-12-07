@@ -27,7 +27,8 @@ class SystemCheckWorker(QObject):
         try:
             status = self.api_client.get_lock_status()
             self.result_ready.emit(status)
-        except:
+        except Exception:
+            # Silent fail for network issues during status check
             pass
         self.finished.emit()
 
@@ -278,7 +279,8 @@ class Sidebar(QFrame):
                           l3 = QLabel(f"Licenza SCADUTA da {abs(days_left)} giorni.")
                       l3.setStyleSheet("color: #FFFFFF; font-size: 13px;")
                       self.license_layout.addWidget(l3)
-                  except:
+                  except ValueError:
+                      # Ignore date parsing errors in UI
                       pass
              if "Generato il" in license_data:
                   l4 = QLabel(f"Generato il: {license_data['Generato il']}")
@@ -348,7 +350,7 @@ class Sidebar(QFrame):
                 self.restore_button_texts()
 
         try: self.animation.finished.disconnect()
-        except: pass
+        except Exception: pass
         self.animation.finished.connect(on_finished)
         self.animation.start()
         self.is_collapsed = not self.is_collapsed
@@ -624,32 +626,32 @@ class MainDashboardWidget(QWidget):
 
         if imp and val:
             try: imp.import_completed.disconnect(val.refresh_data)
-            except: pass
+            except Exception: pass
             imp.import_completed.connect(val.refresh_data)
 
         if val and db:
             try: val.validation_completed.disconnect(db.load_data)
-            except: pass
+            except Exception: pass
             val.validation_completed.connect(db.load_data)
         
         if val and scad:
             try: val.validation_completed.disconnect(scad.refresh_data)
-            except: pass
+            except Exception: pass
             val.validation_completed.connect(scad.refresh_data)
 
         if db and scad:
              try: db.database_changed.disconnect(scad.refresh_data)
-             except: pass
+             except Exception: pass
              db.database_changed.connect(scad.refresh_data)
 
         if ana and db:
             try: ana.data_changed.disconnect(db.load_data)
-            except: pass
+            except Exception: pass
             ana.data_changed.connect(db.load_data)
 
         if ana and scad:
             try: ana.data_changed.disconnect(scad.refresh_data)
-            except: pass
+            except Exception: pass
             ana.data_changed.connect(scad.refresh_data)
 
     def _connect_signals(self):
@@ -740,7 +742,7 @@ class MainDashboardWidget(QWidget):
             if date.today() > expiry_date:
                 CustomMessageDialog.show_warning(self, "Licenza Scaduta", "La licenza è scaduta.")
                 self.logout_requested.emit()
-        except:
+        except Exception:
             self.logout_requested.emit()
 
     def set_read_only_mode(self, is_read_only: bool):
@@ -754,7 +756,7 @@ class MainDashboardWidget(QWidget):
         if getattr(self, 'is_read_only', False): return
         try:
             self.api_client.trigger_maintenance()
-        except: pass
+        except Exception: pass
 
     def cleanup(self):
         """

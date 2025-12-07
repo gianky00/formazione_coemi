@@ -118,7 +118,8 @@ async def lifespan(app: FastAPI):
     if not hasattr(app.state, "startup_error") or not app.state.startup_error:
         try:
             scheduler.shutdown()
-        except: pass
+        except Exception as e:
+            logger.warning(f"Error during scheduler shutdown: {e}")
         # Save and Unlock
         db_security.cleanup()
 
