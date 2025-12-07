@@ -22,6 +22,36 @@ os.environ["GCS_BUCKET_NAME"] = "test-bucket"
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+# --- ROBUST CRASH PREVENTION ---
+# We use pytest_configure to mock dangerous modules BEFORE any test collection happens.
+
+def pytest_configure(config):
+    """
+    Global initialization hook to mock unsafe modules before collection.
+    """
+    # 1. Mock 'wmi' module globally.
+    # This prevents Access Violations if hardware_id_service is imported and run.
+    # It allows tests to import hardware_id_service but prevents it from touching the OS.
+    mock_wmi = MagicMock()
+    # Ensure any instantiation of WMI() returns a mock that doesn't crash
+    mock_wmi.WMI.return_value = MagicMock()
+    sys.modules["wmi"] = mock_wmi
+
+    # 2. Mock PostHog (Prevents background threads and network calls)
+    mock_ph = MagicMock()
+    mock_ph.capture.return_value = None
+    mock_ph.flush.return_value = None
+    sys.modules["posthog"] = mock_ph
+
+    # 3. Mock Sentry
+    sys.modules["sentry_sdk"] = MagicMock()
+
+    # 4. Disable atexit handlers from launcher.py
+    # This prevents the 'track_exit' function from running after tests finish,
+    # which was causing the logging/WMI crashes in the logs.
+    import atexit
+    atexit.register = MagicMock()
+
 @pytest.fixture(scope="session")
 def test_dirs(tmp_path_factory):
     """Creates a temporary directory for data storage."""
