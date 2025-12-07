@@ -1,6 +1,7 @@
 import sys
 import unittest
 import importlib
+import types
 from unittest.mock import MagicMock, patch
 
 # Inject mocks - MUST BE DONE BEFORE IMPORTING APP MODULES
@@ -13,10 +14,12 @@ from desktop_app.components import animated_widgets, custom_dialog
 from desktop_app.views import login_view
 
 # Wrap reload in try/except to handle CI environments where modules might not be in sys.modules yet
+# or might be imported as something else (TypeError)
 for module in [animated_widgets, custom_dialog, login_view]:
     try:
-        importlib.reload(module)
-    except ImportError:
+        if isinstance(module, types.ModuleType):
+            importlib.reload(module)
+    except (ImportError, TypeError):
         pass
 
 from PyQt6.QtWidgets import QMessageBox
