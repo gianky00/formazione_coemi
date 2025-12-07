@@ -9,7 +9,8 @@ class TestSecureTimeStorage:
     @patch("builtins.open", new_callable=mock_open)
     @patch("desktop_app.services.time_service.get_license_dir")
     @patch("desktop_app.services.time_service.Fernet")
-    def test_save_state_encrypts(self, mock_fernet, mock_dir, mock_file):
+    @patch("desktop_app.services.time_service.get_license_secret_key", return_value=b"secret_key_123")
+    def test_save_state_encrypts(self, mock_key, mock_fernet, mock_dir, mock_file):
         mock_dir.return_value = "/tmp"
         mock_fernet_instance = mock_fernet.return_value
         mock_fernet_instance.encrypt.return_value = b"encrypted_data"

@@ -13,6 +13,8 @@ class TestSecurityService:
         mock_processes.return_value = ["system", "svchost.exe", "vmtoolsd.exe"]
 
         is_vm, msg = is_virtual_environment()
+
+        # Verify
         assert is_vm is True
         assert "vmtoolsd.exe" in msg
 
