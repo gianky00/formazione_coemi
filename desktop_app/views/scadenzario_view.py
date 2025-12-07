@@ -15,6 +15,7 @@ from ..workers.data_worker import FetchCertificatesWorker
 from ..workers.worker import Worker
 from collections import defaultdict
 from .gantt_item import GanttBarItem
+from desktop_app.constants import DATE_FORMAT_DISPLAY, STATUS_EXPIRING_SOON, STATUS_EXPIRED, STATUS_ACTIVE
 
 class ResizingGraphicsView(QGraphicsView):
     resized = pyqtSignal()
@@ -196,9 +197,7 @@ class ScadenzarioView(QWidget):
                 item['Dipendente'] = item['nome']
                 date_str = item.get('data_scadenza')
                 if date_str:
-                    qdate = QDate.fromString(date_str, "dd/MM/yyyy")
-                    # Rilassiamo il controllo per permettere ai dati di test di passare se necessario,
-                    # ma manteniamo la logica principale. Se qdate non è valido, non entra.
+                    qdate = QDate.fromString(date_str, DATE_FORMAT_DISPLAY)
                     if qdate.isValid():
                         # check within 90 days logic:
                         if today.daysTo(qdate) <= 90:
@@ -213,29 +212,29 @@ class ScadenzarioView(QWidget):
 
     def _assign_category_colors(self):
         self.category_colors = {}
-        unique_categories = sorted(list(set(cert['categoria'] for cert in self.certificates)))
+        # S7508: Removed sorted(list(set(...))) redundancy
+        # S7494: Use set comprehension
+        unique_categories = sorted({cert['categoria'] for cert in self.certificates})
         for i, category in enumerate(unique_categories):
             self.category_colors[category] = self.color_palette[i % len(self.color_palette)]
 
     def populate_tree(self):
-        # Bug 5 Fix: Disable updates during bulk population
         self.employee_tree.setUpdatesEnabled(False)
         self.employee_tree.clear()
         
-        # Rimosso il try-except che nascondeva gli errori nei test
         data_by_category = defaultdict(lambda: defaultdict(list))
         for item in self.certificates:
             parsed_date = item.get('_parsed_date')
             if not parsed_date:
-                parsed_date = QDate.fromString(item.get('data_scadenza', ''), "dd/MM/yyyy")
+                parsed_date = QDate.fromString(item.get('data_scadenza', ''), DATE_FORMAT_DISPLAY)
             
-            status = "SCADUTI" if QDate.currentDate() > parsed_date else "IN SCADENZA"
+            status = STATUS_EXPIRED if QDate.currentDate() > parsed_date else STATUS_EXPIRING_SOON
             data_by_category[item['categoria']][status].append(item)
 
         for category, statuses in sorted(data_by_category.items()):
             category_item = QTreeWidgetItem(self.employee_tree, [category])
             category_item.setData(0, Qt.ItemDataRole.UserRole, "category")
-            for status in ["IN SCADENZA", "SCADUTI"]:
+            for status in [STATUS_EXPIRING_SOON, STATUS_EXPIRED]:
                 if status in statuses:
                     status_item = QTreeWidgetItem(category_item, [status])
                     status_item.setData(0, Qt.ItemDataRole.UserRole, "status_folder")
@@ -245,14 +244,99 @@ class ScadenzarioView(QWidget):
         
         self.employee_tree.setUpdatesEnabled(True)
 
+    def _draw_zones(self, scene_width, start_date, end_date, col_width):
+        today = QDate.currentDate()
+        zone_definitions = {
+            "scaduto": (start_date, today.addDays(-1), QColor(239, 68, 68, 30)),
+            "in_scadenza": (today, today.addDays(30), QColor(249, 115, 22, 30)),
+            "avviso": (today.addDays(31), today.addDays(90), QColor(251, 191, 36, 30))
+        }
+        zone_labels = {"scaduto": STATUS_EXPIRED, "in_scadenza": STATUS_EXPIRING_SOON, "avviso": "AVVISI"}
+
+        for name, (zone_start, zone_end, color) in zone_definitions.items():
+            start_x = max(0, start_date.daysTo(zone_start) * col_width)
+            end_x = min(scene_width, start_date.daysTo(zone_end) * col_width)
+            if end_x > start_x:
+                zone_rect = QGraphicsRectItem(start_x, 0, end_x - start_x, 2000)
+                zone_rect.setBrush(QBrush(color))
+                zone_rect.setPen(QPen(Qt.PenStyle.NoPen))
+                zone_rect.setZValue(-1)
+                self.gantt_scene.addItem(zone_rect)
+
+                label_text = zone_labels.get(name, name.upper())
+                lbl = QGraphicsTextItem(label_text)
+                font = QFont()
+                font.setBold(True)
+                font.setPointSize(12)
+                lbl.setFont(font)
+                lbl.setDefaultTextColor(QColor(0, 0, 0, 100))
+
+                lbl_width = lbl.boundingRect().width()
+                lbl_x = end_x - lbl_width - 10
+                if lbl_x < start_x: lbl_x = start_x + 5
+                lbl.setPos(lbl_x, 5)
+                self.gantt_scene.addItem(lbl)
+
+    def _draw_month_headers(self, start_date, end_date, total_days, col_width):
+        current_draw_date = start_date
+        while current_draw_date <= end_date:
+            if current_draw_date.day() != 1:
+                next_month = current_draw_date.addMonths(1)
+                next_month.setDate(next_month.year(), next_month.month(), 1)
+                current_draw_date = next_month
+                continue
+
+            days_from_start = start_date.daysTo(current_draw_date)
+            if days_from_start <= total_days:
+                locale = QLocale(QLocale.Language.Italian, QLocale.Country.Italy)
+                month_name = locale.toString(current_draw_date, "MMM yyyy").capitalize()
+                text = QGraphicsTextItem(month_name)
+                font = QFont()
+                font.setBold(True)
+                font.setPointSize(12)
+                text.setFont(font)
+                text.setPos(days_from_start * col_width, 0)
+                self.gantt_scene.addItem(text)
+            current_draw_date = current_draw_date.addMonths(1)
+
+    def _draw_today_line(self, start_date, end_date, today, col_width):
+        if start_date <= today <= end_date:
+            today_x = start_date.daysTo(today) * col_width
+            today_line = QGraphicsLineItem(today_x, 0, today_x, 2000)
+            today_line.setPen(QPen(QColor("#1D4ED8"), 2))
+            self.gantt_scene.addItem(today_line)
+            return today_line
+        return None
+
+    def _draw_bars(self, visible_certs, start_date, today, col_width, header_height, row_height):
+        sorted_certs = sorted(visible_certs, key=lambda x: x.get('_parsed_date', QDate.fromString(x['data_scadenza'], DATE_FORMAT_DISPLAY)))
+        y_pos = header_height
+        for cert_data in sorted_certs:
+            expiry_date = cert_data.get('_parsed_date')
+            if not expiry_date:
+                expiry_date = QDate.fromString(cert_data['data_scadenza'], DATE_FORMAT_DISPLAY)
+
+            bar_start_date = expiry_date.addDays(-30)
+            start_x = start_date.daysTo(bar_start_date) * col_width
+            end_x = start_date.daysTo(expiry_date) * col_width
+            bar_width = max(2, end_x - start_x)
+
+            color = self.category_colors.get(cert_data['categoria'], QColor("gray"))
+            gradient = QLinearGradient(start_x, y_pos, start_x + bar_width, y_pos)
+            gradient.setColorAt(0, color.lighter(120))
+            gradient.setColorAt(1, color)
+
+            rect = GanttBarItem(start_x, y_pos, bar_width, 18, QBrush(gradient), color, cert_data)
+            self.gantt_scene.addItem(rect)
+            y_pos += row_height
+        return y_pos
+
     def redraw_gantt_scene(self):
-        # Bug 5 Fix: Disable updates for smooth rendering
+        # S3776: Refactored to reduce Cognitive Complexity
         self.gantt_view.setUpdatesEnabled(False)
         try:
             self.gantt_scene.clear()
-            bar_height = 18
-            bar_spacing = 4
-            row_height = bar_height + bar_spacing
+            row_height = 22 # 18 + 4
             header_height = 30
 
             today = QDate.currentDate()
@@ -265,108 +349,24 @@ class ScadenzarioView(QWidget):
             if scene_width <= 0: scene_width = 700
             col_width = scene_width / total_days
 
-            zone_definitions = {
-                "scaduto": (start_date, today.addDays(-1), QColor(239, 68, 68, 30)),
-                "in_scadenza": (today, today.addDays(30), QColor(249, 115, 22, 30)),
-                "avviso": (today.addDays(31), today.addDays(90), QColor(251, 191, 36, 30))
-            }
-
-            zone_labels = {"scaduto": "SCADUTI", "in_scadenza": "IN SCADENZA", "avviso": "AVVISI"}
-
-            for name, (zone_start, zone_end, color) in zone_definitions.items():
-                start_x = max(0, start_date.daysTo(zone_start) * col_width)
-                end_x = min(scene_width, start_date.daysTo(zone_end) * col_width)
-                if end_x > start_x:
-                    zone_rect = QGraphicsRectItem(start_x, 0, end_x - start_x, 2000)
-                    zone_rect.setBrush(QBrush(color))
-                    zone_rect.setPen(QPen(Qt.PenStyle.NoPen))
-                    zone_rect.setZValue(-1)
-                    self.gantt_scene.addItem(zone_rect)
-
-                    # Zone Title (Top Right)
-                    label_text = zone_labels.get(name, name.upper())
-                    lbl = QGraphicsTextItem(label_text)
-                    font = QFont()
-                    font.setBold(True)
-                    font.setPointSize(12)
-                    lbl.setFont(font)
-                    lbl.setDefaultTextColor(QColor(0, 0, 0, 100))
-
-                    lbl_width = lbl.boundingRect().width()
-                    lbl_x = end_x - lbl_width - 10
-                    if lbl_x < start_x: lbl_x = start_x + 5 # Clamp left
-
-                    lbl.setPos(lbl_x, 5) # Top margin
-                    self.gantt_scene.addItem(lbl)
-
-            current_draw_date = start_date
-            while current_draw_date <= end_date:
-                # Snap to start of month for labeling, but handle partial first month
-                if current_draw_date.day() != 1:
-                    # If we are inside a month, find the NEXT 1st
-                    next_month = current_draw_date.addMonths(1)
-                    next_month.setDate(next_month.year(), next_month.month(), 1)
-                    current_draw_date = next_month
-                    continue
-
-                days_from_start = start_date.daysTo(current_draw_date)
-                if days_from_start <= total_days:
-                    locale = QLocale(QLocale.Language.Italian, QLocale.Country.Italy)
-                    month_name = locale.toString(current_draw_date, "MMM yyyy").capitalize()
-                    text = QGraphicsTextItem(month_name)
-
-                    # Bold Header
-                    font = QFont()
-                    font.setBold(True)
-                    font.setPointSize(12)
-                    text.setFont(font)
-
-                    text.setPos(days_from_start * col_width, 0)
-                    self.gantt_scene.addItem(text)
-                current_draw_date = current_draw_date.addMonths(1)
-
-            if start_date <= today <= end_date:
-                today_x = start_date.daysTo(today) * col_width
-                today_line = QGraphicsLineItem(today_x, 0, today_x, 2000)
-                today_line.setPen(QPen(QColor("#1D4ED8"), 2))
-                self.gantt_scene.addItem(today_line)
+            self._draw_zones(scene_width, start_date, end_date, col_width)
+            self._draw_month_headers(start_date, end_date, total_days, col_width)
+            today_line = self._draw_today_line(start_date, end_date, today, col_width)
 
             visible_certs = [
                 cert for cert in self.certificates
-                if (QDate.fromString(cert['data_scadenza'], "dd/MM/yyyy").addDays(-30) <= end_date) and \
-                   (QDate.fromString(cert['data_scadenza'], "dd/MM/yyyy") >= start_date)
+                if (QDate.fromString(cert['data_scadenza'], DATE_FORMAT_DISPLAY).addDays(-30) <= end_date) and \
+                   (QDate.fromString(cert['data_scadenza'], DATE_FORMAT_DISPLAY) >= start_date)
             ]
-            sorted_certs = sorted(visible_certs, key=lambda x: x.get('_parsed_date', QDate.fromString(x['data_scadenza'], "dd/MM/yyyy")))
 
-            y_pos = header_height
-            for cert_data in sorted_certs:
-                expiry_date = cert_data.get('_parsed_date')
-                if not expiry_date:
-                    expiry_date = QDate.fromString(cert_data['data_scadenza'], "dd/MM/yyyy")
-                
-                days_to_expiry = today.daysTo(expiry_date)
-                bar_start_date = expiry_date.addDays(-30)
+            total_height = self._draw_bars(visible_certs, start_date, today, col_width, header_height, row_height)
 
-                start_x = start_date.daysTo(bar_start_date) * col_width
-                end_x = start_date.daysTo(expiry_date) * col_width
-                bar_width = max(2, end_x - start_x)
-
-                color = self.category_colors.get(cert_data['categoria'], QColor("gray"))
-                gradient = QLinearGradient(start_x, y_pos, start_x + bar_width, y_pos)
-                gradient.setColorAt(0, color.lighter(120))
-                gradient.setColorAt(1, color)
-
-                rect = GanttBarItem(start_x, y_pos, bar_width, bar_height, QBrush(gradient), color, cert_data)
-                self.gantt_scene.addItem(rect)
-                y_pos += row_height
-
-            total_height = y_pos
             self.gantt_scene.setSceneRect(0, 0, scene_width, total_height)
 
             for item in self.gantt_scene.items():
                 if isinstance(item, QGraphicsRectItem) and item.zValue() == -1:
                     item.setRect(item.rect().x(), 0, item.rect().width(), total_height)
-                elif isinstance(item, QGraphicsLineItem) and 'today_line' in locals() and item is today_line:
+                elif isinstance(item, QGraphicsLineItem) and today_line and item is today_line:
                     item.setLine(item.line().x1(), 0, item.line().x2(), total_height)
 
             self._update_legend(visible_certs)
@@ -378,7 +378,8 @@ class ScadenzarioView(QWidget):
             item = self.legend_layout.takeAt(0)
             if item.widget(): item.widget().deleteLater()
 
-        visible_categories = sorted(list(set(cert['categoria'] for cert in visible_certs)))
+        # S7508 & S7494
+        visible_categories = sorted({cert['categoria'] for cert in visible_certs})
         for category in visible_categories:
             color = self.category_colors.get(category)
             if color:
@@ -404,7 +405,6 @@ class ScadenzarioView(QWidget):
         def send():
             return requests.post(f"{self.api_client.base_url}/notifications/send-manual-alert", headers=self.api_client._get_headers(), timeout=60)
 
-        # Assicuriamoci che Worker sia creato
         try:
             worker = Worker(send)
             worker.signals.result.connect(self._on_email_sent)
@@ -428,8 +428,6 @@ class ScadenzarioView(QWidget):
 
     def export_to_pdf(self):
         default_filename = f"Report scadenze del {QDate.currentDate().toString('dd_MM_yyyy')}.pdf"
-        
-        # QFileDialog.getSaveFileName potrebbe restituire una tupla o fallire in base ai mock
         try:
             result = QFileDialog.getSaveFileName(self, "Salva PDF", default_filename, "PDF Files (*.pdf)")
             if isinstance(result, tuple):
@@ -446,7 +444,6 @@ class ScadenzarioView(QWidget):
         def download():
             return requests.get(f"{self.api_client.base_url}/notifications/export-report", headers=self.api_client._get_headers(), timeout=60)
 
-        # Assicuriamoci che Worker sia creato correttamente per essere intercettato dal test
         try:
             worker = Worker(download)
             worker.signals.result.connect(lambda res: self._on_pdf_downloaded(res, path))
@@ -462,12 +459,14 @@ class ScadenzarioView(QWidget):
             try:
                 with open(path, 'wb') as f:
                     f.write(response.content)
-                ToastManager.success("Esportazione Riuscita", f"Report esportato con successo.", self.window())
+                # S3457: Removed f-string without placeholders
+                ToastManager.success("Esportazione Riuscita", "Report esportato con successo.", self.window())
             except Exception as e:
                 CustomMessageDialog.show_error(self, "Errore", f"Impossibile salvare il file: {e}")
         else:
             CustomMessageDialog.show_error(self, "Errore", f"Errore durante l'esportazione: {response.text}")
 
     def _on_generic_error(self, error_tuple, title):
-        exctype, value, tb = error_tuple
+        # S1481: Unused exctype and tb
+        _, value, _ = error_tuple
         CustomMessageDialog.show_error(self, title, f"{value}")

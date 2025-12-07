@@ -127,37 +127,48 @@ class FloatingChatWidget(QWidget):
         self.expand_animation.setDuration(300)
         self.expand_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
 
+    def _handle_mouse_press(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.is_dragging = False
+            self.drag_start_pos = event.globalPosition().toPoint()
+            self.widget_start_pos = self.pos()
+            return True
+        return False
+
+    def _handle_mouse_move(self, event):
+        if event.buttons() & Qt.MouseButton.LeftButton:
+            delta = event.globalPosition().toPoint() - self.drag_start_pos
+            if not self.is_dragging and delta.manhattanLength() > 5:
+                self.is_dragging = True
+                # If expanded, collapse for smooth dragging
+                if self.is_expanded:
+                    self.toggle_chat()
+
+            if self.is_dragging:
+                self.move(self.widget_start_pos + delta)
+                self.user_has_moved = True
+                return True
+        return False
+
+    def _handle_mouse_release(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            if self.is_dragging:
+                self.snap_to_edge()
+            else:
+                self.toggle_chat()
+            self.is_dragging = False
+            return True
+        return False
+
     def eventFilter(self, source, event):
+        # S3776: Refactored to reduce complexity
         if source == self.fab:
             if event.type() == QEvent.Type.MouseButtonPress:
-                if event.button() == Qt.MouseButton.LeftButton:
-                    self.is_dragging = False
-                    self.drag_start_pos = event.globalPosition().toPoint()
-                    self.widget_start_pos = self.pos()
-                    return True # Consume
-
+                return self._handle_mouse_press(event)
             elif event.type() == QEvent.Type.MouseMove:
-                if event.buttons() & Qt.MouseButton.LeftButton:
-                    delta = event.globalPosition().toPoint() - self.drag_start_pos
-                    if not self.is_dragging and delta.manhattanLength() > 5:
-                        self.is_dragging = True
-                        # If expanded, collapse for smooth dragging
-                        if self.is_expanded:
-                            self.toggle_chat()
-
-                    if self.is_dragging:
-                        self.move(self.widget_start_pos + delta)
-                        self.user_has_moved = True
-                        return True
-
+                return self._handle_mouse_move(event)
             elif event.type() == QEvent.Type.MouseButtonRelease:
-                if event.button() == Qt.MouseButton.LeftButton:
-                    if self.is_dragging:
-                        self.snap_to_edge()
-                    else:
-                        self.toggle_chat()
-                    self.is_dragging = False
-                    return True
+                return self._handle_mouse_release(event)
 
         return super().eventFilter(source, event)
 
@@ -169,10 +180,7 @@ class FloatingChatWidget(QWidget):
         parent_width = self.parent().width()
         current_x = self.x() + self.width() / 2
 
-        target_x = 0
-        align_flag = Qt.AlignmentFlag.AlignLeft
-
-        # Snap Right
+        # S1854: Unused variable removed, and default branch fixed
         if current_x > parent_width / 2:
             target_x = parent_width - self.width() - 20 # 20px padding
             align_flag = Qt.AlignmentFlag.AlignRight

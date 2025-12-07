@@ -82,8 +82,8 @@ class NotificationItem(QFrame):
                     time_str = dt.astimezone().strftime("%H:%M")
                 elif isinstance(ts_str, datetime):
                     time_str = ts_str.strftime("%H:%M")
-            except:
-                pass
+            except Exception: # S5754: Handle exception
+                pass # Use empty string for time if parsing fails
 
         time_lbl = QLabel(time_str)
         time_lbl.setObjectName("time")

@@ -81,6 +81,26 @@ class DBSecurityManager:
         digest = hashlib.sha256(self._STATIC_SECRET.encode()).digest()
         return base64.urlsafe_b64encode(digest)
 
+    def _should_remove_lock(self, metadata):
+        """Helper to determine if a lock should be removed."""
+        pid = metadata.get("pid")
+        if not pid: return False, "No PID"
+
+        if not psutil.pid_exists(pid):
+            return True, f"PID {pid} is DEAD"
+
+        try:
+            proc = psutil.Process(pid)
+            name = proc.name().lower()
+            valid_names = ["python", "intelleo", "main", "launcher", "boot_loader"]
+            if not any(v in name for v in valid_names):
+                return True, f"PID {pid} exists ({name}) but is unrelated"
+            else:
+                logger.info(f"Lock file belongs to active process {pid} ({name}). Respecting lock.")
+                return False, None
+        except psutil.NoSuchProcess:
+            return True, f"Process {pid} died during check"
+
     def _check_and_recover_stale_lock(self):
         """
         Detects if a lock file exists but belongs to a dead process.
@@ -93,58 +113,24 @@ class DBSecurityManager:
         reason = ""
 
         try:
-            # We use LockManager to safely read metadata without locking
-            # (temp_mgr removed as it was unused)
-
             with open(self.lock_path, 'rb') as f:
-                # Byte 0 is lock byte, Byte 1+ is JSON
                 f.seek(1)
                 data = f.read()
-                if not data: return # Empty file
+                if not data: return
 
                 import json
                 try:
                     metadata = json.loads(data.decode('utf-8'))
-                except:
-                    # Corrupt JSON -> Force Clean
+                    should_remove, reason = self._should_remove_lock(metadata)
+                except Exception:
+                    # S5754: Handle general exception (e.g. JSONDecodeError)
                     should_remove = True
                     reason = "Corrupt lock file found"
-                else:
-                    if not should_remove:
-                        pid = metadata.get("pid")
-                        if not pid:
-                            return # No PID to check
-
-                        # CHECK PID EXISTENCE - HARDENED LOGIC
-                        # If psutil says PID is gone, we delete the lock. Period.
-                        if not psutil.pid_exists(pid):
-                            should_remove = True
-                            reason = f"PID {pid} is DEAD"
-                        else:
-                            # PID exists, but is it US or Python/Intelleo?
-                            try:
-                                proc = psutil.Process(pid)
-                                name = proc.name().lower()
-                                # If process is definitely NOT related to us (e.g. Chrome, System), kill lock
-                                valid_names = ["python", "intelleo", "main", "launcher", "boot_loader"]
-                                is_valid = any(v in name for v in valid_names)
-
-                                if not is_valid:
-                                    should_remove = True
-                                    reason = f"PID {pid} exists ({name}) but is unrelated"
-                                else:
-                                    logger.info(f"Lock file belongs to active process {pid} ({name}). Respecting lock.")
-
-                            except psutil.NoSuchProcess:
-                                 # Process died during check
-                                 should_remove = True
-                                 reason = f"Process {pid} died during check"
 
         except Exception as e:
             logger.error(f"Stale Lock Recovery failed: {e}")
             return
 
-        # Perform removal outside the 'with open' block to avoid WinError 32
         if should_remove:
             logger.warning(f"Stale Lock Recovery: {reason}. Removing lock immediately.")
             self._force_remove_lock()
@@ -347,6 +333,8 @@ class DBSecurityManager:
             try:
                 os.replace(swp_path, self.db_path)
             except PermissionError:
+                # S2737: Added logging before re-raise
+                logger.warning(f"PermissionError replacing DB file {self.db_path}. Retrying...")
                 raise
         else:
             os.replace(swp_path, self.db_path)

@@ -326,7 +326,26 @@ class CustomSplashScreen(QWidget):
         else:
             self.detail_timer.stop()
 
+    def _generate_new_details(self, message):
+        msg_lower = message.lower()
+        if "integrità" in msg_lower:
+            return ["Verifica firma digitale", "Controllo hash componenti", "Analisi anti-debug", "Scansione integrità memoria"]
+        elif "licenza" in msg_lower:
+            return ["Lettura chiave crittografica", "Decrittazione payload", "Validazione Hardware ID", "Controllo scadenza"]
+        elif "orologio" in msg_lower:
+            return ["Contatto server NTP", "Verifica delta temporale", "Sincronizzazione", "Validazione timestamp"]
+        elif "database" in msg_lower:
+            return ["Inizializzazione SQLite in-memory", "Caricamento schema crittografato", "Applicazione migrazioni", "Ottimizzazione indici", "Verifica consistenza"]
+        elif "backend" in msg_lower:
+            return ["Avvio sottosistema API", "Binding porta locale", "Caricamento router", "Iniezione dipendenze"]
+        elif "connessione" in msg_lower:
+             return ["Ping servizio locale", "Handshake di sicurezza", "Verifica disponibilità endpoint", "Controllo latenza"]
+        elif "risorse" in msg_lower or "interfaccia" in msg_lower:
+            return ["Pre-rendering asset grafici", "Caricamento temi", "Inizializzazione motore di rendering", "Preparazione dashboard", "Avvio completato"]
+        return []
+
     def update_status(self, message, progress=None):
+        # S3776: Refactored to reduce complexity
         clean_message = message.rstrip('.')
 
         if self.status_label.text() != clean_message:
@@ -337,22 +356,7 @@ class CustomSplashScreen(QWidget):
         if hasattr(self, 'checklist'):
             self.checklist.update_state(clean_message)
 
-        new_details = []
-        msg_lower = message.lower()
-        if "integrità" in msg_lower:
-            new_details = ["Verifica firma digitale", "Controllo hash componenti", "Analisi anti-debug", "Scansione integrità memoria"]
-        elif "licenza" in msg_lower:
-            new_details = ["Lettura chiave crittografica", "Decrittazione payload", "Validazione Hardware ID", "Controllo scadenza"]
-        elif "orologio" in msg_lower:
-            new_details = ["Contatto server NTP", "Verifica delta temporale", "Sincronizzazione", "Validazione timestamp"]
-        elif "database" in msg_lower:
-            new_details = ["Inizializzazione SQLite in-memory", "Caricamento schema crittografato", "Applicazione migrazioni", "Ottimizzazione indici", "Verifica consistenza"]
-        elif "backend" in msg_lower:
-            new_details = ["Avvio sottosistema API", "Binding porta locale", "Caricamento router", "Iniezione dipendenze"]
-        elif "connessione" in msg_lower:
-             new_details = ["Ping servizio locale", "Handshake di sicurezza", "Verifica disponibilità endpoint", "Controllo latenza"]
-        elif "risorse" in msg_lower or "interfaccia" in msg_lower:
-            new_details = ["Pre-rendering asset grafici", "Caricamento temi", "Inizializzazione motore di rendering", "Preparazione dashboard", "Avvio completato"]
+        new_details = self._generate_new_details(message)
 
         if new_details:
             self.current_details = new_details

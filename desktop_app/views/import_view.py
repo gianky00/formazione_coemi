@@ -12,6 +12,7 @@ from ..api_client import APIClient
 from ..components.animated_widgets import LoadingOverlay
 from ..components.visuals import HolographicScanner
 from ..workers.file_scanner_worker import FileScannerWorker
+from desktop_app.constants import DATE_FORMAT_FILE, DIR_ANALYSIS_ERRORS
 
 import time
 from collections import deque
@@ -40,7 +41,7 @@ class PdfWorker(QObject):
 
     def run(self):
         total_files = len(self.file_paths)
-        processed_files = 0
+        # S1481: Unused processed_files removed
         for i, file_path in enumerate(self.file_paths):
             if self._is_stopped:
                 self.log_message.emit("Processo interrotto dall'utente.", "orange")
@@ -53,7 +54,6 @@ class PdfWorker(QObject):
             duration = time.time() - file_start_time
             self.recent_times.append(duration)
 
-            processed_files += 1
             self.progress.emit(i + 1)
 
             # ETR calculation (Rolling Average)
@@ -72,57 +72,78 @@ class PdfWorker(QObject):
 
         self.finished.emit(self.archived_count, self.verify_count)
 
-    def process_pdf(self, file_path):
-        original_filename = os.path.basename(file_path)
+    def _process_single_cert(self, original_filename, data, source_path):
+        # S3776: Helper function to reduce Cognitive Complexity
+        self.verify_count += 1
 
-        # Helper for moving to error folder
-        def move_to_error(reason="Errore Generico", data=None, source_path=None):
-            self.verify_count += 1
-            
-            if source_path is None: source_path = file_path
+        error_category = "ALTRI ERRORI"
+        reason = "Errore Generico" # Default
 
-            error_category = "ALTRI ERRORI"
-            if reason and "matricola" in reason.lower():
-                error_category = "ASSENZA MATRICOLE"
-            elif reason and "categoria" in reason.lower():
-                error_category = "CATEGORIA NON TROVATA"
-            elif reason and "database" in reason.lower():
-                 error_category = "DUPLICATI"
+        # Determine category and paths
+        try:
+            nome_completo = data.get('nome') or 'SCONOSCIUTO'
+            matricola = data.get('matricola') or 'N-A'
+            categoria = data.get('categoria') or 'ALTRO'
 
-            # Case 1: Data Available -> Standard Structure
-            if data:
+            data_scadenza_str = data.get('data_scadenza')
+            stato = 'STORICO'
+            file_scadenza = "no scadenza"
+
+            if not data_scadenza_str:
+                 stato = 'ATTIVO'
+            else:
                 try:
-                    nome_completo = data.get('nome') or 'SCONOSCIUTO'
-                    matricola = data.get('matricola') or 'N-A'
-                    categoria = data.get('categoria') or 'ALTRO'
+                    scadenza_date = datetime.strptime(data_scadenza_str, '%d/%m/%Y').date()
+                    file_scadenza = scadenza_date.strftime(DATE_FORMAT_FILE)
 
-                    # Normalize dates for filename
-                    data_scadenza_str = data.get('data_scadenza')
+                    from app.core.config import settings
+                    threshold = settings.ALERT_THRESHOLD_DAYS
+
+                    # S1871: Merged duplicate branches
+                    if (scadenza_date - datetime.now().date()).days > threshold or scadenza_date >= datetime.now().date():
+                        stato = 'ATTIVO'
+                except ValueError:
+                     pass
+
+            nome_fs = sanitize_filename(nome_completo)
+            matricola_fs = sanitize_filename(str(matricola))
+            categoria_fs = sanitize_filename(categoria)
+
+            employee_folder_name = f"{nome_fs} ({matricola_fs})"
+            new_filename = f"{nome_fs} ({matricola_fs}) - {categoria_fs} - {file_scadenza}.pdf"
+
+            return True, error_category, employee_folder_name, categoria_fs, stato, new_filename
+        except Exception as e:
+            self.log_message.emit(f"Errore nella creazione struttura standard per errore: {e}. Fallback...", "red")
+            return False, None, None, None, None, None
+
+    def _handle_save_response(self, save_response, original_filename, certificato, current_op_path):
+        if save_response.status_code == 200:
+            cert_data = save_response.json()
+            ragione_fallimento = cert_data.get('assegnazione_fallita_ragione')
+
+            if ragione_fallimento:
+                log_msg = f"File {original_filename} ({certificato['categoria']}). Assegnazione manuale richiesta: {ragione_fallimento}"
+                self.log_message.emit(log_msg, "orange")
+                self.move_to_error(ragione_fallimento, cert_data, source_path=current_op_path)
+            else:
+                nome_completo = cert_data.get('nome', 'ERRORE')
+                self.log_message.emit(f"File {original_filename} ({certificato['categoria']}) salvato per {nome_completo}.", "default")
+                try:
+                    matricola = cert_data.get('matricola') if cert_data.get('matricola') else 'N-A'
+                    categoria = cert_data.get('categoria', 'CATEGORIA_NON_TROVATA')
+
+                    data_scadenza_str = cert_data.get('data_scadenza')
                     stato = 'STORICO'
-                    file_scadenza = "no scadenza"
-
                     if not data_scadenza_str:
-                         stato = 'ATTIVO'
+                        stato = 'ATTIVO'
+                        file_scadenza = "no scadenza"
                     else:
-                        try:
-                            scadenza_date = datetime.strptime(data_scadenza_str, '%d/%m/%Y').date()
-                            file_scadenza = scadenza_date.strftime('%d_%m_%Y')
-                            # Bug 5 Fix: Use backend-aligned logic for status (considering threshold)
-                            # Ideally we should use the API returned status, but for filesystem placement
-                            # we replicate the threshold logic or fetch config.
-                            from app.core.config import settings
-                            threshold = settings.ALERT_THRESHOLD_DAYS
-                            # Visite Mediche might have different threshold but we default to standard for folder structure
-                            if (scadenza_date - datetime.now().date()).days > threshold:
-                                stato = 'ATTIVO'
-                            # If expiring soon, it is technically "ATTIVO" folder (as per sync_service logic: attivo/in_scadenza -> ATTIVO)
-                            elif scadenza_date >= datetime.now().date():
-                                stato = 'ATTIVO'
-                            # Else it is expired
-                        except ValueError:
-                             pass
+                        scadenza_date = datetime.strptime(data_scadenza_str, '%d/%m/%Y').date()
+                        if scadenza_date >= datetime.now().date():
+                            stato = 'ATTIVO'
+                        file_scadenza = scadenza_date.strftime(DATE_FORMAT_FILE)
 
-                    # Sanitize for filesystem
                     nome_fs = sanitize_filename(nome_completo)
                     matricola_fs = sanitize_filename(str(matricola))
                     categoria_fs = sanitize_filename(categoria)
@@ -130,42 +151,71 @@ class PdfWorker(QObject):
                     employee_folder_name = f"{nome_fs} ({matricola_fs})"
                     new_filename = f"{nome_fs} ({matricola_fs}) - {categoria_fs} - {file_scadenza}.pdf"
 
-                    target_dir = os.path.join(self.output_folder, "ERRORI ANALISI", error_category, employee_folder_name, categoria_fs, stato)
-                    os.makedirs(target_dir, exist_ok=True)
-                    shutil.move(source_path, os.path.join(target_dir, new_filename))
-                    return
+                    documenti_folder = os.path.join(self.output_folder, "DOCUMENTI DIPENDENTI")
+                    dest_path = os.path.join(documenti_folder, employee_folder_name, categoria_fs, stato)
+                    os.makedirs(dest_path, exist_ok=True)
+
+                    shutil.move(current_op_path, os.path.join(dest_path, new_filename))
+                    self.archived_count += 1
                 except Exception as e:
-                    self.log_message.emit(f"Errore nella creazione struttura standard per errore: {e}. Fallback...", "red")
-                    # Fallback to Case 2 if renaming fails
+                    self.log_message.emit(f"Errore durante lo spostamento del file {original_filename}: {e}", "red")
+                    self.move_to_error(f"Errore Spostamento: {e}", cert_data, source_path=current_op_path)
+        elif save_response.status_code == 409:
+            self.log_message.emit(f"{original_filename} ({certificato['categoria']}) - Già in Database.", "orange")
+            self.move_to_error("Già in Database", certificato, source_path=current_op_path)
+        else:
+            self.log_message.emit(f"Errore durante il salvaggio di {original_filename}: {save_response.text}", "red")
+            self.move_to_error(f"Errore Salvaggio: {save_response.text}", certificato, source_path=current_op_path)
 
-            # Case 2: No Data (or Fallback) -> Folder per File
-            filename_no_ext = os.path.splitext(original_filename)[0]
-            target_dir = os.path.join(self.output_folder, "ERRORI ANALISI", error_category, filename_no_ext)
-            os.makedirs(target_dir, exist_ok=True)
+    def move_to_error(self, reason="Errore Generico", data=None, source_path=None):
+        # Refactored to use helper logic
+        if source_path is None: source_path = self.current_file_path # Use instance var if not passed
 
-            try:
-                shutil.move(source_path, os.path.join(target_dir, original_filename))
-            except Exception as e:
-                self.log_message.emit(f"Impossibile spostare il file {original_filename}: {e}", "red")
+        error_category = "ALTRI ERRORI"
+        if reason and "matricola" in reason.lower():
+            error_category = "ASSENZA MATRICOLE"
+        elif reason and "categoria" in reason.lower():
+            error_category = "CATEGORIA NON TROVATA"
+        elif reason and "database" in reason.lower():
+             error_category = "DUPLICATI"
+
+        if data:
+            success, err_cat_override, emp_folder, cat_fs, status, new_name = self._process_single_cert(os.path.basename(source_path), data, source_path)
+            if success:
+                target_dir = os.path.join(self.output_folder, DIR_ANALYSIS_ERRORS, error_category, emp_folder, cat_fs, status)
+                os.makedirs(target_dir, exist_ok=True)
+                shutil.move(source_path, os.path.join(target_dir, new_name))
+                return
+
+        # Case 2: No Data (or Fallback)
+        filename_no_ext = os.path.splitext(os.path.basename(source_path))[0]
+        target_dir = os.path.join(self.output_folder, DIR_ANALYSIS_ERRORS, error_category, filename_no_ext)
+        os.makedirs(target_dir, exist_ok=True)
+
+        try:
+            shutil.move(source_path, os.path.join(target_dir, os.path.basename(source_path)))
+        except Exception as e:
+            self.log_message.emit(f"Impossibile spostare il file {os.path.basename(source_path)}: {e}", "red")
+
+    def process_pdf(self, file_path):
+        original_filename = os.path.basename(file_path)
+        self.current_file_path = file_path # Store for fallback
 
         try:
             with open(file_path, 'rb') as f:
                 files = {'file': (original_filename, f, 'application/pdf')}
-                # Timeout increased to 300s (5 min) for AI Analysis
                 response = requests.post(f"{self.api_client.base_url}/upload-pdf/", files=files, headers=self.api_client._get_headers(), timeout=300)
 
             if response.status_code == 200:
                 data = response.json()
                 entities = data.get('entities', {})
 
-                # Bug 6 Fix: Robust Date Parsing
                 from app.utils.date_parser import parse_date_flexible
                 
                 data_rilascio_raw = entities.get('data_rilascio', '')
                 data_scadenza_raw = entities.get('data_scadenza', '')
                 data_nascita_raw = entities.get('data_nascita', '')
 
-                # Helper to convert to DD/MM/YYYY for API
                 def normalize_date(d_str):
                     if not d_str: return ''
                     d_obj = parse_date_flexible(d_str)
@@ -188,7 +238,6 @@ class PdfWorker(QObject):
                 corso_raw = entities.get('corso', '')
                 categoria_raw = entities.get('categoria', 'ALTRO')
 
-                # Bivalent Logic: Nomina Antincendio + Primo Soccorso
                 if categoria_raw == "NOMINA" and corso_raw and \
                    "antincendio" in corso_raw.lower() and "primo soccorso" in corso_raw.lower():
                     c1 = base_cert.copy()
@@ -202,87 +251,23 @@ class PdfWorker(QObject):
                     certs_to_process.append(base_cert)
 
                 for idx, certificato in enumerate(certs_to_process):
-                    # Manage file copy for multiple operations
                     current_op_path = file_path
                     if idx < len(certs_to_process) - 1:
-                        # Create temp copy for non-final operations
                         current_op_path = f"{file_path}_copy_{idx}.pdf"
                         shutil.copy2(file_path, current_op_path)
 
                     save_response = requests.post(f"{self.api_client.base_url}/certificati/", json=certificato, headers=self.api_client._get_headers(), timeout=30)
-
-                    if save_response.status_code == 200:
-                        cert_data = save_response.json()
-                        ragione_fallimento = cert_data.get('assegnazione_fallita_ragione')
-
-                        if ragione_fallimento:
-                            log_msg = f"File {original_filename} ({certificato['categoria']}). Assegnazione manuale richiesta: {ragione_fallimento}"
-                            self.log_message.emit(log_msg, "orange")
-                            move_to_error(ragione_fallimento, cert_data, source_path=current_op_path)
-                        else:
-                            nome_completo = cert_data.get('nome', 'ERRORE')
-                            self.log_message.emit(f"File {original_filename} ({certificato['categoria']}) salvato per {nome_completo}.", "default")
-                            try:
-                                matricola = cert_data.get('matricola') if cert_data.get('matricola') else 'N-A'
-                                categoria = cert_data.get('categoria', 'CATEGORIA_NON_TROVATA')
-
-                                data_scadenza_str = cert_data.get('data_scadenza')
-                                stato = 'STORICO'
-                                if not data_scadenza_str:
-                                    stato = 'ATTIVO'
-                                    file_scadenza = "no scadenza"
-                                else:
-                                    scadenza_date = datetime.strptime(data_scadenza_str, '%d/%m/%Y').date()
-                                    # Bug 5 Fix: Replicate logic for successful save placement
-                                    # Note: sync_service maps "in_scadenza" to "ATTIVO" folder too.
-                                    # So essentially, as long as it is NOT expired, it goes to ATTIVO.
-                                    # Or wait, "in_scadenza" means (expiry - today) <= threshold.
-                                    # Is "in_scadenza" folder used?
-                                    # sync_service: if status in ["attivo", "in_scadenza"]: target_status = "ATTIVO"
-                                    # So we just need to check if it is NOT expired.
-                                    if scadenza_date >= datetime.now().date():
-                                        stato = 'ATTIVO'
-                                    # If expired -> STORICO (as per sync_service logic for expired items)
-                                    file_scadenza = scadenza_date.strftime('%d_%m_%Y')
-
-                                # Sanitize for filesystem
-                                nome_fs = sanitize_filename(nome_completo)
-                                matricola_fs = sanitize_filename(str(matricola))
-                                categoria_fs = sanitize_filename(categoria)
-
-                                employee_folder_name = f"{nome_fs} ({matricola_fs})"
-                                new_filename = f"{nome_fs} ({matricola_fs}) - {categoria_fs} - {file_scadenza}.pdf"
-
-                                documenti_folder = os.path.join(self.output_folder, "DOCUMENTI DIPENDENTI")
-                                dest_path = os.path.join(documenti_folder, employee_folder_name, categoria_fs, stato)
-                                os.makedirs(dest_path, exist_ok=True)
-
-                                shutil.move(current_op_path, os.path.join(dest_path, new_filename))
-                                self.archived_count += 1
-                            except Exception as e:
-                                self.log_message.emit(f"Errore durante lo spostamento del file {original_filename}: {e}", "red")
-                                move_to_error(f"Errore Spostamento: {e}", cert_data, source_path=current_op_path)
-                    elif save_response.status_code == 409:
-                        self.log_message.emit(f"{original_filename} ({certificato['categoria']}) - Già in Database.", "orange")
-                        move_to_error("Già in Database", certificato, source_path=current_op_path)
-                    else:
-                        self.log_message.emit(f"Errore durante il salvaggio di {original_filename}: {save_response.text}", "red")
-                        move_to_error(f"Errore Salvaggio: {save_response.text}", certificato, source_path=current_op_path)
+                    self._handle_save_response(save_response, original_filename, certificato, current_op_path)
 
             elif response.status_code == 422:
                 try:
                     error_detail = response.json().get("detail", "")
                     if "REJECTED" in str(error_detail):
                         self.log_message.emit(f"File scartato (Generico/Syllabus): {original_filename}", "orange")
-
-                        # Move to SCARTATI folder
-                        target_dir = os.path.join(self.output_folder, "ERRORI ANALISI", "SCARTATI")
+                        target_dir = os.path.join(self.output_folder, DIR_ANALYSIS_ERRORS, "SCARTATI")
                         os.makedirs(target_dir, exist_ok=True)
-
                         try:
                             shutil.move(file_path, os.path.join(target_dir, original_filename))
-
-                            # Create TXT file with rejection reason
                             txt_filename = os.path.splitext(original_filename)[0] + ".txt"
                             txt_path = os.path.join(target_dir, txt_filename)
                             try:
@@ -292,22 +277,21 @@ class PdfWorker(QObject):
                                     f.write(f"Motivo Scarto: {error_detail}\n")
                             except Exception as txt_err:
                                 self.log_message.emit(f"Impossibile creare file TXT per scarto: {txt_err}", "orange")
-
                         except Exception as e:
                             self.log_message.emit(f"Impossibile spostare il file scartato {original_filename}: {e}", "red")
                         return
                 except Exception:
-                    pass # Fallback to standard handling if parsing fails
+                    pass
 
                 self.log_message.emit(f"Errore durante l'elaborazione di {original_filename}: {response.text}", "red")
-                move_to_error(f"Errore Analisi: {response.text}")
+                self.move_to_error(f"Errore Analisi: {response.text}")
 
             else:
                 self.log_message.emit(f"Errore durante l'elaborazione di {original_filename}: {response.text}", "red")
-                move_to_error(f"Errore Analisi: {response.text}")
+                self.move_to_error(f"Errore Analisi: {response.text}")
         except (requests.exceptions.RequestException, IOError) as e:
             self.log_message.emit(f"Errore critico durante l'elaborazione di {original_filename}: {e}", "red")
-            move_to_error(f"Errore Critico: {e}")
+            self.move_to_error(f"Errore Critico: {e}")
 
 class DropZone(QFrame):
     def __init__(self, parent=None):

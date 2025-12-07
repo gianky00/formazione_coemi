@@ -15,14 +15,15 @@ def verify_file_signature(file_content: bytes, file_type: str) -> bool:
         try:
             # Try to decode as UTF-8 (or other common encodings if needed)
             # If it fails, it's likely binary
-            text = file_content.decode('utf-8')
+            # S1481: Unused variable removed
+            file_content.decode('utf-8')
         except UnicodeDecodeError:
             try:
-                text = file_content.decode('cp1252') # Common fallback
+                file_content.decode('cp1252') # Common fallback
             except UnicodeDecodeError:
                 try:
-                     text = file_content.decode('latin-1')
-                except:
+                     file_content.decode('latin-1')
+                except Exception: # S5754: Handle general exception
                      return False
 
         # Heuristic: check for null bytes which are rare in valid CSVs

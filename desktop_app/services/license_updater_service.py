@@ -6,6 +6,7 @@ import shutil
 import tempfile
 from typing import Optional, Dict, Any
 from desktop_app.services.path_service import get_license_dir
+from desktop_app.constants import FILE_MANIFEST, FILE_PYARMOR_KEY, FILE_CONFIG_DAT
 
 class LicenseUpdaterService:
     """
@@ -50,17 +51,70 @@ class LicenseUpdaterService:
                 sha256_hash.update(byte_block)
         return sha256_hash.hexdigest()
 
+    def _download_and_verify(self, api_url, headers, temp_dir):
+        # S3776: Helper method for download and verify logic
+        manifest_url = f"{api_url}/{FILE_MANIFEST}"
+        meta_res = requests.get(manifest_url, headers=headers, timeout=15)
+        meta_res.raise_for_status()
+        remote_manifest_data = meta_res.json()
+
+        if 'download_url' not in remote_manifest_data:
+            raise ValueError(f"URL di download non trovato per {FILE_MANIFEST}.")
+
+        content_res = requests.get(remote_manifest_data['download_url'], timeout=30)
+        content_res.raise_for_status()
+        remote_manifest = content_res.json()
+
+        # Confronta con il manifest locale, se esiste
+        local_manifest_path = os.path.join(get_license_dir(), FILE_MANIFEST)
+        if os.path.exists(local_manifest_path):
+            with open(local_manifest_path, 'r') as f:
+                local_manifest = json.load(f)
+            if local_manifest == remote_manifest:
+                return True, "La licenza è già aggiornata all'ultima versione."
+
+        # Salva il manifest remoto già scaricato
+        with open(os.path.join(temp_dir, FILE_MANIFEST), 'w') as f:
+            json.dump(remote_manifest, f)
+
+        # Scarica gli altri file
+        # S1192: Use constants
+        files_to_download = [FILE_PYARMOR_KEY, FILE_CONFIG_DAT]
+        for filename in files_to_download:
+            file_api_url = f"{api_url}/{filename}"
+            meta_res = requests.get(file_api_url, headers=headers, timeout=15)
+            meta_res.raise_for_status()
+            file_meta = meta_res.json()
+
+            if 'download_url' not in file_meta:
+                raise ValueError(f"URL di download non trovato per {filename}.")
+
+            content_res = requests.get(file_meta['download_url'], timeout=30)
+            content_res.raise_for_status()
+
+            with open(os.path.join(temp_dir, filename), "wb") as f:
+                f.write(content_res.content)
+
+        # Verifica i checksum
+        rkey_path = os.path.join(temp_dir, FILE_PYARMOR_KEY)
+        config_path = os.path.join(temp_dir, FILE_CONFIG_DAT)
+
+        if remote_manifest[FILE_PYARMOR_KEY] != self._calculate_sha256(rkey_path):
+            raise ValueError(f"Checksum per '{FILE_PYARMOR_KEY}' non valido.")
+        if remote_manifest[FILE_CONFIG_DAT] != self._calculate_sha256(config_path):
+            raise ValueError(f"Checksum per '{FILE_CONFIG_DAT}' non valido.")
+
+        return False, None # Continue update
+
     def update_license(self, hardware_id):
         try:
             config = self._load_config()
         except RuntimeError as e:
             return False, str(e)
 
-        # The configuration might not need a token if the repo is public, but we check for structure.
         if not all([config.get('repo_owner'), config.get('repo_name')]):
             return False, "La configurazione per l'aggiornamento ricevuta dal server è incompleta."
 
-        # The API now requires a token for private repos.
         if not all([config.get('repo_owner'), config.get('repo_name'), config.get('github_token')]):
             return False, "La configurazione per l'aggiornamento ricevuta dal server è incompleta."
 
@@ -68,71 +122,18 @@ class LicenseUpdaterService:
         headers = {'Authorization': f"token {config['github_token']}"}
 
         try:
-            # --- OTTIMIZZAZIONE: Controlla prima solo il manifest ---
-            manifest_url = f"{api_url}/manifest.json"
-            meta_res = requests.get(manifest_url, headers=headers, timeout=15)
-            meta_res.raise_for_status()
-            remote_manifest_data = meta_res.json()
-
-            if 'download_url' not in remote_manifest_data:
-                raise ValueError("URL di download non trovato per manifest.json.")
-
-            content_res = requests.get(remote_manifest_data['download_url'], timeout=30)
-            content_res.raise_for_status()
-            remote_manifest = content_res.json()
-
-            # Confronta con il manifest locale, se esiste
-            local_manifest_path = os.path.join(get_license_dir(), "manifest.json")
-            if os.path.exists(local_manifest_path):
-                with open(local_manifest_path, 'r') as f:
-                    local_manifest = json.load(f)
-                if local_manifest == remote_manifest:
-                    return True, "La licenza è già aggiornata all'ultima versione."
-
-            # --- Se i manifest sono diversi, o quello locale non esiste, procedi con il download completo ---
             with tempfile.TemporaryDirectory() as temp_dir:
-                # Salva il manifest remoto già scaricato
-                with open(os.path.join(temp_dir, "manifest.json"), 'w') as f:
-                    json.dump(remote_manifest, f)
+                is_updated, message = self._download_and_verify(api_url, headers, temp_dir)
+                if is_updated:
+                    return True, message
 
-                # Scarica gli altri file
-                files_to_download = ["pyarmor.rkey", "config.dat"]
-                for filename in files_to_download:
-                    file_api_url = f"{api_url}/{filename}"
-                    meta_res = requests.get(file_api_url, headers=headers, timeout=15)
-                    meta_res.raise_for_status()
-                    file_meta = meta_res.json()
-
-                    if 'download_url' not in file_meta:
-                        raise ValueError(f"URL di download non trovato per {filename}.")
-
-                    content_res = requests.get(file_meta['download_url'], timeout=30)
-                    content_res.raise_for_status()
-
-                    with open(os.path.join(temp_dir, filename), "wb") as f:
-                        f.write(content_res.content)
-
-                # Verifica i checksum usando il manifest scaricato
-                manifest_path = os.path.join(temp_dir, "manifest.json")
-                with open(manifest_path, 'r') as f:
-                    manifest = json.load(f)
-
-                rkey_path = os.path.join(temp_dir, "pyarmor.rkey")
-                config_path = os.path.join(temp_dir, "config.dat")
-
-                if manifest["pyarmor.rkey"] != LicenseUpdaterService._calculate_sha256(rkey_path):
-                    raise ValueError("Checksum per 'pyarmor.rkey' non valido.")
-                if manifest["config.dat"] != LicenseUpdaterService._calculate_sha256(config_path):
-                    raise ValueError("Checksum per 'config.dat' non valido.")
-
-                # 3. Atomic Update to User Data Directory (No Elevation Needed)
+                # Atomic Update
                 target_license_dir = get_license_dir()
-                os.makedirs(target_license_dir, exist_ok=True) # Ensure dir exists
+                os.makedirs(target_license_dir, exist_ok=True)
 
-                # Move the validated files into the target directory, overwriting existing ones.
-                shutil.move(rkey_path, os.path.join(target_license_dir, "pyarmor.rkey"))
-                shutil.move(config_path, os.path.join(target_license_dir, "config.dat"))
-                shutil.move(manifest_path, os.path.join(target_license_dir, "manifest.json"))
+                shutil.move(os.path.join(temp_dir, FILE_PYARMOR_KEY), os.path.join(target_license_dir, FILE_PYARMOR_KEY))
+                shutil.move(os.path.join(temp_dir, FILE_CONFIG_DAT), os.path.join(target_license_dir, FILE_CONFIG_DAT))
+                shutil.move(os.path.join(temp_dir, FILE_MANIFEST), os.path.join(target_license_dir, FILE_MANIFEST))
 
                 return True, "Licenza aggiornata con successo. È necessario riavviare l'applicazione."
 
@@ -141,7 +142,8 @@ class LicenseUpdaterService:
                 return False, f"Nessuna licenza trovata per questo ID hardware ({hardware_id})."
             elif e.response.status_code == 401 or e.response.status_code == 403:
                 return False, "Errore di autenticazione: Accesso non autorizzato. Contattare il supporto."
-            return False, f"Errore di rete durante il download della licenza. Verificare la connessione."
+            # S3457: Use generic string without f-string if no placeholders
+            return False, "Errore di rete durante il download della licenza. Verificare la connessione."
         except (ValueError, KeyError) as e:
             return False, f"Errore di validazione: {e}"
         except Exception as e:

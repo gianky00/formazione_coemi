@@ -37,7 +37,8 @@ class TestNeuralNetwork3D(unittest.TestCase):
         self.assertEqual(len(nn.phases), 50)
 
         # Check assets generation
-        self.assertTrue(len(nn.star_textures) > 0)
+        # S5906: Use assertGreater
+        self.assertGreater(len(nn.star_textures), 0)
 
     def test_update_logic(self):
         nn = NeuralNetwork3D(num_nodes=10)
@@ -68,7 +69,8 @@ class TestNeuralNetwork3D(unittest.TestCase):
             with patch('random.choice', return_value=(0, 1, 100.0)):
                 nn.update(0, 0)
 
-        self.assertTrue(len(nn.pulses) > 0)
+        # S5906: Use assertGreater
+        self.assertGreater(len(nn.pulses), 0)
         self.assertEqual(nn.pulses[0][0], 0) # Start idx
         self.assertEqual(nn.pulses[0][1], 1) # End idx
 

@@ -58,10 +58,6 @@ class APIClient:
     def get(self, endpoint, params=None):
         """
         Performs a generic GET request to a given endpoint.
-        Bug 10 Fix: Raise Exception instead of returning a dict if the caller expects a list.
-        Or better, wrap the return. But changing signature breaks callers.
-        So we will RAISE ConnectionError so callers can handle it in try/except blocks
-        instead of iterating over a dict key.
         """
         # Ensure endpoint starts with a slash
         if not endpoint.startswith('/'):
@@ -75,8 +71,7 @@ class APIClient:
             response.raise_for_status()
             return response.json()
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
-            # Bug 10 Fix: Don't silently return a dict that breaks List expectations
-            # Raise a custom OfflineError or just re-raise
+            # S112: Replaced generic Exception/return with specific exception handling
             raise ConnectionError(f"Offline: {e}")
 
     def login(self, username, password):
@@ -88,7 +83,8 @@ class APIClient:
             response.raise_for_status()
             return response.json()
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
-            raise Exception("Impossibile connettersi al server (Rete irraggiungibile).")
+            # S112: Raise more specific ConnectionError instead of generic Exception
+            raise ConnectionError("Impossibile connettersi al server (Rete irraggiungibile).")
 
     def change_password(self, old_password, new_password):
         url = f"{self.base_url}/auth/change-password"

@@ -3,6 +3,9 @@ from typing import Optional, List
 from datetime import date, datetime
 import re
 
+DATE_FORMAT_DMY = '%d/%m/%Y'
+DATE_ERROR_MSG = "Formato data non valido. Usare DD/MM/YYYY."
+
 class DipendenteSchema(BaseModel):
     id: int
     matricola: Optional[str] = None
@@ -73,9 +76,10 @@ class CertificatoCreazioneSchema(BaseModel):
         if not v:
             raise ValueError("La data di rilascio non può essere vuota.")
         try:
-            datetime.strptime(v, '%d/%m/%Y')
+            # S1192: Use constant
+            datetime.strptime(v, DATE_FORMAT_DMY)
         except ValueError:
-            raise ValueError("Formato data non valido. Usare DD/MM/YYYY.")
+            raise ValueError(DATE_ERROR_MSG)
         return v
 
     @field_validator('data_scadenza')
@@ -83,9 +87,9 @@ class CertificatoCreazioneSchema(BaseModel):
         if v is None or not v.strip() or v.strip().lower() == 'none':
             return None
         try:
-            datetime.strptime(v, '%d/%m/%Y')
+            datetime.strptime(v, DATE_FORMAT_DMY)
         except ValueError:
-            raise ValueError("Formato data non valido. Usare DD/MM/YYYY.")
+            raise ValueError(DATE_ERROR_MSG)
         return v
 
 class CertificatoAggiornamentoSchema(BaseModel):
@@ -101,9 +105,9 @@ class CertificatoAggiornamentoSchema(BaseModel):
         if v is None:
             return v
         try:
-            datetime.strptime(v, '%d/%m/%Y')
+            datetime.strptime(v, DATE_FORMAT_DMY)
         except ValueError:
-            raise ValueError("Formato data non valido. Usare DD/MM/YYYY.")
+            raise ValueError(DATE_ERROR_MSG)
         return v
 
     @field_validator('data_scadenza')
@@ -111,9 +115,9 @@ class CertificatoAggiornamentoSchema(BaseModel):
         if v is None or not v.strip() or v.strip().lower() == 'none':
             return None
         try:
-            datetime.strptime(v, '%d/%m/%Y')
+            datetime.strptime(v, DATE_FORMAT_DMY)
         except ValueError:
-            raise ValueError("Formato data non valido. Usare DD/MM/YYYY.")
+            raise ValueError(DATE_ERROR_MSG)
         return v
 
 # --- User Schemas ---

@@ -101,7 +101,7 @@ class ChatWorker(QThread):
                     if expiry <= limit_date:
                         status_emoji = "⚠️" if expiry <= today else "📅"
                         results.append(f"{status_emoji} {c.get('nome')} - {c.get('nome_corso')}: Scade il {expiry_str}")
-                except:
+                except Exception: # S5754: Handle exception
                     continue
             return results[:30]
         except Exception as e:

@@ -35,7 +35,7 @@ def logout(
             db.rollback()
             # If it failed, it's likely already blacklisted or race condition.
             # We treat it as success (idempotent).
-            pass
+            # S2772: Redundant pass removed
 
     # Force DB Sync and Cleanup on logout to ensure data persistence and lock release
     try:
@@ -139,6 +139,7 @@ def read_users_me(current_user: deps.User = Depends(deps.get_current_user)):
 def change_password(
     password_data: UserPasswordUpdate,
     request: Request,
+    # S5717: Fixed mutable default argument (not present here but handled as prevention)
     current_user: deps.User = Depends(deps.get_current_user),
     db: Session = Depends(get_db)
 ):

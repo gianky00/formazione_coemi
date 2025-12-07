@@ -187,16 +187,8 @@ class ToastManager(QObject):
 
         self._show_toast_slot(parent, type, title, message, duration)
 
-    @pyqtSlot(object, str, str, str, int)
-    def _show_toast_slot(self, parent, type, title, message, duration):
-        # Add to history
-        self.add_to_history(type, title, message)
-
-        toast = ToastNotification(title, message, type, parent)
-
-        # Robust Positioning Logic
-        target_geometry = None
-
+    def _get_target_geometry(self, parent):
+        """Helper to determine the target geometry for toast positioning."""
         if parent and parent.isVisible() and not (parent.windowState() & Qt.WindowState.WindowMinimized):
              # Parent is visible and valid
              target_geometry = parent.geometry()
@@ -204,21 +196,29 @@ class ToastManager(QObject):
              if not parent.isWindow():
                  top_left = parent.mapToGlobal(QPoint(0, 0))
                  target_geometry = QRect(top_left, parent.size())
-        else:
-             # Bug 7: Multi-monitor fallback
-             # Use the screen where the cursor is
-             screen = QApplication.screenAt(QCursor.pos())
-             if not screen:
-                 screen = QApplication.primaryScreen()
+             return target_geometry
 
-             if screen:
-                 target_geometry = screen.availableGeometry()
+        # Bug 7: Multi-monitor fallback
+        screen = QApplication.screenAt(QCursor.pos())
+        if not screen:
+            screen = QApplication.primaryScreen()
+
+        if screen:
+            return screen.availableGeometry()
+
+        return None
+
+    @pyqtSlot(object, str, str, str, int)
+    def _show_toast_slot(self, parent, type, title, message, duration):
+        # S3776: Refactored to reduce complexity
+        self.add_to_history(type, title, message)
+
+        toast = ToastNotification(title, message, type, parent)
+        target_geometry = self._get_target_geometry(parent)
 
         if target_geometry:
             # Calculate Bottom Right of the target area
             x = target_geometry.x() + target_geometry.width() - toast.width() - 20
-
-            # Initial Y (bottom)
             base_y = target_geometry.y() + target_geometry.height() - 20
 
             # Calculate offset based on active toasts
@@ -229,12 +229,10 @@ class ToastManager(QObject):
 
             y = base_y - toast.height() - offset_y
 
-            # Ensure y doesn't go off top of screen
             if y < target_geometry.y():
-                 y = target_geometry.y() + 20 # Fallback to top if full
+                 y = target_geometry.y() + 20
 
             toast.move(x, y)
-            # Store target geometry for rearrangement
             toast.setProperty("target_geometry", target_geometry)
 
         toast.show_toast(duration)
@@ -250,25 +248,6 @@ class ToastManager(QObject):
             self.rearrange_toasts()
 
     def rearrange_toasts(self):
-        # Re-stack remaining toasts
-        # We need to know where the stack starts.
-        # We assume they all share the same "target_geometry" (screen or parent).
-        # But they might be on different screens?
-        # Ideally we group by target geometry, but simple logic:
-        # just iterate and push down if they share x roughly?
-
-        # Simple approach: Re-calculate Y for ALL active toasts based on their stored target_geometry
-
-        # We process in order of creation (oldest first? No, active_toasts is appended).
-        # We want the NEWEST (last in list) to be at the bottom?
-        # Actually in show_toast loop:
-        # for t in active_toasts: offset += ...
-        # This implies active_toasts[0] is at bottom?
-        # No, offset starts at 0.
-        # So active_toasts[0] (oldest) gets offset 0 (bottom).
-        # active_toasts[1] gets offset = t[0].height.
-        # So oldest is at bottom.
-
         cumulative_offset = 0
         for toast in self.active_toasts:
             target_geometry = toast.property("target_geometry")

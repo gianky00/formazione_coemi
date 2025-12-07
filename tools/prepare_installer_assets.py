@@ -70,15 +70,12 @@ def draw_spectacular_background(painter, width, height, is_dark=True):
 
 def draw_tech_grid(painter, width, height, is_dark):
     """Draws a subtle hexagonal grid."""
+    # S3776: Refactored to reduce complexity
     size = 45
     dx = size * 1.5
     dy = size * math.sqrt(3)
 
-    if is_dark:
-        pen = QPen(QColor(255, 255, 255, 8))
-    else:
-        pen = QPen(QColor(0, 0, 0, 8))
-
+    pen = QPen(QColor(255, 255, 255, 8)) if is_dark else QPen(QColor(0, 0, 0, 8))
     pen.setWidth(1)
     painter.setPen(pen)
     painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -93,18 +90,21 @@ def draw_tech_grid(painter, width, height, is_dark):
             if i % 2 == 1:
                 y += dy / 2
 
-            path = QPainterPath()
-            for k in range(6):
-                angle_deg = 60 * k
-                angle_rad = math.pi / 180 * angle_deg
-                px = x + size * math.cos(angle_rad)
-                py = y + size * math.sin(angle_rad)
-                if k == 0:
-                    path.moveTo(px, py)
-                else:
-                    path.lineTo(px, py)
-            path.closeSubpath()
-            painter.drawPath(path)
+            _draw_hexagon(painter, x, y, size)
+
+def _draw_hexagon(painter, x, y, size):
+    path = QPainterPath()
+    for k in range(6):
+        angle_deg = 60 * k
+        angle_rad = math.pi / 180 * angle_deg
+        px = x + size * math.cos(angle_rad)
+        py = y + size * math.sin(angle_rad)
+        if k == 0:
+            path.moveTo(px, py)
+        else:
+            path.lineTo(px, py)
+    path.closeSubpath()
+    painter.drawPath(path)
 
 def draw_neural_network(painter, width, height):
     """Draws glowing nodes and connections."""
@@ -207,7 +207,8 @@ def create_slide(filepath, text, subtext, width=800, height=600, logo_pixmap=Non
     print(f"Created {filepath}")
 
 def create_assets():
-    app = QApplication(sys.argv)
+    # S1481: Unused variable app removed, but QApplication must be instantiated
+    _ = QApplication(sys.argv)
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     assets_dir = os.path.join(base_dir, "desktop_app", "assets")
     logo_path = os.path.join(assets_dir, "logo.png")

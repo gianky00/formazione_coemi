@@ -137,5 +137,5 @@ class VoiceService(QObject):
         if self._current_file and os.path.exists(self._current_file):
             try:
                 os.remove(self._current_file)
-            except:
+            except Exception: # S5754: Handle exception
                 pass

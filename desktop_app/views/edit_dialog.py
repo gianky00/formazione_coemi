@@ -1,6 +1,7 @@
 
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLineEdit, QDateEdit, QCheckBox, QDialogButtonBox, QFormLayout, QLabel, QComboBox, QListView
 from PyQt6.QtCore import QDate, Qt
+from desktop_app.constants import DATE_FORMAT_DISPLAY
 
 class EditCertificatoDialog(QDialog):
     def __init__(self, data, categories, parent=None):
@@ -36,7 +37,8 @@ class EditCertificatoDialog(QDialog):
         self.corso_edit = QLineEdit(data['corso'])
         self.categoria_edit = QComboBox()
 
-        unique_categories = sorted(list(set(categories)))
+        # S7508: Removed redundant collection calls
+        unique_categories = sorted(set(categories))
         self.categoria_edit.addItems(unique_categories)
 
         self.categoria_edit.setCurrentText(data['categoria'])
@@ -44,20 +46,20 @@ class EditCertificatoDialog(QDialog):
         self.categoria_edit.setView(QListView())
         self.categoria_edit.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
 
-
         self.data_rilascio_edit = QDateEdit()
-        self.data_rilascio_edit.setDisplayFormat("dd/MM/yyyy")
-        rilascio_date = QDate.fromString(data['data_rilascio'], "dd/MM/yyyy")
+        # S1192: Use constant
+        self.data_rilascio_edit.setDisplayFormat(DATE_FORMAT_DISPLAY)
+        rilascio_date = QDate.fromString(data['data_rilascio'], DATE_FORMAT_DISPLAY)
         self.data_rilascio_edit.setDate(rilascio_date if rilascio_date.isValid() else QDate.currentDate())
 
         self.scadenza_checkbox = QCheckBox("Ha una data di scadenza")
         self.data_scadenza_edit = QDateEdit()
-        self.data_scadenza_edit.setDisplayFormat("dd/MM/yyyy")
+        self.data_scadenza_edit.setDisplayFormat(DATE_FORMAT_DISPLAY)
         self.data_scadenza_edit.setEnabled(False)
 
         scadenza_date_str = str(data.get('data_scadenza', ''))
         if scadenza_date_str and scadenza_date_str.lower() != 'none':
-            scadenza_date = QDate.fromString(scadenza_date_str, "dd/MM/yyyy")
+            scadenza_date = QDate.fromString(scadenza_date_str, DATE_FORMAT_DISPLAY)
             if scadenza_date.isValid():
                 self.data_scadenza_edit.setDate(scadenza_date)
                 self.data_scadenza_edit.setEnabled(True)
@@ -94,11 +96,11 @@ class EditCertificatoDialog(QDialog):
         self.adjustSize()
 
     def get_data(self):
-        data_scadenza = self.data_scadenza_edit.date().toString("dd/MM/yyyy") if self.scadenza_checkbox.isChecked() else None
+        data_scadenza = self.data_scadenza_edit.date().toString(DATE_FORMAT_DISPLAY) if self.scadenza_checkbox.isChecked() else None
         return {
             "nome": self.nome_edit.text(),
             "corso": self.corso_edit.text(),
             "categoria": self.categoria_edit.currentText(),
-            "data_rilascio": self.data_rilascio_edit.date().toString("dd/MM/yyyy"),
+            "data_rilascio": self.data_rilascio_edit.date().toString(DATE_FORMAT_DISPLAY),
             "data_scadenza": data_scadenza
         }

@@ -10,91 +10,55 @@ import os
 import shutil
 from datetime import datetime
 
+def _add_column_if_missing(db, table, column, sql_type, index=False):
+    """Helper to add a column if it doesn't exist."""
+    result = db.execute(text(f"PRAGMA table_info({table})"))
+    columns = [row[1] for row in result.fetchall()]
+
+    if columns and column not in columns:
+        print(f"Migrating schema: Adding {column} to {table} table...")
+        try:
+            db.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}"))
+            if index:
+                db.execute(text(f"CREATE UNIQUE INDEX ix_{table}_{column} ON {table} ({column})"))
+            db.commit()
+        except Exception as e:
+            print(f"Error adding {column} column: {e}")
+            db.rollback()
+            raise # Critical
+
 def migrate_schema(db: Session):
     """
     Checks for missing columns in existing tables (due to lack of migrations)
     and adds them using raw SQL. Specifically handles 'previous_login'.
     """
+    # S3776: Refactored to reduce complexity
     try:
-        # Check columns in users table
-        result = db.execute(text("PRAGMA table_info(users)"))
-        columns = [row[1] for row in result.fetchall()]
+        # Users table
+        _add_column_if_missing(db, "users", "previous_login", "DATETIME")
+        _add_column_if_missing(db, "users", "last_login", "DATETIME")
+        _add_column_if_missing(db, "users", "gender", "VARCHAR")
 
-        if columns and 'previous_login' not in columns:
-            print("Migrating schema: Adding previous_login to users table...")
-            db.execute(text("ALTER TABLE users ADD COLUMN previous_login DATETIME"))
-            db.commit()
+        # Audit logs table
+        _add_column_if_missing(db, "audit_logs", "category", "VARCHAR")
 
-        if columns and 'last_login' not in columns:
-            print("Migrating schema: Adding last_login to users table...")
-            db.execute(text("ALTER TABLE users ADD COLUMN last_login DATETIME"))
-            db.commit()
+        # Security columns (Batch check logic kept for simplicity in helper usage)
+        # Actually splitting them is cleaner
+        _add_column_if_missing(db, "audit_logs", "ip_address", "VARCHAR")
+        _add_column_if_missing(db, "audit_logs", "user_agent", "VARCHAR")
+        _add_column_if_missing(db, "audit_logs", "geolocation", "VARCHAR")
+        _add_column_if_missing(db, "audit_logs", "severity", "VARCHAR DEFAULT 'LOW'")
 
-        if columns and 'gender' not in columns:
-            print("Migrating schema: Adding gender to users table...")
-            db.execute(text("ALTER TABLE users ADD COLUMN gender VARCHAR"))
-            db.commit()
+        # Ensure default severity
+        db.execute(text("UPDATE audit_logs SET severity = 'LOW' WHERE severity IS NULL"))
+        db.commit()
 
-        # Check columns in audit_logs table
-        result = db.execute(text("PRAGMA table_info(audit_logs)"))
-        audit_columns = [row[1] for row in result.fetchall()]
+        _add_column_if_missing(db, "audit_logs", "device_id", "VARCHAR")
+        _add_column_if_missing(db, "audit_logs", "changes", "VARCHAR")
 
-        if audit_columns and 'category' not in audit_columns:
-            print("Migrating schema: Adding category to audit_logs table...")
-            db.execute(text("ALTER TABLE audit_logs ADD COLUMN category VARCHAR"))
-            db.commit()
-
-        if audit_columns and 'ip_address' not in audit_columns:
-            print("Migrating schema: Adding security columns to audit_logs table...")
-            try:
-                db.execute(text("ALTER TABLE audit_logs ADD COLUMN ip_address VARCHAR"))
-                db.execute(text("ALTER TABLE audit_logs ADD COLUMN user_agent VARCHAR"))
-                db.execute(text("ALTER TABLE audit_logs ADD COLUMN geolocation VARCHAR"))
-                db.execute(text("ALTER TABLE audit_logs ADD COLUMN severity VARCHAR DEFAULT 'LOW'"))
-                db.commit()
-            except Exception as e:
-                print(f"Error adding security columns: {e}")
-                db.rollback()
-                raise # Bug 10 Fix: Raise exception to prevent startup in broken state
-
-            db.execute(text("UPDATE audit_logs SET severity = 'LOW' WHERE severity IS NULL"))
-            db.commit()
-
-        if audit_columns and 'device_id' not in audit_columns:
-            print("Migrating schema: Adding extended security columns (device_id, changes) to audit_logs table...")
-            try:
-                db.execute(text("ALTER TABLE audit_logs ADD COLUMN device_id VARCHAR"))
-                db.execute(text("ALTER TABLE audit_logs ADD COLUMN changes VARCHAR"))
-                db.commit()
-            except Exception as e:
-                print(f"Error adding extended security columns: {e}")
-                db.rollback()
-                raise # Bug 10 Fix
-
-        # Check columns in dipendenti table
-        result = db.execute(text("PRAGMA table_info(dipendenti)"))
-        dipendenti_columns = [row[1] for row in result.fetchall()]
-
-        if dipendenti_columns and 'email' not in dipendenti_columns:
-            print("Migrating schema: Adding email to dipendenti table...")
-            try:
-                db.execute(text("ALTER TABLE dipendenti ADD COLUMN email VARCHAR"))
-                db.execute(text("CREATE UNIQUE INDEX ix_dipendenti_email ON dipendenti (email)"))
-                db.commit()
-            except Exception as e:
-                print(f"Error adding email column: {e}")
-                db.rollback()
-                raise # Bug 10 Fix
-
-        if dipendenti_columns and 'data_assunzione' not in dipendenti_columns:
-            print("Migrating schema: Adding data_assunzione to dipendenti table...")
-            try:
-                db.execute(text("ALTER TABLE dipendenti ADD COLUMN data_assunzione DATE"))
-                db.commit()
-            except Exception as e:
-                print(f"Error adding data_assunzione column: {e}")
-                db.rollback()
-                raise # Bug 10 Fix
+        # Dipendenti table
+        _add_column_if_missing(db, "dipendenti", "email", "VARCHAR", index=True)
+        _add_column_if_missing(db, "dipendenti", "data_assunzione", "DATE")
 
         # Ensure indexes exist
         try:
@@ -124,53 +88,58 @@ def cleanup_deprecated_data(db: Session):
     """
     Removes data related to deprecated categories like 'MEDICO COMPETENTE'.
     """
+    # S3776: Refactored to reduce complexity
     deprecated_category = "MEDICO COMPETENTE"
 
     try:
         courses = db.query(Corso).filter(Corso.categoria_corso == deprecated_category).all()
         course_ids = [c.id for c in courses]
 
-        if course_ids:
-            certs_to_delete = db.query(Certificato).filter(Certificato.corso_id.in_(course_ids)).all()
+        if not course_ids:
+            return
 
-            database_path = settings.DATABASE_PATH or str(get_user_data_dir())
-            trash_dir = os.path.join(database_path, "DOCUMENTI DIPENDENTI", "CESTINO") if database_path else None
-            if trash_dir: os.makedirs(trash_dir, exist_ok=True)
+        certs_to_delete = db.query(Certificato).filter(Certificato.corso_id.in_(course_ids)).all()
+        database_path = settings.DATABASE_PATH or str(get_user_data_dir())
+        trash_dir = os.path.join(database_path, "DOCUMENTI DIPENDENTI", "CESTINO") if database_path else None
 
-            for cert in certs_to_delete:
-                # Move file to trash - Bug 8: Only try move if file found
-                try:
-                    cert_data = {
-                        'nome': f"{cert.dipendente.cognome} {cert.dipendente.nome}" if cert.dipendente else cert.nome_dipendente_raw,
-                        'matricola': cert.dipendente.matricola if cert.dipendente else None,
-                        'categoria': deprecated_category,
-                        'data_scadenza': cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else None
-                    }
+        if trash_dir:
+            os.makedirs(trash_dir, exist_ok=True)
 
-                    if database_path:
-                        file_path = find_document(database_path, cert_data)
-                        if file_path and os.path.exists(file_path):
-                            filename = os.path.basename(file_path)
-                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                            dest = os.path.join(trash_dir, f"{os.path.splitext(filename)[0]}_deprecated_{timestamp}.pdf")
-                            shutil.move(file_path, dest)
-                            remove_empty_folders(os.path.dirname(file_path))
-                except Exception as e:
-                    print(f"Error moving deprecated file: {e}")
+        for cert in certs_to_delete:
+            _move_deprecated_file(cert, database_path, trash_dir)
+            db.delete(cert)
 
-                db.delete(cert)
+        if certs_to_delete:
+            print(f"Cleanup: Deleted {len(certs_to_delete)} certificates for deprecated category '{deprecated_category}'.")
 
-            if certs_to_delete:
-                print(f"Cleanup: Deleted {len(certs_to_delete)} certificates for deprecated category '{deprecated_category}'.")
+        deleted_courses = db.query(Corso).filter(Corso.id.in_(course_ids)).delete(synchronize_session=False)
+        if deleted_courses > 0:
+             print(f"Cleanup: Deleted {deleted_courses} deprecated courses.")
 
-            deleted_courses = db.query(Corso).filter(Corso.id.in_(course_ids)).delete(synchronize_session=False)
-            if deleted_courses > 0:
-                 print(f"Cleanup: Deleted {deleted_courses} deprecated courses.")
-
-            db.commit()
+        db.commit()
     except Exception as e:
         print(f"Error during cleanup of deprecated data: {e}")
         db.rollback()
+
+def _move_deprecated_file(cert, database_path, trash_dir):
+    try:
+        cert_data = {
+            'nome': f"{cert.dipendente.cognome} {cert.dipendente.nome}" if cert.dipendente else cert.nome_dipendente_raw,
+            'matricola': cert.dipendente.matricola if cert.dipendente else None,
+            'categoria': "MEDICO COMPETENTE",
+            'data_scadenza': cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else None
+        }
+
+        if database_path:
+            file_path = find_document(database_path, cert_data)
+            if file_path and os.path.exists(file_path):
+                filename = os.path.basename(file_path)
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                dest = os.path.join(trash_dir, f"{os.path.splitext(filename)[0]}_deprecated_{timestamp}.pdf")
+                shutil.move(file_path, dest)
+                remove_empty_folders(os.path.dirname(file_path))
+    except Exception as e:
+        print(f"Error moving deprecated file: {e}")
 
 def seed_database(db: Session = None):
     """
@@ -243,11 +212,11 @@ def seed_database(db: Session = None):
         else:
             # Bug 1 Fix: Ensure password matches settings
             current_admin_password = settings.FIRST_RUN_ADMIN_PASSWORD
-            if not get_password_hash(current_admin_password) == admin_user.hashed_password: # Simple check wont work with salt
-                # Verify properly
-                from app.core.security import verify_password
-                if not verify_password(current_admin_password, admin_user.hashed_password):
-                     admin_user.hashed_password = get_password_hash(current_admin_password)
+            # S1940: Boolean inversion fixed
+            # S1192: verify_password handles salt comparison correctly
+            from app.core.security import verify_password
+            if not verify_password(current_admin_password, admin_user.hashed_password):
+                 admin_user.hashed_password = get_password_hash(current_admin_password)
             
             # Ensure admin privileges are kept
             admin_user.is_admin = True

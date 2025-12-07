@@ -40,8 +40,17 @@ class ComplianceBar(QWidget):
         lbl_cat.setStyleSheet("font-weight: 600; font-size: 14px;")
         header.addWidget(lbl_cat)
         header.addStretch()
+
+        # S3358: Removed nested conditional
+        if compliance_pct > 80:
+            val_color = '#10B981'
+        elif compliance_pct > 50:
+            val_color = '#F59E0B'
+        else:
+            val_color = '#EF4444'
+
         lbl_val = QLabel(f"{compliance_pct}%")
-        lbl_val.setStyleSheet(f"font-weight: 700; font-size: 14px; color: {'#10B981' if compliance_pct > 80 else '#F59E0B' if compliance_pct > 50 else '#EF4444'};")
+        lbl_val.setStyleSheet(f"font-weight: 700; font-size: 14px; color: {val_color};")
         header.addWidget(lbl_val)
         layout.addLayout(header)
 
