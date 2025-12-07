@@ -29,6 +29,29 @@ def test_dirs(tmp_path_factory):
     return d
 
 @pytest.fixture(scope="session", autouse=True)
+def mock_hardware_safety(test_dirs):
+    """
+    Prevents Access Violations and Threading issues during tests by mocking:
+    1. Hardware ID Service (WMI calls)
+    2. PostHog (Analytics threads)
+    """
+    # 1. Mock Hardware ID Service modules to prevent WMI usage
+    sys.modules["desktop_app.services.hardware_id_service"] = MagicMock()
+    sys.modules["desktop_app.services.hardware_id_service"].get_machine_id.return_value = "TEST_MACHINE_ID"
+    sys.modules["desktop_app.services.hardware_id_service"]._get_windows_disk_serial.return_value = "TEST_DISK_SERIAL"
+    sys.modules["desktop_app.services.hardware_id_service"]._get_mac_address.return_value = "00:00:00:00:00:00"
+
+    # 2. Mock PostHog to prevent background threads
+    sys.modules["posthog"] = MagicMock()
+    sys.modules["posthog"].capture.return_value = None
+    sys.modules["posthog"].flush.return_value = None
+
+    # 3. Mock Sentry
+    sys.modules["sentry_sdk"] = MagicMock()
+
+    yield
+
+@pytest.fixture(scope="session", autouse=True)
 def mock_settings(test_dirs):
     """
     Force settings to use the temporary directory.
