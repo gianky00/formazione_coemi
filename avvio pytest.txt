@@ -2,6 +2,11 @@
 .\Scripts\activate
 python -m pytest tests
 
+# AVVIA TEST E CREA junit.xml che serve per riepilogo_Bug_Sonar.py
+.\Scripts\activate
+python -m pytest tests --junitxml=junit.xml
+
+# AVVIA TEST E ANALIZZA COPERTURA
 .\Scripts\activate
 python -m pytest --cov=. --cov-report=term-missing
 
