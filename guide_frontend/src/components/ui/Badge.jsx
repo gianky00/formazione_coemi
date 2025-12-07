@@ -1,5 +1,6 @@
 import React from 'react';
 import clsx from 'clsx';
+import PropTypes from 'prop-types';
 
 const Badge = ({ children, variant = 'default', className }) => {
   const styles = {
@@ -22,6 +23,12 @@ const Badge = ({ children, variant = 'default', className }) => {
       {children}
     </span>
   );
+};
+
+Badge.propTypes = {
+  children: PropTypes.node.isRequired,
+  variant: PropTypes.oneOf(['default', 'primary', 'success', 'warning', 'danger', 'purple']),
+  className: PropTypes.string,
 };
 
 export default Badge;

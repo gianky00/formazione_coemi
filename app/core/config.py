@@ -22,6 +22,8 @@ OBFUSCATED_GITHUB_TOKEN = "obf:WkZrMlIyVTBLRXJ4ZFlGeUtteTkzMFBSc0xJYkJjSUpLSDNZX
 LICENSE_REPO_OWNER = "gianky00"
 LICENSE_REPO_NAME = "intelleo-licenses"
 
+SETTINGS_FILENAME = "settings.json"
+
 # --- Mutable User Configuration ---
 
 def get_user_data_dir() -> Path:
@@ -35,69 +37,72 @@ def get_user_data_dir() -> Path:
     base_dir.mkdir(parents=True, exist_ok=True)
     return base_dir
 
+def _migrate_file_location(target_path: Path):
+    """Moves settings.json from legacy temporary locations."""
+    if target_path.exists():
+        return
+
+    temp_dir = Path(tempfile.gettempdir())
+    legacy_path_1 = temp_dir / SETTINGS_FILENAME
+    legacy_path_2 = temp_dir / "Intelleo" / SETTINGS_FILENAME
+
+    source = None
+    if legacy_path_1.exists():
+        source = legacy_path_1
+    elif legacy_path_2.exists():
+        source = legacy_path_2
+
+    if source:
+        try:
+            logging.info(f"Migrating settings from {source} to {target_path}")
+            shutil.move(str(source), str(target_path))
+        except Exception as e:
+            logging.error(f"Failed to migrate settings: {e}")
+
+def _migrate_settings_keys(target_path: Path):
+    """Updates keys in the existing settings file."""
+    if not target_path.exists():
+        return
+
+    try:
+        with open(target_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        changed = False
+        # Migration: GEMINI_API_KEY -> GEMINI_API_KEY_ANALYSIS
+        if "GEMINI_API_KEY" in data and "GEMINI_API_KEY_ANALYSIS" not in data:
+            data["GEMINI_API_KEY_ANALYSIS"] = data["GEMINI_API_KEY"]
+            del data["GEMINI_API_KEY"]
+            changed = True
+
+        # Add defaults if missing
+        defaults = {
+            "GEMINI_API_KEY_CHAT": "",
+            "VOICE_ASSISTANT_ENABLED": True,
+            "MAX_UPLOAD_SIZE": 20 * 1024 * 1024, # 20MB
+            "MAX_CSV_SIZE": 5 * 1024 * 1024, # 5MB
+        }
+
+        for key, value in defaults.items():
+            if key not in data:
+                data[key] = value
+                changed = True
+
+        if changed:
+            with open(target_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=4)
+            logging.info("Migrated settings keys.")
+
+    except Exception as e:
+        logging.error(f"Failed to migrate settings keys: {e}")
+
 def migrate_legacy_settings(target_path: Path):
     """
     Checks for settings.json in legacy temporary locations and moves it to the target path.
     Also handles internal key migrations (e.g., GEMINI_API_KEY -> GEMINI_API_KEY_ANALYSIS).
     """
-    # 1. File Migration
-    if not target_path.exists():
-        temp_dir = Path(tempfile.gettempdir())
-        legacy_path_1 = temp_dir / "settings.json"
-        legacy_path_2 = temp_dir / "Intelleo" / "settings.json"
-
-        source = None
-        if legacy_path_1.exists():
-            source = legacy_path_1
-        elif legacy_path_2.exists():
-            source = legacy_path_2
-
-        if source:
-            try:
-                logging.info(f"Migrating settings from {source} to {target_path}")
-                shutil.move(str(source), str(target_path))
-            except Exception as e:
-                logging.error(f"Failed to migrate settings: {e}")
-
-    # 2. Key Migration (In-Place)
-    if target_path.exists():
-        try:
-            with open(target_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            changed = False
-            # Migration: GEMINI_API_KEY -> GEMINI_API_KEY_ANALYSIS
-            if "GEMINI_API_KEY" in data and "GEMINI_API_KEY_ANALYSIS" not in data:
-                data["GEMINI_API_KEY_ANALYSIS"] = data["GEMINI_API_KEY"]
-                del data["GEMINI_API_KEY"]
-                changed = True
-            
-            # Add defaults if missing
-            if "GEMINI_API_KEY_CHAT" not in data:
-                # Default placeholder or empty. Using a dummy obfuscated value to indicate unset.
-                # Or empty string.
-                data["GEMINI_API_KEY_CHAT"] = ""
-                changed = True
-
-            if "VOICE_ASSISTANT_ENABLED" not in data:
-                data["VOICE_ASSISTANT_ENABLED"] = True
-                changed = True
-
-            if "MAX_UPLOAD_SIZE" not in data:
-                data["MAX_UPLOAD_SIZE"] = 20 * 1024 * 1024 # 20MB
-                changed = True
-
-            if "MAX_CSV_SIZE" not in data:
-                data["MAX_CSV_SIZE"] = 5 * 1024 * 1024 # 5MB
-                changed = True
-
-            if changed:
-                with open(target_path, 'w', encoding='utf-8') as f:
-                    json.dump(data, f, indent=4)
-                logging.info("Migrated settings keys.")
-
-        except Exception as e:
-            logging.error(f"Failed to migrate settings keys: {e}")
+    _migrate_file_location(target_path)
+    _migrate_settings_keys(target_path)
 
 
 class MutableSettings:
@@ -188,74 +193,75 @@ class SettingsManager:
         self.LICENSE_REPO_NAME = LICENSE_REPO_NAME
 
         # Mutable settings
-        settings_file_path = get_user_data_dir() / "settings.json"
+        settings_file_path = get_user_data_dir() / SETTINGS_FILENAME
         self.mutable = MutableSettings(settings_file_path)
 
     # Convenience properties to access mutable settings directly
+    # NOSONAR: UPPER_CASE naming is intentional for configuration properties
     @property
-    def LICENSE_GITHUB_TOKEN(self):
+    def LICENSE_GITHUB_TOKEN(self): # NOSONAR
         return reveal_string(self._OBFUSCATED_GITHUB_TOKEN)
 
     @property
-    def FIRST_RUN_ADMIN_PASSWORD(self):
+    def FIRST_RUN_ADMIN_PASSWORD(self): # NOSONAR
         return self.mutable.get("FIRST_RUN_ADMIN_PASSWORD")
 
     @property
-    def GEMINI_API_KEY_ANALYSIS(self):
+    def GEMINI_API_KEY_ANALYSIS(self): # NOSONAR
         obfuscated_key = self.mutable.get("GEMINI_API_KEY_ANALYSIS")
         return reveal_string(obfuscated_key)
     
     @property
-    def GEMINI_API_KEY_CHAT(self):
+    def GEMINI_API_KEY_CHAT(self): # NOSONAR
         obfuscated_key = self.mutable.get("GEMINI_API_KEY_CHAT")
         return reveal_string(obfuscated_key)
 
     @property
-    def VOICE_ASSISTANT_ENABLED(self):
+    def VOICE_ASSISTANT_ENABLED(self): # NOSONAR
         return self.mutable.get("VOICE_ASSISTANT_ENABLED", True)
 
     @property
-    def SMTP_HOST(self):
+    def SMTP_HOST(self): # NOSONAR
         return self.mutable.get("SMTP_HOST")
 
     @property
-    def SMTP_PORT(self):
+    def SMTP_PORT(self): # NOSONAR
         return self.mutable.get("SMTP_PORT")
 
     @property
-    def SMTP_USER(self):
+    def SMTP_USER(self): # NOSONAR
         return self.mutable.get("SMTP_USER")
 
     @property
-    def SMTP_PASSWORD(self):
+    def SMTP_PASSWORD(self): # NOSONAR
         return self.mutable.get("SMTP_PASSWORD")
 
     @property
-    def EMAIL_RECIPIENTS_TO(self):
+    def EMAIL_RECIPIENTS_TO(self): # NOSONAR
         return self.mutable.get("EMAIL_RECIPIENTS_TO")
 
     @property
-    def EMAIL_RECIPIENTS_CC(self):
+    def EMAIL_RECIPIENTS_CC(self): # NOSONAR
         return self.mutable.get("EMAIL_RECIPIENTS_CC")
 
     @property
-    def ALERT_THRESHOLD_DAYS(self):
+    def ALERT_THRESHOLD_DAYS(self): # NOSONAR
         return self.mutable.get("ALERT_THRESHOLD_DAYS")
 
     @property
-    def ALERT_THRESHOLD_DAYS_VISITE(self):
+    def ALERT_THRESHOLD_DAYS_VISITE(self): # NOSONAR
         return self.mutable.get("ALERT_THRESHOLD_DAYS_VISITE")
 
     @property
-    def DATABASE_PATH(self):
+    def DATABASE_PATH(self): # NOSONAR
         return self.mutable.get("DATABASE_PATH")
 
     @property
-    def MAX_UPLOAD_SIZE(self):
+    def MAX_UPLOAD_SIZE(self): # NOSONAR
         return self.mutable.get("MAX_UPLOAD_SIZE", 20 * 1024 * 1024)
 
     @property
-    def MAX_CSV_SIZE(self):
+    def MAX_CSV_SIZE(self): # NOSONAR
         return self.mutable.get("MAX_CSV_SIZE", 5 * 1024 * 1024)
 
     def save_mutable_settings(self, new_settings: dict):

@@ -2,6 +2,7 @@ import sys
 from unittest.mock import MagicMock, patch, ANY, call
 import pytest
 from datetime import date, timedelta
+from math import isclose
 from tests.desktop_app.mock_qt import mock_modules, QtCore, DummyQRect
 
 # Apply mocks to sys.modules
@@ -39,7 +40,7 @@ def test_init(scadenzario_view):
     """Test initialization."""
     assert scadenzario_view is not None
     assert scadenzario_view.gantt_scene is not None
-    assert scadenzario_view.zoom_months == 3.0
+    assert isclose(scadenzario_view.zoom_months, 3.0), "Zoom months should be initialized to 3.0"
 
 def test_load_data_trigger(scadenzario_view):
     """Test that load_data triggers the worker."""
@@ -85,7 +86,7 @@ def test_on_data_loaded_populates_tree(scadenzario_view):
     assert len(scadenzario_view.certificates) >= 1, "Certificates should be populated after _on_data_loaded"
     
     # Verify categories are assigned colors
-    categories_in_data = set(item['categoria'] for item in scadenzario_view.certificates)
+    categories_in_data = {item['categoria'] for item in scadenzario_view.certificates}
     assert len(categories_in_data) >= 1, "At least one category should be present"
 
 def test_update_gantt_chart(scadenzario_view):

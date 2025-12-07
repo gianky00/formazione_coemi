@@ -2,7 +2,7 @@ import React from 'react';
 import GuideCard from '../components/ui/GuideCard';
 import Note from '../components/ui/Note';
 import Step from '../components/ui/Step';
-import { Sliders, Mail, Bell, Monitor } from 'lucide-react';
+import { Mail, Bell, Monitor } from 'lucide-react';
 
 const SettingsGuide = () => {
   return (
@@ -23,8 +23,8 @@ const SettingsGuide = () => {
           <div className="bg-white rounded-xl border border-gray-200 p-8 shadow-sm">
              <div className="flex gap-4 mb-6">
                  <div className="flex-1">
-                     <label className="block text-sm font-medium text-gray-700 mb-1">Preset Rapidi</label>
-                     <select className="w-full border-gray-300 rounded-md shadow-sm bg-gray-50 p-2 text-sm" disabled>
+                     <label htmlFor="preset-select" className="block text-sm font-medium text-gray-700 mb-1">Preset Rapidi</label>
+                     <select id="preset-select" className="w-full border-gray-300 rounded-md shadow-sm bg-gray-50 p-2 text-sm" disabled>
                          <option>Gmail (OAuth/App Password)</option>
                          <option>Outlook / Office 365</option>
                          <option>Aruba (SMTPS)</option>

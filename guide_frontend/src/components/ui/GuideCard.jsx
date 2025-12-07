@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
+import PropTypes from 'prop-types';
 
 const GuideCard = ({ children, className, title, icon: Icon, delay = 0 }) => {
   return (
@@ -26,6 +27,14 @@ const GuideCard = ({ children, className, title, icon: Icon, delay = 0 }) => {
       </div>
     </motion.div>
   );
+};
+
+GuideCard.propTypes = {
+  children: PropTypes.node.isRequired,
+  className: PropTypes.string,
+  title: PropTypes.string,
+  icon: PropTypes.elementType,
+  delay: PropTypes.number,
 };
 
 export default GuideCard;

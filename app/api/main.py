@@ -5,7 +5,6 @@ import shutil
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import or_
 from app.db.session import get_db
 from app.db.models import Corso, Certificato, ValidationStatus, Dipendente, User as UserModel
 from app.services import ai_extraction, certificate_logic, matcher
@@ -30,6 +29,52 @@ from app.schemas.schemas import (
 )
 
 router = APIRouter()
+
+DATE_FORMAT_DMY = '%d/%m/%Y'
+STR_DA_ASSEGNARE = "DA ASSEGNARE"
+STR_NON_TROVATO = "Non trovato in anagrafica (matricola mancante)."
+
+def _process_orphan_cert(cert, match, database_path, db):
+    """
+    Helper function to process linking an orphaned certificate to a matched employee
+    and moving the associated file.
+    """
+    # Capture Old Data (Orphan state) for file logic
+    old_cert_data = {
+        'nome': cert.nome_dipendente_raw,
+        'matricola': None,
+        'categoria': cert.corso.categoria_corso if cert.corso else None,
+        'data_scadenza': cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY) if cert.data_scadenza_calcolata else None
+    }
+
+    # Link Employee
+    cert.dipendente_id = match.id
+
+    # Move File
+    if database_path and old_cert_data['categoria']:
+        try:
+            old_path = find_document(database_path, old_cert_data)
+            if old_path and os.path.exists(old_path):
+                status = certificate_logic.get_certificate_status(db, cert)
+                target_status = "ATTIVO"
+                if status == "scaduto": target_status = "SCADUTO"
+                elif status == "archiviato": target_status = "STORICO"
+
+                # Prepare new data
+                new_cert_data = {
+                    'nome': f"{match.cognome} {match.nome}",
+                    'matricola': match.matricola,
+                    'categoria': old_cert_data['categoria'],
+                    'data_scadenza': old_cert_data['data_scadenza']
+                }
+
+                new_path = construct_certificate_path(database_path, new_cert_data, status=target_status)
+
+                if old_path != new_path:
+                    os.makedirs(os.path.dirname(new_path), exist_ok=True)
+                    shutil.move(old_path, new_path)
+        except Exception as e:
+            print(f"Error moving orphan file {old_cert_data}: {e}")
 
 @router.get("/")
 def read_root():
@@ -78,19 +123,19 @@ async def upload_pdf(
         if extracted_data.get(date_field):
             parsed_date = parse_date_flexible(extracted_data[date_field])
             if parsed_date:
-                extracted_data[date_field] = parsed_date.strftime('%d/%m/%Y')
+                extracted_data[date_field] = parsed_date.strftime(DATE_FORMAT_DMY)
             # If parsing fails, we leave it as is (or could set to None/warn)
 
     # Logic to calculate expiration if missing
     if not extracted_data.get("data_scadenza") and extracted_data.get("data_rilascio"):
         try:
-            issue_date = datetime.strptime(extracted_data["data_rilascio"], '%d/%m/%Y').date()
+            issue_date = datetime.strptime(extracted_data["data_rilascio"], DATE_FORMAT_DMY).date()
             category = extracted_data.get("categoria")
             course = db.query(Corso).filter(Corso.categoria_corso.ilike(f"%{category}%")).first()
             if course:
                 expiration_date = certificate_logic.calculate_expiration_date(issue_date, course.validita_mesi)
                 if expiration_date:
-                    extracted_data["data_scadenza"] = expiration_date.strftime('%d/%m/%Y')
+                    extracted_data["data_scadenza"] = expiration_date.strftime(DATE_FORMAT_DMY)
         except (ValueError, TypeError):
             pass
 
@@ -115,13 +160,13 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
         ragione_fallimento = None
         if cert.dipendente:
             nome_completo = f"{cert.dipendente.cognome} {cert.dipendente.nome}"
-            data_nascita = cert.dipendente.data_nascita.strftime('%d/%m/%Y') if cert.dipendente.data_nascita else None
+            data_nascita = cert.dipendente.data_nascita.strftime(DATE_FORMAT_DMY) if cert.dipendente.data_nascita else None
             matricola = cert.dipendente.matricola
         else:
-            nome_completo = cert.nome_dipendente_raw or "DA ASSEGNARE"
+            nome_completo = cert.nome_dipendente_raw or STR_DA_ASSEGNARE
             data_nascita = cert.data_nascita_raw
             matricola = None
-            ragione_fallimento = "Non trovato in anagrafica (matricola mancante)."
+            ragione_fallimento = STR_NON_TROVATO
 
         status = status_map.get(cert.id, "attivo")
         result.append(CertificatoSchema(
@@ -131,8 +176,8 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
             matricola=matricola,
             corso=cert.corso.nome_corso,
             categoria=cert.corso.categoria_corso or "General",
-            data_rilascio=cert.data_rilascio.strftime('%d/%m/%Y'),
-            data_scadenza=cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else None,
+            data_rilascio=cert.data_rilascio.strftime(DATE_FORMAT_DMY),
+            data_scadenza=cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY) if cert.data_scadenza_calcolata else None,
             stato_certificato=status,
             assegnazione_fallita_ragione=ragione_fallimento
         ))
@@ -148,10 +193,10 @@ def get_certificato(certificato_id: int, db: Session = Depends(get_db)):
 
     if db_cert.dipendente:
         nome_completo = f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}"
-        data_nascita = db_cert.dipendente.data_nascita.strftime('%d/%m/%Y') if db_cert.dipendente.data_nascita else None
+        data_nascita = db_cert.dipendente.data_nascita.strftime(DATE_FORMAT_DMY) if db_cert.dipendente.data_nascita else None
         matricola = db_cert.dipendente.matricola
     else:
-        nome_completo = db_cert.nome_dipendente_raw or "DA ASSEGNARE"
+        nome_completo = db_cert.nome_dipendente_raw or STR_DA_ASSEGNARE
         data_nascita = db_cert.data_nascita_raw
         matricola = None
 
@@ -162,10 +207,35 @@ def get_certificato(certificato_id: int, db: Session = Depends(get_db)):
         matricola=matricola,
         corso=db_cert.corso.nome_corso,
         categoria=db_cert.corso.categoria_corso or "General",
-        data_rilascio=db_cert.data_rilascio.strftime('%d/%m/%Y'),
-        data_scadenza=db_cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_cert.data_scadenza_calcolata else None,
+        data_rilascio=db_cert.data_rilascio.strftime(DATE_FORMAT_DMY),
+        data_scadenza=db_cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY) if db_cert.data_scadenza_calcolata else None,
         stato_certificato=status
     )
+
+def _get_or_create_course(db, categoria, corso_nome):
+    master_course = db.query(Corso).filter(Corso.categoria_corso.ilike(f"%{categoria.strip()}%")).first()
+    if not master_course:
+        master_course = Corso(
+            nome_corso=categoria.strip().upper(),
+            validita_mesi=60,  # Default validity
+            categoria_corso=categoria.strip().upper()
+        )
+        db.add(master_course)
+        db.flush()
+
+    course = db.query(Corso).filter(
+        Corso.nome_corso.ilike(f"%{corso_nome}%"),
+        Corso.categoria_corso.ilike(f"%{categoria}%")
+    ).first()
+    if not course:
+        course = Corso(
+            nome_corso=corso_nome,
+            validita_mesi=master_course.validita_mesi,
+            categoria_corso=master_course.categoria_corso
+        )
+        db.add(course)
+        db.flush()
+    return course
 
 @router.post("/certificati/", response_model=CertificatoSchema, dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
 def create_certificato(
@@ -188,33 +258,12 @@ def create_certificato(
     dipendente_trovato = matcher.find_employee_by_name(db, certificato.nome, dob)
     dipendente_id = dipendente_trovato.id if dipendente_trovato else None
 
-    master_course = db.query(Corso).filter(Corso.categoria_corso.ilike(f"%{certificato.categoria.strip()}%")).first()
-    if not master_course:
-        master_course = Corso(
-            nome_corso=certificato.categoria.strip().upper(),
-            validita_mesi=60,  # Default validity
-            categoria_corso=certificato.categoria.strip().upper()
-        )
-        db.add(master_course)
-        db.flush()
-
-    course = db.query(Corso).filter(
-        Corso.nome_corso.ilike(f"%{certificato.corso}%"),
-        Corso.categoria_corso.ilike(f"%{certificato.categoria}%")
-    ).first()
-    if not course:
-        course = Corso(
-            nome_corso=certificato.corso,
-            validita_mesi=master_course.validita_mesi,
-            categoria_corso=master_course.categoria_corso
-        )
-        db.add(course)
-        db.flush()
+    course = _get_or_create_course(db, certificato.categoria, certificato.corso)
 
     # Controllo duplicati
     existing_cert_query = db.query(Certificato).filter(
         Certificato.corso_id == course.id,
-        Certificato.data_rilascio == datetime.strptime(certificato.data_rilascio, '%d/%m/%Y').date()
+        Certificato.data_rilascio == datetime.strptime(certificato.data_rilascio, DATE_FORMAT_DMY).date()
     )
 
     if dipendente_id:
@@ -234,8 +283,8 @@ def create_certificato(
         nome_dipendente_raw=certificato.nome.strip(),
         data_nascita_raw=certificato.data_nascita,
         corso_id=course.id,
-        data_rilascio=datetime.strptime(certificato.data_rilascio, '%d/%m/%Y').date(),
-        data_scadenza_calcolata=datetime.strptime(certificato.data_scadenza, '%d/%m/%Y').date() if certificato.data_scadenza else None,
+        data_rilascio=datetime.strptime(certificato.data_rilascio, DATE_FORMAT_DMY).date(),
+        data_scadenza_calcolata=datetime.strptime(certificato.data_scadenza, DATE_FORMAT_DMY).date() if certificato.data_scadenza else None,
         # Bug 7 Fix: Reverted to AUTOMATIC to ensure proper validation workflow and orphans visibility
         stato_validazione=ValidationStatus.AUTOMATIC
     )
@@ -252,7 +301,7 @@ def create_certificato(
     dipendente_info = db.get(Dipendente, new_cert.dipendente_id) if new_cert.dipendente_id else None
     ragione_fallimento = None
     if not dipendente_info:
-        ragione_fallimento = "Non trovato in anagrafica (matricola mancante)."
+        ragione_fallimento = STR_NON_TROVATO
 
     matricola_log = dipendente_info.matricola if dipendente_info else "N/A"
     scadenza_log = certificato.data_scadenza if certificato.data_scadenza else "nessuna scadenza"
@@ -278,12 +327,12 @@ def create_certificato(
     return CertificatoSchema(
         id=new_cert.id,
         nome=f"{dipendente_info.cognome} {dipendente_info.nome}" if dipendente_info else new_cert.nome_dipendente_raw or "Da Assegnare",
-        data_nascita=dipendente_info.data_nascita.strftime('%d/%m/%Y') if dipendente_info and dipendente_info.data_nascita else new_cert.data_nascita_raw,
+        data_nascita=dipendente_info.data_nascita.strftime(DATE_FORMAT_DMY) if dipendente_info and dipendente_info.data_nascita else new_cert.data_nascita_raw,
         matricola=dipendente_info.matricola if dipendente_info else None,
         corso=new_cert.corso.nome_corso,
         categoria=new_cert.corso.categoria_corso or "General",
-        data_rilascio=new_cert.data_rilascio.strftime('%d/%m/%Y'),
-        data_scadenza=new_cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if new_cert.data_scadenza_calcolata else None,
+        data_rilascio=new_cert.data_rilascio.strftime(DATE_FORMAT_DMY),
+        data_scadenza=new_cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY) if new_cert.data_scadenza_calcolata else None,
         stato_certificato=status,
         assegnazione_fallita_ragione=ragione_fallimento
     )
@@ -310,10 +359,10 @@ def valida_certificato(
 
     if db_cert.dipendente:
         nome_completo = f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}"
-        data_nascita = db_cert.dipendente.data_nascita.strftime('%d/%m/%Y') if db_cert.dipendente.data_nascita else None
+        data_nascita = db_cert.dipendente.data_nascita.strftime(DATE_FORMAT_DMY) if db_cert.dipendente.data_nascita else None
         matricola = db_cert.dipendente.matricola
     else:
-        nome_completo = db_cert.nome_dipendente_raw or "DA ASSEGNARE"
+        nome_completo = db_cert.nome_dipendente_raw or STR_DA_ASSEGNARE
         data_nascita = db_cert.data_nascita_raw
         matricola = None
 
@@ -324,8 +373,8 @@ def valida_certificato(
         matricola=matricola,
         corso=db_cert.corso.nome_corso,
         categoria=db_cert.corso.categoria_corso or "General",
-        data_rilascio=db_cert.data_rilascio.strftime('%d/%m/%Y'),
-        data_scadenza=db_cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_cert.data_scadenza_calcolata else None,
+        data_rilascio=db_cert.data_rilascio.strftime(DATE_FORMAT_DMY),
+        data_scadenza=db_cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY) if db_cert.data_scadenza_calcolata else None,
         stato_certificato=status
     )
 
@@ -345,7 +394,7 @@ def update_certificato(
         'nome': f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}" if db_cert.dipendente else db_cert.nome_dipendente_raw,
         'matricola': db_cert.dipendente.matricola if db_cert.dipendente else None,
         'categoria': db_cert.corso.categoria_corso if db_cert.corso else None,
-        'data_scadenza': db_cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_cert.data_scadenza_calcolata else None
+        'data_scadenza': db_cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY) if db_cert.data_scadenza_calcolata else None
     }
 
     update_data = certificato.model_dump(exclude_unset=True)
@@ -400,11 +449,11 @@ def update_certificato(
         db_cert.corso_id = course.id
 
     if 'data_rilascio' in update_data:
-        db_cert.data_rilascio = datetime.strptime(update_data['data_rilascio'], '%d/%m/%Y').date()
+        db_cert.data_rilascio = datetime.strptime(update_data['data_rilascio'], DATE_FORMAT_DMY).date()
 
     if 'data_scadenza' in update_data:
         scadenza = update_data['data_scadenza']
-        db_cert.data_scadenza_calcolata = datetime.strptime(scadenza, '%d/%m/%Y').date() if scadenza and scadenza.strip() and scadenza.lower() != 'none' else None
+        db_cert.data_scadenza_calcolata = datetime.strptime(scadenza, DATE_FORMAT_DMY).date() if scadenza and scadenza.strip() and scadenza.lower() != 'none' else None
 
     db_cert.stato_validazione = ValidationStatus.MANUAL
 
@@ -432,7 +481,7 @@ def update_certificato(
             'nome': f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}" if db_cert.dipendente else db_cert.nome_dipendente_raw,
             'matricola': db_cert.dipendente.matricola if db_cert.dipendente else None,
             'categoria': db_cert.corso.categoria_corso if db_cert.corso else None,
-            'data_scadenza': db_cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_cert.data_scadenza_calcolata else None
+            'data_scadenza': db_cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY) if db_cert.data_scadenza_calcolata else None
         }
 
         status = certificate_logic.get_certificate_status(db, db_cert)
@@ -490,12 +539,12 @@ def update_certificato(
     return CertificatoSchema(
         id=db_cert.id,
         nome=f"{dipendente_info.cognome} {dipendente_info.nome}" if dipendente_info else db_cert.nome_dipendente_raw or "Da Assegnare",
-        data_nascita=dipendente_info.data_nascita.strftime('%d/%m/%Y') if dipendente_info and dipendente_info.data_nascita else None,
+        data_nascita=dipendente_info.data_nascita.strftime(DATE_FORMAT_DMY) if dipendente_info and dipendente_info.data_nascita else None,
         matricola=dipendente_info.matricola if dipendente_info else None,
         corso=db_cert.corso.nome_corso,
         categoria=db_cert.corso.categoria_corso or "General",
-        data_rilascio=db_cert.data_rilascio.strftime('%d/%m/%Y'),
-        data_scadenza=db_cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_cert.data_scadenza_calcolata else None,
+        data_rilascio=db_cert.data_rilascio.strftime(DATE_FORMAT_DMY),
+        data_scadenza=db_cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY) if db_cert.data_scadenza_calcolata else None,
         stato_certificato=status
     )
 
@@ -518,7 +567,7 @@ def delete_certificato(
             'nome': f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}" if db_cert.dipendente else db_cert.nome_dipendente_raw,
             'matricola': db_cert.dipendente.matricola if db_cert.dipendente else None,
             'categoria': db_cert.corso.categoria_corso if db_cert.corso else None,
-            'data_scadenza': db_cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if db_cert.data_scadenza_calcolata else None
+            'data_scadenza': db_cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY) if db_cert.data_scadenza_calcolata else None
         }
 
         # Only proceed if we have enough info to find the file
@@ -673,43 +722,8 @@ async def import_dipendenti_csv(
             dob_raw = parse_date_flexible(cert.data_nascita_raw) if cert.data_nascita_raw else None
             match = matcher.find_employee_by_name(db, cert.nome_dipendente_raw, dob_raw)
             if match:
-                # Capture Old Data (Orphan state) for file logic
-                old_cert_data = {
-                    'nome': cert.nome_dipendente_raw,
-                    'matricola': None,
-                    'categoria': cert.corso.categoria_corso if cert.corso else None,
-                    'data_scadenza': cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else None
-                }
-
-                # Link Employee
-                cert.dipendente_id = match.id
+                _process_orphan_cert(cert, match, database_path, db)
                 linked_count += 1
-
-                # Move File
-                if database_path and old_cert_data['categoria']:
-                    try:
-                        old_path = find_document(database_path, old_cert_data)
-                        if old_path and os.path.exists(old_path):
-                            status = certificate_logic.get_certificate_status(db, cert)
-                            target_status = "ATTIVO"
-                            if status == "scaduto": target_status = "SCADUTO"
-                            elif status == "archiviato": target_status = "STORICO"
-
-                            # Prepare new data
-                            new_cert_data = {
-                                'nome': f"{match.cognome} {match.nome}",
-                                'matricola': match.matricola,
-                                'categoria': old_cert_data['categoria'],
-                                'data_scadenza': old_cert_data['data_scadenza']
-                            }
-
-                            new_path = construct_certificate_path(database_path, new_cert_data, status=target_status)
-
-                            if old_path != new_path:
-                                os.makedirs(os.path.dirname(new_path), exist_ok=True)
-                                shutil.move(old_path, new_path)
-                    except Exception as e:
-                        print(f"Error moving orphan file {old_cert_data}: {e}")
 
     if linked_count > 0:
         db.commit()
@@ -747,12 +761,12 @@ def get_dipendente_detail(dipendente_id: int, db: Session = Depends(get_db)):
         cert_schemas.append(CertificatoSchema(
             id=cert.id,
             nome=f"{dipendente.cognome} {dipendente.nome}",
-            data_nascita=dipendente.data_nascita.strftime('%d/%m/%Y') if dipendente.data_nascita else None,
+            data_nascita=dipendente.data_nascita.strftime(DATE_FORMAT_DMY) if dipendente.data_nascita else None,
             matricola=dipendente.matricola,
             corso=cert.corso.nome_corso,
             categoria=cert.corso.categoria_corso or "General",
-            data_rilascio=cert.data_rilascio.strftime('%d/%m/%Y'),
-            data_scadenza=cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else None,
+            data_rilascio=cert.data_rilascio.strftime(DATE_FORMAT_DMY),
+            data_scadenza=cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY) if cert.data_scadenza_calcolata else None,
             stato_certificato=status
         ))
 

@@ -1,12 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UploadCloud, FileText, CheckCircle, AlertTriangle, FolderOpen, RefreshCcw } from 'lucide-react';
-import Badge from './ui/Badge';
 
 const ImportSimulator = () => {
   const [step, setStep] = useState('idle'); // idle, uploading, processing, done
   const [progress, setProgress] = useState(0);
   const [logs, setLogs] = useState([]);
+
+  const addLog = (msg, type) => {
+    setLogs(prev => [...prev, { msg, type, id: Date.now() }]);
+  };
 
   const simulateProcess = () => {
     setStep('uploading');
@@ -37,14 +40,24 @@ const ImportSimulator = () => {
     }, 800);
   };
 
-  const addLog = (msg, type) => {
-    setLogs(prev => [...prev, { msg, type, id: Date.now() }]);
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+        simulateProcess();
+    }
   };
 
   const reset = () => {
     setStep('idle');
     setProgress(0);
     setLogs([]);
+  };
+
+  const getLogColor = (type) => {
+      if (type === 'error') return 'text-red-400';
+      if (type === 'warning') return 'text-orange-300';
+      if (type === 'success') return 'text-green-400';
+      if (type === 'done') return 'text-blue-300 font-bold';
+      return 'text-gray-300';
   };
 
   return (
@@ -81,6 +94,9 @@ const ImportSimulator = () => {
             >
               <div
                 onClick={simulateProcess}
+                onKeyDown={handleKeyDown}
+                role="button"
+                tabIndex={0}
                 className="border-2 border-dashed border-blue-300 rounded-xl p-10 bg-blue-50/50 hover:bg-blue-50 hover:border-blue-500 transition-all cursor-pointer group"
               >
                 <UploadCloud size={48} className="mx-auto text-blue-400 group-hover:text-blue-600 mb-4 transition-colors" />
@@ -125,13 +141,7 @@ const ImportSimulator = () => {
                     key={log.id}
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
-                    className={`mb-1.5 flex items-center gap-2 ${
-                      log.type === 'error' ? 'text-red-400' :
-                      log.type === 'warning' ? 'text-orange-300' :
-                      log.type === 'success' ? 'text-green-400' :
-                      log.type === 'done' ? 'text-blue-300 font-bold' :
-                      'text-gray-300'
-                    }`}
+                    className={`mb-1.5 flex items-center gap-2 ${getLogColor(log.type)}`}
                   >
                     <span>
                         {log.type === 'success' && <CheckCircle size={12} />}
