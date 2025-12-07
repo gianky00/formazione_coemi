@@ -870,6 +870,16 @@ class DummyQTableView(DummyQWidget):
     class SelectionMode:
         ExtendedSelection = 1
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setModel_called = False
+        self._model_set = None
+
+    def setModel(self, model):
+        super().setModel(model)
+        self.setModel_called = True
+        self._model_set = model
+
 class DummyQHeaderView(DummyQWidget):
     class ResizeMode:
         ResizeToContents = 0

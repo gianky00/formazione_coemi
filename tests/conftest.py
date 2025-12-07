@@ -1,19 +1,51 @@
-import pytest
 import sys
 import os
 import shutil
 from pathlib import Path
 from unittest.mock import MagicMock
+import asyncio
+
+# --- GLOBAL KILL SWITCH (MUST BE BEFORE ANY APP IMPORTS) ---
+# Prevent external services (Sentry, PostHog, WMI) from starting background threads or making network calls.
+# This prevents "Access Violation" and "I/O operation on closed file" crashes during teardown.
+
+# 1. Mock 'wmi' to prevent OS calls (Hardware ID)
+mock_wmi = MagicMock()
+mock_wmi.WMI.return_value = MagicMock()
+sys.modules["wmi"] = mock_wmi
+
+# 2. Mock 'posthog' to prevent analytics threads
+mock_ph = MagicMock()
+mock_ph.capture.return_value = None
+mock_ph.flush.return_value = None
+sys.modules["posthog"] = mock_ph
+
+# 3. Mock 'sentry_sdk' to prevent error tracking threads
+mock_sentry = MagicMock()
+mock_sentry.init.return_value = None
+sys.modules["sentry_sdk"] = mock_sentry
+
+# 4. Mock 'wandb' (if present)
+sys.modules["wandb"] = MagicMock()
+
+# 5. Disable 'atexit' handlers
+# This prevents launcher.py's 'track_exit' from running after pytest closes the loop.
+import atexit
+atexit.register = MagicMock()
+
+# --- APP IMPORTS (Now safe to import) ---
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from contextlib import asynccontextmanager
+
 from app.main import app
 from app.db.session import get_db, engine
 from app.db.models import Base, User
 from app.api import deps
 from app.core.db_security import db_security
 from app.core.config import settings
-from contextlib import asynccontextmanager
 
 # Env setup
 os.environ["GEMINI_API_KEY"] = "test_key"
@@ -22,35 +54,20 @@ os.environ["GCS_BUCKET_NAME"] = "test-bucket"
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# --- ROBUST CRASH PREVENTION ---
-# We use pytest_configure to mock dangerous modules BEFORE any test collection happens.
-
-def pytest_configure(config):
+@pytest.fixture(scope="session")
+def event_loop():
     """
-    Global initialization hook to mock unsafe modules before collection.
+    Creates a session-scoped event loop.
+    This prevents 'Event loop is closed' errors when fixtures with different scopes
+    try to use the same loop or when async teardown happens.
     """
-    # 1. Mock 'wmi' module globally.
-    # This prevents Access Violations if hardware_id_service is imported and run.
-    # It allows tests to import hardware_id_service but prevents it from touching the OS.
-    mock_wmi = MagicMock()
-    # Ensure any instantiation of WMI() returns a mock that doesn't crash
-    mock_wmi.WMI.return_value = MagicMock()
-    sys.modules["wmi"] = mock_wmi
-
-    # 2. Mock PostHog (Prevents background threads and network calls)
-    mock_ph = MagicMock()
-    mock_ph.capture.return_value = None
-    mock_ph.flush.return_value = None
-    sys.modules["posthog"] = mock_ph
-
-    # 3. Mock Sentry
-    sys.modules["sentry_sdk"] = MagicMock()
-
-    # 4. Disable atexit handlers from launcher.py
-    # This prevents the 'track_exit' function from running after tests finish,
-    # which was causing the logging/WMI crashes in the logs.
-    import atexit
-    atexit.register = MagicMock()
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+    
+    yield loop
+    loop.close()
 
 @pytest.fixture(scope="session")
 def test_dirs(tmp_path_factory):
@@ -129,7 +146,7 @@ def db_session(setup_security_manager):
     engine.dispose()
     
     # 4. Initialize Connection (This triggers load_memory_db, which will find no file and start empty)
-    # We call get_connection explicitely to ensure the global 'active_connection' is set
+    # We call get_connection explicitly to ensure the global 'active_connection' is set
     connection = db_security.get_connection()
     
     # 5. Create Tables
