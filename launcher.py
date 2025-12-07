@@ -11,6 +11,7 @@ import sqlite3
 import traceback as tb
 import logging
 import logging.handlers
+import importlib
 
 # Constants
 DATABASE_FILENAME = "database_documenti.db"
