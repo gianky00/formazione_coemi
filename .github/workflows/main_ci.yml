@@ -2,13 +2,11 @@ name: SonarCloud CI
 
 on:
   push:
-    # Trigger per push su tutti i branch
     branches:
       - main
       - master
       - '**'
   pull_request:
-    # Trigger per Pull Request
     types: [opened, synchronize, reopened]
 
 jobs:
@@ -16,11 +14,9 @@ jobs:
     name: SonarCloud
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          # Cloni completi necessari per un'analisi SonarCloud più accurata (es. rilevamento di nuove linee)
-          fetch-depth: 0
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -30,7 +26,6 @@ jobs:
       - name: Install system dependencies (Linux)
         run: |
           sudo apt-get update
-          # Installazione delle librerie necessarie per il supporto headless (xvfb) in ambienti desktop/GUI
           sudo apt-get install -y \
             libegl1 \
             libopengl0 \
@@ -57,22 +52,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          # Assicurati che i pacchetti per la copertura (es. pytest-cov) siano inclusi in requirements.txt
 
-      - name: Run Tests and Generate Reports ⚠️ Questo step blocca la scansione se i test falliscono
+      - name: Run Tests
         run: |
-          # Esegue i test con pytest
-          # --cov=. genera dati di copertura
-          # --cov-report=xml genera il report in formato XML per SonarCloud
-          # --junitxml=junit.xml genera il report dei risultati dei test per SonarCloud
+          # Run tests and generate coverage report
+          # xvfb-run is now explicitly installed to ensure headless Qt support
           xvfb-run -a python -m pytest --cov=. --cov-report=xml --junitxml=junit.xml
 
       - name: SonarCloud Scan
-        # L'azione SonarCloud cerca automaticamente i file coverage.xml e junit.xml generati prima.
-        # È fondamentale che questo step venga raggiunto (quindi che i test non falliscano).
         uses: SonarSource/sonarcloud-github-action@master
         env:
-          # Variabile fornita automaticamente da GitHub
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Token segreto di SonarCloud che devi configurare nelle impostazioni del tuo repository
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
