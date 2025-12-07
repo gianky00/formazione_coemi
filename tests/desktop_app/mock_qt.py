@@ -89,6 +89,9 @@ class DummyEnum:
     class ContextMenuPolicy:
         CustomContextMenu = 1
 
+    class TextInteractionFlag:
+        TextBrowserInteraction = 1
+
     class WindowState:
         WindowNoState = 0
         WindowMinimized = 1
@@ -670,6 +673,10 @@ class DummyQWidget(DummyQObject):
         return DummySignal()
     @builtins.property
     def database_changed(self):
+        return DummySignal()
+
+    @builtins.property
+    def linkActivated(self):
         return DummySignal()
 
 class DummyQMainWindow(DummyQWidget):
