@@ -7,9 +7,11 @@ from desktop_app.services.security_service import is_virtual_environment, is_ana
 class TestSecurityService:
 
     @patch('desktop_app.services.security_service.os.name', 'nt')
+    # Patch where the name is used in security_service
     @patch('desktop_app.services.security_service._get_running_processes_wmi')
     def test_is_virtual_environment_detects_process(self, mock_processes):
         # Simulate VM process running
+        # Must lowercase as the service does
         mock_processes.return_value = ["system", "svchost.exe", "vmtoolsd.exe"]
 
         is_vm, msg = is_virtual_environment()
