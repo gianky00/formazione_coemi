@@ -1,17 +1,23 @@
 import React from 'react';
 import GuideCard from '../components/ui/GuideCard';
 import { Keyboard, Command } from 'lucide-react';
+import PropTypes from 'prop-types';
 
 const ShortcutRow = ({ keys, desc }) => (
   <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0 hover:bg-gray-50 px-2 rounded-lg transition-colors">
       <span className="text-gray-700 font-medium text-sm">{desc}</span>
       <div className="flex gap-1">
           {keys.map((k, i) => (
-              <span key={i} className="kbd">{k}</span>
+              <span key={`key-${i}`} className="kbd">{k}</span>
           ))}
       </div>
   </div>
 );
+
+ShortcutRow.propTypes = {
+  keys: PropTypes.arrayOf(PropTypes.string).isRequired,
+  desc: PropTypes.string.isRequired,
+};
 
 const ShortcutsGuide = () => {
   return (

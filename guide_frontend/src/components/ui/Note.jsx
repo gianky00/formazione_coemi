@@ -1,6 +1,7 @@
 import React from 'react';
 import { Info, AlertTriangle, CheckCircle, Lightbulb } from 'lucide-react';
 import clsx from 'clsx';
+import PropTypes from 'prop-types';
 
 const Note = ({ type = 'info', children, title }) => {
   const styles = {
@@ -50,6 +51,12 @@ const Note = ({ type = 'info', children, title }) => {
       </div>
     </div>
   );
+};
+
+Note.propTypes = {
+  type: PropTypes.oneOf(['info', 'warning', 'success', 'tip']),
+  children: PropTypes.node.isRequired,
+  title: PropTypes.string,
 };
 
 export default Note;

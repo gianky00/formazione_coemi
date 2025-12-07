@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Search, Filter, RefreshCw, Edit2, Trash2 } from 'lucide-react';
 import Badge from './ui/Badge';
 
@@ -39,9 +39,21 @@ const DashboardSimulator = () => {
     setSortConfig({ key, direction });
   };
 
+  const handleKeyDown = (e, key) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+          handleSort(key);
+      }
+  };
+
   const getSortIcon = (key) => {
     if (sortConfig.key !== key) return null;
     return sortConfig.direction === 'asc' ? '↑' : '↓';
+  };
+
+  const getBadgeVariant = (stato) => {
+      if (stato === 'attivo') return 'success';
+      if (stato === 'in_scadenza') return 'warning';
+      return 'danger';
   };
 
   return (
@@ -94,16 +106,40 @@ const DashboardSimulator = () => {
 
       {/* Table Header */}
       <div className="grid grid-cols-5 bg-gray-100 p-3 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">
-        <div className="col-span-1 cursor-pointer hover:text-gray-700" onClick={() => handleSort('dipendente')}>
+        <div
+            className="col-span-1 cursor-pointer hover:text-gray-700"
+            onClick={() => handleSort('dipendente')}
+            onKeyDown={(e) => handleKeyDown(e, 'dipendente')}
+            role="button"
+            tabIndex={0}
+        >
             Dipendente {getSortIcon('dipendente')}
         </div>
-        <div className="col-span-1 cursor-pointer hover:text-gray-700" onClick={() => handleSort('corso')}>
+        <div
+            className="col-span-1 cursor-pointer hover:text-gray-700"
+            onClick={() => handleSort('corso')}
+            onKeyDown={(e) => handleKeyDown(e, 'corso')}
+            role="button"
+            tabIndex={0}
+        >
             Documento {getSortIcon('corso')}
         </div>
-        <div className="col-span-1 cursor-pointer hover:text-gray-700" onClick={() => handleSort('data')}>
+        <div
+            className="col-span-1 cursor-pointer hover:text-gray-700"
+            onClick={() => handleSort('data')}
+            onKeyDown={(e) => handleKeyDown(e, 'data')}
+            role="button"
+            tabIndex={0}
+        >
             Data Ril. {getSortIcon('data')}
         </div>
-        <div className="col-span-1 cursor-pointer hover:text-gray-700" onClick={() => handleSort('scadenza')}>
+        <div
+            className="col-span-1 cursor-pointer hover:text-gray-700"
+            onClick={() => handleSort('scadenza')}
+            onKeyDown={(e) => handleKeyDown(e, 'scadenza')}
+            role="button"
+            tabIndex={0}
+        >
             Scadenza {getSortIcon('scadenza')}
         </div>
         <div className="col-span-1 text-center">Stato</div>
@@ -130,7 +166,7 @@ const DashboardSimulator = () => {
                 <div className="col-span-1 text-gray-500 flex items-center text-xs font-mono">{row.data}</div>
                 <div className="col-span-1 text-gray-500 flex items-center text-xs font-mono">{row.scadenza}</div>
                 <div className="col-span-1 flex items-center justify-center">
-                   <Badge variant={row.stato === 'attivo' ? 'success' : row.stato === 'in_scadenza' ? 'warning' : 'danger'}>
+                   <Badge variant={getBadgeVariant(row.stato)}>
                       {row.stato.replace('_', ' ').toUpperCase()}
                    </Badge>
                 </div>
@@ -148,9 +184,12 @@ const DashboardSimulator = () => {
       <div className="bg-gray-50 border-t border-gray-200 p-2 text-xs text-gray-500 flex justify-between items-center">
           <span>{processedData.length} righe visualizzate</span>
           <div className="flex gap-2">
-             <span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span> Attivo
-             <span className="w-2 h-2 rounded-full bg-yellow-500 inline-block"></span> In Scadenza
-             <span className="w-2 h-2 rounded-full bg-red-500 inline-block"></span> Scaduto
+             <span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
+             {' '}Attivo
+             <span className="w-2 h-2 rounded-full bg-yellow-500 inline-block"></span>
+             {' '}In Scadenza
+             <span className="w-2 h-2 rounded-full bg-red-500 inline-block"></span>
+             {' '}Scaduto
           </div>
       </div>
     </div>

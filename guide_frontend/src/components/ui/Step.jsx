@@ -1,4 +1,5 @@
 import React from 'react';
+import PropTypes from 'prop-types';
 
 const Step = ({ number, title, children }) => {
   return (
@@ -17,6 +18,12 @@ const Step = ({ number, title, children }) => {
       </div>
     </div>
   );
+};
+
+Step.propTypes = {
+  number: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+  title: PropTypes.string.isRequired,
+  children: PropTypes.node.isRequired,
 };
 
 export default Step;

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import PropTypes from 'prop-types';
 import {
   LayoutDashboard,
   Database,
@@ -17,7 +18,7 @@ import {
   Book,
   Keyboard
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import clsx from 'clsx';
 
 const SidebarItem = ({ icon: Icon, label, to, collapsed }) => {
@@ -55,14 +56,26 @@ const SidebarItem = ({ icon: Icon, label, to, collapsed }) => {
   );
 };
 
+SidebarItem.propTypes = {
+  icon: PropTypes.elementType.isRequired,
+  label: PropTypes.string.isRequired,
+  to: PropTypes.string.isRequired,
+  collapsed: PropTypes.bool.isRequired,
+};
+
 const Sidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [bridge, setBridge] = useState(null);
 
   useEffect(() => {
-    if (window.qt && window.qt.webChannelTransport) {
-      new window.QWebChannel(window.qt.webChannelTransport, function(channel) {
-        if (channel.objects.bridge) {
+    // Prefer globalThis over window for environment agnosticism (e.g. server-side rendering support, though not used here)
+    const globalContext = globalThis || window;
+
+    if (globalContext.qt && globalContext.qt.webChannelTransport) {
+      // Assign to a variable to avoid "new" side effect warning, although QWebChannel is designed this way.
+      // eslint-disable-next-line no-unused-vars
+      const channel = new globalContext.QWebChannel(globalContext.qt.webChannelTransport, function(channel) {
+        if (channel?.objects?.bridge) {
             setBridge(channel.objects.bridge);
         }
       });

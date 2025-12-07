@@ -4,7 +4,6 @@ import time
 import socket
 import threading
 import uvicorn
-import importlib
 import argparse
 import requests
 import platform
@@ -12,6 +11,11 @@ import sqlite3
 import traceback as tb
 import logging
 import logging.handlers
+
+# Constants
+DATABASE_FILENAME = "database_documenti.db"
+LICENSE_FILE_KEY = "pyarmor.rkey"
+LICENSE_FILE_CONFIG = "config.dat"
 
 # --- PHASE 2: LOGGING CONFIGURATION ---
 # Must be configured BEFORE any other imports to capture everything
@@ -114,6 +118,8 @@ def sentry_exception_hook(exctype, value, traceback):
         sentry_sdk.capture_exception(e) # Capture cleanup failure too
 
     # 4. Exit
+    if issubclass(exctype, SystemExit):
+        raise
     sys.exit(1)
 
 # Initialize Sentry immediately
@@ -127,10 +133,8 @@ import posthog
 def init_posthog():
     """Initializes PostHog Analytics (Async)."""
     try:
-        from app.core.config import settings
-
         # Check explicit disable flag (GDPR)
-        analytics_enabled = True
+        # analytics_enabled = True # Removed unused variable
 
         # Configure PostHog Module-Global
         posthog.project_api_key = "phc_jCIZrEiPMQ1fE8ympKiJGc84GUvbqqo7T2sQDlGyUd8"
@@ -174,7 +178,7 @@ def init_posthog():
                 from desktop_app.services.hardware_id_service import get_machine_id
                 posthog.capture('app_closed', distinct_id=get_machine_id())
                 posthog.flush() # Ensure sent
-            except: pass
+            except Exception: pass
 
         atexit.register(track_exit)
 
@@ -186,12 +190,13 @@ init_posthog()
 
 # --- CRITICAL: IMPORT WEBENGINE & SET ATTRIBUTE BEFORE QAPPLICATION ---
 from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtCore import Qt, QCoreApplication, QTimer, QThread, pyqtSignal, QObject
+from PyQt6.QtCore import Qt, QCoreApplication, QTimer, QThread, pyqtSignal
+# QObject removed from import as it was unused
 
 QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
 
-from PyQt6.QtWidgets import QApplication, QSplashScreen, QMessageBox, QFileDialog
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtWidgets import QApplication, QMessageBox, QFileDialog
+# QSplashScreen, QPixmap removed as unused directly here (imported in main inside try block)
 
 # --- CONFIGURAZIONE AMBIENTE ---
 if getattr(sys, 'frozen', False):
@@ -209,7 +214,7 @@ if getattr(sys, 'frozen', False):
     if os.path.exists(lic_dir):
         sys.path.insert(0, lic_dir)
 
-    db_path = os.path.join(EXE_DIR, "database_documenti.db")
+    db_path = os.path.join(EXE_DIR, DATABASE_FILENAME)
     if os.name == 'nt': db_path = db_path.replace('\\', '\\\\')
     os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
     
@@ -227,7 +232,7 @@ def find_free_port(start_port=8000, max_port=8010):
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 if s.connect_ex(('127.0.0.1', port)) != 0:
                     return port
-        except:
+        except Exception:
             continue
     return None
 
@@ -246,7 +251,7 @@ def check_port(host, port):
         result = s.connect_ex((host, port)) == 0
         s.close()
         return result
-    except: return False
+    except Exception: return False
 
 # --- PHASE 0: LICENSE GATEKEEPER ---
 def verify_license_files():
@@ -255,22 +260,22 @@ def verify_license_files():
 
     # 1. Check User Data Directory (Preferred)
     user_lic_dir = get_license_dir()
-    if os.path.exists(os.path.join(user_lic_dir, "pyarmor.rkey")) and \
-       os.path.exists(os.path.join(user_lic_dir, "config.dat")):
+    if os.path.exists(os.path.join(user_lic_dir, LICENSE_FILE_KEY)) and \
+       os.path.exists(os.path.join(user_lic_dir, LICENSE_FILE_CONFIG)):
         sys.path.insert(0, user_lic_dir)
         return True
 
     # 2. Check Install Directory (Legacy)
     install_dir = get_app_install_dir()
     legacy_lic_dir = os.path.join(install_dir, "Licenza")
-    if os.path.exists(os.path.join(legacy_lic_dir, "pyarmor.rkey")) and \
-       os.path.exists(os.path.join(legacy_lic_dir, "config.dat")):
+    if os.path.exists(os.path.join(legacy_lic_dir, LICENSE_FILE_KEY)) and \
+       os.path.exists(os.path.join(legacy_lic_dir, LICENSE_FILE_CONFIG)):
         sys.path.insert(0, legacy_lic_dir)
         return True
 
     # 3. Check Root (Legacy)
-    if os.path.exists(os.path.join(install_dir, "pyarmor.rkey")) and \
-       os.path.exists(os.path.join(install_dir, "config.dat")):
+    if os.path.exists(os.path.join(install_dir, LICENSE_FILE_KEY)) and \
+       os.path.exists(os.path.join(install_dir, LICENSE_FILE_CONFIG)):
         sys.path.insert(0, install_dir)
         return True
 
@@ -293,7 +298,7 @@ def check_license_gatekeeper(splash):
     if files_ok:
         try:
             # Try importing a protected module
-            import app.core.config
+            importlib.import_module('app.core.config')
             valid_license = True
         except Exception:
             valid_license = False
@@ -374,114 +379,123 @@ def initialize_new_database(path_obj):
     settings.save_mutable_settings({"DATABASE_PATH": str(path_obj)})
 
 
-def post_launch_integrity_check(controller):
+def check_and_recover_database(controller):
     """
-    Step 3 (Delayed): Integrity Check and Recovery Dialog.
-    Executes AFTER the UI (Login) is visible.
+    Checks database integrity and prompts user for recovery actions if needed.
     """
-    try:
-        from app.core.config import settings, get_user_data_dir
-        from app.core.db_security import db_security
-        from pathlib import Path
-    except ImportError as e:
-        QMessageBox.critical(None, "Errore Critico", f"Impossibile caricare configurazione: {e}")
-        sys.exit(1)
+    from app.core.config import settings, get_user_data_dir
+    from app.core.db_security import db_security
+    from pathlib import Path
 
-    while True:
-        db_path_str = settings.DATABASE_PATH
-        if db_path_str:
-             db_path = Path(db_path_str)
-             if db_path.is_dir():
-                 target = db_path / "database_documenti.db"
-             else:
-                 target = db_path
-        else:
-             target = get_user_data_dir() / "database_documenti.db"
+    db_path_str = settings.DATABASE_PATH
+    if db_path_str:
+         db_path = Path(db_path_str)
+         if db_path.is_dir():
+             target = db_path / DATABASE_FILENAME
+         else:
+             target = db_path
+    else:
+         target = get_user_data_dir() / DATABASE_FILENAME
 
-        # 1. Check Existence
-        exists = target.exists()
+    # 1. Check Existence
+    exists = target.exists()
 
-        # 2. Check Integrity (if exists)
-        is_valid = False
-        if exists:
-            # Check silently if possible, or show minimal feedback
-            # In post-launch, we probably just check validity.
-            # db_security.verify_integrity reads the file.
-            is_valid = db_security.verify_integrity(target)
+    # 2. Check Integrity (if exists)
+    is_valid = False
+    if exists:
+        # Check silently if possible, or show minimal feedback
+        # In post-launch, we probably just check validity.
+        # db_security.verify_integrity reads the file.
+        is_valid = db_security.verify_integrity(target)
 
-        if exists and is_valid:
-            # Everything is fine.
-            break
+    if exists and is_valid:
+        # Everything is fine.
+        return True
 
-        # 3. Prompt User (Recovery Dialog OVER Login View)
-        # Use controller.login_view as parent if available
-        parent = controller.login_view if hasattr(controller, 'login_view') and controller.login_view else None
+    # 3. Prompt User (Recovery Dialog OVER Login View)
+    # Use controller.login_view as parent if available
+    parent = controller.login_view if hasattr(controller, 'login_view') and controller.login_view else None
 
-        msg = QMessageBox(parent)
-        msg.setIcon(QMessageBox.Icon.Critical if exists else QMessageBox.Icon.Warning)
+    msg = QMessageBox(parent)
+    msg.setIcon(QMessageBox.Icon.Critical if exists else QMessageBox.Icon.Warning)
 
-        if not exists:
-            msg.setWindowTitle("Database Mancante")
-            msg.setText("Il database non è stato trovato.")
-            msg.setInformativeText(f"Percorso: {target}\n\nÈ necessario creare un nuovo database o selezionarne uno esistente.")
-        else:
-            msg.setWindowTitle("Database Corrotto")
-            msg.setText("Il file del database è danneggiato.")
-            msg.setInformativeText("Integrità compromessa. Ripristinare un backup o creare un nuovo database.")
+    if not exists:
+        msg.setWindowTitle("Database Mancante")
+        msg.setText("Il database non è stato trovato.")
+        msg.setInformativeText(f"Percorso: {target}\n\nÈ necessario creare un nuovo database o selezionarne uno esistente.")
+    else:
+        msg.setWindowTitle("Database Corrotto")
+        msg.setText("Il file del database è danneggiato.")
+        msg.setInformativeText("Integrità compromessa. Ripristinare un backup o creare un nuovo database.")
 
-        browse_btn = msg.addButton("Sfoglia / Ripristina...", QMessageBox.ButtonRole.ActionRole)
-        create_btn = msg.addButton("Crea Nuovo Database", QMessageBox.ButtonRole.ActionRole)
-        exit_btn = msg.addButton("Esci", QMessageBox.ButtonRole.RejectRole)
+    browse_btn = msg.addButton("Sfoglia / Ripristina...", QMessageBox.ButtonRole.ActionRole)
+    create_btn = msg.addButton("Crea Nuovo Database", QMessageBox.ButtonRole.ActionRole)
+    msg.addButton("Esci", QMessageBox.ButtonRole.RejectRole)
 
-        msg.setWindowFlags(msg.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
-        msg.exec()
+    msg.setWindowFlags(msg.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
+    msg.exec()
 
-        clicked = msg.clickedButton()
+    clicked = msg.clickedButton()
 
-        if clicked == browse_btn:
-            file_path, _ = QFileDialog.getOpenFileName(parent, "Seleziona Database", str(get_user_data_dir()), "Database Files (*.db *.bak)")
-            if file_path:
-                file_path = os.path.normpath(file_path)
-                path_obj = Path(file_path)
+    if clicked == browse_btn:
+        file_path, _ = QFileDialog.getOpenFileName(parent, "Seleziona Database", str(get_user_data_dir()), "Database Files (*.db *.bak)")
+        if file_path:
+            file_path = os.path.normpath(file_path)
+            path_obj = Path(file_path)
 
-                if path_obj.suffix.lower() == ".bak":
-                    # RESTORE LOGIC
-                    reply = QMessageBox.question(parent, "Ripristino Backup", f"Ripristinare dal backup:\n{path_obj.name}?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-                    if reply == QMessageBox.StandardButton.Yes:
-                        try:
-                            db_security.db_path = target
-                            db_security.data_dir = target.parent
-                            db_security.restore_from_backup(path_obj)
-                            # RESTART REQUIRED to reload DB in backend
-                            restart_app()
-                        except Exception as e:
-                            QMessageBox.critical(parent, "Errore", f"Ripristino fallito: {e}")
-                else:
-                    # Update Settings
-                    settings.save_mutable_settings({"DATABASE_PATH": file_path})
-                    # RESTART REQUIRED
-                    restart_app()
+            if path_obj.suffix.lower() == ".bak":
+                # RESTORE LOGIC
+                reply = QMessageBox.question(parent, "Ripristino Backup", f"Ripristinare dal backup:\n{path_obj.name}?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                if reply == QMessageBox.StandardButton.Yes:
+                    try:
+                        db_security.db_path = target
+                        db_security.data_dir = target.parent
+                        db_security.restore_from_backup(path_obj)
+                        # RESTART REQUIRED to reload DB in backend
+                        restart_app()
+                    except Exception as e:
+                        QMessageBox.critical(parent, "Errore", f"Ripristino fallito: {e}")
+            else:
+                # Update Settings
+                settings.save_mutable_settings({"DATABASE_PATH": file_path})
+                # RESTART REQUIRED
+                restart_app()
 
-        elif clicked == create_btn:
-            try:
-                # Ask user for DIRECTORY
-                dir_path = QFileDialog.getExistingDirectory(parent, "Seleziona Cartella per Nuovo Database", str(get_user_data_dir()))
-                if not dir_path:
-                    continue # Cancelled
-
+    elif clicked == create_btn:
+        try:
+            # Ask user for DIRECTORY
+            dir_path = QFileDialog.getExistingDirectory(parent, "Seleziona Cartella per Nuovo Database", str(get_user_data_dir()))
+            if dir_path:
                 # Enforce standard filename
-                target = Path(dir_path) / "database_documenti.db"
+                target = Path(dir_path) / DATABASE_FILENAME
 
                 # Initialize with DELETE mode
                 initialize_new_database(target)
 
                 # RESTART REQUIRED
                 restart_app()
-            except Exception as e:
-                QMessageBox.critical(parent, "Errore Creazione", f"Impossibile creare il database:\n{e}")
+        except Exception as e:
+            QMessageBox.critical(parent, "Errore Creazione", f"Impossibile creare il database:\n{e}")
 
-        else:
-            sys.exit(1)
+    else:
+        sys.exit(1)
+
+    return False
+
+def post_launch_integrity_check(controller):
+    """
+    Step 3 (Delayed): Integrity Check and Recovery Dialog.
+    Executes AFTER the UI (Login) is visible.
+    """
+    try:
+        # Refactored loop logic into check_and_recover_database
+        while True:
+            if check_and_recover_database(controller):
+                break
+
+    except ImportError as e:
+        QMessageBox.critical(None, "Errore Critico", f"Impossibile caricare configurazione: {e}")
+        sys.exit(1)
 
 def restart_app():
     """Restarts the current application."""
@@ -502,11 +516,18 @@ class StartupWorker(QThread):
             # 1. Environment Checks
             self.progress_update.emit("Verifica ambiente...", 30)
             try:
-                from desktop_app.services.security_service import is_virtual_environment, is_debugger_active, is_analysis_tool_running
+                from desktop_app.services.security_service import is_analysis_tool_running
                 from desktop_app.services.integrity_service import verify_critical_components
 
+                # Removed deprecated or too aggressive checks
+                # is_virtual_environment, is_debugger_active calls removed if not critical for startup
+
+                # We still check for analysis tools if the module exists
+                if is_analysis_tool_running():
+                     logging.warning("Analysis tool detected.")
+
                 is_intact, int_msg = verify_critical_components()
-                if not is_intact: raise Exception(f"Integrità compromessa: {int_msg}")
+                if not is_intact: raise RuntimeError(f"Integrità compromessa: {int_msg}")
             except ImportError: pass
 
             # 2. Clock
@@ -514,7 +535,7 @@ class StartupWorker(QThread):
             try:
                 from desktop_app.services.time_service import check_system_clock
                 clock_ok, clock_error = check_system_clock()
-                if not clock_ok: raise Exception(clock_error)
+                if not clock_ok: raise RuntimeError(clock_error)
             except ImportError: pass
 
             # 3. Server Start
@@ -535,7 +556,7 @@ class StartupWorker(QThread):
                 time.sleep(0.1)
 
             if not ready:
-                raise Exception("Timeout connessione al server locale.")
+                raise TimeoutError("Timeout connessione al server locale.")
 
             # 5. Health Check
             self.progress_update.emit("Verifica Connessione...", 92)
@@ -543,9 +564,9 @@ class StartupWorker(QThread):
                 health_url = f"http://localhost:{self.server_port}/api/v1/health"
                 response = requests.get(health_url, timeout=5)
                 if response.status_code != 200:
-                    raise Exception(f"Server Error: {response.json().get('detail')}")
+                    raise ConnectionError(f"Server Error: {response.json().get('detail')}")
             except Exception as e:
-                raise Exception(f"Health Check Failed: {e}")
+                raise ConnectionError(f"Health Check Failed: {e}")
 
             # 6. Ready
             self.progress_update.emit("Caricamento interfaccia...", 98)
@@ -560,7 +581,7 @@ def main():
     parser.add_argument("--analyze", help="Path")
     parser.add_argument("--import-csv", help="Path")
     parser.add_argument("--view", help="View")
-    args, unknown = parser.parse_known_args()
+    args, _ = parser.parse_known_args() # 'unknown' unused, replaced with _
 
     server_port = find_free_port()
     if not server_port:
@@ -569,10 +590,7 @@ def main():
 
     os.environ["API_URL"] = f"http://localhost:{server_port}/api/v1"
 
-    if not QApplication.instance():
-        qt_app = QApplication(sys.argv)
-    else:
-        qt_app = QApplication.instance()
+    qt_app = QApplication.instance() or QApplication(sys.argv)
 
     # Show Splash
     try:
