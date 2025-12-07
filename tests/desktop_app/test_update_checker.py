@@ -23,9 +23,9 @@ class TestUpdateChecker(unittest.TestCase):
         mock_parse.side_effect = lambda v: tuple(map(int, v.split('.')))
 
         checker = UpdateChecker()
-        has_update, ver, url = checker.check_for_updates()
+        status, ver, url = checker.check_for_updates()
 
-        self.assertTrue(has_update)
+        self.assertEqual(status, "AVAILABLE")
         self.assertEqual(ver, "1.1.0")
         self.assertEqual(url, "http://example.com/installer.exe")
 
@@ -47,9 +47,9 @@ class TestUpdateChecker(unittest.TestCase):
         mock_parse.side_effect = lambda v: tuple(map(int, v.split('.')))
 
         checker = UpdateChecker()
-        has_update, ver, url = checker.check_for_updates()
+        status, ver, url = checker.check_for_updates()
 
-        self.assertFalse(has_update)
+        self.assertEqual(status, "UP_TO_DATE")
         self.assertIsNone(ver)
         self.assertIsNone(url)
 

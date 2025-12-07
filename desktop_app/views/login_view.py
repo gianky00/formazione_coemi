@@ -3,6 +3,7 @@ import sys
 import socket
 import platform
 import math
+from datetime import datetime
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QFrame, QMessageBox, QHBoxLayout,
                              QGraphicsDropShadowEffect, QApplication, QPushButton,
                              QDialog, QLineEdit, QDialogButtonBox, QGraphicsOpacityEffect)
@@ -16,7 +17,10 @@ from desktop_app.services.license_manager import LicenseManager
 from desktop_app.services.sound_manager import SoundManager
 from desktop_app.services.license_updater_service import LicenseUpdaterService
 from desktop_app.services.hardware_id_service import get_machine_id
+from desktop_app.services.update_checker import UpdateWorker
 from desktop_app.components.neural_3d import NeuralNetwork3D
+from desktop_app.components.update_dialog import UpdateAvailableDialog
+from app import __version__
 
 class ForcePasswordChangeDialog(QDialog):
     def __init__(self, parent=None):
@@ -99,6 +103,9 @@ class LoginView(QWidget):
         self.pending_count = 0 # To store the count of documents to validate
         self.login_worker = None
         self.license_worker = None
+        self.update_worker = None
+        self.update_url = None
+        self.update_version = None
 
         # --- Interactive Neural Background Setup ---
         self.setMouseTracking(True)
@@ -300,12 +307,12 @@ class LoginView(QWidget):
         # We hold references to these widgets for animation
         self.animated_widgets = []
 
-        self.welcome_title = QLabel("Bentornato")
+        self.welcome_title = QLabel("Area Riservata")
         self.welcome_title.setStyleSheet("color: #1F2937; font-size: 32px; font-weight: 700;")
         right_layout.addWidget(self.welcome_title)
         self.animated_widgets.append((self.welcome_title, True)) # (Widget, CanFade)
 
-        self.welcome_sub = QLabel("Accedi al tuo account per continuare")
+        self.welcome_sub = QLabel("Autenticati per accedere al workspace")
         self.welcome_sub.setStyleSheet("color: #6B7280; font-size: 15px;")
         right_layout.addWidget(self.welcome_sub)
         self.animated_widgets.append((self.welcome_sub, True))
@@ -381,14 +388,34 @@ class LoginView(QWidget):
         right_layout.addStretch()
         right_layout.addStretch(1)
 
-        footer_text = "v1.0.0 • Intelleo Security"
+        # Footer Layout
         footer_layout = QVBoxLayout()
-        ver_label = QLabel(footer_text)
-        ver_label.setStyleSheet("color: #6B7280; font-size: 13px;")
-        ver_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        footer_layout.addWidget(ver_label)
+        footer_layout.setSpacing(5)
+
+        # Version & Update Status Line
+        self.version_label = QLabel(f"Intelleo Security • v{__version__}")
+        self.version_label.setStyleSheet("color: #6B7280; font-size: 13px;")
+        self.version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.version_label.setCursor(Qt.CursorShape.ArrowCursor) # Default
+
+        # Enable link activation manually
+        self.version_label.linkActivated.connect(self.on_footer_click)
+
+        footer_layout.addWidget(self.version_label)
+
+        # Copyright Line
+        current_year = datetime.now().year
+        copyright_text = f"Copyright © {current_year} Intelleo. All rights reserved."
+        copyright_label = QLabel(copyright_text)
+        copyright_label.setStyleSheet("color: #9CA3AF; font-size: 11px;")
+        copyright_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        footer_layout.addWidget(copyright_label)
+
         right_layout.addLayout(footer_layout)
-        self.animated_widgets.append((ver_label, True))
+        
+        # Add labels to animated widgets list
+        self.animated_widgets.append((self.version_label, True))
+        self.animated_widgets.append((copyright_label, True))
 
         container_layout.addWidget(self.left_panel, 40)
         container_layout.addWidget(self.right_panel, 60)
@@ -406,6 +433,60 @@ class LoginView(QWidget):
             right_layout.insertWidget(5, error_label)
 
         self._auto_update_if_needed()
+
+    def check_updates(self):
+        """Starts the update worker to check for updates."""
+        if self.update_worker and self.update_worker.isRunning():
+            return
+
+        self.update_worker = UpdateWorker(self)
+        self.update_worker.update_available.connect(self.on_update_available)
+        self.update_worker.up_to_date.connect(self.on_up_to_date)
+        self.update_worker.check_failed.connect(self.on_check_failed)
+        self.update_worker.start()
+
+    def on_update_available(self, version, url):
+        self.update_version = version
+        self.update_url = url
+        
+        # Text: Intelleo Security • v1.0.0 • Aggiornamento disponibile (Orange)
+        base_text = f"Intelleo Security • v{__version__}"
+        # We use HTML-like formatting for clickable area or color
+        # But QLabel linkActivated works better with HTML anchor tags.
+        # However, the user wants clickable text.
+        
+        # We can construct the full HTML string.
+        # "Aggiornamento disponibile" should be clickable.
+        
+        full_text = f'{base_text} • <a href="update" style="color: #F97316; text-decoration: none;">Aggiornamento disponibile</a>'
+        self.version_label.setText(full_text)
+        self.version_label.setTextFormat(Qt.TextFormat.RichText)
+        self.version_label.setOpenExternalLinks(False) # We handle it manually
+        
+        # Automatically show dialog
+        self.show_update_dialog()
+
+    def on_up_to_date(self):
+        base_text = f"Intelleo Security • v{__version__}"
+        # Green text
+        full_text = f'{base_text} • <span style="color: #10B981;">Sistema aggiornato</span>'
+        self.version_label.setText(full_text)
+        self.version_label.setTextFormat(Qt.TextFormat.RichText)
+
+    def on_check_failed(self):
+        base_text = f"Intelleo Security • v{__version__}"
+        # Grey/Yellow text
+        full_text = f'{base_text} • <span style="color: #9CA3AF;">Modalità Offline</span>'
+        self.version_label.setText(full_text)
+        self.version_label.setTextFormat(Qt.TextFormat.RichText)
+
+    def on_footer_click(self, link):
+        if link == "update" and self.update_version and self.update_url:
+            self.show_update_dialog()
+
+    def show_update_dialog(self):
+        dialog = UpdateAvailableDialog(self.update_version, self.update_url, self)
+        dialog.exec()
 
     def _animate_background(self):
         # Update physics
@@ -539,6 +620,11 @@ class LoginView(QWidget):
         # 3. Stop Background Animation Timer
         if self._anim_timer.isActive():
             self._anim_timer.stop()
+            
+        # 4. Stop Update Worker
+        if self.update_worker and self.update_worker.isRunning():
+            self.update_worker.quit()
+            self.update_worker.wait()
 
         event.accept()
 
@@ -585,6 +671,9 @@ class LoginView(QWidget):
         self.anim_slide.setEndValue(QPoint(x, final_y))
         self.anim_slide.setEasingCurve(QEasingCurve.Type.OutBack) # Modern bouncy feel
         self.anim_slide.start()
+        
+        # Trigger update check on show
+        self.check_updates()
 
     def read_license_info(self):
         data = LicenseManager.get_license_data()

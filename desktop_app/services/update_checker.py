@@ -20,7 +20,8 @@ class UpdateChecker:
     def check_for_updates(self):
         """
         Fetches the version.json and compares it with the local version.
-        Returns a tuple (has_update, latest_version, installer_url) or (False, None, None).
+        Returns a tuple (status, latest_version, installer_url).
+        Status can be: "AVAILABLE", "UP_TO_DATE", "OFFLINE"
         This method is blocking and should be run in a separate thread.
         """
         try:
@@ -35,36 +36,51 @@ class UpdateChecker:
 
             if not latest_version_str or not installer_url:
                 self.logger.warning("Invalid update JSON format.")
-                return False, None, None
+                return "OFFLINE", None, None
 
             current_ver = version.parse(__version__)
             latest_ver = version.parse(latest_version_str)
 
             if latest_ver > current_ver:
                 self.logger.info(f"Update available: {latest_ver} > {current_ver}")
-                return True, latest_version_str, installer_url
+                return "AVAILABLE", latest_version_str, installer_url
             else:
                 self.logger.info("Application is up to date.")
-                return False, None, None
+                return "UP_TO_DATE", None, None
 
+        except requests.exceptions.ConnectionError:
+            self.logger.warning("Update check failed: Connection Error (Offline)")
+            return "OFFLINE", None, None
+        except requests.exceptions.Timeout:
+            self.logger.warning("Update check failed: Timeout (Offline)")
+            return "OFFLINE", None, None
         except Exception as e:
             self.logger.error(f"Update check failed: {e}")
-            return False, None, None
+            return "OFFLINE", None, None
 
 class UpdateWorker(QThread):
     """
     Worker thread to perform the update check asynchronously.
-    Emits update_available(version, url) if an update is found.
+    Emits signals based on the result.
     """
-    update_available = pyqtSignal(str, str)
-    check_finished = pyqtSignal() # Emitted regardless of outcome
+    update_available = pyqtSignal(str, str) # version, url
+    up_to_date = pyqtSignal()
+    check_failed = pyqtSignal() # Offline or error
+    
+    finished_check = pyqtSignal() # Emitted regardless of outcome for cleanup if needed
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.checker = UpdateChecker()
 
     def run(self):
-        has_update, ver, url = self.checker.check_for_updates()
-        if has_update:
+        status, ver, url = self.checker.check_for_updates()
+        
+        if status == "AVAILABLE":
             self.update_available.emit(ver, url)
-        self.check_finished.emit()
+        elif status == "UP_TO_DATE":
+            self.up_to_date.emit()
+        else:
+            self.check_failed.emit()
+            
+        self.finished_check.emit()
