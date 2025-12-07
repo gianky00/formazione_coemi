@@ -2,10 +2,13 @@
 .\Scripts\activate
 python -m pytest tests
 
+# AVVIA TEST E ANALIZZA COPERTURA 
 .\Scripts\activate
 python -m pytest --cov=. --cov-report=term-missing
 
-
+# AVVIA TEST E CREA junit.xml UTILE PER riepilogo_Bug_Sonar.py
+.\Scripts\activate
+python -m pytest tests --junitxml=junit.xml
 
 # CREA GUIDA
 winget install OpenJS.NodeJS 
