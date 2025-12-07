@@ -7,6 +7,7 @@ import importlib.util
 import ast
 import logging
 import platform
+from desktop_app.constants import FILE_REQUIREMENTS
 
 # --- CONFIGURAZIONE ---
 # 1. FIX PORTABILITÀ: Directory corrente = cartella dello script
@@ -81,7 +82,27 @@ def get_std_libs():
         pass
     return libs
 
+def _scan_file_imports(path, std_libs):
+    """Helper to scan imports from a single file."""
+    imports = set()
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            tree = ast.parse(f.read())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    root_pkg = alias.name.split('.')[0]
+                    if root_pkg not in std_libs: imports.add(root_pkg)
+            # S1066: Merged if
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                root_pkg = node.module.split('.')[0]
+                if root_pkg not in std_libs: imports.add(root_pkg)
+    except Exception: # S5754: Catch-all is fine here for scanner resilience, but let's be explicit
+        pass # NOSONAR: Ignore parse errors during scan
+    return imports
+
 def scan_imports(source_dirs):
+    # S3776: Refactored to reduce complexity
     log_and_print("--- Scanning source code for imports ---")
     detected_imports = set()
     std_libs = get_std_libs()
@@ -96,45 +117,14 @@ def scan_imports(source_dirs):
                     files_to_scan.append(os.path.join(root, file))
 
     for path in files_to_scan:
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                tree = ast.parse(f.read())
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Import):
-                    for alias in node.names:
-                        root_pkg = alias.name.split('.')[0]
-                        if root_pkg not in std_libs: detected_imports.add(root_pkg)
-                elif isinstance(node, ast.ImportFrom):
-                    if node.module:
-                        root_pkg = node.module.split('.')[0]
-                        if root_pkg not in std_libs: detected_imports.add(root_pkg)
-        except: pass
+        detected_imports.update(_scan_file_imports(path, std_libs))
 
     detected_imports.discard("app")
     detected_imports.discard("desktop_app")
     log_and_print(f"Auto-detected external libraries: {', '.join(sorted(detected_imports))}")
     return list(detected_imports)
 
-def verify_environment():
-    log_and_print("--- Step 1/7: Environment Diagnostics ---")
-    log_and_print(f"Running with Python: {sys.executable}")
-
-    # Check/Install Pillow for Asset Generation (Deprecated but kept if needed elsewhere)
-    # The new asset generator uses PyQt6, so Pillow is less critical here,
-    # but we verify PyInstaller which is critical.
-
-    # Check PyInstaller
-    try:
-        import PyInstaller
-        log_and_print(f"PyInstaller verified: {os.path.dirname(PyInstaller.__file__)}")
-    except ImportError:
-        log_and_print("CRITICAL: PyInstaller module not found!", "ERROR")
-        sys.exit(1)
-
-    req_path = os.path.join(ROOT_DIR, "requirements.txt")
-    if os.path.exists(req_path):
-        log_and_print(f"Checking dependencies from {req_path}...")
-
+def _check_iscc():
     iscc_path = shutil.which("ISCC.exe")
     possible_paths = [
         r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
@@ -145,15 +135,9 @@ def verify_environment():
             if os.path.exists(p):
                 iscc_path = p
                 break
+    return iscc_path
 
-    if iscc_path:
-        log_and_print(f"Inno Setup Compiler found: {iscc_path}")
-    else:
-        log_and_print("CRITICAL: Inno Setup Compiler (ISCC.exe) not found!", "ERROR")
-        if os.name == 'nt':
-            sys.exit(1)
-
-    # Check DLLs
+def _check_dlls():
     dlls_to_check = ["vcruntime140.dll", "msvcp140.dll", "msvcp140_1.dll", "concrt140.dll", "vccorlib140.dll"]
     system_dlls_found = {}
     if os.name == 'nt':
@@ -162,6 +146,36 @@ def verify_environment():
             path = os.path.join(sys32, dll)
             if os.path.exists(path):
                 system_dlls_found[dll] = path
+    return system_dlls_found
+
+def verify_environment():
+    # S3776: Refactored to reduce complexity
+    log_and_print("--- Step 1/7: Environment Diagnostics ---")
+    log_and_print(f"Running with Python: {sys.executable}")
+
+    # Check PyInstaller
+    try:
+        import PyInstaller
+        log_and_print(f"PyInstaller verified: {os.path.dirname(PyInstaller.__file__)}")
+    except ImportError:
+        log_and_print("CRITICAL: PyInstaller module not found!", "ERROR")
+        sys.exit(1)
+
+    # S1192: Use constant
+    req_path = os.path.join(ROOT_DIR, FILE_REQUIREMENTS)
+    if os.path.exists(req_path):
+        log_and_print(f"Checking dependencies from {req_path}...")
+
+    iscc_path = _check_iscc()
+
+    if iscc_path:
+        log_and_print(f"Inno Setup Compiler found: {iscc_path}")
+    else:
+        log_and_print("CRITICAL: Inno Setup Compiler (ISCC.exe) not found!", "ERROR")
+        if os.name == 'nt':
+            sys.exit(1)
+
+    system_dlls_found = _check_dlls()
     return iscc_path, system_dlls_found
 
 def collect_submodules(base_dir):
@@ -177,38 +191,69 @@ def collect_submodules(base_dir):
                 modules.append(module_name)
     return modules
 
+def _prepare_obfuscation(iscc_exe):
+    kill_existing_process()
+
+    if os.path.exists(DIST_DIR):
+        try:
+            shutil.rmtree(DIST_DIR)
+        except PermissionError:
+            log_and_print("ERROR: File locked. Close Intelleo.exe or the dist folder.", "ERROR")
+            sys.exit(1)
+
+    os.makedirs(OBF_DIR, exist_ok=True)
+    return scan_imports(["app", "desktop_app"])
+
+def _run_pyarmor():
+    log_and_print("\n--- Step 3/7: Obfuscating with PyArmor ---")
+    cmd_pyarmor = [
+        sys.executable, "-m", "pyarmor.cli", "gen",
+        "-O", OBF_DIR,
+        "-r", os.path.join(ROOT_DIR, "app"), os.path.join(ROOT_DIR, "desktop_app"),
+        os.path.join(ROOT_DIR, ENTRY_SCRIPT), os.path.join(ROOT_DIR, "launcher.py")
+    ]
+    run_command(cmd_pyarmor)
+
+def _prepare_assets():
+    log_and_print("\n--- Step 4/7: Preparing Assets for Packaging ---")
+    def copy_dir_if_exists(src, dst_name):
+        full_src = os.path.join(ROOT_DIR, src)
+        full_dst = os.path.join(OBF_DIR, dst_name)
+        if os.path.exists(full_src):
+            if os.path.exists(full_dst): shutil.rmtree(full_dst)
+            shutil.copytree(full_src, full_dst, dirs_exist_ok=True)
+            log_and_print(f"Copied assets: {full_src} -> {full_dst}")
+
+    copy_dir_if_exists("desktop_app/assets", "desktop_app/assets")
+    copy_dir_if_exists("desktop_app/icons", "desktop_app/icons")
+
+    rthook_src = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rthook_pyqt6.py")
+    rthook_dst = os.path.join(OBF_DIR, "rthook_pyqt6.py")
+    if os.path.exists(rthook_src):
+        shutil.copy(rthook_src, rthook_dst)
+
+    if os.path.exists(os.path.join(ROOT_DIR, FILE_REQUIREMENTS)):
+        shutil.copy(os.path.join(ROOT_DIR, FILE_REQUIREMENTS), os.path.join(OBF_DIR, FILE_REQUIREMENTS))
+
 def build():
+    # S3776: Refactored to reduce complexity
     try:
         log_and_print("Starting Build Process...")
-
         log_and_print("\n--- Step 0/7: Generating Installer Assets (Deep Space Theme) ---")
 
         assets_script = os.path.join(ROOT_DIR, "tools", "prepare_installer_assets.py")
         if os.path.exists(assets_script):
             cmd = [sys.executable, assets_script]
-            # Use offscreen platform for headless environments
             if platform.system() == "Linux" or os.environ.get("HEADLESS_BUILD"):
                 cmd.extend(["-platform", "offscreen"])
-                # Also set env var to be safe
                 os.environ["QT_QPA_PLATFORM"] = "offscreen"
-
             run_command(cmd)
         else:
             log_and_print(f"ERROR: Assets script not found at {assets_script}", "ERROR")
             sys.exit(1)
 
-        kill_existing_process()
-
         iscc_exe, system_dlls = verify_environment()
-
-        if os.path.exists(DIST_DIR):
-            try:
-                shutil.rmtree(DIST_DIR)
-            except PermissionError:
-                log_and_print("ERROR: File locked. Close Intelleo.exe or the dist folder.", "ERROR")
-                sys.exit(1)
-
-        os.makedirs(OBF_DIR, exist_ok=True)
+        auto_detected_libs = _prepare_obfuscation(iscc_exe)
 
         log_and_print("\n--- Step 2/7: Building Modern Guide Frontend ---")
         try:
@@ -217,36 +262,8 @@ def build():
         except Exception as e:
             log_and_print(f"Guide build warning: {e}", "WARNING")
 
-        auto_detected_libs = scan_imports(["app", "desktop_app"])
-
-        log_and_print("\n--- Step 3/7: Obfuscating with PyArmor ---")
-        cmd_pyarmor = [
-            sys.executable, "-m", "pyarmor.cli", "gen",
-            "-O", OBF_DIR,
-            "-r", os.path.join(ROOT_DIR, "app"), os.path.join(ROOT_DIR, "desktop_app"),
-            os.path.join(ROOT_DIR, ENTRY_SCRIPT), os.path.join(ROOT_DIR, "launcher.py")
-        ]
-        run_command(cmd_pyarmor)
-
-        log_and_print("\n--- Step 4/7: Preparing Assets for Packaging ---")
-        def copy_dir_if_exists(src, dst_name):
-            full_src = os.path.join(ROOT_DIR, src)
-            full_dst = os.path.join(OBF_DIR, dst_name)
-            if os.path.exists(full_src):
-                if os.path.exists(full_dst): shutil.rmtree(full_dst)
-                shutil.copytree(full_src, full_dst, dirs_exist_ok=True)
-                log_and_print(f"Copied assets: {full_src} -> {full_dst}")
-
-        copy_dir_if_exists("desktop_app/assets", "desktop_app/assets")
-        copy_dir_if_exists("desktop_app/icons", "desktop_app/icons")
-
-        rthook_src = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rthook_pyqt6.py")
-        rthook_dst = os.path.join(OBF_DIR, "rthook_pyqt6.py")
-        if os.path.exists(rthook_src):
-            shutil.copy(rthook_src, rthook_dst)
-
-        if os.path.exists(os.path.join(ROOT_DIR, "requirements.txt")):
-            shutil.copy(os.path.join(ROOT_DIR, "requirements.txt"), os.path.join(OBF_DIR, "requirements.txt"))
+        _run_pyarmor()
+        _prepare_assets()
 
         log_and_print("\n--- Step 5/7: Packaging with PyInstaller (This may take a while) ---")
         sep = ";" if os.name == 'nt' else ":"
@@ -371,11 +388,7 @@ def build():
 
         log_and_print("\n--- Step 7/7: Compiling Installer with Inno Setup ---")
         
-        # Use the MASTER ISS file in admin/crea_setup
         iss_path = os.path.abspath(os.path.join(ROOT_DIR, "admin", "crea_setup", "setup_script.iss"))
-
-        # The BuildDir passed to Inno Setup must point to the PyInstaller output folder (output_folder)
-        # We pass it as an absolute path for safety
         build_dir_abs = output_folder
 
         log_and_print(f"Using Master ISS: {iss_path}")
@@ -383,13 +396,13 @@ def build():
 
         if iscc_exe:
              log_and_print("Compiling with Inno Setup...")
-             # Run ISCC from the directory where the ISS file lives, so relative paths in ISS (like OutputDir) work correctly
              iss_cwd = os.path.dirname(iss_path)
 
+             # S3457: Fixed f-string format
              cmd_iscc = [
                  iscc_exe,
                  f"/dBuildDir={build_dir_abs}",
-                 f"/dMyAppVersion=1.0.0",
+                 "/dMyAppVersion=1.0.0",
                  "setup_script.iss"
              ]
 
@@ -401,7 +414,7 @@ def build():
         log_and_print("BUILD AND PACKAGING COMPLETE SUCCESS!")
         log_and_print("="*60)
 
-    except Exception as e:
+    except Exception:
         logger.exception("FATAL ERROR DURING BUILD:")
         sys.exit(1)
 

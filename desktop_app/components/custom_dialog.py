@@ -47,7 +47,15 @@ class CustomMessageDialog(QDialog):
 
         # Title
         self.title_label = QLabel(title)
-        title_color = "#DC2626" if is_error else ("#D97706" if is_warning else "#1F2937")
+
+        # S3358: Removed nested conditional
+        if is_error:
+            title_color = "#DC2626"
+        elif is_warning:
+            title_color = "#D97706"
+        else:
+            title_color = "#1F2937"
+
         self.title_label.setStyleSheet(f"color: {title_color}; font-size: 18px; font-weight: 700;")
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self.container_layout.addWidget(self.title_label)
@@ -118,5 +126,6 @@ class CustomMessageDialog(QDialog):
         Returns True if user clicked Yes, False otherwise.
         """
         dialog = CustomMessageDialog(title, message, parent=parent, is_question=True)
-        result = dialog.exec()
+        # S1481: Unused variable removed
+        dialog.exec()
         return dialog.result_value

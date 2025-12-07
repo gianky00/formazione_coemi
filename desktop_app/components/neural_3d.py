@@ -9,17 +9,20 @@ class NeuralNetwork3D:
         self.num_nodes = num_nodes
         self.connect_distance_sq = connect_distance ** 2
 
+        # Use new Generator API
+        self.rng = np.random.default_rng()
+
         # --- 3D State (Vectorized) ---
         # Position X, Y, Z centered at 0,0,0
         # Range approx -800 to 800
-        self.points = (np.random.rand(num_nodes, 3) - 0.5) * 1600
+        self.points = (self.rng.random((num_nodes, 3)) - 0.5) * 1600
 
         # Velocity vector (slow drift)
-        self.velocities = (np.random.rand(num_nodes, 3) - 0.5) * 1.5
+        self.velocities = (self.rng.random((num_nodes, 3)) - 0.5) * 1.5
 
         # Phase for "breathing" effect (0 to 2pi)
-        self.phases = np.random.rand(num_nodes) * 2 * math.pi
-        self.phase_speeds = np.random.rand(num_nodes) * 0.05 + 0.02
+        self.phases = self.rng.random(num_nodes) * 2 * math.pi
+        self.phase_speeds = self.rng.random(num_nodes) * 0.05 + 0.02
 
         # Current Rotation (Euler angles)
         self.rot_x = 0.0
@@ -77,8 +80,8 @@ class NeuralNetwork3D:
         self.warp_active = False
         self.warp_speed = 0.0
         # Reset positions to ensure we aren't stuck in a "tunnel"
-        self.points = (np.random.rand(self.num_nodes, 3) - 0.5) * 1600
-        self.velocities = (np.random.rand(self.num_nodes, 3) - 0.5) * 1.5
+        self.points = (self.rng.random((self.num_nodes, 3)) - 0.5) * 1600
+        self.velocities = (self.rng.random((self.num_nodes, 3)) - 0.5) * 1.5
 
     def start_warp(self):
         """Activates the cinematic warp effect."""
@@ -109,8 +112,8 @@ class NeuralNetwork3D:
                  # Respawn far ahead
                  self.points[mask_behind, 2] = 1600
                  # Randomize X/Y for infinite tunnel effect
-                 self.points[mask_behind, 0] = (np.random.rand(respawn_count) - 0.5) * 2000
-                 self.points[mask_behind, 1] = (np.random.rand(respawn_count) - 0.5) * 2000
+                 self.points[mask_behind, 0] = (self.rng.random(respawn_count) - 0.5) * 2000
+                 self.points[mask_behind, 1] = (self.rng.random(respawn_count) - 0.5) * 2000
 
              # Also slightly drift rotation to center
              self.target_rot_x = 0
@@ -162,23 +165,12 @@ class NeuralNetwork3D:
             speed = random.uniform(0.05, 0.1) if self.warp_active else random.uniform(0.02, 0.05)
             self.pulses.append([conn[0], conn[1], 0.0, speed])
 
-
-    def project_and_render(self, painter, width, height):
-        """
-        Projects 3D points to 2D and renders everything.
-        Doing projection + render in one pass to avoid copying large arrays back to Python.
-        """
-        center_x = width / 2
-        center_y = height / 2
-        focal_length = 800
-
-        # --- 1. Rotation Matrices ---
+    def _rotate_points(self):
+        """Calculates the rotated 3D coordinates."""
         cx, sx = math.cos(self.rot_x), math.sin(self.rot_x)
         cy, sy = math.cos(self.rot_y), math.sin(self.rot_y)
 
         # Rotate around Y axis
-        # x' = x*cos - z*sin
-        # z' = x*sin + z*cos
         x = self.points[:, 0]
         y = self.points[:, 1]
         z = self.points[:, 2]
@@ -187,14 +179,14 @@ class NeuralNetwork3D:
         z_rot_y = x * sy + z * cy
 
         # Rotate around X axis
-        # y' = y*cos - z'*sin
-        # z'' = y*sin + z'*cos
         y_final = y * cx - z_rot_y * sx
         z_final = y * sx + z_rot_y * cx
         x_final = x_rot_y
 
-        # --- 2. Perspective Projection ---
-        # scale = f / (f + z)
+        return x_final, y_final, z_final
+
+    def _project_points(self, x_final, y_final, z_final, center_x, center_y, focal_length):
+        """Projects 3D points to 2D coordinates."""
         # Avoid division by zero
         z_safe = z_final + 1200 # Push everything back so camera isn't inside
         scale = focal_length / np.maximum(z_safe, 0.1)
@@ -202,11 +194,10 @@ class NeuralNetwork3D:
         x_2d = x_final * scale + center_x
         y_2d = y_final * scale + center_y
 
-        # Store 2D coords for connection drawing
-        # Shape (N, 2)
-        coords_2d = np.column_stack((x_2d, y_2d))
+        return x_2d, y_2d, z_safe, scale
 
-        # --- 3. Draw Connections & Pulses ---
+    def _draw_connections(self, painter, x_final, y_final, z_final, x_2d, y_2d, z_safe):
+        """Draws connection lines between close nodes."""
         self.connections = []
         painter.setPen(QColor(100, 200, 255, 40)) # Very faint blue
 
@@ -220,7 +211,6 @@ class NeuralNetwork3D:
         rows, cols = np.nonzero(mask)
 
         # Draw Lines
-        # Only draw if scale is reasonable to avoid screen cluttering with giant lines
         for i, j in zip(rows, cols):
             # Optimization: Skip if either point is behind camera or too close
             if z_safe[i] < 10 or z_safe[j] < 10: continue
@@ -239,9 +229,9 @@ class NeuralNetwork3D:
                 painter.setPen(color)
                 painter.drawLine(p1, p2)
 
-        # Draw Pulses
+    def _draw_pulses(self, painter, x_2d, y_2d):
+        """Draws moving pulses along connections."""
         painter.setPen(Qt.PenStyle.NoPen) # No outline
-        pulse_color = QColor(255, 255, 255) # White core
 
         for p in self.pulses:
             start_idx, end_idx, progress, _ = p
@@ -256,15 +246,14 @@ class NeuralNetwork3D:
             curr_y = sy + (ey - sy) * progress
 
             # Draw glowing dot
-            size = 16
-            offset = size / 2
+            offset = 8 # size 16 / 2
 
             painter.setOpacity(0.8)
             painter.drawPixmap(int(curr_x - offset), int(curr_y - offset), self.star_textures[16])
             painter.setOpacity(1.0)
 
-
-        # --- 4. Draw Nodes (Z-Sorted) ---
+    def _draw_nodes(self, painter, x_2d, y_2d, z_safe, scale):
+        """Draws the star nodes sorted by Z-depth."""
         sort_indices = np.argsort(z_safe)[::-1] # Descending order of depth (Back to Front)
 
         for i in sort_indices:
@@ -295,3 +284,27 @@ class NeuralNetwork3D:
             painter.drawPixmap(int(x), int(y), tex)
 
         painter.setOpacity(1.0)
+
+    def project_and_render(self, painter, width, height):
+        """
+        Projects 3D points to 2D and renders everything.
+        Doing projection + render in one pass to avoid copying large arrays back to Python.
+        """
+        center_x = width / 2
+        center_y = height / 2
+        focal_length = 800
+
+        # --- 1. Rotation Matrices ---
+        x_final, y_final, z_final = self._rotate_points()
+
+        # --- 2. Perspective Projection ---
+        x_2d, y_2d, z_safe, scale = self._project_points(x_final, y_final, z_final, center_x, center_y, focal_length)
+
+        # --- 3. Draw Connections ---
+        self._draw_connections(painter, x_final, y_final, z_final, x_2d, y_2d, z_safe)
+
+        # --- 4. Draw Pulses ---
+        self._draw_pulses(painter, x_2d, y_2d)
+
+        # --- 5. Draw Nodes (Z-Sorted) ---
+        self._draw_nodes(painter, x_2d, y_2d, z_safe, scale)

@@ -21,6 +21,7 @@ from desktop_app.services.update_checker import UpdateWorker
 from desktop_app.components.neural_3d import NeuralNetwork3D
 from desktop_app.components.update_dialog import UpdateAvailableDialog
 from app import __version__
+from desktop_app.constants import STYLE_LICENSE_VALID, STYLE_LICENSE_EXPIRING, LABEL_LICENSE_EXPIRY, LABEL_HARDWARE_ID
 
 class ForcePasswordChangeDialog(QDialog):
     def __init__(self, parent=None):
@@ -213,8 +214,9 @@ class LoginView(QWidget):
                 font-weight: 600;
             }
         """)
-        if license_data and "Hardware ID" in license_data:
-            stored_hw_id = license_data["Hardware ID"]
+        # S1192: Use constants
+        if license_data and LABEL_HARDWARE_ID in license_data:
+            stored_hw_id = license_data[LABEL_HARDWARE_ID]
             if stored_hw_id == current_hw_id:
                 coherence_pill.setText("Matched")
                 coherence_pill.setStyleSheet(coherence_pill.styleSheet() + "background-color: #065F46; color: #6EE7B7;")
@@ -236,10 +238,11 @@ class LoginView(QWidget):
 
         license_label = QLabel(license_text)
         license_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        # S1192: Use constants for duplicated strings
         if LicenseManager.is_license_expiring_soon(license_data):
-            license_label.setStyleSheet("color: #FBBF24; font-size: 13px; font-weight: 600;")
+            license_label.setStyleSheet(STYLE_LICENSE_EXPIRING)
         else:
-            license_label.setStyleSheet("color: #93C5FD; font-size: 13px; font-weight: 500;")
+            license_label.setStyleSheet(STYLE_LICENSE_VALID)
         license_label.setWordWrap(True)
         license_info_layout.addWidget(license_label)
 
@@ -256,13 +259,13 @@ class LoginView(QWidget):
         # Hostname
         hostname = socket.gethostname()
         hostname_label = QLabel(f"Hostname: {hostname}")
-        hostname_label.setStyleSheet("color: #93C5FD; font-size: 13px; font-weight: 500;")
+        hostname_label.setStyleSheet(STYLE_LICENSE_VALID)
         pc_details_layout.addWidget(hostname_label)
 
         # OS
         os_name = f"{platform.system()} {platform.release()}"
         os_label = QLabel(f"Sistema Operativo: {os_name}")
-        os_label.setStyleSheet("color: #93C5FD; font-size: 13px; font-weight: 500;")
+        os_label.setStyleSheet(STYLE_LICENSE_VALID)
         pc_details_layout.addWidget(os_label)
 
         license_info_layout.addLayout(pc_details_layout)
@@ -687,10 +690,10 @@ class LoginView(QWidget):
         lines = []
         if "Cliente" in data:
             lines.append(f"Cliente: {data['Cliente']}")
-        if "Scadenza Licenza" in data:
-            lines.append(f"Scadenza: {data['Scadenza Licenza']}")
-        if "Hardware ID" in data:
-            lines.append(f"ID Licenza: {data['Hardware ID']}")
+        if LABEL_LICENSE_EXPIRY in data:
+            lines.append(f"Scadenza: {data[LABEL_LICENSE_EXPIRY]}")
+        if LABEL_HARDWARE_ID in data:
+            lines.append(f"ID Licenza: {data[LABEL_HARDWARE_ID]}")
 
         return "\n".join(lines), data
 
@@ -720,8 +723,8 @@ class LoginView(QWidget):
             return
 
         _, license_data = self.read_license_info()
-        if license_data and "Hardware ID" in license_data:
-            stored_hw_id = license_data["Hardware ID"]
+        if license_data and LABEL_HARDWARE_ID in license_data:
+            stored_hw_id = license_data[LABEL_HARDWARE_ID]
             current_hw_id = get_machine_id()
             if stored_hw_id != current_hw_id:
                 CustomMessageDialog.show_error(self, "Errore di Licenza",
@@ -746,23 +749,31 @@ class LoginView(QWidget):
         self.shake_window()
         CustomMessageDialog.show_error(self, "Errore di Accesso", error_msg)
 
+    def _prepare_welcome_message(self, user_info):
+        """Prepares user context and welcome speech."""
+        username = user_info.get("account_name") or user_info.get("username", "Operatore")
+        gender = user_info.get("gender")
+        welcome_word = "Bentornata" if gender == 'F' else "Bentornato"
+        speech_text = f"Ciao {username}, {welcome_word} in Intellèo."
+
+        if self.pending_count == 1:
+            speech_text += " C'è un documento da convalidare."
+        elif self.pending_count > 1:
+            speech_text += f" Ci sono {self.pending_count} documenti da convalidare."
+
+        user_info["welcome_speech"] = speech_text
+        user_info["pending_documents_count"] = self.pending_count
+
     def on_login_success(self, response):
+        # S3776: Refactored to reduce complexity
         try:
             self.api_client.set_token(response)
             user_info = self.api_client.user_info
 
             if user_info.get("require_password_change"):
-                # Bug 6 Fix: Check Read-Only before entering the loop
                 if user_info.get("read_only"):
+                     # S2772: Removed pass
                      CustomMessageDialog.show_warning(self, "Attenzione", "È richiesto il cambio password, ma il database è in sola lettura. Riprova più tardi.")
-                     # We proceed to login anyway, or logout?
-                     # Standard behavior: logout if mandatory.
-                     # But user might need RO access.
-                     # We allow RO access without password change for now?
-                     # No, strict security says change mandatory.
-                     # But we are trapped.
-                     # Let's show warning and then continue to Read-Only mode, skipping the loop.
-                     pass
                 else:
                     while True:
                         dialog = ForcePasswordChangeDialog(self)
@@ -776,7 +787,6 @@ class LoginView(QWidget):
                                 continue
 
                             try:
-                                # This is sync, but acceptable for modal dialog
                                 self.api_client.change_password("primoaccesso", new_pw)
                                 CustomMessageDialog.show_info(self, "Successo", "Password aggiornata. Procedi pure.")
                                 break
@@ -793,25 +803,17 @@ class LoginView(QWidget):
 
             if user_info.get("read_only"):
                 owner = user_info.get("lock_owner") or {}
-                msg = "⚠️ DATABASE IN USO\n\n"
-                msg += f"Utente: {owner.get('username', 'N/A')}\n"
-                msg += f"Host: {owner.get('hostname', 'N/A')}\n"
-                msg += f"PID: {owner.get('pid', 'N/A')}\n\n"
-                msg += "L'applicazione si avvierà in modalità SOLA LETTURA.\n"
-                msg += "Non sarà possibile salvare nuove modifiche."
+                msg = f"⚠️ DATABASE IN USO\n\nUtente: {owner.get('username', 'N/A')}\nHost: {owner.get('hostname', 'N/A')}\nPID: {owner.get('pid', 'N/A')}\n\nL'applicazione si avvierà in modalità SOLA LETTURA.\nNon sarà possibile salvare nuove modifiche."
                 CustomMessageDialog.show_warning(self, "Modalità Sola Lettura", msg)
 
-            # Fetch pending documents count
             try:
-                # Fetch only if not in Read-Only mode (or even if Read-Only, info is useful)
-                # validated=False means ValidationStatus.AUTOMATIC (pending)
                 cert_list = self.api_client.get("certificati", params={"validated": "false"})
                 self.pending_count = len(cert_list)
             except Exception as e:
                 print(f"[LoginView] Error fetching pending count: {e}")
                 self.pending_count = 0
 
-            # Trigger Fly-Out Animation before emitting success
+            self._prepare_welcome_message(user_info)
             self._animate_success_exit()
 
         except Exception as e:
@@ -821,31 +823,8 @@ class LoginView(QWidget):
     def _animate_success_exit(self):
         """
         Triggers the 'Spectacular' Cinematic 3D Warp Transition.
-        1. Fade out the UI Card (0.2s).
-        2. Trigger Neural Warp (1.2s).
-        3. Emit success signal.
         """
-        # 1. Prepare Welcome Speech (Audio)
-        username = "Operatore"
-        gender = None
-        if self.api_client.user_info:
-            username = self.api_client.user_info.get("account_name") or self.api_client.user_info.get("username", "Operatore")
-            gender = self.api_client.user_info.get("gender")
-
-        welcome_word = "Bentornata" if gender == 'F' else "Bentornato"
-        speech_text = f"Ciao {username}, {welcome_word} in Intellèo."
-
-        if self.pending_count == 1:
-            speech_text += " C'è un documento da convalidare."
-        elif self.pending_count > 1:
-            speech_text += f" Ci sono {self.pending_count} documenti da convalidare."
-
-        if self.api_client.user_info:
-            self.api_client.user_info["welcome_speech"] = speech_text
-            self.api_client.user_info["pending_documents_count"] = self.pending_count
-
-        # 2. Fade Out UI (Login Card)
-        # We replace the Shadow Effect with Opacity Effect.
+        # Fade Out UI
         self.opacity_effect = QGraphicsOpacityEffect(self.container)
         self.container.setGraphicsEffect(self.opacity_effect)
         
@@ -856,17 +835,13 @@ class LoginView(QWidget):
         self.anim_fade.setEasingCurve(QEasingCurve.Type.InOutQuad)
         self.anim_fade.start()
 
-        # 3. Trigger Neural Warp
+        # Trigger Neural Warp
         self.neural_engine.start_warp()
 
-        # 4. Schedule Completion (1.2 seconds)
-        # We DO NOT stop the _anim_timer here, as we need it to render the warp.
+        # Schedule Completion
         QTimer.singleShot(1200, self._finish_login_transition)
 
     def _finish_login_transition(self):
-        # Stop rendering loop to save resources
         self._stop_3d_rendering = True
         self._anim_timer.stop()
-
-        # Emit signal to swap views
         self.login_success.emit(self.api_client.user_info)

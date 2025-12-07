@@ -22,71 +22,66 @@ class LockManager:
         self.owner_info: Optional[Dict] = None
         self.current_metadata: Optional[Dict] = None
 
+    def _init_lock_file(self):
+        """Creates the directory and file if needed."""
+        os.makedirs(os.path.dirname(self.lock_file_path), exist_ok=True)
+        if not os.path.exists(self.lock_file_path):
+            with open(self.lock_file_path, 'wb') as f:
+                f.write(b'\0')
+
+    def _attempt_lock(self, owner_metadata):
+        """Tries to open and lock the file."""
+        try:
+            self._lock_handle = open(self.lock_file_path, 'r+b')
+            self._lock_byte_0()
+            self._is_locked = True
+            self.current_metadata = owner_metadata
+            self._write_metadata(owner_metadata)
+            logger.info(f"Lock acquired on {self.lock_file_path}")
+            return True, None
+        except (IOError, BlockingIOError, PermissionError):
+            # Not an error in logic, just couldn't lock
+            return False, None
+        except Exception as e:
+            logger.error(f"Unexpected error acquiring lock: {e}")
+            return False, e
+
+    def _handle_lock_failure(self):
+        """Reads metadata from the locked file if possible."""
+        logger.info("Database is locked by another process.")
+        self._is_locked = False
+        owner_data = {"error": "Unknown (Could not read lock file)"}
+        try:
+            if self._lock_handle:
+                owner_data = self._read_metadata()
+        except Exception as e:
+            logger.error(f"Failed to read lock metadata: {e}")
+        finally:
+             self._cleanup_handle()
+        return False, owner_data
+
     def acquire(self, owner_metadata: Dict, retries: int = 3, delay: float = 0.5) -> Tuple[bool, Optional[Dict]]:
-        """
-        Attempts to acquire an exclusive lock on the file with retry logic.
-        """
+        # S3776: Refactored to reduce complexity
         for attempt in range(retries + 1):
-            try:
-                # Ensure directory exists
-                os.makedirs(os.path.dirname(self.lock_file_path), exist_ok=True)
+            self._init_lock_file()
 
-                # Open file in Read/Write mode. Create if not exists.
-                # We use 'r+b' if exists, 'w+b' if not.
-                if not os.path.exists(self.lock_file_path):
-                    with open(self.lock_file_path, 'wb') as f:
-                        f.write(b'\0') # Initialize with at least one byte
-
-                # Use explicit open() call, managed via try...finally for closure in error cases
-                self._lock_handle = open(self.lock_file_path, 'r+b')
-
-                # Try to lock the first byte
-                self._lock_byte_0()
-
-                # If we reached here, we have the lock!
-                self._is_locked = True
-                self.current_metadata = owner_metadata
-
-                # Write our metadata
-                self._write_metadata(owner_metadata)
-
-                logger.info(f"Lock acquired on {self.lock_file_path}")
+            success, error = self._attempt_lock(owner_metadata)
+            if success:
                 return True, None
 
-            except (IOError, BlockingIOError, PermissionError):
-                # Lock is held by someone else, or file access error (network)
-                if attempt < retries:
-                    logger.warning(f"Lock acquisition failed (Attempt {attempt+1}/{retries+1}). Retrying in {delay}s...")
-                    self._cleanup_handle()
-                    time.sleep(delay)
-                    continue
-
-                # If retries exhausted:
-                logger.info("Database is locked by another process.")
-                self._is_locked = False
-
-                # Read metadata to return to caller
-                owner_data = {"error": "Unknown (Could not read lock file)"}
-                try:
-                    if self._lock_handle:
-                        # Attempt to read metadata from the handle we failed to lock (since we opened it)
-                        # NOTE: Reading from a file locked by another process might fail on Windows if opened exclusively.
-                        # However, we opened with 'r+b'. Locking happens on Byte 0.
-                        # Reading Byte 1+ might succeed if locking is advisory or partial.
-                        # If locking is mandatory/exclusive on whole file, open() itself would have failed.
-                        # If we passed open() but failed locking(), we have a handle.
-                        owner_data = self._read_metadata()
-                except Exception as e:
-                    logger.error(f"Failed to read lock metadata: {e}")
-                finally:
-                     self._cleanup_handle()
-
-                return False, owner_data
-
-            except Exception as e:
-                logger.error(f"Unexpected error acquiring lock: {e}")
+            # If error was not just "locked", handle it
+            if error:
                 self._cleanup_handle()
-                return False, {"error": f"Error: {e}"}
+                return False, {"error": f"Error: {error}"}
+
+            # Lock held by other process
+            if attempt < retries:
+                logger.warning(f"Lock acquisition failed (Attempt {attempt+1}/{retries+1}). Retrying in {delay}s...")
+                self._cleanup_handle()
+                time.sleep(delay)
+                continue
+
+            return self._handle_lock_failure()
 
         return False, {"error": "Retries exhausted"}
 
@@ -100,35 +95,36 @@ class LockManager:
             finally:
                 self._lock_handle = None
 
+    def _verify_identity(self, current_on_disk):
+        """Verifies if the lock on disk matches our current session."""
+        if not isinstance(current_on_disk, dict) or "uuid" not in current_on_disk:
+            if isinstance(current_on_disk, dict) and "pid" in current_on_disk:
+                 # Check Legacy Identity (PID + Host)
+                 if current_on_disk.get("pid") != self.current_metadata.get("pid") or \
+                    current_on_disk.get("hostname") != self.current_metadata.get("hostname"):
+                     logger.critical("SPLIT BRAIN DETECTED (Legacy Check): Identity mismatch.")
+                     return False
+            else:
+                logger.error(f"Heartbeat Verification Failed: Could not read valid metadata. content: {current_on_disk}")
+                return False
+        else:
+            # Strong Verification (UUID)
+            if current_on_disk.get("uuid") != self.current_metadata.get("uuid"):
+                 logger.critical(f"SPLIT BRAIN DETECTED: UUID mismatch. Owner: {current_on_disk.get('uuid')}. Me: {self.current_metadata.get('uuid')}.")
+                 return False
+        return True
+
     def update_heartbeat(self) -> bool:
-        """
-        Updates the timestamp in the lock file to prove we are still alive.
-        """
+        # S3776: Refactored to reduce complexity
         if not self._is_locked or not self.current_metadata:
             return False
 
         try:
-            # 1. Read existing metadata to verify identity
             current_on_disk = self._read_metadata()
 
-            # 2. Strict Verification
-            if not isinstance(current_on_disk, dict) or "uuid" not in current_on_disk:
-                if isinstance(current_on_disk, dict) and "pid" in current_on_disk:
-                     # Check Legacy Identity (PID + Host)
-                     if current_on_disk.get("pid") != self.current_metadata.get("pid") or \
-                        current_on_disk.get("hostname") != self.current_metadata.get("hostname"):
-                         logger.critical("SPLIT BRAIN DETECTED (Legacy Check): Identity mismatch.")
-                         return False
-                else:
-                    logger.error(f"Heartbeat Verification Failed: Could not read valid metadata. content: {current_on_disk}")
-                    return False
-            else:
-                # Strong Verification (UUID)
-                if current_on_disk.get("uuid") != self.current_metadata.get("uuid"):
-                     logger.critical(f"SPLIT BRAIN DETECTED: UUID mismatch. Owner: {current_on_disk.get('uuid')}. Me: {self.current_metadata.get('uuid')}.")
-                     return False
+            if not self._verify_identity(current_on_disk):
+                return False
 
-            # 3. Update timestamp and write
             self.current_metadata['timestamp'] = time.time()
             self._write_metadata(self.current_metadata)
             return True

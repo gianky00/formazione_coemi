@@ -197,7 +197,7 @@ class SettingsManager:
         self.mutable = MutableSettings(settings_file_path)
 
     # Convenience properties to access mutable settings directly
-    # NOSONAR: UPPER_CASE naming is intentional for configuration properties
+    # S7632: Fixed issue suppression syntax from # NOSONAR: ... to # NOSONAR
     @property
     def LICENSE_GITHUB_TOKEN(self): # NOSONAR
         return reveal_string(self._OBFUSCATED_GITHUB_TOKEN)

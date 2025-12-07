@@ -92,9 +92,10 @@ def clean_text_for_display(text: str) -> str:
     - Preserves Markdown formatting (e.g., _città_) by excluding '_' from the "inside word" check.
     """
     # 1. Always replace acute accents on a, i, u (Phonetic stress markers)
-    text = re.sub(r'[á]', 'a', text)
-    text = re.sub(r'[í]', 'i', text)
-    text = re.sub(r'[ú]', 'u', text)
+    # S6397: Replaced character class [x] with x
+    text = re.sub(r'á', 'a', text)
+    text = re.sub(r'í', 'i', text)
+    text = re.sub(r'ú', 'u', text)
 
     # Regex lookahead (?=[^\W_]) ensures the character is followed by a word character
     # that is NOT an underscore. This prevents stripping accents before a Markdown underscore.
@@ -104,8 +105,9 @@ def clean_text_for_display(text: str) -> str:
     text = re.sub(r'[èé](?=[^\W_])', 'e', text)
 
     # 3. Also clean other accents inside words if used for stress (e.g. càsa)
-    text = re.sub(r'[à](?=[^\W_])', 'a', text)
-    text = re.sub(r'[ì](?=[^\W_])', 'i', text)
-    text = re.sub(r'[ù](?=[^\W_])', 'u', text)
+    # S6397: Replaced character class
+    text = re.sub(r'à(?=[^\W_])', 'a', text)
+    text = re.sub(r'ì(?=[^\W_])', 'i', text)
+    text = re.sub(r'ù(?=[^\W_])', 'u', text)
 
     return text

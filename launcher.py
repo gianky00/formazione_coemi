@@ -119,8 +119,14 @@ def sentry_exception_hook(exctype, value, traceback):
         sentry_sdk.capture_exception(e) # Capture cleanup failure too
 
     # 4. Exit
+    # S5747: Remove bare raise, only re-raise SystemExit explicitly if caught (not here)
+    # The original code re-raised SystemExit using bare raise which S5747 flagged.
+    # The check issubclass(exctype, SystemExit) is correct but inside this hook it is complex.
+    # This hook is executed *after* exception is raised.
+    # We should just exit.
     if issubclass(exctype, SystemExit):
-        raise
+        sys.exit(value.code if hasattr(value, 'code') else 1)
+
     sys.exit(1)
 
 # Initialize Sentry immediately
@@ -379,13 +385,67 @@ def initialize_new_database(path_obj):
     # 4. Update Settings
     settings.save_mutable_settings({"DATABASE_PATH": str(path_obj)})
 
+def _check_db_integrity(target):
+    # S3776: Refactored logic to reduce complexity
+    exists = target.exists()
+    is_valid = False
+    if exists:
+        from app.core.db_security import db_security
+        is_valid = db_security.verify_integrity(target)
+    return exists, is_valid
+
+def _handle_recovery_action(parent, msg, target):
+    # S3776: Refactored logic
+    browse_btn = msg.addButton("Sfoglia / Ripristina...", QMessageBox.ButtonRole.ActionRole)
+    create_btn = msg.addButton("Crea Nuovo Database", QMessageBox.ButtonRole.ActionRole)
+    msg.addButton("Esci", QMessageBox.ButtonRole.RejectRole)
+
+    msg.setWindowFlags(msg.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
+    msg.exec()
+
+    clicked = msg.clickedButton()
+    from app.core.config import settings, get_user_data_dir
+    from app.core.db_security import db_security
+    from pathlib import Path
+
+    if clicked == browse_btn:
+        file_path, _ = QFileDialog.getOpenFileName(parent, "Seleziona Database", str(get_user_data_dir()), "Database Files (*.db *.bak)")
+        if file_path:
+            file_path = os.path.normpath(file_path)
+            path_obj = Path(file_path)
+
+            if path_obj.suffix.lower() == ".bak":
+                reply = QMessageBox.question(parent, "Ripristino Backup", f"Ripristinare dal backup:\n{path_obj.name}?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                if reply == QMessageBox.StandardButton.Yes:
+                    try:
+                        db_security.db_path = target
+                        db_security.data_dir = target.parent
+                        db_security.restore_from_backup(path_obj)
+                        restart_app()
+                    except Exception as e:
+                        QMessageBox.critical(parent, "Errore", f"Ripristino fallito: {e}")
+            else:
+                settings.save_mutable_settings({"DATABASE_PATH": file_path})
+                restart_app()
+
+    elif clicked == create_btn:
+        try:
+            dir_path = QFileDialog.getExistingDirectory(parent, "Seleziona Cartella per Nuovo Database", str(get_user_data_dir()))
+            if dir_path:
+                target = Path(dir_path) / DATABASE_FILENAME
+                initialize_new_database(target)
+                restart_app()
+        except Exception as e:
+            QMessageBox.critical(parent, "Errore Creazione", f"Impossibile creare il database:\n{e}")
+
+    else:
+        sys.exit(1)
 
 def check_and_recover_database(controller):
     """
     Checks database integrity and prompts user for recovery actions if needed.
     """
     from app.core.config import settings, get_user_data_dir
-    from app.core.db_security import db_security
     from pathlib import Path
 
     db_path_str = settings.DATABASE_PATH
@@ -398,23 +458,12 @@ def check_and_recover_database(controller):
     else:
          target = get_user_data_dir() / DATABASE_FILENAME
 
-    # 1. Check Existence
-    exists = target.exists()
-
-    # 2. Check Integrity (if exists)
-    is_valid = False
-    if exists:
-        # Check silently if possible, or show minimal feedback
-        # In post-launch, we probably just check validity.
-        # db_security.verify_integrity reads the file.
-        is_valid = db_security.verify_integrity(target)
+    exists, is_valid = _check_db_integrity(target)
 
     if exists and is_valid:
-        # Everything is fine.
         return True
 
-    # 3. Prompt User (Recovery Dialog OVER Login View)
-    # Use controller.login_view as parent if available
+    # 3. Prompt User
     parent = controller.login_view if hasattr(controller, 'login_view') and controller.login_view else None
 
     msg = QMessageBox(parent)
@@ -429,58 +478,7 @@ def check_and_recover_database(controller):
         msg.setText("Il file del database è danneggiato.")
         msg.setInformativeText("Integrità compromessa. Ripristinare un backup o creare un nuovo database.")
 
-    browse_btn = msg.addButton("Sfoglia / Ripristina...", QMessageBox.ButtonRole.ActionRole)
-    create_btn = msg.addButton("Crea Nuovo Database", QMessageBox.ButtonRole.ActionRole)
-    msg.addButton("Esci", QMessageBox.ButtonRole.RejectRole)
-
-    msg.setWindowFlags(msg.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
-    msg.exec()
-
-    clicked = msg.clickedButton()
-
-    if clicked == browse_btn:
-        file_path, _ = QFileDialog.getOpenFileName(parent, "Seleziona Database", str(get_user_data_dir()), "Database Files (*.db *.bak)")
-        if file_path:
-            file_path = os.path.normpath(file_path)
-            path_obj = Path(file_path)
-
-            if path_obj.suffix.lower() == ".bak":
-                # RESTORE LOGIC
-                reply = QMessageBox.question(parent, "Ripristino Backup", f"Ripristinare dal backup:\n{path_obj.name}?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-                if reply == QMessageBox.StandardButton.Yes:
-                    try:
-                        db_security.db_path = target
-                        db_security.data_dir = target.parent
-                        db_security.restore_from_backup(path_obj)
-                        # RESTART REQUIRED to reload DB in backend
-                        restart_app()
-                    except Exception as e:
-                        QMessageBox.critical(parent, "Errore", f"Ripristino fallito: {e}")
-            else:
-                # Update Settings
-                settings.save_mutable_settings({"DATABASE_PATH": file_path})
-                # RESTART REQUIRED
-                restart_app()
-
-    elif clicked == create_btn:
-        try:
-            # Ask user for DIRECTORY
-            dir_path = QFileDialog.getExistingDirectory(parent, "Seleziona Cartella per Nuovo Database", str(get_user_data_dir()))
-            if dir_path:
-                # Enforce standard filename
-                target = Path(dir_path) / DATABASE_FILENAME
-
-                # Initialize with DELETE mode
-                initialize_new_database(target)
-
-                # RESTART REQUIRED
-                restart_app()
-        except Exception as e:
-            QMessageBox.critical(parent, "Errore Creazione", f"Impossibile creare il database:\n{e}")
-
-    else:
-        sys.exit(1)
-
+    _handle_recovery_action(parent, msg, target)
     return False
 
 def post_launch_integrity_check(controller):
