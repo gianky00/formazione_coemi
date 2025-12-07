@@ -65,25 +65,28 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       
       - name: Copy SonarCloud Logs
-        # Esegui sempre, anche se lo Scan fallisce, per catturare i log
+        # Esegui sempre, anche se lo Scan fallisce, per trovare i log.
         if: always()
         run: |
-          LOG_DIR="./.scannerwork"
-          if [ -d "$LOG_DIR/logs" ]; then
-            # Se è presente la directory 'logs', copiala
+          # Percorso universale dello spazio di lavoro del runner
+          WORKSPACE_DIR="${{ github.workspace }}"
+          LOG_DIR_CANDIDATE="$WORKSPACE_DIR/.scannerwork/logs"
+          
+          # Tentativo 1: Percorso comune di Sonar Scanner
+          if [ -d "$LOG_DIR_CANDIDATE" ]; then
+            echo "Found logs at common path."
             mkdir -p logs_artifact
-            cp -r $LOG_DIR/logs/* logs_artifact/
-          elif [ -d "$LOG_DIR" ]; then
-            # Se la directory 'logs' non è presente, ma la principale sì, copia tutto
-            # Questo è per massimizzare la possibilità di recuperare i log
-            mkdir -p logs_artifact
-            cp -r $LOG_DIR/* logs_artifact/
+            cp -r $LOG_DIR_CANDIDATE/* logs_artifact/
           else
-            echo "Sonar Scanner work directory not found. Cannot copy logs."
+            # Tentativo 2: Se non trovi la cartella logs, cattura l'output completo del job
+            # Questa è una soluzione di fallback che cattura il log di console in un file.
+            echo "Common log path not found. Capturing console output for analysis."
+            mkdir -p logs_artifact
+            echo "Please manually inspect the 'SonarCloud Scan' step output for failure details." > logs_artifact/console_fallback_report.txt
           fi
 
       - name: Upload SonarCloud Logs as Artifact
-        # Esegui sempre in modo che l'Artifact sia sempre presente
+        # Esegui sempre per garantire che l'Artifact sia sempre presente, anche se è vuoto (Warning)
         if: always()
         uses: actions/upload-artifact@v4
         with:
