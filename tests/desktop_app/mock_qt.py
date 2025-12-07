@@ -674,7 +674,7 @@ class DummyQWidget(DummyQObject):
     @builtins.property
     def database_changed(self):
         return DummySignal()
-
+    
     @builtins.property
     def linkActivated(self):
         return DummySignal()

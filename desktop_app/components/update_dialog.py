@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QDesktopServices, QUrl
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtGui import QDesktopServices
 
 class UpdateAvailableDialog(QDialog):
     def __init__(self, version, url, parent=None):
