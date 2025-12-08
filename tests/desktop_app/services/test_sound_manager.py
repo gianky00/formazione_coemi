@@ -131,7 +131,6 @@ class TestSoundManager(unittest.TestCase):
             worker.finished.emit.assert_not_called()
 
     @patch('desktop_app.services.sound_manager.HAS_EDGE_TTS', True)
-    @unittest.skip("Skipping due to brittle asyncio/module patching in headless env")
     def test_worker_run_success(self):
         """Test SpeechWorker success path."""
         # Force inject the edge_tts mock into the module since it might be missing

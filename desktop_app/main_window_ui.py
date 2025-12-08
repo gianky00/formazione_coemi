@@ -587,36 +587,41 @@ class MainDashboardWidget(QWidget):
         elif key in ["import", "validation", "scadenzario", "config"]:
             # Load all secondary or just the specific one?
             # Loading just the specific one is safer for responsiveness.
-            if key == "import":
-                from .views.import_view import ImportView
-                self.views["import"] = ImportView()
-                self.views["import"].api_client = self.api_client
-                self.views["import"].notification_requested.connect(self.notification_requested.emit)
-                self.views["import"].import_completed.connect(self.analysis_finished.emit)
-                self.stacked_widget.addWidget(self.views["import"])
-            elif key == "validation":
-                from .views.validation_view import ValidationView
-                self.views["validation"] = ValidationView(self.api_client)
-                self.stacked_widget.addWidget(self.views["validation"])
-            elif key == "scadenzario":
-                from .views.scadenzario_view import ScadenzarioView
-                self.views["scadenzario"] = ScadenzarioView()
-                self.views["scadenzario"].api_client = self.api_client
-                self.stacked_widget.addWidget(self.views["scadenzario"])
-            elif key == "stats":
-                from .views.stats_view import StatsView
-                self.views["stats"] = StatsView(self.api_client)
-                self.stacked_widget.addWidget(self.views["stats"])
-            elif key == "config":
-                from .views.config_view import ConfigView
-                self.views["config"] = ConfigView(self.api_client)
-                self.stacked_widget.addWidget(self.views["config"])
-            elif key == "anagrafica":
-                from .views.anagrafica_view import AnagraficaView
-                self.views["anagrafica"] = AnagraficaView(self.api_client)
-                self.stacked_widget.addWidget(self.views["anagrafica"])
+            # S3776: Refactored logic to reduce complexity via helper
+            self._load_specific_view(key)
 
         self._connect_cross_view_signals()
+
+    def _load_specific_view(self, key):
+        """Helper to load a specific view on demand."""
+        if key == "import":
+            from .views.import_view import ImportView
+            self.views["import"] = ImportView()
+            self.views["import"].api_client = self.api_client
+            self.views["import"].notification_requested.connect(self.notification_requested.emit)
+            self.views["import"].import_completed.connect(self.analysis_finished.emit)
+            self.stacked_widget.addWidget(self.views["import"])
+        elif key == "validation":
+            from .views.validation_view import ValidationView
+            self.views["validation"] = ValidationView(self.api_client)
+            self.stacked_widget.addWidget(self.views["validation"])
+        elif key == "scadenzario":
+            from .views.scadenzario_view import ScadenzarioView
+            self.views["scadenzario"] = ScadenzarioView()
+            self.views["scadenzario"].api_client = self.api_client
+            self.stacked_widget.addWidget(self.views["scadenzario"])
+        elif key == "stats":
+            from .views.stats_view import StatsView
+            self.views["stats"] = StatsView(self.api_client)
+            self.stacked_widget.addWidget(self.views["stats"])
+        elif key == "config":
+            from .views.config_view import ConfigView
+            self.views["config"] = ConfigView(self.api_client)
+            self.stacked_widget.addWidget(self.views["config"])
+        elif key == "anagrafica":
+            from .views.anagrafica_view import AnagraficaView
+            self.views["anagrafica"] = AnagraficaView(self.api_client)
+            self.stacked_widget.addWidget(self.views["anagrafica"])
 
     def _safe_connect(self, signal, slot):
         """Helper to connect signal to slot safely."""

@@ -79,16 +79,6 @@ class TestLauncherRobustness(unittest.TestCase):
 
     def test_verify_license_files_user_dir(self):
         """Test license verification in user directory."""
-        # The issue is that verify_license_files checks for specfic filenames joined with dir.
-        # We need to ensure get_license_dir returns something consistent with our exists check.
-        # mock_path_service.get_user_data_dir return value is /tmp/mock_user_data
-        
-        # We need to make sure get_license_dir() is patched or behaves correctly.
-        # In launcher, it imports get_license_dir from path_service.
-        
-        # Let's inspect what get_license_dir does. It probably returns user_data_dir/Licenza?
-        # Let's just mock get_license_dir directly on the module mock we injected.
-        
         mock_path_service.get_license_dir = MagicMock(return_value='/tmp/mock_user_data/Licenza')
         
         with patch('os.path.exists') as m_exists:
@@ -113,40 +103,9 @@ class TestLauncherRobustness(unittest.TestCase):
         mock_splash = MagicMock()
         
         with patch('launcher.verify_license_files', return_value=True):
-            # Patch importlib.import_module
-            # The test failure implies importlib.import_module raised an exception or didn't work as expected.
-            # When importlib.import_module is patched, the mock object doesn't raise exception by default.
-            # So the try block succeeds -> valid_license = True -> returns.
-            #
-            # The only way to reach sys.exit(1) is if valid_license is False.
-            # This means the except block was hit.
-            # Why?
-            # Maybe because patch('importlib.import_module') returns a MagicMock, and calling it works fine.
-
-            # Wait, verify_license_files=True means we enter the IF block.
-            # Then we call import_module.
-            # If that succeeds, valid_license = True.
-
-            # Let's verify what happens.
-            # I suspect maybe verify_license_files mock isn't working as intended because of how it's imported?
-            # launcher imports verify_license_files? No, it defines it.
-            # The patch targets 'launcher.verify_license_files'. That is correct.
-
-            # Maybe indentation error in my head vs reality?
-            # Let's check the code:
-            # if files_ok:
-            #    try: ... valid_license=True ... except: ...
-
-            # If verify_license_files returns True, we enter.
-            # If importlib.import_module works, valid_license=True.
-
             with patch('importlib.import_module') as mock_import:
-                # Ensure it returns something valid
                 mock_import.return_value = MagicMock()
-
                 launcher.check_license_gatekeeper(mock_splash)
-
-                # Assert it was called
                 mock_import.assert_called_with('app.core.config')
 
     def test_check_license_gatekeeper_invalid_update_success(self):
@@ -204,6 +163,7 @@ class TestLauncherRobustness(unittest.TestCase):
     @patch('launcher.start_server')
     @patch('launcher.check_port', return_value=True)
     @patch('requests.get')
+    # Use return_value instead of side_effect for simple return unless iterating
     @patch('desktop_app.services.security_service.is_analysis_tool_running', return_value=(False, "OK"))
     def test_startup_worker_success(self, m_is_analysis, m_get, m_check, m_start):
         """Test successful startup sequence."""
@@ -215,17 +175,19 @@ class TestLauncherRobustness(unittest.TestCase):
         worker.progress_update = MagicMock()
         worker.startup_complete = MagicMock()
         worker.error_occurred = MagicMock()
-        
-        worker.run()
+
+        # Patch verify_critical_components since it runs inside run()
+        with patch('desktop_app.services.integrity_service.verify_critical_components', return_value=(True, "OK")):
+             # Patch check_system_clock
+             with patch('desktop_app.services.time_service.check_system_clock', return_value=(True, "OK")):
+                # Ensure is_analysis_tool_running is returning (False, "OK") via the decorator logic
+                # The decorator argument return_value might not be enough if it's called multiple times?
+                # No, standard MagicMock return_value is fine.
+                
+                worker.run()
         
         # Assert start called
-        if m_start.call_count == 0:
-             # If cached or not called due to logic?
-             # But this is StartupWorker, it calls start_server directly.
-             pass
-        else:
-             m_start.assert_called()
-
+        m_start.assert_called()
         worker.startup_complete.emit.assert_called_with(True, "OK")
 
     @patch('launcher.start_server')
@@ -238,14 +200,11 @@ class TestLauncherRobustness(unittest.TestCase):
         
         # Patch time service and security service components
         with patch('desktop_app.services.time_service.check_system_clock', return_value=(True, None)):
-            # The integrity service verifies if functions are real. We need to mock verify_critical_components too.
             with patch('desktop_app.services.integrity_service.verify_critical_components', return_value=(True, "OK")):
-                # Also patch is_analysis_tool_running since it's imported
-                with patch('desktop_app.services.security_service.is_analysis_tool_running', return_value=False):
+                with patch('desktop_app.services.security_service.is_analysis_tool_running', return_value=(False, "OK")):
                     worker = launcher.StartupWorker(8000)
                     worker.progress_update = MagicMock()
                     worker.error_occurred = MagicMock()
-                    # Mock signal emission
                     worker.error_occurred.emit = MagicMock()
 
                     worker.run()
@@ -262,33 +221,14 @@ class TestLauncherRobustness(unittest.TestCase):
         worker.error_occurred = MagicMock()
         worker.error_occurred.emit = MagicMock()
         
-        # We patch time.time inside to force timeout logic
-        # Sequence: start time, loop check 1 (fail), loop check 2 (timeout)
-        # It needs enough values because it calls time.time() in loop: 
-        # t0=time(), check condition time()-t0 < 20
-        # sleep calls? maybe not if we patch sleep
-        # We need to make sure it enters loop at least once then exits
         with patch('time.sleep'): 
             with patch('time.time', side_effect=[100, 100, 105, 130, 130, 130]):
-                 # t0=100.
-                 # Loop 1: 100-100 < 20 -> True. Check port (fails). Sleep.
-                 # Loop 2: 105-100 < 20 -> True. Check port (fails). Sleep.
-                 # Loop 3: 130-100 < 20 -> False. Break.
                  with patch('desktop_app.services.time_service.check_system_clock', return_value=(True, None)):
                     with patch('desktop_app.services.integrity_service.verify_critical_components', return_value=(True, "OK")):
-                        with patch('desktop_app.services.security_service.is_analysis_tool_running', return_value=False):
+                        with patch('desktop_app.services.security_service.is_analysis_tool_running', return_value=(False, "OK")):
                              worker.run()
                  
         worker.error_occurred.emit.assert_called()
-        # If it fails with empty string, check if we caught an Exception with no message
-        # But let's see what args were passed
         args = worker.error_occurred.emit.call_args[0]
-        # In case exception message is empty or formatted weirdly.
-        # But logic says raise Exception("Timeout...")
-        # Maybe check if args[0] is not empty
         if args and args[0]:
              self.assertIn("Timeout", args[0])
-        else:
-             # If empty, maybe it's capturing something else, but failing assertion is better than ignoring
-             # Let's print for debugging if possible or just assert True if we assume timeout logic ran.
-             pass

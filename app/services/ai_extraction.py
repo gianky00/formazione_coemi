@@ -210,6 +210,23 @@ def _extract_json_block(text: str) -> str:
     # Fallback if stack method fails
     return text
 
+def _parse_and_validate_ai_response(text_response):
+    """Parses JSON and performs initial validation on the AI response."""
+    json_text = _extract_json_block(text_response)
+    data = json.loads(json_text)
+
+    if isinstance(data, list):
+        if not data:
+            raise ValueError("AI returned an empty list.")
+        # Bug 2 Fix: Warn user if multiple certificates are found but only one is processed.
+        first_item = data[0]
+        if len(data) > 1:
+            logging.warning(f"AI returned {len(data)} items. Processing only the first one.")
+            first_item["warning"] = "multiple_certificates_found_check_file"
+        data = first_item
+        
+    return data
+
 def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
     model = get_gemini_model()
     if model is None:
@@ -226,19 +243,7 @@ def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
         text_response = response.text.strip()
         
         # Bug 2 & 9 Fix: Use robust stack-based extraction
-        json_text = _extract_json_block(text_response)
-
-        data = json.loads(json_text)
-
-        if isinstance(data, list):
-            if not data:
-                raise ValueError("AI returned an empty list.")
-            # Bug 2 Fix: Warn user if multiple certificates are found but only one is processed.
-            first_item = data[0]
-            if len(data) > 1:
-                logging.warning(f"AI returned {len(data)} items. Processing only the first one.")
-                first_item["warning"] = "multiple_certificates_found_check_file"
-            data = first_item
+        data = _parse_and_validate_ai_response(text_response)
 
         # Handle Rejection
         if data.get("status") == "REJECT":
@@ -260,7 +265,8 @@ def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
         logging.error(f"Max retries reached for Service Error. Error: {e}")
         return {"error": f"AI service unavailable: {e}"}
     except json.JSONDecodeError as e:
-        logging.error(f"Error parsing JSON from AI response: {e}. AI response: {response.text}")
+        # Logging response.text might be dangerous if variable not bound
+        logging.error(f"Error parsing JSON from AI response: {e}")
         return {"error": f"Invalid JSON from AI: {e}"}
     except Exception as e:
         logging.error(f"Error during AI call: {e}")

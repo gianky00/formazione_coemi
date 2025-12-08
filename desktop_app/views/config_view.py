@@ -249,35 +249,6 @@ class UserManagementWidget(QFrame):
             except Exception as e:
                 CustomMessageDialog.show_error(self, "Errore", str(e))
 
-    def change_own_password(self):
-        dialog = ChangePasswordDialog(self)
-        if dialog.exec():
-            data = dialog.get_data()
-            if not data['old_password'] or not data['new_password']:
-                CustomMessageDialog.show_warning(self, "Errore", "Tutti i campi sono obbligatori.")
-                return
-
-            if data['new_password'] != data['confirm_password']:
-                CustomMessageDialog.show_warning(self, "Errore", "Le nuove password non corrispondono.")
-                return
-
-            try:
-                response = self.api_client.change_password(data['old_password'], data['new_password'])
-                CustomMessageDialog.show_info(self, "Successo", response.get("message", "Password aggiornata."))
-            except Exception as e:
-                # S5754: Re-raise handled exception or swallow intentionally?
-                # Logic here was: try to show nice message if possible, else generic.
-                try:
-                    if hasattr(e, 'response') and e.response is not None:
-                        err_json = e.response.json()
-                        detail = err_json.get('detail', str(e))
-                        CustomMessageDialog.show_error(self, "Errore", "Errore: " + detail)
-                    else:
-                        CustomMessageDialog.show_error(self, "Errore", str(e))
-                except Exception as inner_e:
-                    # S5754: Handle exception properly
-                    CustomMessageDialog.show_error(self, "Errore Critico", f"Errore: {e}\n(Dettagli: {inner_e})")
-
     def _validate_change_password(self, data):
         """Validates password change inputs."""
         if not data['old_password'] or not data['new_password']:

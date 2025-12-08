@@ -15,7 +15,6 @@ import sqlite3
 from app.core.db_security import DBSecurityManager
 import pytest
 
-@pytest.mark.skip(reason="File system mocking is brittle in headless CI environment")
 class TestDBSecurityFailures(unittest.TestCase):
     
     def setUp(self):

@@ -20,6 +20,9 @@ from .ipc_bridge import IPCBridge
 import os
 from app.core.db_security import db_security
 
+# --- CONSTANTS ---
+STR_SOLA_LETTURA = "Sola Lettura"
+
 class InactivityFilter(QObject):
     reset_timer = pyqtSignal()
 
@@ -543,9 +546,7 @@ class ApplicationController:
         Triggers analysis (file or folder).
         """
         if self.dashboard and getattr(self.dashboard, 'is_read_only', False):
-            # S1192: Use duplicated string literal if extracting constants or just ignore 3 times.
-            # Using literal here as extracting to a constant file for UI messages is out of scope for this pass.
-            CustomMessageDialog.show_warning(self.master_window, "Sola Lettura", "Impossibile avviare l'analisi in modalità Sola Lettura.")
+            CustomMessageDialog.show_warning(self.master_window, STR_SOLA_LETTURA, "Impossibile avviare l'analisi in modalità Sola Lettura.")
             return
 
         self._execute_or_defer_action("analyze", path, self.dashboard.analyze_path if self.dashboard else None)
@@ -555,7 +556,7 @@ class ApplicationController:
         Triggers CSV import logic.
         """
         if self.dashboard and getattr(self.dashboard, 'is_read_only', False):
-            CustomMessageDialog.show_warning(self.master_window, "Sola Lettura", "Impossibile importare CSV in modalità Sola Lettura.")
+            CustomMessageDialog.show_warning(self.master_window, STR_SOLA_LETTURA, "Impossibile importare CSV in modalità Sola Lettura.")
             return
 
         if not self.dashboard:
@@ -578,24 +579,37 @@ class ApplicationController:
 
     def on_login_success(self, user_info):
         # Create Dashboard if not exists
+        self._ensure_dashboard_created()
+
+        # Setup Session Managers
+        self._setup_session_managers()
+
+        # Propagate Read-Only State
+        is_read_only = user_info.get("read_only", False)
+        self.dashboard.set_read_only_mode(is_read_only)
+
+        # Update User Info in Sidebar
+        self._update_sidebar_user_info(user_info)
+
+        # Connect Signals
+        self._connect_dashboard_signals()
+        
+        # Transition
+        self.master_window.show_dashboard(self.dashboard)
+
+        # Voice Welcome
+        self._play_welcome_message(user_info)
+
+        # Handle deferred action
+        if self.pending_action:
+            self._handle_deferred_action(is_read_only)
+
+    def _ensure_dashboard_created(self):
         if not self.dashboard:
             self.dashboard = MainDashboardWidget(self.api_client)
             self.dashboard.logout_requested.connect(self.on_logout)
-            
-            # Connect signals from Dashboard for Voice Feedback
-            # Need to connect import_view signal but views are lazy loaded.
-            # MainDashboardWidget emits signals via its own notification_requested or similar?
-            # MainDashboardWidget has `_connect_cross_view_signals`.
-            
-            # We can use QTimer to check when ImportView is loaded, or modify MainDashboardWidget
-            # to emit a specific signal 'analysis_completed'.
-            
-            # Easier: Connect to notification_requested. If title indicates completion...
-            # But specific message "Hey [User], ho terminato..." is required.
-            
-            # We can expose a method on Dashboard to register for completion.
-            # S2772: Removed useless pass
 
+    def _setup_session_managers(self):
         # Start Inactivity Timer (1 hour)
         self.inactivity_timer = QTimer()
         self.inactivity_timer.setInterval(3600 * 1000) # 1 hour
@@ -607,13 +621,8 @@ class ApplicationController:
         self.inactivity_filter.reset_timer.connect(self.reset_inactivity_timer)
         QApplication.instance().installEventFilter(self.inactivity_filter)
 
-        # Propagate Read-Only State
-        is_read_only = user_info.get("read_only", False)
-        self.dashboard.set_read_only_mode(is_read_only)
-
-        # Update User Info in Sidebar
+    def _update_sidebar_user_info(self, user_info):
         account_name = user_info.get("account_name") or user_info.get("username")
-
         prev_login_raw = user_info.get("previous_login")
         if prev_login_raw and str(prev_login_raw).lower() != "none":
             try:
@@ -634,37 +643,26 @@ class ApplicationController:
 
         self.dashboard.sidebar.set_user_info(account_name, display_str)
 
+    def _connect_dashboard_signals(self):
         # Connect notification signal from dashboard
-        self.dashboard.notification_requested.connect(self.show_notification)
-        
-        # Connect Analysis Completion for Voice
-        self.dashboard.analysis_finished.connect(self.on_analysis_finished)
-        
-        # Transition
-        self.master_window.show_dashboard(self.dashboard)
-
-        # Check for pending documents notification
-        # S1481: Unused pending_count removed
-        
-        # Play Welcome Speech (Voice Service)
-        # "Bentornato. Ci sono [N] certificati in scadenza."
-        
-        # Calculate expiring
         try:
+            self.dashboard.notification_requested.connect(self.show_notification)
+            # Connect Analysis Completion for Voice
+            self.dashboard.analysis_finished.connect(self.on_analysis_finished)
+        except Exception:
+            pass # Already connected
+
+    def _play_welcome_message(self, user_info):
+        try:
+            account_name = user_info.get("account_name") or user_info.get("username")
             all_certs = self.api_client.get("certificati")
             expiring_count = 0
             for cert in all_certs:
                 status = cert.get("stato_certificato")
-                if status == "in_scadenza": # Requirements said "in scadenza", maybe exclude "scaduto"?
-                    # "Ci sono [N] certificati in scadenza." implies future tense? 
-                    # Usually users care about expiring AND expired.
-                    # I'll stick to requirement literal or useful?
-                    # "Ci sono [N] certificati in scadenza."
+                if status == "in_scadenza":
                     expiring_count += 1
             
-            # Also expired?
             expired_count = sum(1 for c in all_certs if c.get("stato_certificato") == "scaduto")
-            
             total_issues = expiring_count + expired_count
             
             message_text = f"Bentornato {account_name}."
@@ -676,16 +674,12 @@ class ApplicationController:
             QTimer.singleShot(1500, lambda: self.voice_service.speak(message_text))
             
         except Exception as e:
-            print(f"[Controller] Error fetching expiring certs: {e}")
-
-        # Handle deferred action
-        if self.pending_action:
-            self._handle_deferred_action(is_read_only)
+            print(f"[Controller] Error fetching expiring certs for welcome message: {e}")
 
     def _handle_deferred_action(self, is_read_only):
         """Executes any pending action after login."""
         if is_read_only:
-            CustomMessageDialog.show_warning(self.master_window, "Sola Lettura",
+            CustomMessageDialog.show_warning(self.master_window, STR_SOLA_LETTURA,
                                 "L'azione richiesta è stata annullata perché il database è in modalità Sola Lettura.")
         else:
             action = self.pending_action.get("action")

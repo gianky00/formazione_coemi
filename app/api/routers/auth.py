@@ -114,6 +114,7 @@ def login_access_token(
 
     log_security_action(db, user, "LOGIN", "Utente connesso con successo", category="AUTH", request=request)
 
+    # Fix: Initialize lock_owner to None if not present (although acquire_session_lock returns {})
     return {
         "access_token": access_token,
         "token_type": "bearer",
@@ -124,7 +125,7 @@ def login_access_token(
         "is_admin": user.is_admin,
         "previous_login": user.previous_login,
         "read_only": not success,
-        "lock_owner": owner_info,
+        "lock_owner": owner_info if owner_info else None, # Ensure None if empty dict/false
         "require_password_change": require_password_change
     }
 

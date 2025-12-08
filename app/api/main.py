@@ -36,6 +36,8 @@ STR_NON_TROVATO = "Non trovato in anagrafica (matricola mancante)."
 STR_CERT_NON_TROVATO = "Certificato non trovato"
 STR_DIP_NON_TROVATO = "Dipendente non trovato"
 
+# --- Private Helpers ---
+
 def _get_orphan_cert_data(cert):
     """Helper to extract data from an orphan certificate for file lookup."""
     return {
@@ -88,18 +90,6 @@ def _process_orphan_cert(cert, match, database_path, db):
         except Exception as e:
             print(f"Error moving orphan file {old_cert_data}: {e}")
 
-@router.get("/")
-def read_root():
-    return {"message": "Welcome to the Scadenziario IA API"}
-
-@router.get("/corsi")
-def get_corsi(db: Session = Depends(get_db), license: bool = Depends(deps.verify_license)):
-    return db.query(Corso).all()
-
-@router.get("/health")
-def health_check():
-    return {"status": "ok"}
-
 async def _read_file_securely(file: UploadFile, max_size: int) -> bytes:
     """Reads file content securely enforcing size limits."""
     content = bytearray()
@@ -133,50 +123,6 @@ def _infer_expiration_date(db, extracted_data):
         except (ValueError, TypeError):
             pass
 
-@router.post("/upload-pdf/", dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
-async def upload_pdf(
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-    current_user: UserModel = Depends(deps.get_current_user)
-):
-    pdf_bytes = await _read_file_securely(file, settings.MAX_UPLOAD_SIZE)
-
-    if not verify_file_signature(pdf_bytes, 'pdf'):
-         raise HTTPException(status_code=400, detail="File non valido: firma digitale PDF non riconosciuta.")
-
-    extracted_data = ai_extraction.extract_entities_with_ai(pdf_bytes)
-    if "error" in extracted_data:
-        if extracted_data.get("is_rejected"):
-             log_security_action(db, current_user, "AI_REJECT", f"File rejected by AI: {file.filename}. Reason: {extracted_data['error']}", category="AI_ANALYSIS", severity="MEDIUM")
-             raise HTTPException(status_code=422, detail=extracted_data["error"])
-        if extracted_data.get("status_code") == 429:
-            raise HTTPException(status_code=429, detail=extracted_data["error"])
-        raise HTTPException(status_code=500, detail=extracted_data["error"])
-
-    _normalize_extracted_dates(extracted_data)
-    _infer_expiration_date(db, extracted_data)
-
-    return {"filename": file.filename, "entities": extracted_data}
-
-@router.get("/certificati/", response_model=List[CertificatoSchema], dependencies=[Depends(deps.verify_license)])
-def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depends(get_db)):
-    query = db.query(Certificato).options(selectinload(Certificato.dipendente), selectinload(Certificato.corso))
-    if validated is not None:
-        query = query.filter(Certificato.stato_validazione == (ValidationStatus.MANUAL if validated else ValidationStatus.AUTOMATIC))
-
-    certificati = query.all()
-
-    # Optimize: Calculate statuses in bulk to avoid N+1 queries
-    status_map = certificate_logic.get_bulk_certificate_statuses(db, certificati)
-
-    result = []
-    for cert in certificati:
-        if not cert.corso:
-            continue
-
-        _append_cert_to_result(cert, status_map, result)
-    return result
-
 def _append_cert_to_result(cert, status_map, result):
     """Helper to format and append certificate to result list."""
     ragione_fallimento = None
@@ -203,35 +149,6 @@ def _append_cert_to_result(cert, status_map, result):
         stato_certificato=status,
         assegnazione_fallita_ragione=ragione_fallimento
     ))
-
-@router.get("/certificati/{certificato_id}", response_model=CertificatoSchema, dependencies=[Depends(deps.verify_license)])
-def get_certificato(certificato_id: int, db: Session = Depends(get_db)):
-    db_cert = db.get(Certificato, certificato_id)
-    if not db_cert:
-        raise HTTPException(status_code=404, detail=STR_CERT_NON_TROVATO)
-
-    status = certificate_logic.get_certificate_status(db, db_cert)
-
-    if db_cert.dipendente:
-        nome_completo = f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}"
-        data_nascita = db_cert.dipendente.data_nascita.strftime(DATE_FORMAT_DMY) if db_cert.dipendente.data_nascita else None
-        matricola = db_cert.dipendente.matricola
-    else:
-        nome_completo = db_cert.nome_dipendente_raw or STR_DA_ASSEGNARE
-        data_nascita = db_cert.data_nascita_raw
-        matricola = None
-
-    return CertificatoSchema(
-        id=db_cert.id,
-        nome=nome_completo,
-        data_nascita=data_nascita,
-        matricola=matricola,
-        corso=db_cert.corso.nome_corso,
-        categoria=db_cert.corso.categoria_corso or "General",
-        data_rilascio=db_cert.data_rilascio.strftime(DATE_FORMAT_DMY),
-        data_scadenza=db_cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY) if db_cert.data_scadenza_calcolata else None,
-        stato_certificato=status
-    )
 
 def _get_or_create_course(db, categoria, corso_nome):
     master_course = db.query(Corso).filter(Corso.categoria_corso.ilike(f"%{categoria.strip()}%")).first()
@@ -293,6 +210,263 @@ def _archive_obsolete_certs(db, new_cert):
                 archive_certificate_file(db, old_cert)
     except Exception as e:
         print(f"Error archiving older certificates: {e}")
+
+def _handle_file_rename(database_path, status, old_file_path, new_cert_data):
+    """Helper to handle file renaming during certificate update."""
+    # Determine target status folder
+    if status in ["attivo", "in_scadenza"]:
+        target_status = "ATTIVO"
+    else:
+        target_status = "STORICO"
+
+    new_file_path = construct_certificate_path(database_path, new_cert_data, status=target_status)
+
+    if old_file_path != new_file_path:
+        # Bug 5 Fix: Prevent Overwrite
+        dest_dir = os.path.dirname(new_file_path)
+        os.makedirs(dest_dir, exist_ok=True)
+
+        filename = os.path.basename(new_file_path)
+        unique_filename = get_unique_filename(dest_dir, filename)
+        new_file_path = os.path.join(dest_dir, unique_filename)
+
+        shutil.move(old_file_path, new_file_path)
+        return True, new_file_path
+
+    return False, None
+
+def _update_cert_fields(db_cert, update_data, db):
+    """Updates basic fields and handles employee matching logic."""
+    if 'data_nascita' in update_data:
+        db_cert.data_nascita_raw = update_data['data_nascita']
+
+    if 'nome' in update_data:
+        if not update_data['nome'] or not update_data['nome'].strip():
+            raise HTTPException(status_code=400, detail="Il nome non può essere vuoto.")
+        db_cert.nome_dipendente_raw = update_data['nome'].strip()
+        if len(db_cert.nome_dipendente_raw.split()) < 2:
+            raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
+
+    if 'nome' in update_data or 'data_nascita' in update_data:
+        search_name = db_cert.nome_dipendente_raw
+        dob_str = db_cert.data_nascita_raw
+        dob = parse_date_flexible(dob_str) if dob_str else None
+        
+        if search_name:
+            match = matcher.find_employee_by_name(db, search_name, dob)
+            db_cert.dipendente_id = match.id if match else None
+
+    if 'data_rilascio' in update_data:
+        db_cert.data_rilascio = datetime.strptime(update_data['data_rilascio'], DATE_FORMAT_DMY).date()
+
+    if 'data_scadenza' in update_data:
+        scadenza = update_data['data_scadenza']
+        db_cert.data_scadenza_calcolata = datetime.strptime(scadenza, DATE_FORMAT_DMY).date() if scadenza and scadenza.strip() and scadenza.lower() != 'none' else None
+
+def _update_cert_course(db_cert, update_data, db):
+    """Updates course relationship if category or course name changed."""
+    if 'categoria' in update_data or 'corso' in update_data:
+        categoria = update_data.get('categoria', db_cert.corso.categoria_corso)
+        master_course = db.query(Corso).filter(Corso.categoria_corso.ilike(f"%{categoria}%")).first()
+        if not master_course:
+            raise HTTPException(status_code=404, detail=f"Categoria '{categoria}' non trovata.")
+
+        corso_nome = update_data.get('corso', db_cert.corso.nome_corso)
+        course = db.query(Corso).filter(
+            Corso.nome_corso.ilike(f"%{corso_nome}%"),
+            Corso.categoria_corso.ilike(f"%{categoria}%")
+        ).first()
+        if not course:
+            course = Corso(
+                nome_corso=corso_nome,
+                validita_mesi=master_course.validita_mesi,
+                categoria_corso=master_course.categoria_corso
+            )
+            db.add(course)
+            db.flush()
+        db_cert.corso_id = course.id
+
+def _sync_cert_file_system(db_cert, old_cert_data, db):
+    """Synchronizes file system changes after certificate update."""
+    file_moved = False
+    old_file_path = None
+    new_file_path = None
+
+    # Ensure relations loaded
+    if not db_cert.dipendente and db_cert.dipendente_id:
+         db_cert.dipendente = db.get(Dipendente, db_cert.dipendente_id)
+    if not db_cert.corso:
+         db_cert.corso = db.query(Corso).get(db_cert.corso_id)
+
+    new_cert_data = {
+        'nome': f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}" if db_cert.dipendente else db_cert.nome_dipendente_raw,
+        'matricola': db_cert.dipendente.matricola if db_cert.dipendente else None,
+        'categoria': db_cert.corso.categoria_corso if db_cert.corso else None,
+        'data_scadenza': db_cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY) if db_cert.data_scadenza_calcolata else None
+    }
+
+    status = certificate_logic.get_certificate_status(db, db_cert)
+
+    if old_cert_data != new_cert_data:
+        database_path = settings.DATABASE_PATH or str(get_user_data_dir())
+        if database_path:
+            old_file_path = find_document(database_path, old_cert_data)
+            if old_file_path and os.path.exists(old_file_path):
+                file_moved, new_file_path = _handle_file_rename(
+                    database_path, status, old_file_path, new_cert_data
+                )
+    return file_moved, old_file_path, new_file_path, status
+
+def _handle_new_dipendente(db, warnings, data):
+    """Helper to handle new or ambiguous employee logic."""
+    cognome, nome, parsed_data_nascita, badge, parsed_data_assunzione, data_nascita_str = data
+
+    found_by_identity = False
+    if parsed_data_nascita:
+        matches = db.query(Dipendente).filter(
+            Dipendente.nome.ilike(nome),
+            Dipendente.cognome.ilike(cognome),
+            Dipendente.data_nascita == parsed_data_nascita
+        ).all()
+
+        if len(matches) == 1:
+            dipendente = matches[0]
+            dipendente.matricola = badge
+            dipendente.nome = nome
+            dipendente.cognome = cognome
+            if parsed_data_assunzione:
+                dipendente.data_assunzione = parsed_data_assunzione
+            found_by_identity = True
+        elif len(matches) > 1:
+            warnings.append(f"Duplicato rilevato per {cognome} {nome} ({data_nascita_str}). Impossibile assegnare matricola {badge} automaticamente.")
+            return
+
+    if not found_by_identity:
+        dipendente = Dipendente(
+            cognome=cognome,
+            nome=nome,
+            matricola=badge,
+            data_nascita=parsed_data_nascita,
+            data_assunzione=parsed_data_assunzione
+        )
+        db.add(dipendente)
+
+def _process_csv_row(row, db, warnings):
+    """Processes a single row from the CSV import."""
+    cognome = row.get('Cognome')
+    nome = row.get('Nome')
+    data_nascita = row.get('Data_nascita')
+    badge = row.get('Badge')
+    data_assunzione = row.get('Data_assunzione')
+
+    if not all([cognome, nome, badge]):
+        return
+
+    parsed_data_nascita = parse_date_flexible(data_nascita) if data_nascita else None
+    parsed_data_assunzione = parse_date_flexible(data_assunzione) if data_assunzione else None
+
+    # Step 1: Cerca per Matricola (Upsert standard)
+    dipendente = db.query(Dipendente).filter(Dipendente.matricola == badge).first()
+
+    if dipendente:
+        # Trovato per matricola -> Aggiorna dati anagrafici
+        dipendente.cognome = cognome
+        dipendente.nome = nome
+        dipendente.data_nascita = parsed_data_nascita
+        if parsed_data_assunzione:
+            dipendente.data_assunzione = parsed_data_assunzione
+    else:
+        # Step 2: Matricola non trovata
+        _handle_new_dipendente(
+            db, warnings,
+            (cognome, nome, parsed_data_nascita, badge, parsed_data_assunzione, data_nascita)
+        )
+
+# --- Routes ---
+
+@router.get("/")
+def read_root():
+    return {"message": "Welcome to the Scadenziario IA API"}
+
+@router.get("/corsi")
+def get_corsi(db: Session = Depends(get_db), license: bool = Depends(deps.verify_license)):
+    return db.query(Corso).all()
+
+@router.get("/health")
+def health_check():
+    return {"status": "ok"}
+
+@router.post("/upload-pdf/", dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
+async def upload_pdf(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_user)
+):
+    pdf_bytes = await _read_file_securely(file, settings.MAX_UPLOAD_SIZE)
+
+    if not verify_file_signature(pdf_bytes, 'pdf'):
+         raise HTTPException(status_code=400, detail="File non valido: firma digitale PDF non riconosciuta.")
+
+    extracted_data = ai_extraction.extract_entities_with_ai(pdf_bytes)
+    if "error" in extracted_data:
+        if extracted_data.get("is_rejected"):
+             log_security_action(db, current_user, "AI_REJECT", f"File rejected by AI: {file.filename}. Reason: {extracted_data['error']}", category="AI_ANALYSIS", severity="MEDIUM")
+             raise HTTPException(status_code=422, detail=extracted_data["error"])
+        if extracted_data.get("status_code") == 429:
+            raise HTTPException(status_code=429, detail=extracted_data["error"])
+        raise HTTPException(status_code=500, detail=extracted_data["error"])
+
+    _normalize_extracted_dates(extracted_data)
+    _infer_expiration_date(db, extracted_data)
+
+    return {"filename": file.filename, "entities": extracted_data}
+
+@router.get("/certificati/", response_model=List[CertificatoSchema], dependencies=[Depends(deps.verify_license)])
+def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depends(get_db)):
+    query = db.query(Certificato).options(selectinload(Certificato.dipendente), selectinload(Certificato.corso))
+    if validated is not None:
+        query = query.filter(Certificato.stato_validazione == (ValidationStatus.MANUAL if validated else ValidationStatus.AUTOMATIC))
+
+    certificati = query.all()
+
+    # Optimize: Calculate statuses in bulk to avoid N+1 queries
+    status_map = certificate_logic.get_bulk_certificate_statuses(db, certificati)
+
+    result = []
+    for cert in certificati:
+        if not cert.corso:
+            continue
+        _append_cert_to_result(cert, status_map, result)
+    return result
+
+@router.get("/certificati/{certificato_id}", response_model=CertificatoSchema, dependencies=[Depends(deps.verify_license)])
+def get_certificato(certificato_id: int, db: Session = Depends(get_db)):
+    db_cert = db.get(Certificato, certificato_id)
+    if not db_cert:
+        raise HTTPException(status_code=404, detail=STR_CERT_NON_TROVATO)
+
+    status = certificate_logic.get_certificate_status(db, db_cert)
+
+    if db_cert.dipendente:
+        nome_completo = f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}"
+        data_nascita = db_cert.dipendente.data_nascita.strftime(DATE_FORMAT_DMY) if db_cert.dipendente.data_nascita else None
+        matricola = db_cert.dipendente.matricola
+    else:
+        nome_completo = db_cert.nome_dipendente_raw or STR_DA_ASSEGNARE
+        data_nascita = db_cert.data_nascita_raw
+        matricola = None
+
+    return CertificatoSchema(
+        id=db_cert.id,
+        nome=nome_completo,
+        data_nascita=data_nascita,
+        matricola=matricola,
+        corso=db_cert.corso.nome_corso,
+        categoria=db_cert.corso.categoria_corso or "General",
+        data_rilascio=db_cert.data_rilascio.strftime(DATE_FORMAT_DMY),
+        data_scadenza=db_cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY) if db_cert.data_scadenza_calcolata else None,
+        stato_certificato=status
+    )
 
 @router.post("/certificati/", response_model=CertificatoSchema, dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
 def create_certificato(
@@ -395,30 +569,6 @@ def valida_certificato(
         stato_certificato=status
     )
 
-def _handle_file_rename(database_path, status, old_file_path, new_cert_data):
-    """Helper to handle file renaming during certificate update."""
-    # Determine target status folder
-    if status in ["attivo", "in_scadenza"]:
-        target_status = "ATTIVO"
-    else:
-        target_status = "STORICO"
-
-    new_file_path = construct_certificate_path(database_path, new_cert_data, status=target_status)
-
-    if old_file_path != new_file_path:
-        # Bug 5 Fix: Prevent Overwrite
-        dest_dir = os.path.dirname(new_file_path)
-        os.makedirs(dest_dir, exist_ok=True)
-
-        filename = os.path.basename(new_file_path)
-        unique_filename = get_unique_filename(dest_dir, filename)
-        new_file_path = os.path.join(dest_dir, unique_filename)
-
-        shutil.move(old_file_path, new_file_path)
-        return True, new_file_path
-
-    return False, None
-
 @router.put("/certificati/{certificato_id}", response_model=CertificatoSchema, dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
 def update_certificato(
     certificato_id: int,
@@ -426,6 +576,7 @@ def update_certificato(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_user)
 ):
+    # S3776: Refactored to reduce complexity
     db_cert = db.get(Certificato, certificato_id)
     if not db_cert:
         raise HTTPException(status_code=404, detail=STR_CERT_NON_TROVATO)
@@ -440,61 +591,8 @@ def update_certificato(
 
     update_data = certificato.model_dump(exclude_unset=True)
 
-    if 'data_nascita' in update_data:
-        db_cert.data_nascita_raw = update_data['data_nascita']
-
-    if 'nome' in update_data or 'data_nascita' in update_data:
-        if 'nome' in update_data:
-            if not update_data['nome'] or not update_data['nome'].strip():
-                raise HTTPException(status_code=400, detail="Il nome non può essere vuoto.")
-
-            db_cert.nome_dipendente_raw = update_data['nome'].strip()
-
-            nome_parts = update_data['nome'].strip().split()
-            if len(nome_parts) < 2:
-                raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
-
-        search_name = db_cert.nome_dipendente_raw
-        dob_str = db_cert.data_nascita_raw
-        dob = parse_date_flexible(dob_str) if dob_str else None
-
-        # Logica di matching robusta
-        if search_name:
-            match = matcher.find_employee_by_name(db, search_name, dob)
-
-            if match:
-                db_cert.dipendente_id = match.id
-            else:
-                # Se non trovato o ambiguo, disassocia o gestisci come errore
-                db_cert.dipendente_id = None
-
-    if 'categoria' in update_data or 'corso' in update_data:
-        categoria = update_data.get('categoria', db_cert.corso.categoria_corso)
-        master_course = db.query(Corso).filter(Corso.categoria_corso.ilike(f"%{categoria}%")).first()
-        if not master_course:
-            raise HTTPException(status_code=404, detail=f"Categoria '{categoria}' non trovata.")
-
-        corso_nome = update_data.get('corso', db_cert.corso.nome_corso)
-        course = db.query(Corso).filter(
-            Corso.nome_corso.ilike(f"%{corso_nome}%"),
-            Corso.categoria_corso.ilike(f"%{categoria}%")
-        ).first()
-        if not course:
-            course = Corso(
-                nome_corso=corso_nome,
-                validita_mesi=master_course.validita_mesi,
-                categoria_corso=master_course.categoria_corso
-            )
-            db.add(course)
-            db.flush()
-        db_cert.corso_id = course.id
-
-    if 'data_rilascio' in update_data:
-        db_cert.data_rilascio = datetime.strptime(update_data['data_rilascio'], DATE_FORMAT_DMY).date()
-
-    if 'data_scadenza' in update_data:
-        scadenza = update_data['data_scadenza']
-        db_cert.data_scadenza_calcolata = datetime.strptime(scadenza, DATE_FORMAT_DMY).date() if scadenza and scadenza.strip() and scadenza.lower() != 'none' else None
+    _update_cert_fields(db_cert, update_data, db)
+    _update_cert_course(db_cert, update_data, db)
 
     db_cert.stato_validazione = ValidationStatus.MANUAL
 
@@ -505,37 +603,14 @@ def update_certificato(
         db.rollback()
         raise HTTPException(status_code=409, detail=f"Errore di integrità: {e}")
 
-    # File Synchronization: Rename/Move file if data changed
+    # File Synchronization
     file_moved = False
     old_file_path = None
     new_file_path = None
+    status = "attivo"
 
     try:
-        # We construct new data from db_cert.
-        # Ensure relations are loaded.
-        if not db_cert.dipendente and db_cert.dipendente_id:
-             db_cert.dipendente = db.get(Dipendente, db_cert.dipendente_id)
-        if not db_cert.corso:
-             db_cert.corso = db.query(Corso).get(db_cert.corso_id)
-
-        new_cert_data = {
-            'nome': f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}" if db_cert.dipendente else db_cert.nome_dipendente_raw,
-            'matricola': db_cert.dipendente.matricola if db_cert.dipendente else None,
-            'categoria': db_cert.corso.categoria_corso if db_cert.corso else None,
-            'data_scadenza': db_cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY) if db_cert.data_scadenza_calcolata else None
-        }
-
-        status = certificate_logic.get_certificate_status(db, db_cert)
-
-        if old_cert_data != new_cert_data:
-            database_path = settings.DATABASE_PATH or str(get_user_data_dir())
-            if database_path:
-                old_file_path = find_document(database_path, old_cert_data)
-
-                if old_file_path and os.path.exists(old_file_path):
-                    file_moved, new_file_path = _handle_file_rename(
-                        database_path, status, old_file_path, new_cert_data
-                    )
+        file_moved, old_file_path, new_file_path, status = _sync_cert_file_system(db_cert, old_cert_data, db)
     except PermissionError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Impossibile spostare il file: File in uso o permessi negati.")
@@ -623,40 +698,6 @@ def delete_certificato(
 
     return {"message": "Certificato cancellato con successo"}
 
-def _handle_new_dipendente(db, warnings, data):
-    """Helper to handle new or ambiguous employee logic."""
-    cognome, nome, parsed_data_nascita, badge, parsed_data_assunzione, data_nascita_str = data
-
-    found_by_identity = False
-    if parsed_data_nascita:
-        matches = db.query(Dipendente).filter(
-            Dipendente.nome.ilike(nome),
-            Dipendente.cognome.ilike(cognome),
-            Dipendente.data_nascita == parsed_data_nascita
-        ).all()
-
-        if len(matches) == 1:
-            dipendente = matches[0]
-            dipendente.matricola = badge
-            dipendente.nome = nome
-            dipendente.cognome = cognome
-            if parsed_data_assunzione:
-                dipendente.data_assunzione = parsed_data_assunzione
-            found_by_identity = True
-        elif len(matches) > 1:
-            warnings.append(f"Duplicato rilevato per {cognome} {nome} ({data_nascita_str}). Impossibile assegnare matricola {badge} automaticamente.")
-            return
-
-    if not found_by_identity:
-        dipendente = Dipendente(
-            cognome=cognome,
-            nome=nome,
-            matricola=badge,
-            data_nascita=parsed_data_nascita,
-            data_assunzione=parsed_data_assunzione
-        )
-        db.add(dipendente)
-
 @router.post("/dipendenti/import-csv", dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
 async def import_dipendenti_csv(
     file: UploadFile = File(...),
@@ -736,37 +777,6 @@ async def import_dipendenti_csv(
         "message": f"Importazione completata con successo. {linked_count} certificati orfani collegati.",
         "warnings": warnings
     }
-
-def _process_csv_row(row, db, warnings):
-    """Processes a single row from the CSV import."""
-    cognome = row.get('Cognome')
-    nome = row.get('Nome')
-    data_nascita = row.get('Data_nascita')
-    badge = row.get('Badge')
-    data_assunzione = row.get('Data_assunzione')
-
-    if not all([cognome, nome, badge]):
-        return
-
-    parsed_data_nascita = parse_date_flexible(data_nascita) if data_nascita else None
-    parsed_data_assunzione = parse_date_flexible(data_assunzione) if data_assunzione else None
-
-    # Step 1: Cerca per Matricola (Upsert standard)
-    dipendente = db.query(Dipendente).filter(Dipendente.matricola == badge).first()
-
-    if dipendente:
-        # Trovato per matricola -> Aggiorna dati anagrafici
-        dipendente.cognome = cognome
-        dipendente.nome = nome
-        dipendente.data_nascita = parsed_data_nascita
-        if parsed_data_assunzione:
-            dipendente.data_assunzione = parsed_data_assunzione
-    else:
-        # Step 2: Matricola non trovata
-        _handle_new_dipendente(
-            db, warnings,
-            (cognome, nome, parsed_data_nascita, badge, parsed_data_assunzione, data_nascita)
-        )
 
 @router.get("/dipendenti", response_model=List[DipendenteSchema], dependencies=[Depends(deps.verify_license)])
 def get_dipendenti(db: Session = Depends(get_db)):

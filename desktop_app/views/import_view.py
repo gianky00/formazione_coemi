@@ -221,6 +221,50 @@ class PdfWorker(QObject):
         except Exception as e:
             self.log_message.emit(f"Impossibile spostare il file {os.path.basename(source_path)}: {e}", "red")
 
+    def _prepare_certificates(self, entities):
+        """Prepares a list of certificates to process from the extracted entities."""
+        from app.utils.date_parser import parse_date_flexible
+        
+        data_rilascio_raw = entities.get('data_rilascio', '')
+        data_scadenza_raw = entities.get('data_scadenza', '')
+        data_nascita_raw = entities.get('data_nascita', '')
+
+        def normalize_date(d_str):
+            if not d_str: return ''
+            d_obj = parse_date_flexible(d_str)
+            return d_obj.strftime('%d/%m/%Y') if d_obj else d_str
+
+        data_rilascio_norm = normalize_date(data_rilascio_raw)
+        data_scadenza_norm = normalize_date(data_scadenza_raw)
+        data_nascita_norm = normalize_date(data_nascita_raw)
+
+        base_cert = {
+            "nome": entities.get('nome', ''),
+            "corso": entities.get('corso', ''),
+            "categoria": entities.get('categoria', 'ALTRO'),
+            "data_rilascio": data_rilascio_norm,
+            "data_scadenza": data_scadenza_norm,
+            "data_nascita": data_nascita_norm
+        }
+
+        certs_to_process = []
+        corso_raw = entities.get('corso', '')
+        categoria_raw = entities.get('categoria', 'ALTRO')
+
+        if categoria_raw == "NOMINA" and corso_raw and \
+           "antincendio" in corso_raw.lower() and "primo soccorso" in corso_raw.lower():
+            c1 = base_cert.copy()
+            c1["categoria"] = "ANTINCENDIO"
+            certs_to_process.append(c1)
+
+            c2 = base_cert.copy()
+            c2["categoria"] = "PRIMO SOCCORSO"
+            certs_to_process.append(c2)
+        else:
+            certs_to_process.append(base_cert)
+            
+        return certs_to_process
+
     def process_pdf(self, file_path):
         original_filename = os.path.basename(file_path)
         self.current_file_path = file_path # Store for fallback
@@ -233,46 +277,7 @@ class PdfWorker(QObject):
             if response.status_code == 200:
                 data = response.json()
                 entities = data.get('entities', {})
-
-                from app.utils.date_parser import parse_date_flexible
-                
-                data_rilascio_raw = entities.get('data_rilascio', '')
-                data_scadenza_raw = entities.get('data_scadenza', '')
-                data_nascita_raw = entities.get('data_nascita', '')
-
-                def normalize_date(d_str):
-                    if not d_str: return ''
-                    d_obj = parse_date_flexible(d_str)
-                    return d_obj.strftime('%d/%m/%Y') if d_obj else d_str
-
-                data_rilascio_norm = normalize_date(data_rilascio_raw)
-                data_scadenza_norm = normalize_date(data_scadenza_raw)
-                data_nascita_norm = normalize_date(data_nascita_raw)
-
-                base_cert = {
-                    "nome": entities.get('nome', ''),
-                    "corso": entities.get('corso', ''),
-                    "categoria": entities.get('categoria', 'ALTRO'),
-                    "data_rilascio": data_rilascio_norm,
-                    "data_scadenza": data_scadenza_norm,
-                    "data_nascita": data_nascita_norm
-                }
-
-                certs_to_process = []
-                corso_raw = entities.get('corso', '')
-                categoria_raw = entities.get('categoria', 'ALTRO')
-
-                if categoria_raw == "NOMINA" and corso_raw and \
-                   "antincendio" in corso_raw.lower() and "primo soccorso" in corso_raw.lower():
-                    c1 = base_cert.copy()
-                    c1["categoria"] = "ANTINCENDIO"
-                    certs_to_process.append(c1)
-
-                    c2 = base_cert.copy()
-                    c2["categoria"] = "PRIMO SOCCORSO"
-                    certs_to_process.append(c2)
-                else:
-                    certs_to_process.append(base_cert)
+                certs_to_process = self._prepare_certificates(entities)
 
                 for idx, certificato in enumerate(certs_to_process):
                     current_op_path = file_path

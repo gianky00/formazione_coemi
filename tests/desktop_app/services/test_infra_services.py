@@ -41,11 +41,19 @@ class TestHardwareIdService:
             mock_disk = MagicMock()
             mock_disk.DeviceID = "\\\\.\\PHYSICALDRIVE0"
             mock_disk.SerialNumber = " serial.123. "
-            mock_wmi.Win32_DiskDrive.return_value = [mock_disk]
+            
+            mock_wmi_instance = MagicMock()
+            mock_wmi_instance.Win32_DiskDrive.return_value = [mock_disk]
+            mock_wmi.WMI.return_value = mock_wmi_instance
 
-            with patch.dict(sys.modules, {"wmi": MagicMock(WMI=MagicMock(return_value=mock_wmi))}):
+            # We must patch sys.modules so 'import wmi' works inside the function
+            # AND patch where it's used if imported at module level (not the case here)
+            # The function does `import wmi`.
+            
+            with patch.dict(sys.modules, {"wmi": mock_wmi, "pythoncom": MagicMock()}):
                 # .strip() -> "serial.123." -> .rstrip('.') -> "serial.123"
-                assert hardware_id_service.get_machine_id() == "serial.123"
+                result = hardware_id_service.get_machine_id()
+                assert result == "serial.123"
 
     def test_get_machine_id_fallback_mac(self):
         with patch("os.name", "posix"), patch("uuid.getnode", return_value=0x1234567890AB):

@@ -9,6 +9,9 @@ def test_find_document_sanitizes_path():
     to match the file system naming conventions.
     """
     db_path = "/mock/db"
+    # Ensure consistent path format across OS
+    db_path = os.path.normpath(db_path)
+    
     cert_data = {
         "nome": "De/Rossi Mario",
         "matricola": "123",

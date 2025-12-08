@@ -1,4 +1,5 @@
 import pytest
+import os
 from app.db.models import User
 from app.core import security
 

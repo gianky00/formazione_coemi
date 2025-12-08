@@ -36,7 +36,6 @@ def test_refresh_data():
     # In mock_qt, addItem appends to view.list_widget.widgets
     assert len(view.list_widget.widgets) == 2
 
-@pytest.mark.skip(reason="Flaky mock state in headless env")
 def test_filter_list():
     mock_api = MagicMock()
     view = AnagraficaView(mock_api)
