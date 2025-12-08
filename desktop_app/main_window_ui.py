@@ -626,9 +626,6 @@ class MainDashboardWidget(QWidget):
 
     def _connect_cross_view_signals(self):
         # Refresh logic across views (Refactored to reduce complexity)
-        views = self.views
-        
-        # Mapping: Source View Key -> Signal Name -> Target View Key -> Slot Name
         connections = [
             ("import", "import_completed", "validation", "refresh_data"),
             ("validation", "validation_completed", "database", "load_data"),
@@ -639,10 +636,14 @@ class MainDashboardWidget(QWidget):
         ]
 
         for src_key, signal_name, dst_key, slot_name in connections:
-            src = views.get(src_key)
-            dst = views.get(dst_key)
-            if src and dst and hasattr(src, signal_name) and hasattr(dst, slot_name):
-                self._safe_connect(getattr(src, signal_name), getattr(dst, slot_name))
+            self._connect_views(src_key, signal_name, dst_key, slot_name)
+
+    def _connect_views(self, src_key, signal_name, dst_key, slot_name):
+        """Helper to connect signals between two views if they exist."""
+        src = self.views.get(src_key)
+        dst = self.views.get(dst_key)
+        if src and dst and hasattr(src, signal_name) and hasattr(dst, slot_name):
+            self._safe_connect(getattr(src, signal_name), getattr(dst, slot_name))
 
     def _connect_signals(self):
         # Sidebar connections (Always safe)

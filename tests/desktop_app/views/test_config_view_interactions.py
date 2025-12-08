@@ -193,9 +193,9 @@ class TestConfigViewInteractions(unittest.TestCase):
         # We need to set return_value on the CALL.
 
         # If the code calls `widget.user_filter.currentData()`, then:
-        widget.user_filter.currentData.return_value = 5
-        widget.category_filter.currentData.return_value = "AUTH"
-        widget.search_input.text.return_value = "login"
+        widget.user_filter.currentData = MagicMock(return_value=5)
+        widget.category_filter.currentData = MagicMock(return_value="AUTH")
+        widget.search_input.text = MagicMock(return_value="login")
         
         # Manually trigger refresh
         widget.refresh_logs()
@@ -238,17 +238,17 @@ class TestConfigViewInteractions(unittest.TestCase):
         # Invalid Threshold "0" (isdigit=True, <=0 is True)
         # Attribute error fix: alert_threshold_input is QLineEdit.
         # .text is a method.
-        self.view.general_settings.alert_threshold_input.text.return_value = "0"
+        self.view.general_settings.alert_threshold_input.text = MagicMock(return_value="0")
         # We need to ensure other validations don't fail first (smtp port)
-        self.view.email_settings.smtp_port_input.text.return_value = "" # Valid/None
+        self.view.email_settings.smtp_port_input.text = MagicMock(return_value="") # Valid/None
 
         self.view.save_config()
         self.mock_dialog.show_warning.assert_called()
         self.api_client.update_mutable_config.assert_not_called()
         
         # Valid
-        self.view.general_settings.alert_threshold_input.text.return_value = "30"
-        self.view.general_settings.alert_threshold_visite_input.text.return_value = "15"
+        self.view.general_settings.alert_threshold_input.text = MagicMock(return_value="30")
+        self.view.general_settings.alert_threshold_visite_input.text = MagicMock(return_value="15")
         self.view.save_config()
         self.api_client.update_mutable_config.assert_called()
 

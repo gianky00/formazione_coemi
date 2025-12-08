@@ -176,11 +176,19 @@ class PdfWorker(QObject):
         if save_response.status_code == 200:
             self._handle_successful_save(save_response.json(), original_filename, certificato, current_op_path)
         elif save_response.status_code == 409:
-            self.log_message.emit(f"{original_filename} ({certificato['categoria']}) - Già in Database.", "orange")
-            self.move_to_error("Già in Database", certificato, source_path=current_op_path)
+            self._handle_conflict(original_filename, certificato, current_op_path)
         else:
-            self.log_message.emit(f"Errore durante il salvaggio di {original_filename}: {save_response.text}", "red")
-            self.move_to_error(f"Errore Salvaggio: {save_response.text}", certificato, source_path=current_op_path)
+            self._handle_general_error(save_response, original_filename, certificato, current_op_path)
+
+    def _handle_conflict(self, original_filename, certificato, current_op_path):
+        """Handle 409 Conflict."""
+        self.log_message.emit(f"{original_filename} ({certificato['categoria']}) - Già in Database.", "orange")
+        self.move_to_error("Già in Database", certificato, source_path=current_op_path)
+
+    def _handle_general_error(self, save_response, original_filename, certificato, current_op_path):
+        """Handle non-200/409 errors."""
+        self.log_message.emit(f"Errore durante il salvaggio di {original_filename}: {save_response.text}", "red")
+        self.move_to_error(f"Errore Salvaggio: {save_response.text}", certificato, source_path=current_op_path)
 
     def move_to_error(self, reason="Errore Generico", data=None, source_path=None):
         # Refactored to use helper logic
