@@ -73,8 +73,7 @@ const Sidebar = () => {
 
     if (globalContext.qt?.webChannelTransport) {
       // Assign to a variable to prevent object from being dropped immediately
-      // eslint-disable-next-line no-unused-vars
-      const channel = new globalContext.QWebChannel(globalContext.qt.webChannelTransport, function(c) {
+      new globalContext.QWebChannel(globalContext.qt.webChannelTransport, function(c) {
         if (c.objects?.bridge) {
             setBridge(c.objects.bridge);
         }
