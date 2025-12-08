@@ -55,7 +55,7 @@ const Accordion = ({ items }) => {
     <div className="w-full">
       {items.map((item, index) => (
         <AccordionItem
-          key={`accordion-item-${index}`}
+          key={item.title}
           title={item.title}
           isOpen={openIndex === index}
           onClick={() => handleClick(index)}

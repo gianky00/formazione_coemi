@@ -99,7 +99,7 @@ const ValidationSimulator = () => {
             <div className="h-full flex flex-col items-center justify-center text-gray-400">
                 <Check size={48} className="mb-4 text-green-200" />
                 <p>Tutto fatto! Nessun documento in attesa.</p>
-                <button onClick={() => window.location.reload()} className="mt-4 text-xs text-blue-500 underline">
+                <button onClick={() => globalThis.location.reload()} className="mt-4 text-xs text-blue-500 underline">
                     Ricarica simulazione
                 </button>
             </div>

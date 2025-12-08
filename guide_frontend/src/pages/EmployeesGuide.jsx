@@ -2,7 +2,7 @@ import React from 'react';
 import GuideCard from '../components/ui/GuideCard';
 import Note from '../components/ui/Note';
 import Step from '../components/ui/Step';
-import { Users, FileSpreadsheet, UserPlus, Link } from 'lucide-react';
+import { UserPlus, Link } from 'lucide-react';
 
 const EmployeesGuide = () => {
   return (

@@ -156,8 +156,7 @@ class NeuralNetwork3D:
                 active_pulses.append(p)
         self.pulses = active_pulses
 
-        # Randomly spawn new pulses (Only if not warping, to reduce noise?)
-        # Or keep them for effect? Let's keep them but maybe less chance if warping
+        # Randomly spawn new pulses
         chance = 0.05 if self.warp_active else 0.15
 
         if self.connections and random.random() < chance: # NOSONAR

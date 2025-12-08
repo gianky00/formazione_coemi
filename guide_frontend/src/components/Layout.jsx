@@ -2,11 +2,9 @@ import React from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import FeedbackFooter from './FeedbackFooter';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 
 const Layout = () => {
-  const location = useLocation();
-
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-intelleo-bg text-intelleo-text">
       <Sidebar />

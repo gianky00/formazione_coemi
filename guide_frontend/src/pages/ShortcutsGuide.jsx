@@ -7,8 +7,8 @@ const ShortcutRow = ({ keys, desc }) => (
   <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0 hover:bg-gray-50 px-2 rounded-lg transition-colors">
       <span className="text-gray-700 font-medium text-sm">{desc}</span>
       <div className="flex gap-1">
-          {keys.map((k, i) => (
-              <span key={`key-${i}`} className="kbd">{k}</span>
+          {keys.map((k) => (
+              <span key={k} className="kbd">{k}</span>
           ))}
       </div>
   </div>

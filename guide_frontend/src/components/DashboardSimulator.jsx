@@ -106,42 +106,34 @@ const DashboardSimulator = () => {
 
       {/* Table Header */}
       <div className="grid grid-cols-5 bg-gray-100 p-3 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">
-        <div
-            className="col-span-1 cursor-pointer hover:text-gray-700"
+        <button
+            className="col-span-1 cursor-pointer hover:text-gray-700 text-left"
             onClick={() => handleSort('dipendente')}
             onKeyDown={(e) => handleKeyDown(e, 'dipendente')}
-            role="button"
-            tabIndex={0}
         >
             Dipendente {getSortIcon('dipendente')}
-        </div>
-        <div
-            className="col-span-1 cursor-pointer hover:text-gray-700"
+        </button>
+        <button
+            className="col-span-1 cursor-pointer hover:text-gray-700 text-left"
             onClick={() => handleSort('corso')}
             onKeyDown={(e) => handleKeyDown(e, 'corso')}
-            role="button"
-            tabIndex={0}
         >
             Documento {getSortIcon('corso')}
-        </div>
-        <div
-            className="col-span-1 cursor-pointer hover:text-gray-700"
+        </button>
+        <button
+            className="col-span-1 cursor-pointer hover:text-gray-700 text-left"
             onClick={() => handleSort('data')}
             onKeyDown={(e) => handleKeyDown(e, 'data')}
-            role="button"
-            tabIndex={0}
         >
             Data Ril. {getSortIcon('data')}
-        </div>
-        <div
-            className="col-span-1 cursor-pointer hover:text-gray-700"
+        </button>
+        <button
+            className="col-span-1 cursor-pointer hover:text-gray-700 text-left"
             onClick={() => handleSort('scadenza')}
             onKeyDown={(e) => handleKeyDown(e, 'scadenza')}
-            role="button"
-            tabIndex={0}
         >
             Scadenza {getSortIcon('scadenza')}
-        </div>
+        </button>
         <div className="col-span-1 text-center">Stato</div>
       </div>
 

@@ -326,6 +326,20 @@ class Sidebar(QFrame):
         self.nav_layout.addWidget(btn)
         self.buttons[key] = btn
 
+    def _prepare_collapse_ui(self):
+        self.toggle_btn.setIcon(load_colored_icon("chevron-right.svg", "#1E3A8A"))
+        self.logo_label.hide()
+        self.footer_label.hide()
+        self.user_info_frame.hide()
+        self.hide_button_texts()
+
+    def _prepare_expand_ui(self):
+        self.toggle_btn.setIcon(load_colored_icon("chevron-left.svg", "#1E3A8A"))
+        self.logo_label.show()
+        self.footer_label.show()
+        self.user_info_frame.show()
+        self.restore_button_texts()
+
     def toggle_sidebar(self):
         start_width = self.width()
         end_width = 260 if self.is_collapsed else 64
@@ -336,20 +350,12 @@ class Sidebar(QFrame):
         self.setMaximumWidth(16777215)
 
         if not self.is_collapsed:
-            self.toggle_btn.setIcon(load_colored_icon("chevron-right.svg", "#1E3A8A"))
-            self.logo_label.hide()
-            self.footer_label.hide()
-            self.user_info_frame.hide()
-            self.hide_button_texts()
+            self._prepare_collapse_ui()
 
         def on_finished():
             self.setFixedWidth(end_width)
             if end_width == 260:
-                self.toggle_btn.setIcon(load_colored_icon("chevron-left.svg", "#1E3A8A"))
-                self.logo_label.show()
-                self.footer_label.show()
-                self.user_info_frame.show()
-                self.restore_button_texts()
+                self._prepare_expand_ui()
 
         try: self.animation.finished.disconnect()
         except Exception: pass

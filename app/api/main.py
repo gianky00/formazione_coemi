@@ -382,6 +382,36 @@ def _process_csv_row(row, db, warnings):
             (cognome, nome, parsed_data_nascita, badge, parsed_data_assunzione, data_nascita)
         )
 
+def _decode_csv_content(content: bytes) -> str:
+    """Detects and decodes CSV content encoding."""
+    try:
+        return content.decode('utf-8')
+    except UnicodeDecodeError:
+        try:
+            return content.decode('cp1252')
+        except UnicodeDecodeError:
+            matches = charset_normalizer.from_bytes(content).best()
+            encoding = matches.encoding if matches else 'latin-1'
+            try:
+                return content.decode(encoding)
+            except (UnicodeDecodeError, LookupError):
+                return content.decode('latin-1', errors='replace')
+
+def _link_orphaned_certificates_after_import(db):
+    """Helper to link orphaned certificates after bulk import."""
+    orphaned_certs = db.query(Certificato).options(selectinload(Certificato.corso)).filter(Certificato.dipendente_id.is_(None)).all()
+    linked_count = 0
+    database_path = settings.DATABASE_PATH or str(get_user_data_dir())
+
+    for cert in orphaned_certs:
+        if cert.nome_dipendente_raw:
+            dob_raw = parse_date_flexible(cert.data_nascita_raw) if cert.data_nascita_raw else None
+            match = matcher.find_employee_by_name(db, cert.nome_dipendente_raw, dob_raw)
+            if match:
+                _process_orphan_cert(cert, match, database_path, db)
+                linked_count += 1
+    return linked_count
+
 # --- Routes ---
 
 @router.get("/")
@@ -569,6 +599,14 @@ def valida_certificato(
         stato_certificato=status
     )
 
+def _rollback_file_move(file_moved, old_file_path, new_file_path, certificato_id):
+    """Helper to rollback file move operation on DB failure."""
+    if file_moved and old_file_path and new_file_path:
+        try:
+            shutil.move(new_file_path, old_file_path)
+        except Exception as rollback_err:
+            print(f"CRITICAL: Failed to rollback file move for cert {certificato_id}: {rollback_err}")
+
 @router.put("/certificati/{certificato_id}", response_model=CertificatoSchema, dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
 def update_certificato(
     certificato_id: int,
@@ -576,7 +614,6 @@ def update_certificato(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_user)
 ):
-    # S3776: Refactored to reduce complexity
     db_cert = db.get(Certificato, certificato_id)
     if not db_cert:
         raise HTTPException(status_code=404, detail=STR_CERT_NON_TROVATO)
@@ -604,11 +641,6 @@ def update_certificato(
         raise HTTPException(status_code=409, detail=f"Errore di integrità: {e}")
 
     # File Synchronization
-    file_moved = False
-    old_file_path = None
-    new_file_path = None
-    status = "attivo"
-
     try:
         file_moved, old_file_path, new_file_path, status = _sync_cert_file_system(db_cert, old_cert_data, db)
     except PermissionError:
@@ -624,17 +656,12 @@ def update_certificato(
         db.refresh(db_cert)
     except Exception as e:
         db.rollback()
-        # Rollback File Move if needed
-        if file_moved and old_file_path and new_file_path:
-            try:
-                shutil.move(new_file_path, old_file_path)
-            except Exception as rollback_err:
-                print(f"CRITICAL: Failed to rollback file move for cert {certificato_id}: {rollback_err}")
+        _rollback_file_move(file_moved, old_file_path, new_file_path, certificato_id)
         raise HTTPException(status_code=500, detail=f"Errore durante il salvataggio nel database: {e}")
 
     log_security_action(db, current_user, "CERTIFICATE_UPDATE", f"aggiornato certificato ID {certificato_id}. Campi: {', '.join(update_data.keys())}", category="CERTIFICATE")
 
-    dipendente_info = db_cert.dipendente  # Reload the relationship
+    dipendente_info = db_cert.dipendente
 
     return CertificatoSchema(
         id=db_cert.id,
@@ -724,22 +751,7 @@ async def import_dipendenti_csv(
     if not verify_file_signature(content, 'csv'):
          raise HTTPException(status_code=400, detail="File non valido: contenuto non riconosciuto come CSV/Testo.")
 
-    # Strategy: Try UTF-8 -> CP1252 -> Auto-detect -> Latin-1 Fallback
-    try:
-        decoded_content = content.decode('utf-8')
-    except UnicodeDecodeError:
-        try:
-            # CP1252 is very common in Western Europe/Italy for legacy Excel
-            decoded_content = content.decode('cp1252')
-        except UnicodeDecodeError:
-            # Try auto-detection
-            matches = charset_normalizer.from_bytes(content).best()
-            encoding = matches.encoding if matches else 'latin-1'
-            try:
-                decoded_content = content.decode(encoding)
-            except (UnicodeDecodeError, LookupError):
-                decoded_content = content.decode('latin-1', errors='replace')
-
+    decoded_content = _decode_csv_content(content)
     stream = io.StringIO(decoded_content)
     reader = csv.DictReader(stream, delimiter=';')
 
@@ -755,18 +767,7 @@ async def import_dipendenti_csv(
         raise HTTPException(status_code=400, detail=f"Errore di integrità del database: {str(e)}")
 
     # Re-link orphaned certificates
-    orphaned_certs = db.query(Certificato).options(selectinload(Certificato.corso)).filter(Certificato.dipendente_id.is_(None)).all()
-    linked_count = 0
-
-    database_path = settings.DATABASE_PATH or str(get_user_data_dir())
-
-    for cert in orphaned_certs:
-        if cert.nome_dipendente_raw:
-            dob_raw = parse_date_flexible(cert.data_nascita_raw) if cert.data_nascita_raw else None
-            match = matcher.find_employee_by_name(db, cert.nome_dipendente_raw, dob_raw)
-            if match:
-                _process_orphan_cert(cert, match, database_path, db)
-                linked_count += 1
+    linked_count = _link_orphaned_certificates_after_import(db)
 
     if linked_count > 0:
         db.commit()
@@ -863,6 +864,21 @@ def create_dipendente(
     log_security_action(db, current_user, "DIPENDENTE_CREATE", f"Creato dipendente {dipendente.cognome} {dipendente.nome}", category="DATA")
     return new_dipendente
 
+def _validate_unique_constraints(db, dipendente, update_dict):
+    """Checks for duplicate matricola or email before update."""
+    if "matricola" in update_dict and update_dict["matricola"] != dipendente.matricola:
+        if not update_dict["matricola"].strip():
+             raise HTTPException(status_code=400, detail="La matricola non può essere vuota o solo spazi.")
+        existing = db.query(Dipendente).filter(Dipendente.matricola == update_dict["matricola"]).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Matricola già esistente.")
+
+    if "email" in update_dict and update_dict["email"] != dipendente.email:
+         if update_dict["email"]:
+            existing_email = db.query(Dipendente).filter(Dipendente.email == update_dict["email"]).first()
+            if existing_email:
+                 raise HTTPException(status_code=400, detail="Email già esistente.")
+
 @router.put("/dipendenti/{dipendente_id}", response_model=DipendenteSchema, dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
 def update_dipendente(
     dipendente_id: int,
@@ -876,18 +892,7 @@ def update_dipendente(
 
     update_dict = dipendente_data.model_dump(exclude_unset=True)
 
-    if "matricola" in update_dict and update_dict["matricola"] != dipendente.matricola:
-        if not update_dict["matricola"].strip():
-             raise HTTPException(status_code=400, detail="La matricola non può essere vuota o solo spazi.")
-        existing = db.query(Dipendente).filter(Dipendente.matricola == update_dict["matricola"]).first()
-        if existing:
-            raise HTTPException(status_code=400, detail="Matricola già esistente.")
-
-    if "email" in update_dict and update_dict["email"] != dipendente.email:
-         if update_dict["email"]:
-            existing_email = db.query(Dipendente).filter(Dipendente.email == update_dict["email"]).first()
-            if existing_email:
-                 raise HTTPException(status_code=400, detail="Email già esistente.")
+    _validate_unique_constraints(db, dipendente, update_dict)
 
     for key, value in update_dict.items():
         setattr(dipendente, key, value)

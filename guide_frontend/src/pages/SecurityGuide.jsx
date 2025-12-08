@@ -1,7 +1,7 @@
 import React from 'react';
 import GuideCard from '../components/ui/GuideCard';
 import Note from '../components/ui/Note';
-import { Shield, Lock, Eye, Key, FileWarning, Fingerprint } from 'lucide-react';
+import { Lock, Eye, Key, FileWarning, Zap } from 'lucide-react';
 
 const SecurityGuide = () => {
   return (
@@ -89,5 +89,4 @@ const SecurityGuide = () => {
   );
 };
 
-import { Zap } from 'lucide-react'; // Fix missing import
 export default SecurityGuide;
