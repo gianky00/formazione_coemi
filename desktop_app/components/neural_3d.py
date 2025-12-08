@@ -151,7 +151,7 @@ class NeuralNetwork3D:
         # Filter out finished pulses
         active_pulses = []
         for p in self.pulses:
-            p[2] += p[3] # Progress += Speed
+            p[2] += p[3]
             if p[2] < 1.0:
                 active_pulses.append(p)
         self.pulses = active_pulses

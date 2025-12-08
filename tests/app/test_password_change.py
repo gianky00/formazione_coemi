@@ -40,7 +40,7 @@ def test_change_own_password(test_client: TestClient, db_session: Session, enabl
     }
     response = test_client.post("/auth/change-password", json=payload, headers=headers)
     assert response.status_code == 200
-    assert response.json()["message"] == "Password aggiornata con successo."
+    assert response.json()["message"] == "Password aggiornata con successo"
 
     # 4. Verify DB updated
     db_session.refresh(user)

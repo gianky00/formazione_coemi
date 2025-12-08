@@ -252,6 +252,42 @@ class Sidebar(QFrame):
 
         self.main_layout.addWidget(self.nav_container)
 
+    def _create_license_label(self, text, style):
+        """Helper to create a styled label for license info."""
+        label = QLabel(text)
+        label.setStyleSheet(style)
+        return label
+
+    def _add_license_detail(self, license_data, key, display_text=None, style="color: #93C5FD; font-size: 12px;"):
+        """Helper to add a specific detail from license data if present."""
+        if key in license_data:
+            text = f"{display_text or key}:\n{license_data[key]}"
+            self.license_layout.addWidget(self._create_license_label(text, style))
+
+    def _parse_expiry_date(self, expiry_str):
+        """Parses expiry date string robustly."""
+        try:
+            if '/' in expiry_str:
+                d, m, y = map(int, expiry_str.split('/'))
+                return date(y, m, d)
+            elif '-' in expiry_str:
+                y, m, d = map(int, expiry_str.split('-'))
+                return date(y, m, d)
+        except ValueError:
+            pass
+        return None
+
+    def _add_expiry_warning(self, expiry_str):
+        """Helper to calculate and display license expiration warning."""
+        expiry_date = self._parse_expiry_date(expiry_str)
+        if expiry_date:
+            days_left = (expiry_date - date.today()).days
+            if days_left >= 0:
+                msg = f"La licenza termina tra {days_left} giorni."
+            else:
+                msg = f"Licenza SCADUTA da {abs(days_left)} giorni."
+            self.license_layout.addWidget(self._create_license_label(msg, "color: #FFFFFF; font-size: 13px;"))
+
     def _setup_license_info(self):
         """Initializes the license information section."""
         self.license_frame = QFrame()
@@ -261,43 +297,16 @@ class Sidebar(QFrame):
 
         license_data = self.read_license_info()
         if not license_data:
-             lbl = QLabel("Licenza non valida")
-             lbl.setStyleSheet("color: #FF6B6B; font-size: 14px; font-weight: bold;")
-             self.license_layout.addWidget(lbl)
+             self.license_layout.addWidget(self._create_license_label("Licenza non valida", "color: #FF6B6B; font-size: 14px; font-weight: bold;"))
         else:
-             if "Hardware ID" in license_data:
-                  l1 = QLabel(f"Hardware ID:\n{license_data['Hardware ID']}")
-                  l1.setStyleSheet("color: #93C5FD; font-size: 12px;")
-                  self.license_layout.addWidget(l1)
+             self._add_license_detail(license_data, "Hardware ID", "Hardware ID")
 
              LICENSE_EXPIRY_KEY = "Scadenza Licenza"
-             expiry_str = license_data.get(LICENSE_EXPIRY_KEY, "")
-             if expiry_str:
-                  l2 = QLabel(f"{LICENSE_EXPIRY_KEY}:\n{expiry_str}")
-                  l2.setStyleSheet("color: #93C5FD; font-size: 12px;")
-                  self.license_layout.addWidget(l2)
-                  try:
-                      if '/' in expiry_str:
-                          d, m, y = map(int, expiry_str.split('/'))
-                          expiry_date = date(y, m, d)
-                      elif '-' in expiry_str:
-                          y, m, d = map(int, expiry_str.split('-'))
-                          expiry_date = date(y, m, d)
-                      else:
-                          raise ValueError
-                      days_left = (expiry_date - date.today()).days
-                      if days_left >= 0:
-                          l3 = QLabel(f"La licenza termina tra {days_left} giorni.")
-                      else:
-                          l3 = QLabel(f"Licenza SCADUTA da {abs(days_left)} giorni.")
-                      l3.setStyleSheet("color: #FFFFFF; font-size: 13px;")
-                      self.license_layout.addWidget(l3)
-                  except ValueError:
-                      pass
-             if "Generato il" in license_data:
-                  l4 = QLabel(f"Generato il: {license_data['Generato il']}")
-                  l4.setStyleSheet("color: #60A5FA; font-size: 11px;")
-                  self.license_layout.addWidget(l4)
+             if LICENSE_EXPIRY_KEY in license_data:
+                 self._add_license_detail(license_data, LICENSE_EXPIRY_KEY)
+                 self._add_expiry_warning(license_data[LICENSE_EXPIRY_KEY])
+
+             self._add_license_detail(license_data, "Generato il", style="color: #60A5FA; font-size: 11px;")
 
         self.main_layout.addWidget(self.license_frame)
 
