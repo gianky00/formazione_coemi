@@ -140,7 +140,7 @@ def read_users_me(current_user: deps.User = Depends(deps.get_current_user)):
 def change_password(
     password_data: UserPasswordUpdate,
     request: Request,
-    current_user: deps.User = Depends(deps.get_current_user),
+    current_user: deps.User = Depends(deps.get_current_user), # NOSONAR
     db: Session = Depends(get_db)
 ):
     """
@@ -157,4 +157,4 @@ def change_password(
 
     log_security_action(db, current_user, "PASSWORD_CHANGE", "L'utente ha cambiato la propria password", category="USER_MGMT", request=request)
 
-    return {"message": "Password aggiornata con successo."}
+    return {"message": "Password aggiornata con successo"}

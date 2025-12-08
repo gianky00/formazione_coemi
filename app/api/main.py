@@ -235,8 +235,8 @@ def _handle_file_rename(database_path, status, old_file_path, new_cert_data):
 
     return False, None
 
-def _update_cert_fields(db_cert, update_data, db):
-    """Updates basic fields and handles employee matching logic."""
+def _update_cert_identity(db_cert, update_data, db):
+    """Updates certificate identity fields (name, date of birth) and matches employee."""
     if 'data_nascita' in update_data:
         db_cert.data_nascita_raw = update_data['data_nascita']
 
@@ -256,12 +256,22 @@ def _update_cert_fields(db_cert, update_data, db):
             match = matcher.find_employee_by_name(db, search_name, dob)
             db_cert.dipendente_id = match.id if match else None
 
+def _update_cert_dates(db_cert, update_data):
+    """Updates certificate dates (release, expiration)."""
     if 'data_rilascio' in update_data:
         db_cert.data_rilascio = datetime.strptime(update_data['data_rilascio'], DATE_FORMAT_DMY).date()
 
     if 'data_scadenza' in update_data:
         scadenza = update_data['data_scadenza']
         db_cert.data_scadenza_calcolata = datetime.strptime(scadenza, DATE_FORMAT_DMY).date() if scadenza and scadenza.strip() and scadenza.lower() != 'none' else None
+
+def _update_cert_fields(db_cert, update_data, db):
+    """
+    Updates basic fields and handles employee matching logic.
+    Refactored to reduce complexity by extracting sub-logics.
+    """
+    _update_cert_identity(db_cert, update_data, db)
+    _update_cert_dates(db_cert, update_data)
 
 def _update_cert_course(db_cert, update_data, db):
     """Updates course relationship if category or course name changed."""
@@ -607,32 +617,11 @@ def _rollback_file_move(file_moved, old_file_path, new_file_path, certificato_id
         except Exception as rollback_err:
             print(f"CRITICAL: Failed to rollback file move for cert {certificato_id}: {rollback_err}")
 
-@router.put("/certificati/{certificato_id}", response_model=CertificatoSchema, dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
-def update_certificato(
-    certificato_id: int,
-    certificato: CertificatoAggiornamentoSchema,
-    db: Session = Depends(get_db),
-    current_user: UserModel = Depends(deps.get_current_user)
-):
-    db_cert = db.get(Certificato, certificato_id)
-    if not db_cert:
-        raise HTTPException(status_code=404, detail=STR_CERT_NON_TROVATO)
-
-    # Capture old state for file renaming
-    old_cert_data = {
-        'nome': f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}" if db_cert.dipendente else db_cert.nome_dipendente_raw,
-        'matricola': db_cert.dipendente.matricola if db_cert.dipendente else None,
-        'categoria': db_cert.corso.categoria_corso if db_cert.corso else None,
-        'data_scadenza': db_cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY) if db_cert.data_scadenza_calcolata else None
-    }
-
-    update_data = certificato.model_dump(exclude_unset=True)
-
-    _update_cert_fields(db_cert, update_data, db)
-    _update_cert_course(db_cert, update_data, db)
-
-    db_cert.stato_validazione = ValidationStatus.MANUAL
-
+def _persist_certificate_update(db, db_cert, update_data, old_cert_data, certificato_id, current_user):
+    """
+    Persists the certificate update to the database and filesystem.
+    Refactored to handle the save, move, and commit phases.
+    """
     # Check constraints before file move
     try:
         db.flush()
@@ -660,6 +649,36 @@ def update_certificato(
         raise HTTPException(status_code=500, detail=f"Errore durante il salvataggio nel database: {e}")
 
     log_security_action(db, current_user, "CERTIFICATE_UPDATE", f"aggiornato certificato ID {certificato_id}. Campi: {', '.join(update_data.keys())}", category="CERTIFICATE")
+
+    return status
+
+@router.put("/certificati/{certificato_id}", response_model=CertificatoSchema, dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
+def update_certificato(
+    certificato_id: int,
+    certificato: CertificatoAggiornamentoSchema,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_user)
+):
+    db_cert = db.get(Certificato, certificato_id)
+    if not db_cert:
+        raise HTTPException(status_code=404, detail=STR_CERT_NON_TROVATO)
+
+    # Capture old state for file renaming
+    old_cert_data = {
+        'nome': f"{db_cert.dipendente.cognome} {db_cert.dipendente.nome}" if db_cert.dipendente else db_cert.nome_dipendente_raw,
+        'matricola': db_cert.dipendente.matricola if db_cert.dipendente else None,
+        'categoria': db_cert.corso.categoria_corso if db_cert.corso else None,
+        'data_scadenza': db_cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY) if db_cert.data_scadenza_calcolata else None
+    }
+
+    update_data = certificato.model_dump(exclude_unset=True)
+
+    _update_cert_fields(db_cert, update_data, db)
+    _update_cert_course(db_cert, update_data, db)
+
+    db_cert.stato_validazione = ValidationStatus.MANUAL
+
+    status = _persist_certificate_update(db, db_cert, update_data, old_cert_data, certificato_id, current_user)
 
     dipendente_info = db_cert.dipendente
 

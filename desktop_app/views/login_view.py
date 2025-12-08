@@ -764,33 +764,43 @@ class LoginView(QWidget):
         user_info["welcome_speech"] = speech_text
         user_info["pending_documents_count"] = self.pending_count
 
+    def _attempt_password_change(self):
+        """Attempts to show dialog and change password."""
+        dialog = ForcePasswordChangeDialog(self)
+        if dialog.exec():
+            new_pw, confirm_pw = dialog.get_data()
+            if not new_pw:
+                CustomMessageDialog.show_warning(self, "Errore", "Password vuota.")
+                return False
+            if new_pw != confirm_pw:
+                CustomMessageDialog.show_warning(self, "Errore", "Le password non coincidono.")
+                return False
+
+            try:
+                self.api_client.change_password("primoaccesso", new_pw)
+                CustomMessageDialog.show_info(self, "Successo", "Password aggiornata. Procedi pure.")
+                return True
+            except Exception as e:
+                err = str(e)
+                if hasattr(e, 'response'):
+                    try: err = e.response.json()['detail']
+                    except Exception: pass
+                CustomMessageDialog.show_error(self, "Errore", f"Errore cambio password: {err}")
+                return False
+        else:
+            return None # Cancelled
+
     def _handle_password_change(self):
         """Helper to handle forced password change workflow."""
         while True:
-            dialog = ForcePasswordChangeDialog(self)
-            if dialog.exec():
-                new_pw, confirm_pw = dialog.get_data()
-                if not new_pw:
-                    CustomMessageDialog.show_warning(self, "Errore", "Password vuota.")
-                    continue
-                if new_pw != confirm_pw:
-                    CustomMessageDialog.show_warning(self, "Errore", "Le password non coincidono.")
-                    continue
-
-                try:
-                    self.api_client.change_password("primoaccesso", new_pw)
-                    CustomMessageDialog.show_info(self, "Successo", "Password aggiornata. Procedi pure.")
-                    return True
-                except Exception as e:
-                    err = str(e)
-                    if hasattr(e, 'response'):
-                        try: err = e.response.json()['detail']
-                        except Exception: pass
-                    CustomMessageDialog.show_error(self, "Errore", f"Errore cambio password: {err}")
-            else:
+            result = self._attempt_password_change()
+            if result is True:
+                return True
+            if result is None: # Cancelled
                 self.api_client.logout()
                 self.login_btn.set_loading(False)
                 return False
+            # If False (error), loop continues
 
     def _check_read_only(self, user_info):
         """Displays warning if read-only."""

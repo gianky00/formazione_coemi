@@ -174,9 +174,8 @@ def _find_json_block(text, start_idx, stack):
     for i, char in enumerate(text[start_idx:], start=start_idx):
         if char == '{' or char == '[':
             stack.append(char)
-        elif char == '}' or char == ']':
-            if _check_closing_char(stack, char):
-                return i + 1
+        elif (char == '}' or char == ']') and _check_closing_char(stack, char):
+            return i + 1
     return -1
 
 def _find_start_index(text):
@@ -256,8 +255,6 @@ def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
             return {"error": f"REJECTED: {reason}", "is_rejected": True}
 
         data.setdefault("categoria", "ALTRO")
-
-        # S125: Removed commented out code regarding valid categories
 
         logging.info(f"Successfully extracted data: {data}")
         return data
