@@ -34,10 +34,10 @@ class TTSWorker(QThread):
             os.close(fd)
             
             # Generate audio (returns a generator)
-            audio_generator = client.generate(
+            audio_generator = client.text_to_speech.convert(
                 text=self.text,
-                voice=self.voice_id,
-                model=self.model_id
+                voice_id=self.voice_id,
+                model_id=self.model_id
             )
 
             # Save audio to file
