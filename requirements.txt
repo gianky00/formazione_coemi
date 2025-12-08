@@ -30,8 +30,8 @@ python-jose[cryptography]
 geoip2
 user-agents
 wmi
-# edge-tts removed due to persistent 401 Auth errors
-gTTS
+# Switched to ElevenLabs per user request
+elevenlabs
 psutil
 pytest-qt
 platformdirs
