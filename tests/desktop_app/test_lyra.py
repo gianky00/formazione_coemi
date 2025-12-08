@@ -27,11 +27,15 @@ class TestLyraRefactor(unittest.TestCase):
                 # Patch QMediaPlayer via mock_qt injection or direct patch
                 with patch('desktop_app.services.voice_service.QMediaPlayer'):
 
+                    mock_worker_instance = MagicMock()
+                    MockTTSWorker.return_value = mock_worker_instance
+
                     service = VoiceService()
                     service.speak("Hello")
 
-                    # Verify
-                    MockTTSWorker.assert_called_with("Hello", voice="it-IT-IsabellaNeural")
+                    # Verify - Updated for gTTS (only text arg)
+                    MockTTSWorker.assert_called_with(text="Hello")
+                    mock_worker_instance.start.assert_called_once()
 
     def test_voice_service_disabled(self):
         # Clean import

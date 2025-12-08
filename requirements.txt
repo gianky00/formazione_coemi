@@ -30,8 +30,8 @@ python-jose[cryptography]
 geoip2
 user-agents
 wmi
-# Switched to ElevenLabs per user request
-elevenlabs
+# Switched to gTTS per user request
+gTTS>=2.5.1
 psutil
 pytest-qt
 platformdirs
