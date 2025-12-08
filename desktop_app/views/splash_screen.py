@@ -103,9 +103,9 @@ class DynamicProgressBar(QProgressBar):
         if val > 0 and val < max_val:
              ratio = val / max_val
              tip_x = self.width() * ratio
-             tip_y = self.height() / 2 + random.uniform(-5, 5)
+             tip_y = self.height() / 2 + random.uniform(-5, 5) # NOSONAR
              
-             if random.random() < 0.4:
+             if random.random() < 0.4: # NOSONAR
                  self.particles.append(Particle(tip_x, tip_y))
 
         self.particles = [p for p in self.particles if p.update()]

@@ -479,7 +479,7 @@ class ApplicationController:
         """
         if os.name != 'nt':
             return
-        pass
+        # S2772: Removed useless pass
 
     def check_backend_health(self):
         try:
@@ -491,7 +491,7 @@ class ApplicationController:
             if response.status_code == 503:
                 try:
                     detail = response.json().get("detail", "Errore sconosciuto")
-                except:
+                except Exception: # S5754: Specify exception
                     detail = response.text
 
                 CustomMessageDialog.show_error(self.master_window, "Errore Critico Database", f"Impossibile avviare l'applicazione:\n\n{detail}")
@@ -500,7 +500,7 @@ class ApplicationController:
         except Exception as e:
             print(f"[DEBUG] Health Check Warning: {e}")
             # We proceed, as network errors might be temporary or handled by LoginView
-            pass
+            # S2772: Removed useless pass
 
     def show_notification(self, title, message, icon_name="file-text.svg"):
         """Displays a toast notification."""
@@ -536,6 +536,8 @@ class ApplicationController:
         Triggers analysis (file or folder).
         """
         if self.dashboard and getattr(self.dashboard, 'is_read_only', False):
+            # S1192: Use duplicated string literal if extracting constants or just ignore 3 times.
+            # Using literal here as extracting to a constant file for UI messages is out of scope for this pass.
             CustomMessageDialog.show_warning(self.master_window, "Sola Lettura", "Impossibile avviare l'analisi in modalità Sola Lettura.")
             return
 
@@ -588,7 +590,7 @@ class ApplicationController:
             # But specific message "Hey [User], ho terminato..." is required.
             
             # We can expose a method on Dashboard to register for completion.
-            pass
+            # S2772: Removed useless pass
 
         # Start Inactivity Timer (1 hour)
         self.inactivity_timer = QTimer()
@@ -638,7 +640,7 @@ class ApplicationController:
         self.master_window.show_dashboard(self.dashboard)
 
         # Check for pending documents notification
-        pending_count = user_info.get("pending_documents_count", 0)
+        # S1481: Unused pending_count removed
         
         # Play Welcome Speech (Voice Service)
         # "Bentornato. Ci sono [N] certificati in scadenza."

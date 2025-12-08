@@ -37,7 +37,12 @@ class TestAPIClientCoverage(unittest.TestCase):
 
     def test_get_headers(self):
         # We patch where it is DEFINED to ensure consistent behavior
-        with patch('desktop_app.utils.get_device_id', return_value="device_123"):
+        # But wait, desktop_app.api_client imports get_device_id from .utils
+        # If APIClient is already imported, we need to patch desktop_app.api_client.get_device_id
+        # OR patch where it's used.
+        # The failure showed "0025..." (real) vs "device_123" (mock).
+        # This implies it was using the real implementation.
+        with patch('desktop_app.api_client.get_device_id', return_value="device_123"):
             # No token
             headers = self.client._get_headers()
             self.assertEqual(headers.get("X-Device-ID"), "device_123")

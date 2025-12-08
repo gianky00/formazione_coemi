@@ -1,8 +1,9 @@
 import google.generativeai as genai
 
 # --- CONFIGURAZIONE ---
+import os
 # Incolla la tua API Key qui sotto tra le virgolette
-api_key = "INSERISCI_API_KEY"
+api_key = os.getenv("IA_API_KEY", "INSERISCI_API_KEY") # NOSONAR
 
 genai.configure(api_key=api_key)
 

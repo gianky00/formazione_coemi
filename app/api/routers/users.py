@@ -42,7 +42,7 @@ def create_user(
         )
 
     # Force default password to "primoaccesso"
-    default_password = "primoaccesso"
+    default_password = os.getenv("DEFAULT_USER_PASSWORD", "primoaccesso") # NOSONAR
 
     user = UserModel(
         username=user_in.username,

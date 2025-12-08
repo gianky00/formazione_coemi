@@ -278,6 +278,43 @@ class UserManagementWidget(QFrame):
                     # S5754: Handle exception properly
                     CustomMessageDialog.show_error(self, "Errore Critico", f"Errore: {e}\n(Dettagli: {inner_e})")
 
+    def _validate_change_password(self, data):
+        """Validates password change inputs."""
+        if not data['old_password'] or not data['new_password']:
+            CustomMessageDialog.show_warning(self, "Errore", "Tutti i campi sono obbligatori.")
+            return False
+
+        if data['new_password'] != data['confirm_password']:
+            CustomMessageDialog.show_warning(self, "Errore", "Le nuove password non corrispondono.")
+            return False
+        return True
+
+    def change_own_password(self):
+        # S3776: Refactored to reduce complexity
+        dialog = ChangePasswordDialog(self)
+        if not dialog.exec():
+            return
+
+        data = dialog.get_data()
+        if not self._validate_change_password(data):
+            return
+
+        try:
+            response = self.api_client.change_password(data['old_password'], data['new_password'])
+            CustomMessageDialog.show_info(self, "Successo", response.get("message", "Password aggiornata."))
+        except Exception as e:
+            # S5754: Re-raise handled exception or swallow intentionally?
+            try:
+                if hasattr(e, 'response') and e.response is not None:
+                    err_json = e.response.json()
+                    detail = err_json.get('detail', str(e))
+                    CustomMessageDialog.show_error(self, "Errore", "Errore: " + detail)
+                else:
+                    CustomMessageDialog.show_error(self, "Errore", str(e))
+            except Exception as inner_e:
+                # S5754: Handle exception properly
+                CustomMessageDialog.show_error(self, "Errore Critico", f"Errore: {e}\n(Dettagli: {inner_e})")
+
     def delete_user(self):
         user_id = self.get_selected_user_id()
         if not user_id: return
@@ -639,7 +676,7 @@ class AuditLogWidget(QFrame):
                 except Exception: # S5754: Handle specific exception? ValueError for format
                     # S5754: Or fallback. S5754 says re-raise SystemExit. This catch-all is fine for formatting fallback.
                     # Adding comment as per best practice
-                    # NOSONAR: Fallback to raw string
+                    # NOSONAR
                     formatted_date = ts_str
 
                 self.table.setItem(i, 0, QTableWidgetItem(formatted_date))

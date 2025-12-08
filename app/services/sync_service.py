@@ -182,6 +182,28 @@ def _link_and_move_orphan(db, cert, dipendente, database_path):
         except Exception as e:
             logging.error(f"Error moving linked orphan file: {e}")
 
+def _process_sync_cert(cert, database_path, status_map):
+    """Helper to process a single certificate sync to reduce complexity."""
+    if not cert.corso: return False, False
+
+    cert_data = {
+        'nome': f"{cert.dipendente.cognome} {cert.dipendente.nome}" if cert.dipendente else cert.nome_dipendente_raw,
+        'matricola': cert.dipendente.matricola if cert.dipendente else None,
+        'categoria': cert.corso.categoria_corso,
+        'data_scadenza': cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY) if cert.data_scadenza_calcolata else None
+    }
+
+    status = status_map.get(cert.id, "attivo")
+    target_status = "ATTIVO" if status in ["attivo", "in_scadenza"] else "STORICO"
+
+    expected_path = construct_certificate_path(database_path, cert_data, status=target_status)
+    current_path = find_document(database_path, cert_data)
+
+    if current_path and os.path.exists(current_path):
+        return _move_file_safely(current_path, expected_path, database_path), False
+
+    return False, True # Missing
+
 def synchronize_all_files(db: Session):
     """
     Scans all certificates and ensures their PDF files are located in the correct
@@ -201,26 +223,9 @@ def synchronize_all_files(db: Session):
     missing = 0
 
     for cert in certs:
-        if not cert.corso: continue
-
-        cert_data = {
-            'nome': f"{cert.dipendente.cognome} {cert.dipendente.nome}" if cert.dipendente else cert.nome_dipendente_raw,
-            'matricola': cert.dipendente.matricola if cert.dipendente else None,
-            'categoria': cert.corso.categoria_corso,
-            'data_scadenza': cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY) if cert.data_scadenza_calcolata else None
-        }
-
-        status = status_map.get(cert.id, "attivo")
-        target_status = "ATTIVO" if status in ["attivo", "in_scadenza"] else "STORICO"
-
-        expected_path = construct_certificate_path(database_path, cert_data, status=target_status)
-        current_path = find_document(database_path, cert_data)
-
-        if current_path and os.path.exists(current_path):
-            if _move_file_safely(current_path, expected_path, database_path):
-                moved += 1
-        else:
-            missing += 1
+        was_moved, was_missing = _process_sync_cert(cert, database_path, status_map)
+        if was_moved: moved += 1
+        if was_missing: missing += 1
 
     logging.info(f"Sync complete. Moved: {moved}, Missing: {missing}")
     return {"moved": moved, "missing": missing}

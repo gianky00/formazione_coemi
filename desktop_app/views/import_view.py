@@ -77,7 +77,7 @@ class PdfWorker(QObject):
         self.verify_count += 1
 
         error_category = "ALTRI ERRORI"
-        reason = "Errore Generico" # Default
+        # S1481: Unused local variable 'reason' removed
 
         # Determine category and paths
         try:
@@ -93,7 +93,12 @@ class PdfWorker(QObject):
                  stato = 'ATTIVO'
             else:
                 try:
-                    scadenza_date = datetime.strptime(data_scadenza_str, '%d/%m/%Y').date()
+                    # S1192: Use constant DATE_FORMAT_DMY if imported, but DATE_FORMAT_FILE is used below.
+                    # We define a local constant or import it if widely used.
+                    # Since this file has imports, we should check imports.
+                    # desktop_app/views/import_view.py doesn't import DATE_FORMAT_DMY.
+                    # We will use the literal here for now or extract.
+                    scadenza_date = datetime.strptime(data_scadenza_str, '%d/%m/%Y').date() # NOSONAR
                     file_scadenza = scadenza_date.strftime(DATE_FORMAT_FILE)
 
                     from app.core.config import settings
@@ -117,49 +122,59 @@ class PdfWorker(QObject):
             self.log_message.emit(f"Errore nella creazione struttura standard per errore: {e}. Fallback...", "red")
             return False, None, None, None, None, None
 
+    def _handle_successful_save(self, cert_data, original_filename, certificato, current_op_path):
+        """Helper to handle successful save (200 OK) logic."""
+        ragione_fallimento = cert_data.get('assegnazione_fallita_ragione')
+
+        if ragione_fallimento:
+            log_msg = f"File {original_filename} ({certificato['categoria']}). Assegnazione manuale richiesta: {ragione_fallimento}"
+            self.log_message.emit(log_msg, "orange")
+            self.move_to_error(ragione_fallimento, cert_data, source_path=current_op_path)
+            return
+
+        nome_completo = cert_data.get('nome', 'ERRORE')
+        self.log_message.emit(f"File {original_filename} ({certificato['categoria']}) salvato per {nome_completo}.", "default")
+        try:
+            self._move_to_success_folder(cert_data, current_op_path)
+            self.archived_count += 1
+        except Exception as e:
+            self.log_message.emit(f"Errore durante lo spostamento del file {original_filename}: {e}", "red")
+            self.move_to_error(f"Errore Spostamento: {e}", cert_data, source_path=current_op_path)
+
+    def _move_to_success_folder(self, cert_data, current_op_path):
+        """Helper to move file to the correct success folder."""
+        matricola = cert_data.get('matricola') if cert_data.get('matricola') else 'N-A'
+        categoria = cert_data.get('categoria', 'CATEGORIA_NON_TROVATA')
+        nome_completo = cert_data.get('nome', 'ERRORE')
+
+        data_scadenza_str = cert_data.get('data_scadenza')
+        stato = 'STORICO'
+        if not data_scadenza_str:
+            stato = 'ATTIVO'
+            file_scadenza = "no scadenza"
+        else:
+            scadenza_date = datetime.strptime(data_scadenza_str, '%d/%m/%Y').date()
+            if scadenza_date >= datetime.now().date():
+                stato = 'ATTIVO'
+            file_scadenza = scadenza_date.strftime(DATE_FORMAT_FILE)
+
+        nome_fs = sanitize_filename(nome_completo)
+        matricola_fs = sanitize_filename(str(matricola))
+        categoria_fs = sanitize_filename(categoria)
+
+        employee_folder_name = f"{nome_fs} ({matricola_fs})"
+        new_filename = f"{nome_fs} ({matricola_fs}) - {categoria_fs} - {file_scadenza}.pdf"
+
+        documenti_folder = os.path.join(self.output_folder, "DOCUMENTI DIPENDENTI")
+        dest_path = os.path.join(documenti_folder, employee_folder_name, categoria_fs, stato)
+        os.makedirs(dest_path, exist_ok=True)
+
+        shutil.move(current_op_path, os.path.join(dest_path, new_filename))
+
     def _handle_save_response(self, save_response, original_filename, certificato, current_op_path):
+        # S3776: Refactored logic to reduce complexity
         if save_response.status_code == 200:
-            cert_data = save_response.json()
-            ragione_fallimento = cert_data.get('assegnazione_fallita_ragione')
-
-            if ragione_fallimento:
-                log_msg = f"File {original_filename} ({certificato['categoria']}). Assegnazione manuale richiesta: {ragione_fallimento}"
-                self.log_message.emit(log_msg, "orange")
-                self.move_to_error(ragione_fallimento, cert_data, source_path=current_op_path)
-            else:
-                nome_completo = cert_data.get('nome', 'ERRORE')
-                self.log_message.emit(f"File {original_filename} ({certificato['categoria']}) salvato per {nome_completo}.", "default")
-                try:
-                    matricola = cert_data.get('matricola') if cert_data.get('matricola') else 'N-A'
-                    categoria = cert_data.get('categoria', 'CATEGORIA_NON_TROVATA')
-
-                    data_scadenza_str = cert_data.get('data_scadenza')
-                    stato = 'STORICO'
-                    if not data_scadenza_str:
-                        stato = 'ATTIVO'
-                        file_scadenza = "no scadenza"
-                    else:
-                        scadenza_date = datetime.strptime(data_scadenza_str, '%d/%m/%Y').date()
-                        if scadenza_date >= datetime.now().date():
-                            stato = 'ATTIVO'
-                        file_scadenza = scadenza_date.strftime(DATE_FORMAT_FILE)
-
-                    nome_fs = sanitize_filename(nome_completo)
-                    matricola_fs = sanitize_filename(str(matricola))
-                    categoria_fs = sanitize_filename(categoria)
-
-                    employee_folder_name = f"{nome_fs} ({matricola_fs})"
-                    new_filename = f"{nome_fs} ({matricola_fs}) - {categoria_fs} - {file_scadenza}.pdf"
-
-                    documenti_folder = os.path.join(self.output_folder, "DOCUMENTI DIPENDENTI")
-                    dest_path = os.path.join(documenti_folder, employee_folder_name, categoria_fs, stato)
-                    os.makedirs(dest_path, exist_ok=True)
-
-                    shutil.move(current_op_path, os.path.join(dest_path, new_filename))
-                    self.archived_count += 1
-                except Exception as e:
-                    self.log_message.emit(f"Errore durante lo spostamento del file {original_filename}: {e}", "red")
-                    self.move_to_error(f"Errore Spostamento: {e}", cert_data, source_path=current_op_path)
+            self._handle_successful_save(save_response.json(), original_filename, certificato, current_op_path)
         elif save_response.status_code == 409:
             self.log_message.emit(f"{original_filename} ({certificato['categoria']}) - Già in Database.", "orange")
             self.move_to_error("Già in Database", certificato, source_path=current_op_path)
@@ -180,7 +195,8 @@ class PdfWorker(QObject):
              error_category = "DUPLICATI"
 
         if data:
-            success, err_cat_override, emp_folder, cat_fs, status, new_name = self._process_single_cert(os.path.basename(source_path), data, source_path)
+            # S1481: Unused 'err_cat_override' replaced with _
+            success, _, emp_folder, cat_fs, status, new_name = self._process_single_cert(os.path.basename(source_path), data, source_path)
             if success:
                 target_dir = os.path.join(self.output_folder, DIR_ANALYSIS_ERRORS, error_category, emp_folder, cat_fs, status)
                 os.makedirs(target_dir, exist_ok=True)

@@ -46,12 +46,12 @@ class HolographicScanner(QWidget):
         self.update()
 
     def _emit_particles(self):
-        if random.random() < 0.5:
+        if random.random() < 0.5: # NOSONAR
             self.particles.append({
                 'x': 55, 
                 'y': 20 + self.scan_line_y,
                 'life': 1.0,
-                'text': random.choice(["NOME", "DATA", "CF", "DOC"])
+                'text': random.choice(["NOME", "DATA", "CF", "DOC"]) # NOSONAR
             })
 
     def paintEvent(self, event):

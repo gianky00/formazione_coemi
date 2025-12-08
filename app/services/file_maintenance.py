@@ -33,6 +33,26 @@ def _gather_known_files(db, database_path):
                 known_files.add(os.path.normpath(found_path))
     return known_files
 
+def _process_potential_orphan(file, root, known_files, docs_path, orphan_dest_base):
+    if not file.lower().endswith('.pdf'):
+        return False
+
+    full_path = os.path.normpath(os.path.join(root, file))
+
+    if full_path not in known_files:
+        rel_path = os.path.relpath(full_path, docs_path)
+        dest_path = os.path.join(orphan_dest_base, rel_path)
+
+        try:
+            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+            shutil.move(full_path, dest_path)
+            logging.warning(f"Orphan file detected and moved: {full_path} -> {dest_path}")
+            return True
+        except Exception as e:
+            logging.error(f"Failed to move orphan file {full_path}: {e}")
+            return False
+    return False
+
 def scan_and_archive_orphans(db: Session, database_path: str):
     """
     Bug 8 Fix: Identify files in 'DOCUMENTI DIPENDENTI' that are NOT in the database.
@@ -55,22 +75,8 @@ def scan_and_archive_orphans(db: Session, database_path: str):
             continue
 
         for file in files:
-            if not file.lower().endswith('.pdf'):
-                continue
-
-            full_path = os.path.normpath(os.path.join(root, file))
-
-            if full_path not in known_files:
-                rel_path = os.path.relpath(full_path, docs_path)
-                dest_path = os.path.join(orphan_dest_base, rel_path)
-
-                try:
-                    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-                    shutil.move(full_path, dest_path)
-                    orphans_moved += 1
-                    logging.warning(f"Orphan file detected and moved: {full_path} -> {dest_path}")
-                except Exception as e:
-                    logging.error(f"Failed to move orphan file {full_path}: {e}")
+            if _process_potential_orphan(file, root, known_files, docs_path, orphan_dest_base):
+                orphans_moved += 1
 
     if orphans_moved > 0:
         log_security_action(db, None, "ORPHAN_CLEANUP", f"Moved {orphans_moved} orphaned files to 'ORFANI' folder.", category="SYSTEM")
