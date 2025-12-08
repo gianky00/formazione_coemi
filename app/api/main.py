@@ -235,8 +235,8 @@ def _handle_file_rename(database_path, status, old_file_path, new_cert_data):
 
     return False, None
 
-def _update_cert_identity(db_cert, update_data, db):
-    """Updates certificate identity fields (name, date of birth) and matches employee."""
+def _update_cert_identity_fields(db_cert, update_data):
+    """Updates raw identity fields on the certificate object."""
     if 'data_nascita' in update_data:
         db_cert.data_nascita_raw = update_data['data_nascita']
 
@@ -247,14 +247,21 @@ def _update_cert_identity(db_cert, update_data, db):
         if len(db_cert.nome_dipendente_raw.split()) < 2:
             raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
 
+def _match_employee_for_cert(db_cert, update_data, db):
+    """Attempts to link the certificate to an employee if identity fields changed."""
     if 'nome' in update_data or 'data_nascita' in update_data:
         search_name = db_cert.nome_dipendente_raw
         dob_str = db_cert.data_nascita_raw
         dob = parse_date_flexible(dob_str) if dob_str else None
-        
+
         if search_name:
             match = matcher.find_employee_by_name(db, search_name, dob)
             db_cert.dipendente_id = match.id if match else None
+
+def _update_cert_identity(db_cert, update_data, db):
+    """Updates certificate identity fields (name, date of birth) and matches employee."""
+    _update_cert_identity_fields(db_cert, update_data)
+    _match_employee_for_cert(db_cert, update_data, db)
 
 def _update_cert_dates(db_cert, update_data):
     """Updates certificate dates (release, expiration)."""
