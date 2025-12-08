@@ -51,7 +51,8 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-cov
+          # Installa librerie extra necessarie per i report
+          pip install pytest pytest-cov requests python-dotenv
 
       - name: Run Tests and Generate Reports
         continue-on-error: true
@@ -83,22 +84,16 @@ jobs:
       - name: Configure Dynamic SonarCloud Key
         shell: bash
         run: |
-          # Definisci le chiavi base del progetto (uguali a sonar-project.properties)
           BASE_KEY="gianky00_formazione_coemi"
           BASE_NAME="formazione_coemi"
-          
-          # Ottieni il nome del branch corrente
           CURRENT_BRANCH="${{ github.ref_name }}"
           
           if [[ "$CURRENT_BRANCH" == "main" ]]; then
-            # Se è il main, usa la configurazione standard
             echo "FINAL_PROJECT_KEY=$BASE_KEY" >> $GITHUB_ENV
             echo "FINAL_PROJECT_NAME=$BASE_NAME" >> $GITHUB_ENV
           else
-            # Se è un altro branch (es. creato da Jules), crea una chiave univoca
-            # Sostituisce slash e caratteri speciali con trattini per evitare errori
+            # Sanitizza il nome del branch
             SAFE_BRANCH=$(echo "$CURRENT_BRANCH" | sed 's/[\/:]/-/g')
-            
             echo "FINAL_PROJECT_KEY=${BASE_KEY}_${SAFE_BRANCH}" >> $GITHUB_ENV
             echo "FINAL_PROJECT_NAME=${BASE_NAME} [${CURRENT_BRANCH}]" >> $GITHUB_ENV
           fi
@@ -106,20 +101,37 @@ jobs:
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v5.0.0 # NOSONAR
         with:
-          # Inietta la chiave e il nome calcolati dinamicamente
           args: >
             -Dsonar.projectKey=${{ env.FINAL_PROJECT_KEY }}
             -Dsonar.projectName="${{ env.FINAL_PROJECT_NAME }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          
-      - name: Upload Test Reports as Artifact
+      
+      # -----------------------------------------------------------------------
+      # GENERAZIONE REPORT JULES (Parte Mancante Aggiunta)
+      # -----------------------------------------------------------------------
+      - name: Wait for SonarCloud Processing
+        run: sleep 10 # Attesa tecnica per dare tempo alle API di aggiornarsi
+
+      - name: Run Sonar Reporter Script
+        env:
+          # Passiamo il token in modo sicuro allo script
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          # Esegue lo script che si trova ora nella cartella admin
+          python admin/riepilogo_Bug_Sonar.py
+
+      # -----------------------------------------------------------------------
+      # SALVATAGGIO ARTIFATTI (Per scaricare i report)
+      # -----------------------------------------------------------------------
+      - name: Upload Test & Bug Reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-reports
+          name: jules-reports-${{ github.ref_name }} # Nome univoco per branch
           path: |
             coverage.xml
             junit.xml
+            docs/bug/*.md
           retention-days: 7
