@@ -51,7 +51,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          # Installa librerie extra necessarie per i report
           pip install pytest pytest-cov requests python-dotenv
 
       - name: Run Tests and Generate Reports
@@ -67,69 +66,89 @@ jobs:
       - name: Verify Reports Generated
         run: |
           echo "📊 Verifica file di report..."
-          if [ -f "coverage.xml" ]; then
-            echo "✅ coverage.xml trovato ($(wc -l < coverage.xml) righe)"
-          else
-            echo "❌ coverage.xml NON trovato!"
-          fi
-          if [ -f "junit.xml" ]; then
-            echo "✅ junit.xml trovato ($(wc -l < junit.xml) righe)"
-          else
-            echo "❌ junit.xml NON trovato!"
-          fi
+          [ -f "coverage.xml" ] && echo "✅ coverage.xml trovato" || echo "❌ coverage.xml NON trovato!"
+          [ -f "junit.xml" ] && echo "✅ junit.xml trovato" || echo "❌ junit.xml NON trovato!"
 
       # -----------------------------------------------------------------------
-      # MODIFICA PER SONARCLOUD FREE: Gestione Branch Dinamici
+      # CONFIGURAZIONE DINAMICA "FAKE PROJECT"
       # -----------------------------------------------------------------------
-      - name: Configure Dynamic SonarCloud Key
+      - name: Configure Dynamic Sonar Project
         shell: bash
         run: |
-          BASE_KEY="gianky00_formazione_coemi"
-          BASE_NAME="formazione_coemi"
-          CURRENT_BRANCH="${{ github.ref_name }}"
-          
-          if [[ "$CURRENT_BRANCH" == "main" ]]; then
-            echo "FINAL_PROJECT_KEY=$BASE_KEY" >> $GITHUB_ENV
-            echo "FINAL_PROJECT_NAME=$BASE_NAME" >> $GITHUB_ENV
+          # Identifica il branch corrente (funziona sia per Push che PR)
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            CURRENT_BRANCH="${{ github.head_ref }}"
           else
-            # Sanitizza il nome del branch
-            SAFE_BRANCH=$(echo "$CURRENT_BRANCH" | sed 's/[\/:]/-/g')
-            echo "FINAL_PROJECT_KEY=${BASE_KEY}_${SAFE_BRANCH}" >> $GITHUB_ENV
-            echo "FINAL_PROJECT_NAME=${BASE_NAME} [${CURRENT_BRANCH}]" >> $GITHUB_ENV
+            CURRENT_BRANCH="${{ github.ref_name }}"
           fi
 
+          echo "🔍 Branch rilevato: $CURRENT_BRANCH"
+
+          # Definisce la chiave base (uguale a sonar-project.properties originale)
+          BASE_KEY="gianky00_formazione_coemi"
+          BASE_NAME="formazione_coemi"
+
+          if [[ "$CURRENT_BRANCH" == "main" ]]; then
+            # Se è main, usa il progetto originale
+            NEW_KEY="$BASE_KEY"
+            NEW_NAME="$BASE_NAME"
+          else
+            # Se è un altro branch, crea una chiave univoca sanificata
+            # Sostituisce slash (/) e caratteri strani con trattini (-)
+            SAFE_BRANCH=$(echo "$CURRENT_BRANCH" | sed 's/[^a-zA-Z0-9]/-/g')
+            
+            NEW_KEY="${BASE_KEY}_${SAFE_BRANCH}"
+            NEW_NAME="${BASE_NAME} (${SAFE_BRANCH})"
+          fi
+
+          echo "🎯 Target Sonar Project Key: $NEW_KEY"
+          echo "🎯 Target Sonar Project Name: $NEW_NAME"
+
+          # MODIFICA FISICA del file sonar-project.properties
+          # Questo serve affinché sia lo Scanner che lo script Python (Jules)
+          # leggano la stessa configurazione aggiornata.
+          sed -i "s|^sonar.projectKey=.*|sonar.projectKey=$NEW_KEY|" sonar-project.properties
+          sed -i "s|^sonar.projectName=.*|sonar.projectName=$NEW_NAME|" sonar-project.properties
+
+          # Stampa di verifica
+          grep "sonar.projectKey" sonar-project.properties
+          grep "sonar.projectName" sonar-project.properties
+
+      # -----------------------------------------------------------------------
+      # SONARCLOUD SCAN
+      # -----------------------------------------------------------------------
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v5.0.0 # NOSONAR
         with:
           args: >
-            -Dsonar.projectKey=${{ env.FINAL_PROJECT_KEY }}
-            -Dsonar.projectName="${{ env.FINAL_PROJECT_NAME }}"
+            -Dsonar.scm.provider=git
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       
       # -----------------------------------------------------------------------
-      # GENERAZIONE REPORT JULES (Parte Mancante Aggiunta)
+      # GENERAZIONE REPORT JULES
       # -----------------------------------------------------------------------
       - name: Wait for SonarCloud Processing
-        run: sleep 10 # Attesa tecnica per dare tempo alle API di aggiornarsi
+        run: sleep 15 # Aumentato leggermente per dare tempo alla creazione progetto
 
       - name: Run Sonar Reporter Script
         env:
-          # Passiamo il token in modo sicuro allo script
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          # Esegue lo script che si trova ora nella cartella admin
+          # Lo script leggerà il file sonar-project.properties che abbiamo modificato sopra
+          # quindi punterà automaticamente al progetto "Fake" corretto.
           python admin/riepilogo_Bug_Sonar.py
 
       # -----------------------------------------------------------------------
-      # SALVATAGGIO ARTIFATTI (Per scaricare i report)
+      # SALVATAGGIO ARTIFATTI
       # -----------------------------------------------------------------------
       - name: Upload Test & Bug Reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: jules-reports-${{ github.ref_name }} # Nome univoco per branch
+          # Usiamo run_id per garantire un nome file valido sempre
+          name: jules-reports-${{ github.run_id }}
           path: |
             coverage.xml
             junit.xml
