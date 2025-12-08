@@ -3,8 +3,10 @@ name: SonarCloud CI
 on:
   push:
     branches:
-      - '**'
+      - main
   pull_request:
+    branches:
+      - main
     types: [opened, synchronize, reopened]
 
 jobs:
@@ -51,7 +53,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          # Installa librerie extra necessarie per i report
           pip install pytest pytest-cov requests python-dotenv
 
       - name: Run Tests and Generate Reports
@@ -79,57 +80,34 @@ jobs:
           fi
 
       # -----------------------------------------------------------------------
-      # MODIFICA PER SONARCLOUD FREE: Gestione Branch Dinamici
+      # SCANSIONE SONARCLOUD (Chiave statica da sonar-project.properties)
       # -----------------------------------------------------------------------
-      - name: Configure Dynamic SonarCloud Key
-        shell: bash
-        run: |
-          BASE_KEY="gianky00_formazione_coemi"
-          BASE_NAME="formazione_coemi"
-          CURRENT_BRANCH="${{ github.ref_name }}"
-
-          if [[ "$CURRENT_BRANCH" == "main" ]]; then
-            echo "FINAL_PROJECT_KEY=$BASE_KEY" >> $GITHUB_ENV
-            echo "FINAL_PROJECT_NAME=$BASE_NAME" >> $GITHUB_ENV
-          else
-            # Sanitizza il nome del branch
-            SAFE_BRANCH=$(echo "$CURRENT_BRANCH" | sed 's/[\/:]/-/g')
-            echo "FINAL_PROJECT_KEY=${BASE_KEY}_${SAFE_BRANCH}" >> $GITHUB_ENV
-            echo "FINAL_PROJECT_NAME=${BASE_NAME} [${CURRENT_BRANCH}]" >> $GITHUB_ENV
-          fi
-
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v5.0.0 # NOSONAR
-        with:
-          args: >
-            -Dsonar.projectKey=${{ env.FINAL_PROJECT_KEY }}
-            -Dsonar.projectName="${{ env.FINAL_PROJECT_NAME }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       
       # -----------------------------------------------------------------------
-      # GENERAZIONE REPORT JULES (Parte Mancante Aggiunta)
+      # GENERAZIONE REPORT JULES
       # -----------------------------------------------------------------------
       - name: Wait for SonarCloud Processing
-        run: sleep 10 # Attesa tecnica per dare tempo alle API di aggiornarsi
+        run: sleep 10
 
       - name: Run Sonar Reporter Script
         env:
-          # Passiamo il token in modo sicuro allo script
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          # Esegue lo script che si trova ora nella cartella admin
           python admin/riepilogo_Bug_Sonar.py
 
       # -----------------------------------------------------------------------
-      # SALVATAGGIO ARTIFATTI (Per scaricare i report)
+      # SALVATAGGIO ARTIFATTI
       # -----------------------------------------------------------------------
       - name: Upload Test & Bug Reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: jules-reports-${{ github.ref_name }} # Nome univoco per branch
+          name: jules-reports-${{ github.ref_name }}
           path: |
             coverage.xml
             junit.xml

@@ -30,7 +30,8 @@ python-jose[cryptography]
 geoip2
 user-agents
 wmi
-edge-tts
+# edge-tts removed due to persistent 401 Auth errors
+gTTS
 psutil
 pytest-qt
 platformdirs

@@ -1,11 +1,9 @@
 import os
 import tempfile
-import asyncio
 import logging
-from pathlib import Path
 from PyQt6.QtCore import QObject, QThread, pyqtSignal, QUrl
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
-import edge_tts
+from gtts import gTTS
 from app.core.config import settings
 
 # Configure logging
@@ -13,54 +11,35 @@ logger = logging.getLogger(__name__)
 
 class TTSWorker(QThread):
     """
-    Worker thread to handle async edge-tts generation without freezing the GUI.
+    Worker thread to handle blocking gTTS generation without freezing the GUI.
     """
     finished = pyqtSignal(str) # Emits path to generated file
     error = pyqtSignal(str)
 
-    def __init__(self, text, voice="it-IT-ElsaNeural"):
+    def __init__(self, text, lang="it"):
         super().__init__()
         self.text = text
-        self.voice = voice
-        # Personality Tuning Parameters - Reduced to avoid "No audio received" errors
-        self.rate = "+0%"
-        self.pitch = "+0Hz"
+        self.lang = lang
 
     def run(self):
         try:
             # Create a unique temp file path. 
-            # We close it immediately so edge-tts can write to it.
+            # We close it immediately so gTTS can write to it.
             fd, path = tempfile.mkstemp(suffix=".mp3")
             os.close(fd)
             
-            asyncio.run(self._generate_audio(path))
+            # Blocking call to Google TTS API
+            tts = gTTS(text=self.text, lang=self.lang)
+            tts.save(path)
+
             self.finished.emit(path)
         except Exception as e:
             logger.error(f"TTS Generation Error: {e}")
             self.error.emit(str(e))
 
-    async def _generate_audio(self, path):
-        try:
-            # Try with tuning first
-            communicate = edge_tts.Communicate(
-                self.text,
-                self.voice,
-                rate=self.rate,
-                pitch=self.pitch
-            )
-            await communicate.save(path)
-        except Exception as e:
-            logger.warning(f"TTS Tuning Failed ({e}), retrying without parameters...")
-            # Fallback: Raw parameters (most stable)
-            communicate = edge_tts.Communicate(
-                self.text,
-                self.voice
-            )
-            await communicate.save(path)
-
 class VoiceService(QObject):
     """
-    Service to handle Text-to-Speech using edge-tts and QMediaPlayer.
+    Service to handle Text-to-Speech using gTTS and QMediaPlayer.
     """
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -94,8 +73,8 @@ class VoiceService(QObject):
         self.stop()
 
         # Start generation in background thread
-        # Use Elsa as the standard stable voice
-        self.worker = TTSWorker(text, voice="it-IT-ElsaNeural")
+        # gTTS defaults to Italian ('it')
+        self.worker = TTSWorker(text, lang="it")
         self.worker.finished.connect(self._play_audio)
         self.worker.error.connect(lambda e: logger.error(f"TTS Error: {e}"))
         self.worker.start()
