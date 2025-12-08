@@ -136,62 +136,67 @@ class LicenseAdminApp:
         try:
             # Esegui comando
             res = subprocess.run(cmd, capture_output=True, text=True)
-            
-            if res.returncode == 0:
-                # PyArmor di default mette l'output in "dist/pyarmor.rkey" relativo alla CWD
-                # S1192: Use literal
-                key_filename = "pyarmor.rkey"
-                src_default = os.path.join("dist", key_filename)
-                
-                if os.path.exists(src_default):
-                    # Crea cartella destinazione
-                    if not os.path.exists(target_dir):
-                        os.makedirs(target_dir)
-                    
-                    # 1. Sposta il file di licenza
-                    dst_lic = os.path.join(target_dir, key_filename)
-                    if os.path.exists(dst_lic): os.remove(dst_lic)
-                    shutil.move(src_default, dst_lic)
-
-                    # 1.1 Rimuovi cartella dist temporanea
-                    if os.path.exists("dist"):
-                        shutil.rmtree("dist", ignore_errors=True)
-                    
-                    # 2. GENERAZIONE FILE CRITTOGRAFATO
-                    config_path = self._generate_encrypted_config(disk_serial, expiry, client_name, target_dir)
-
-                    # 3. GENERAZIONE MANIFEST CON CHECKSUM
-                    manifest = {
-                        key_filename: _calculate_sha256(dst_lic),
-                        "config.dat": _calculate_sha256(config_path)
-                    }
-                    manifest_path = os.path.join(target_dir, "manifest.json")
-                    with open(manifest_path, "w") as f:
-                        json.dump(manifest, f, indent=4)
-
-                    # Istruzioni per l'utente
-                    msg = (f"Licenza GENERATA con successo!\n\n"
-                           f"Cliente: {client_name}\n"
-                           f"Hardware ID: {disk_serial}\n\n"
-                           f"FILE SALVATI IN:\n{target_dir}\n"
-                           f"(Troverai '{key_filename}', 'config.dat' e 'manifest.json')\n\n"
-                           f"ISTRUZIONI PER L'AUTO-UPDATE:\n"
-                           f"1. Apri il repository GitHub privato delle licenze.\n"
-                           f"2. Crea una nuova cartella nominandola ESATTAMENTE come l'Hardware ID del cliente.\n"
-                           f"3. Carica i 3 file generati ('{key_filename}', 'config.dat', 'manifest.json') in questa nuova cartella.")
-                    
-                    messagebox.showinfo("Successo", msg)
-                    
-                    # Apre la cartella automaticamente
-                    if os.name == 'nt':
-                        os.startfile(target_dir)
-                else:
-                    messagebox.showerror("Errore", f"File generato non trovato in {src_default}")
-            else:
+            if res.returncode != 0:
                 messagebox.showerror("Errore PyArmor", f"Output errore:\n{res.stderr}")
+                return
+
+            self._process_generation_success(client_name, target_dir, disk_serial, expiry)
 
         except Exception as e:
             messagebox.showerror("Eccezione", str(e))
+
+    def _process_generation_success(self, client_name, target_dir, disk_serial, expiry):
+        """Handles post-generation tasks (move, encrypt, manifest)."""
+        key_filename = "pyarmor.rkey"
+        src_default = os.path.join("dist", key_filename)
+
+        if not os.path.exists(src_default):
+            messagebox.showerror("Errore", f"File generato non trovato in {src_default}")
+            return
+
+        if not os.path.exists(target_dir):
+            os.makedirs(target_dir)
+
+        # 1. Sposta il file di licenza
+        dst_lic = os.path.join(target_dir, key_filename)
+        if os.path.exists(dst_lic): os.remove(dst_lic)
+        shutil.move(src_default, dst_lic)
+
+        if os.path.exists("dist"):
+            shutil.rmtree("dist", ignore_errors=True)
+
+        # 2. GENERAZIONE FILE CRITTOGRAFATO
+        config_path = self._generate_encrypted_config(disk_serial, expiry, client_name, target_dir)
+
+        # 3. GENERAZIONE MANIFEST
+        self._generate_manifest(target_dir, dst_lic, config_path, key_filename)
+
+        self._show_success_message(client_name, disk_serial, target_dir, key_filename)
+
+    def _generate_manifest(self, target_dir, dst_lic, config_path, key_filename):
+        manifest = {
+            key_filename: _calculate_sha256(dst_lic),
+            "config.dat": _calculate_sha256(config_path)
+        }
+        manifest_path = os.path.join(target_dir, "manifest.json")
+        with open(manifest_path, "w") as f:
+            json.dump(manifest, f, indent=4)
+
+    def _show_success_message(self, client_name, disk_serial, target_dir, key_filename):
+        msg = (f"Licenza GENERATA con successo!\n\n"
+                f"Cliente: {client_name}\n"
+                f"Hardware ID: {disk_serial}\n\n"
+                f"FILE SALVATI IN:\n{target_dir}\n"
+                f"(Troverai '{key_filename}', 'config.dat' e 'manifest.json')\n\n"
+                f"ISTRUZIONI PER L'AUTO-UPDATE:\n"
+                f"1. Apri il repository GitHub privato delle licenze.\n"
+                f"2. Crea una nuova cartella nominandola ESATTAMENTE come l'Hardware ID del cliente.\n"
+                f"3. Carica i 3 file generati ('{key_filename}', 'config.dat', 'manifest.json') in questa nuova cartella.")
+
+        messagebox.showinfo("Successo", msg)
+
+        if os.name == 'nt':
+            os.startfile(target_dir)
 
 if __name__ == "__main__":
     root = tk.Tk()

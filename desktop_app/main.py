@@ -531,6 +531,13 @@ class ApplicationController:
             if view_name and self.dashboard:
                 self.dashboard.switch_to(view_name)
 
+    def _execute_or_defer_action(self, action_name, path, method):
+        """Helper to execute method if dashboard exists, else defer."""
+        if self.dashboard and method:
+            method(path)
+        else:
+            self.pending_action = {"action": action_name, "path": path}
+
     def analyze_path(self, path):
         """
         Triggers analysis (file or folder).
@@ -541,10 +548,7 @@ class ApplicationController:
             CustomMessageDialog.show_warning(self.master_window, "Sola Lettura", "Impossibile avviare l'analisi in modalità Sola Lettura.")
             return
 
-        if self.dashboard:
-            self.dashboard.analyze_path(path)
-        else:
-            self.pending_action = {"action": "analyze", "path": path}
+        self._execute_or_defer_action("analyze", path, self.dashboard.analyze_path if self.dashboard else None)
 
     def import_dipendenti_csv(self, path):
         """
@@ -676,17 +680,22 @@ class ApplicationController:
 
         # Handle deferred action
         if self.pending_action:
-            if is_read_only:
-                CustomMessageDialog.show_warning(self.master_window, "Sola Lettura",
-                                    "L'azione richiesta è stata annullata perché il database è in modalità Sola Lettura.")
-            else:
-                action = self.pending_action.get("action")
-                if action == "analyze":
-                    self.dashboard.analyze_path(self.pending_action.get("path"))
-                elif action == "import_csv":
-                    self.import_dipendenti_csv(self.pending_action.get("path"))
+            self._handle_deferred_action(is_read_only)
 
-            self.pending_action = None
+    def _handle_deferred_action(self, is_read_only):
+        """Executes any pending action after login."""
+        if is_read_only:
+            CustomMessageDialog.show_warning(self.master_window, "Sola Lettura",
+                                "L'azione richiesta è stata annullata perché il database è in modalità Sola Lettura.")
+        else:
+            action = self.pending_action.get("action")
+            path = self.pending_action.get("path")
+            if action == "analyze":
+                self.dashboard.analyze_path(path)
+            elif action == "import_csv":
+                self.import_dipendenti_csv(path)
+
+        self.pending_action = None
 
     def on_analysis_finished(self, archived, verify):
         user_name = "Utente"

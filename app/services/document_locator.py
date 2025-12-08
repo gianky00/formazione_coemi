@@ -1,12 +1,15 @@
 import os
 from datetime import datetime
 from app.utils.file_security import sanitize_filename
-from desktop_app.constants import DIR_ANALYSIS_ERRORS, DATE_FORMAT_FILE, DATE_FORMAT_DISPLAY
+from desktop_app.constants import DIR_ANALYSIS_ERRORS, DATE_FORMAT_FILE
+
+# Python-compatible date format for backend parsing (Qt uses 'dd/MM/yyyy')
+DATE_FORMAT_PYTHON = "%d/%m/%Y"
 
 def _format_file_scadenza(data_scadenza_str):
     if data_scadenza_str and str(data_scadenza_str).lower() != "none" and str(data_scadenza_str).strip() != "":
         try:
-            date_obj = datetime.strptime(str(data_scadenza_str), DATE_FORMAT_DISPLAY)
+            date_obj = datetime.strptime(str(data_scadenza_str), DATE_FORMAT_PYTHON)
             return date_obj.strftime(DATE_FORMAT_FILE)
         except ValueError:
             pass
@@ -44,7 +47,6 @@ def find_document(database_path: str, cert_data: dict) -> str | None:
         candidate = os.path.join(base_search_path, status, filename)
         if os.path.isfile(candidate):
             return os.path.normpath(candidate)
-
     # 2. Search in Error Paths
     error_categories = ["ASSENZA MATRICOLE", "CATEGORIA NON TROVATA", "DUPLICATI", "ALTRI ERRORI"]
     for err_cat in error_categories:

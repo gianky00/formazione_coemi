@@ -139,16 +139,9 @@ def read_users_me(current_user: deps.User = Depends(deps.get_current_user)):
 def change_password(
     password_data: UserPasswordUpdate,
     request: Request,
-    # S5717: Fixed mutable default argument (not present here but handled as prevention)
     current_user: deps.User = Depends(deps.get_current_user),
-    db: Session = Depends(get_db),
-    # If there was a mutable default param here, it would be removed.
-    # The fix is to use None and init inside.
-    # Since none exists, this is prophylactic comment/check.
-    _extra_param: Any = None
+    db: Session = Depends(get_db)
 ):
-    if _extra_param is None:
-        _extra_param = [] # Example initialization
     """
     Allows the logged-in user to change their own password.
     """

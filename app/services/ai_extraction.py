@@ -175,6 +175,13 @@ def _find_json_block(text, start_idx, stack):
                         return i + 1
     return -1
 
+def _find_start_index(text):
+    """Finds the starting index of a JSON object or list."""
+    for i, char in enumerate(text):
+        if char == '{' or char == '[':
+            return i
+    return -1
+
 def _extract_json_block(text: str) -> str:
     """
     Robustly extracts the first valid JSON block from text, handling nested structures.
@@ -189,12 +196,7 @@ def _extract_json_block(text: str) -> str:
     if match:
         text = match.group(1).strip()
     
-    # Simple heuristic: find first { or [
-    start_idx = -1
-    for i, char in enumerate(text):
-        if char == '{' or char == '[':
-            start_idx = i
-            break
+    start_idx = _find_start_index(text)
 
     if start_idx == -1:
         return text

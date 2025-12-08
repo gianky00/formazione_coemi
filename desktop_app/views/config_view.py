@@ -1055,32 +1055,38 @@ class ConfigView(QWidget):
         return update_payload
 
     def save_config(self):
+        # S3776: Refactored to reduce complexity
         if getattr(self, 'is_read_only', False):
             return
 
         gs = self.general_settings
-        db = self.database_settings
-        api = self.api_settings
         email = self.email_settings
 
         valid, smtp_port_val, alert_days, alert_visite = self._validate_config(gs, email)
         if not valid: return
 
-        update_payload = self._build_config_payload(gs, db, api, email, smtp_port_val, alert_days, alert_visite)
+        update_payload = self._build_config_payload(
+            gs, self.database_settings, self.api_settings,
+            email, smtp_port_val, alert_days, alert_visite
+        )
 
         if not update_payload:
             ToastManager.info("Nessuna Modifica", "Nessuna modifica da salvare.", self.window())
             return
 
+        self._perform_save_operation(update_payload)
+
+    def _perform_save_operation(self, update_payload):
+        """Helper to execute the API call and handle database move if needed."""
         try:
-            # Check if database path has changed
-            new_db_path = db.db_path_input.text()
+            new_db_path = self.database_settings.db_path_input.text()
             current_db_path = self.current_settings.get("DATABASE_PATH", "")
+
             if new_db_path and new_db_path != current_db_path:
                 self.api_client.move_database(new_db_path)
 
             self.api_client.update_mutable_config(update_payload)
             ToastManager.success("Salvato", "Configurazione salvata con successo. Le modifiche saranno attive al prossimo riavvio.", self.window())
-            self.load_config() # Reload to update current_settings state and clear dirty flag
+            self.load_config()
         except Exception as e:
             CustomMessageDialog.show_error(self, "Errore", f"Impossibile salvare la configurazione: {e}")

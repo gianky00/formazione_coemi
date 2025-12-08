@@ -204,7 +204,8 @@ class TestLauncherRobustness(unittest.TestCase):
     @patch('launcher.start_server')
     @patch('launcher.check_port', return_value=True)
     @patch('requests.get')
-    def test_startup_worker_success(self, m_get, m_check, m_start):
+    @patch('desktop_app.services.security_service.is_analysis_tool_running', return_value=(False, "OK"))
+    def test_startup_worker_success(self, m_is_analysis, m_get, m_check, m_start):
         """Test successful startup sequence."""
         m_get.return_value.status_code = 200
         

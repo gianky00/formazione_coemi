@@ -24,10 +24,13 @@ class LockManager:
 
     def _init_lock_file(self):
         """Creates the directory and file if needed."""
-        os.makedirs(os.path.dirname(self.lock_file_path), exist_ok=True)
-        if not os.path.exists(self.lock_file_path):
-            with open(self.lock_file_path, 'wb') as f:
-                f.write(b'\0')
+        try:
+            os.makedirs(os.path.dirname(self.lock_file_path), exist_ok=True)
+            if not os.path.exists(self.lock_file_path):
+                with open(self.lock_file_path, 'wb') as f:
+                    f.write(b'\0')
+        except Exception as e:
+            logger.error(f"Failed to initialize lock file: {e}")
 
     def _attempt_lock(self, owner_metadata):
         """Tries to open and lock the file."""
