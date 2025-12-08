@@ -1,7 +1,7 @@
 # 🧪 Test Failures - Fix Guide
 
 **Progetto:** gianky00_formazione_coemi
-**Data:** 2025-12-08 00:32
+**Data:** 2025-12-08 01:36
 **File sorgente:** junit.xml
 
 ## 📊 Statistiche Test
@@ -9,20 +9,22 @@
 | Metrica | Valore |
 |---------|--------|
 | Test totali | 583 |
-| ✅ Passati | 534 |
-| ❌ Falliti | 33 |
+| ✅ Passati | 523 |
+| ❌ Falliti | 44 |
 | 💥 Errori | 0 |
 | ⏭️ Skippati | 16 |
-| ⏱️ Tempo | 105.75s |
-| Success Rate | 91.6% |
+| ⏱️ Tempo | 103.90s |
+| Success Rate | 89.7% |
 
 ## 🏷️ Tipi di Errore
 
 | Tipo | Count | Descrizione |
 |------|-------|-------------|
-| ❌ AssertionError | 23 | Il test ha verificato una condizione che... |
-| ❓  | 6 | Errore durante l'esecuzione del test... |
+| ❌ AssertionError | 31 | Il test ha verificato una condizione che... |
+| ❓  | 7 | Errore durante l'esecuzione del test... |
 | 🔍 AttributeError | 4 | Tentativo di accedere a un attributo ine... |
+| ❓ Failed | 1 | Errore durante l'esecuzione del test... |
+| ❓ Exception | 1 | Errore durante l'esecuzione del test... |
 
 ## 📝 Istruzioni per Jules
 
@@ -33,6 +35,365 @@ Per ogni test fallito troverai:
 - ❓ **Perché fallisce**: Spiegazione del tipo di errore
 - ✅ **Come risolvere**: Suggerimenti specifici
 - 📚 **Risorse**: Link utili
+
+---
+
+## 📄 `tests/app/api/test_csv_orphan_sync.py`
+**1 test falliti**
+
+### ❌ `test_csv_import_moves_orphan_file`
+
+| Campo | Valore |
+|-------|--------|
+| Test | `tests.app.api.test_csv_orphan_sync::test_csv_import_moves_orphan_file` |
+| Tipo Errore | ❌ AssertionError |
+| Status | FAILURE |
+| Riga | 58 |
+| Tempo | 0.023s |
+
+**❌ Messaggio di Errore:**
+
+```
+AssertionError: Old orphan file should be moved
+assert not True
+ +  where True = <built-in function _path_exists>('C:\\Users\\gianc\\AppData\\Local\\Temp\\pytest-of-gianc\\pytest-45\\data0\\DOCUMENTI DIPENDENTI\\Bianchi Mario (N-A)\\ANTINCENDIO\\ATTIVO\\Bianchi Mario (N-A) - ANTINCENDIO - 01_01_2030.pdf')
+ +    where <built-in function _path_exists> = <module 'ntpath' (frozen)>.exists
+ +      where <module 'ntpath' (frozen)> = os.path
+```
+
+**📜 Stack Trace:**
+
+```python
+test_client = <starlette.testclient.TestClient object at 0x0000023A499E6C30>, db_session = <sqlalchemy.orm.session.Session object at 0x0000023A49815C10>
+test_dirs = WindowsPath('C:/Users/gianc/AppData/Local/Temp/pytest-of-gianc/pytest-45/data0')
+
+    def test_csv_import_moves_orphan_file(test_client, db_session, test_dirs):
+        # 1. Setup Orphan Cert
+        cat = "ANTINCENDIO"
+        orphan_name = "Bianchi Mario"
+        corso = Corso(nome_corso="Corso A", categoria_corso=cat)
+        cert = Certificato(
+            dipendente_id=None,
+            nome_dipendente_raw=orphan_name,
+            corso=corso,
+            data_rilascio=datetime.strptime("01/01/2020", "%d/%m/%Y").date(),
+            data_scadenza_calcolata=datetime.strptime("01/01/2030", "%d/%m/%Y").date()
+        )
+... (troncato) ...
+        # 6. Verify File Move
+        # Old path should be gone
+>       assert not os.path.exists(orphan_path), "Old orphan file should be moved"
+E       AssertionError: Old orphan file should be moved
+E       assert not True
+E        +  where True = <built-in function _path_exists>('C:\\Users\\gianc\\AppData\\Local\\Temp\\pytest-of-gianc\\pytest-45\\data0\\DOCUMENTI DIPENDENTI\\Bianchi Mario (N-A)\\ANTINCENDIO\\ATTIVO\\Bianchi Mario (N-A) - ANTINCENDIO - 01_01_2030.pdf')
+E        +    where <built-in function _path_exists> = <module 'ntpath' (frozen)>.exists
+E        +      where <module 'ntpath' (frozen)> = os.path
+
+tests\app\api\test_csv_orphan_sync.py:58: AssertionError
+```
+
+**❓ Perché fallisce:**
+
+Il test ha verificato una condizione che si è rivelata falsa
+
+**Causa probabile:** Il valore atteso non corrisponde al valore ottenuto
+
+**✅ Come risolvere:**
+
+1. Verifica che il valore atteso nel test sia corretto
+2. Se il test è corretto, il bug è nel codice sotto test - correggilo
+3. Se il comportamento è cambiato intenzionalmente, aggiorna il test
+4. Controlla se ci sono effetti collaterali o stato condiviso tra test
+
+**📚 Risorse:**
+
+- https://docs.pytest.org/en/stable/how-to/assert.html
+
+---
+
+## 📄 `tests/app/api/test_delete_cert_file_cleanup.py`
+**1 test falliti**
+
+### ❌ `test_delete_certificate_deletes_file`
+
+| Campo | Valore |
+|-------|--------|
+| Test | `tests.app.api.test_delete_cert_file_cleanup::test_delete_certificate_deletes_file` |
+| Tipo Errore | ❓ Failed |
+| Status | FAILURE |
+| Riga | 55 |
+| Tempo | 0.022s |
+
+**❌ Messaggio di Errore:**
+
+```
+Failed: File was not removed from original location.
+```
+
+**📜 Stack Trace:**
+
+```python
+test_client = <starlette.testclient.TestClient object at 0x0000023A498070B0>, db_session = <sqlalchemy.orm.session.Session object at 0x0000023A49805220>
+test_dirs = WindowsPath('C:/Users/gianc/AppData/Local/Temp/pytest-of-gianc/pytest-45/data0')
+
+    def test_delete_certificate_deletes_file(test_client, db_session, test_dirs):
+        # 1. Setup Data in DB
+        cat = "ANTINCENDIO"
+        dip = Dipendente(nome="Mario", cognome="Rossi", matricola="123")
+        corso = Corso(nome_corso="Corso A", categoria_corso=cat)
+        cert = Certificato(
+            dipendente=dip,
+            corso=corso,
+            data_rilascio=datetime.strptime("01/01/2020", "%d/%m/%Y").date(),
+            data_scadenza_calcolata=datetime.strptime("01/01/2025", "%d/%m/%Y").date()
+        )
+    
+... (troncato) ...
+    
+        # 4. Verify DB deletion
+        assert db_session.get(Certificato, cert_id) is None
+    
+        # 5. Verify File deletion from original location
+        if os.path.exists(file_path):
+>           pytest.fail("File was not removed from original location.")
+E           Failed: File was not removed from original location.
+
+tests\app\api\test_delete_cert_file_cleanup.py:55: Failed
+```
+
+**❓ Perché fallisce:**
+
+Errore durante l'esecuzione del test
+
+**Causa probabile:** Verifica il messaggio di errore e lo stack trace per dettagli
+
+**✅ Come risolvere:**
+
+1. Leggi attentamente il messaggio di errore
+2. Analizza lo stack trace per trovare la riga problematica
+3. Verifica i dati di input del test
+4. Controlla se il comportamento del codice è cambiato
+
+**📚 Risorse:**
+
+- https://docs.pytest.org/en/stable/how-to/failures.html
+
+---
+
+## 📄 `tests/app/api/test_employee_hooks.py`
+**1 test falliti**
+
+### ❌ `test_create_employee_links_orphan`
+
+| Campo | Valore |
+|-------|--------|
+| Test | `tests.app.api.test_employee_hooks::test_create_employee_links_orphan` |
+| Tipo Errore | ❌ AssertionError |
+| Status | FAILURE |
+| Riga | 66 |
+| Tempo | 0.020s |
+
+**❌ Messaggio di Errore:**
+
+```
+AssertionError: assert False
+ +  where False = <built-in function _path_exists>('C:\\Users\\gianc\\AppData\\Local\\Temp\\pytest-of-gianc\\pytest-45\\data0\\DOCUMENTI DIPENDENTI\\Rossi Mario (123)\\ANTINCENDIO\\ATTIVO\\Rossi Mario (123) - ANTINCENDIO - 01_01_2030.pdf')
+ +    where <built-in function _path_exists> = <module 'ntpath' (frozen)>.exists
+ +      where <module 'ntpath' (frozen)> = os.path
+```
+
+**📜 Stack Trace:**
+
+```python
+test_client = <starlette.testclient.TestClient object at 0x0000023A4977AE10>, db_session = <sqlalchemy.orm.session.Session object at 0x0000023A49778EC0>
+test_dirs = WindowsPath('C:/Users/gianc/AppData/Local/Temp/pytest-of-gianc/pytest-45/data0')
+
+    def test_create_employee_links_orphan(test_client, db_session, test_dirs):
+        # Setup Orphan Cert
+        cat = "ANTINCENDIO"
+        orphan_name = "Mario Rossi"
+        corso = Corso(nome_corso="Corso A", categoria_corso=cat)
+        cert = Certificato(
+            dipendente_id=None,
+            nome_dipendente_raw=orphan_name,
+            corso=corso,
+            data_rilascio=datetime.strptime("01/01/2020", "%d/%m/%Y").date(),
+            data_scadenza_calcolata=datetime.strptime("01/01/2030", "%d/%m/%Y").date()
+        )
+... (troncato) ...
+                    print(os.path.join(dirpath, f))
+            print("----------------------------\n")
+    
+>       assert os.path.exists(new_path)
+E       AssertionError: assert False
+E        +  where False = <built-in function _path_exists>('C:\\Users\\gianc\\AppData\\Local\\Temp\\pytest-of-gianc\\pytest-45\\data0\\DOCUMENTI DIPENDENTI\\Rossi Mario (123)\\ANTINCENDIO\\ATTIVO\\Rossi Mario (123) - ANTINCENDIO - 01_01_2030.pdf')
+E        +    where <built-in function _path_exists> = <module 'ntpath' (frozen)>.exists
+E        +      where <module 'ntpath' (frozen)> = os.path
+
+tests\app\api\test_employee_hooks.py:66: AssertionError
+```
+
+**❓ Perché fallisce:**
+
+Il test ha verificato una condizione che si è rivelata falsa
+
+**Causa probabile:** Il valore atteso non corrisponde al valore ottenuto
+
+**✅ Come risolvere:**
+
+1. Verifica che il valore atteso nel test sia corretto
+2. Se il test è corretto, il bug è nel codice sotto test - correggilo
+3. Se il comportamento è cambiato intenzionalmente, aggiorna il test
+4. Controlla se ci sono effetti collaterali o stato condiviso tra test
+
+**📚 Risorse:**
+
+- https://docs.pytest.org/en/stable/how-to/assert.html
+
+---
+
+## 📄 `tests/app/api/test_realtime_archiving.py`
+**1 test falliti**
+
+### ❌ `test_realtime_archiving_on_create`
+
+| Campo | Valore |
+|-------|--------|
+| Test | `tests.app.api.test_realtime_archiving::test_realtime_archiving_on_create` |
+| Tipo Errore | ❌ AssertionError |
+| Status | FAILURE |
+| Riga | 60 |
+| Tempo | 0.019s |
+
+**❌ Messaggio di Errore:**
+
+```
+AssertionError: Old file should be archived
+assert False
+ +  where False = <built-in function _path_exists>('C:\\Users\\gianc\\AppData\\Local\\Temp\\pytest-of-gianc\\pytest-45\\data0\\DOCUMENTI DIPENDENTI\\Rossi Mario (123)\\ANTINCENDIO\\STORICO\\Rossi Mario (123) - ANTINCENDIO - 01_01_2025.pdf')
+ +    where <built-in function _path_exists> = <module 'ntpath' (frozen)>.exists
+ +      where <module 'ntpath' (frozen)> = os.path
+```
+
+**📜 Stack Trace:**
+
+```python
+test_client = <starlette.testclient.TestClient object at 0x0000023A496E3380>, db_session = <sqlalchemy.orm.session.Session object at 0x0000023A49850EC0>
+test_dirs = WindowsPath('C:/Users/gianc/AppData/Local/Temp/pytest-of-gianc/pytest-45/data0')
+
+    def test_realtime_archiving_on_create(test_client, db_session, test_dirs):
+        # Setup Data
+        cat = "ANTINCENDIO"
+        dip = Dipendente(nome="Mario", cognome="Rossi", matricola="123")
+        corso = Corso(nome_corso="Corso A", categoria_corso=cat)
+        # Old cert (Valid but old)
+        cert_old = Certificato(
+            dipendente=dip,
+            corso=corso,
+            data_rilascio=datetime.strptime("01/01/2020", "%d/%m/%Y").date(),
+            data_scadenza_calcolata=datetime.strptime("01/01/2025", "%d/%m/%Y").date()
+        )
+... (troncato) ...
+            print("----------------------------\n")
+    
+>       assert os.path.exists(archived_path), "Old file should be archived"
+E       AssertionError: Old file should be archived
+E       assert False
+E        +  where False = <built-in function _path_exists>('C:\\Users\\gianc\\AppData\\Local\\Temp\\pytest-of-gianc\\pytest-45\\data0\\DOCUMENTI DIPENDENTI\\Rossi Mario (123)\\ANTINCENDIO\\STORICO\\Rossi Mario (123) - ANTINCENDIO - 01_01_2025.pdf')
+E        +    where <built-in function _path_exists> = <module 'ntpath' (frozen)>.exists
+E        +      where <module 'ntpath' (frozen)> = os.path
+
+tests\app\api\test_realtime_archiving.py:60: AssertionError
+```
+
+**❓ Perché fallisce:**
+
+Il test ha verificato una condizione che si è rivelata falsa
+
+**Causa probabile:** Il valore atteso non corrisponde al valore ottenuto
+
+**✅ Come risolvere:**
+
+1. Verifica che il valore atteso nel test sia corretto
+2. Se il test è corretto, il bug è nel codice sotto test - correggilo
+3. Se il comportamento è cambiato intenzionalmente, aggiorna il test
+4. Controlla se ci sono effetti collaterali o stato condiviso tra test
+
+**📚 Risorse:**
+
+- https://docs.pytest.org/en/stable/how-to/assert.html
+
+---
+
+## 📄 `tests/app/api/test_update_cert_file_sync.py`
+**1 test falliti**
+
+### ❌ `test_find_document_direct`
+
+| Campo | Valore |
+|-------|--------|
+| Test | `tests.app.api.test_update_cert_file_sync::test_find_document_direct` |
+| Tipo Errore | ❓  |
+| Status | FAILURE |
+| Riga | 79 |
+| Tempo | 0.002s |
+
+**❌ Messaggio di Errore:**
+
+```
+assert None is not None
+```
+
+**📜 Stack Trace:**
+
+```python
+test_dirs = WindowsPath('C:/Users/gianc/AppData/Local/Temp/pytest-of-gianc/pytest-45/data0')
+
+    def test_find_document_direct(test_dirs):
+        from app.services.document_locator import find_document
+    
+        # Setup
+        cat = "ANTINCENDIO"
+        nome_fs = sanitize_filename("Rossi Mario")
+        matr_fs = sanitize_filename("123")
+        cat_fs = sanitize_filename(cat)
+        filename = f"{nome_fs} ({matr_fs}) - {cat_fs} - 01_01_2030.pdf"
+    
+        folder = os.path.join(str(test_dirs), "DOCUMENTI DIPENDENTI", f"{nome_fs} ({matr_fs})", cat_fs, "ATTIVO")
+        os.makedirs(folder, exist_ok=True)
+        old_path = os.path.join(folder, filename)
+        with open(old_path, "w") as f: f.write("content")
+    
+        cert_data = {
+            'nome': "Rossi Mario",
+            'matricola': "123",
+            'categoria': "ANTINCENDIO",
+            'data_scadenza': "01/01/2030"
+        }
+    
+        found_path = find_document(str(test_dirs), cert_data)
+>       assert found_path is not None
+E       assert None is not None
+
+tests\app\api\test_update_cert_file_sync.py:79: AssertionError
+```
+
+**❓ Perché fallisce:**
+
+Errore durante l'esecuzione del test
+
+**Causa probabile:** Verifica il messaggio di errore e lo stack trace per dettagli
+
+**✅ Come risolvere:**
+
+1. Leggi attentamente il messaggio di errore
+2. Analizza lo stack trace per trovare la riga problematica
+3. Verifica i dati di input del test
+4. Controlla se il comportamento del codice è cambiato
+
+**📚 Risorse:**
+
+- https://docs.pytest.org/en/stable/how-to/failures.html
 
 ---
 
@@ -52,24 +413,399 @@ Per ogni test fallito troverai:
 **❌ Messaggio di Errore:**
 
 ```
-AssertionError: assert WindowsPath('C:/Users/gianc/AppData/Local/Temp/pytest-of-gianc/pytest-44/data0/test_secure.db') == (WindowsPath('C:/Users/gianc/AppData/Local/Temp/pytest-of-gianc/pytest-44/test_initialization_creates_fi0') / 'test_secure.db')
- +  where WindowsPath('C:/Users/gianc/AppData/Local/Temp/pytest-of-gianc/pytest-44/data0/test_secure.db') = <app.core.db_security.DBSecurityManager object at 0x00000243027B1430>.db_path
+AssertionError: assert WindowsPath('C:/Users/gianc/AppData/Local/Temp/pytest-of-gianc/pytest-45/data0/test_secure.db') == (WindowsPath('C:/Users/gianc/AppData/Local/Temp/pytest-of-gianc/pytest-45/test_initialization_creates_fi0') / 'test_secure.db')
+ +  where WindowsPath('C:/Users/gianc/AppData/Local/Temp/pytest-of-gianc/pytest-45/data0/test_secure.db') = <app.core.db_security.DBSecurityManager object at 0x0000023A492D64B0>.db_path
 ```
 
 **📜 Stack Trace:**
 
 ```python
-secure_db_env = (WindowsPath('C:/Users/gianc/AppData/Local/Temp/pytest-of-gianc/pytest-44/test_initialization_creates_fi0'), <app.core.db_security.DBSecurityManager object at 0x00000243027B1430>, 'test_secure.db')
+secure_db_env = (WindowsPath('C:/Users/gianc/AppData/Local/Temp/pytest-of-gianc/pytest-45/test_initialization_creates_fi0'), <app.core.db_security.DBSecurityManager object at 0x0000023A492D64B0>, 'test_secure.db')
 
     def test_initialization_creates_files(secure_db_env):
         tmp_path, manager, db_name = secure_db_env
     
         # DB path should be set correctly
 >       assert manager.db_path == tmp_path / db_name
-E       AssertionError: assert WindowsPath('C:/Users/gianc/AppData/Local/Temp/pytest-of-gianc/pytest-44/data0/test_secure.db') == (WindowsPath('C:/Users/gianc/AppData/Local/Temp/pytest-of-gianc/pytest-44/test_initialization_creates_fi0') / 'test_secure.db')
-E        +  where WindowsPath('C:/Users/gianc/AppData/Local/Temp/pytest-of-gianc/pytest-44/data0/test_secure.db') = <app.core.db_security.DBSecurityManager object at 0x00000243027B1430>.db_path
+E       AssertionError: assert WindowsPath('C:/Users/gianc/AppData/Local/Temp/pytest-of-gianc/pytest-45/data0/test_secure.db') == (WindowsPath('C:/Users/gianc/AppData/Local/Temp/pytest-of-gianc/pytest-45/test_initialization_creates_fi0') / 'test_secure.db')
+E        +  where WindowsPath('C:/Users/gianc/AppData/Local/Temp/pytest-of-gianc/pytest-45/data0/test_secure.db') = <app.core.db_security.DBSecurityManager object at 0x0000023A492D64B0>.db_path
 
 tests\app\core\test_db_security_integration.py:46: AssertionError
+```
+
+**❓ Perché fallisce:**
+
+Il test ha verificato una condizione che si è rivelata falsa
+
+**Causa probabile:** Il valore atteso non corrisponde al valore ottenuto
+
+**✅ Come risolvere:**
+
+1. Verifica che il valore atteso nel test sia corretto
+2. Se il test è corretto, il bug è nel codice sotto test - correggilo
+3. Se il comportamento è cambiato intenzionalmente, aggiorna il test
+4. Controlla se ci sono effetti collaterali o stato condiviso tra test
+
+**📚 Risorse:**
+
+- https://docs.pytest.org/en/stable/how-to/assert.html
+
+---
+
+## 📄 `tests/app/core/test_lock_manager_deep.py`
+**1 test falliti**
+
+### ❌ `test_acquire_generic_exception`
+
+| Campo | Valore |
+|-------|--------|
+| Test | `tests.app.core.test_lock_manager_deep::test_acquire_generic_exception` |
+| Tipo Errore | ❓ Exception |
+| Status | FAILURE |
+| Riga | 27 |
+| Tempo | 0.002s |
+
+**❌ Messaggio di Errore:**
+
+```
+Exception: Generic Fail
+```
+
+**📜 Stack Trace:**
+
+```python
+mock_path = 'C:\\Users\\gianc\\AppData\\Local\\Temp\\pytest-of-gianc\\pytest-45\\test_acquire_generic_exception0\\.lock'
+
+    def test_acquire_generic_exception(mock_path):
+        mgr = LockManager(mock_path)
+    
+        with patch("builtins.open", side_effect=Exception("Generic Fail")):
+>           success, owner = mgr.acquire({"uuid": "1"}, retries=0)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\app\core\test_lock_manager_deep.py:27: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+app\core\lock_manager.py:66: in acquire
+    self._init_lock_file()
+app\core\lock_manager.py:29: in _init_lock_file
+    with open(self.lock_file_path, 'wb') as f:
+... (troncato) ...
+        # separate from _increment_mock_call so that awaited functions are
+        # executed separately from their call, also AsyncMock overrides this method
+    
+        effect = self.side_effect
+        if effect is not None:
+            if _is_exception(effect):
+>               raise effect
+E               Exception: Generic Fail
+
+C:\Program Files\Python312\Lib\unittest\mock.py:1198: Exception
+```
+
+**❓ Perché fallisce:**
+
+Errore durante l'esecuzione del test
+
+**Causa probabile:** Verifica il messaggio di errore e lo stack trace per dettagli
+
+**✅ Come risolvere:**
+
+1. Leggi attentamente il messaggio di errore
+2. Analizza lo stack trace per trovare la riga problematica
+3. Verifica i dati di input del test
+4. Controlla se il comportamento del codice è cambiato
+
+**📚 Risorse:**
+
+- https://docs.pytest.org/en/stable/how-to/failures.html
+
+---
+
+## 📄 `tests/app/services/test_document_locator.py`
+**4 test falliti**
+
+### ❌ `test_find_document_success_active`
+
+| Campo | Valore |
+|-------|--------|
+| Test | `tests.app.services.test_document_locator::test_find_document_success_active` |
+| Tipo Errore | ❌ AssertionError |
+| Status | FAILURE |
+| Riga | 30 |
+| Tempo | 0.001s |
+
+**❌ Messaggio di Errore:**
+
+```
+AssertionError: assert None == '\\mock\\db\\path\\DOCUMENTI DIPENDENTI\\ROSSI MARIO (12345)\\ANTINCENDIO\\ATTIVO\\ROSSI MARIO (12345) - ANTINCENDIO - 31_12_2025.pdf'
+```
+
+**📜 Stack Trace:**
+
+```python
+mock_db_path = '\\mock\\db\\path', base_cert_data = {'categoria': 'ANTINCENDIO', 'data_scadenza': '31/12/2025', 'matricola': '12345', 'nome': 'ROSSI MARIO'}
+
+    def test_find_document_success_active(mock_db_path, base_cert_data):
+        """Test finding a document in the primary status folder (ATTIVO)."""
+        expected_filename = "ROSSI MARIO (12345) - ANTINCENDIO - 31_12_2025.pdf"
+        expected_path = os.path.join(mock_db_path, "DOCUMENTI DIPENDENTI", "ROSSI MARIO (12345)", "ANTINCENDIO", "ATTIVO", expected_filename)
+    
+        with patch("os.path.isfile") as mock_isfile:
+            # Simulate file exists only at the expected path
+            mock_isfile.side_effect = lambda x: x == expected_path
+    
+            result = find_document(mock_db_path, base_cert_data)
+>           assert result == expected_path
+E           AssertionError: assert None == '\\mock\\db\\path\\DOCUMENTI DIPENDENTI\\ROSSI MARIO (12345)\\ANTINCENDIO\\ATTIVO\\ROSSI MARIO (12345) - ANTINCENDIO - 31_12_2025.pdf'
+
+tests\app\services\test_document_locator.py:30: AssertionError
+```
+
+**❓ Perché fallisce:**
+
+Il test ha verificato una condizione che si è rivelata falsa
+
+**Causa probabile:** Il valore atteso non corrisponde al valore ottenuto
+
+**✅ Come risolvere:**
+
+1. Verifica che il valore atteso nel test sia corretto
+2. Se il test è corretto, il bug è nel codice sotto test - correggilo
+3. Se il comportamento è cambiato intenzionalmente, aggiorna il test
+4. Controlla se ci sono effetti collaterali o stato condiviso tra test
+
+**📚 Risorse:**
+
+- https://docs.pytest.org/en/stable/how-to/assert.html
+
+---
+
+### ❌ `test_find_document_success_fallback_status`
+
+| Campo | Valore |
+|-------|--------|
+| Test | `tests.app.services.test_document_locator::test_find_document_success_fallback_status` |
+| Tipo Errore | ❌ AssertionError |
+| Status | FAILURE |
+| Riga | 41 |
+| Tempo | 0.001s |
+
+**❌ Messaggio di Errore:**
+
+```
+AssertionError: assert None == '\\mock\\db\\path\\DOCUMENTI DIPENDENTI\\ROSSI MARIO (12345)\\ANTINCENDIO\\STORICO\\ROSSI MARIO (12345) - ANTINCENDIO - 31_12_2025.pdf'
+```
+
+**📜 Stack Trace:**
+
+```python
+mock_db_path = '\\mock\\db\\path', base_cert_data = {'categoria': 'ANTINCENDIO', 'data_scadenza': '31/12/2025', 'matricola': '12345', 'nome': 'ROSSI MARIO'}
+
+    def test_find_document_success_fallback_status(mock_db_path, base_cert_data):
+        """Test finding a document in a fallback status folder (e.g., STORICO)."""
+        expected_filename = "ROSSI MARIO (12345) - ANTINCENDIO - 31_12_2025.pdf"
+        target_path = os.path.join(mock_db_path, "DOCUMENTI DIPENDENTI", "ROSSI MARIO (12345)", "ANTINCENDIO", "STORICO", expected_filename)
+    
+        with patch("os.path.isfile") as mock_isfile:
+            mock_isfile.side_effect = lambda x: x == target_path
+    
+            result = find_document(mock_db_path, base_cert_data)
+>           assert result == target_path
+E           AssertionError: assert None == '\\mock\\db\\path\\DOCUMENTI DIPENDENTI\\ROSSI MARIO (12345)\\ANTINCENDIO\\STORICO\\ROSSI MARIO (12345) - ANTINCENDIO - 31_12_2025.pdf'
+
+tests\app\services\test_document_locator.py:41: AssertionError
+```
+
+**❓ Perché fallisce:**
+
+Il test ha verificato una condizione che si è rivelata falsa
+
+**Causa probabile:** Il valore atteso non corrisponde al valore ottenuto
+
+**✅ Come risolvere:**
+
+1. Verifica che il valore atteso nel test sia corretto
+2. Se il test è corretto, il bug è nel codice sotto test - correggilo
+3. Se il comportamento è cambiato intenzionalmente, aggiorna il test
+4. Controlla se ci sono effetti collaterali o stato condiviso tra test
+
+**📚 Risorse:**
+
+- https://docs.pytest.org/en/stable/how-to/assert.html
+
+---
+
+### ❌ `test_find_document_missing_matricola`
+
+| Campo | Valore |
+|-------|--------|
+| Test | `tests.app.services.test_document_locator::test_find_document_missing_matricola` |
+| Tipo Errore | ❌ AssertionError |
+| Status | FAILURE |
+| Riga | 60 |
+| Tempo | 0.002s |
+
+**❌ Messaggio di Errore:**
+
+```
+AssertionError: assert None == '\\mock\\db\\path\\DOCUMENTI DIPENDENTI\\VERDI LUIGI (N-A)\\VISITA MEDICA\\ATTIVO\\VERDI LUIGI (N-A) - VISITA MEDICA - 01_01_2024.pdf'
+```
+
+**📜 Stack Trace:**
+
+```python
+mock_db_path = '\\mock\\db\\path'
+
+    def test_find_document_missing_matricola(mock_db_path):
+        """Test that missing matricola defaults to 'N-A'."""
+        cert_data = {
+            "nome": "VERDI LUIGI",
+            "matricola": None, # Missing
+            "categoria": "VISITA MEDICA",
+            "data_scadenza": "01/01/2024"
+        }
+    
+        # Expect folder "VERDI LUIGI (N-A)"
+        expected_filename = "VERDI LUIGI (N-A) - VISITA MEDICA - 01_01_2024.pdf"
+        expected_path = os.path.join(mock_db_path, "DOCUMENTI DIPENDENTI", "VERDI LUIGI (N-A)", "VISITA MEDICA", "ATTIVO", expected_filename)
+    
+        with patch("os.path.isfile") as mock_isfile:
+            mock_isfile.side_effect = lambda x: x == expected_path
+    
+            result = find_document(mock_db_path, cert_data)
+>           assert result == expected_path
+E           AssertionError: assert None == '\\mock\\db\\path\\DOCUMENTI DIPENDENTI\\VERDI LUIGI (N-A)\\VISITA MEDICA\\ATTIVO\\VERDI LUIGI (N-A) - VISITA MEDICA - 01_01_2024.pdf'
+
+tests\app\services\test_document_locator.py:60: AssertionError
+```
+
+**❓ Perché fallisce:**
+
+Il test ha verificato una condizione che si è rivelata falsa
+
+**Causa probabile:** Il valore atteso non corrisponde al valore ottenuto
+
+**✅ Come risolvere:**
+
+1. Verifica che il valore atteso nel test sia corretto
+2. Se il test è corretto, il bug è nel codice sotto test - correggilo
+3. Se il comportamento è cambiato intenzionalmente, aggiorna il test
+4. Controlla se ci sono effetti collaterali o stato condiviso tra test
+
+**📚 Risorse:**
+
+- https://docs.pytest.org/en/stable/how-to/assert.html
+
+---
+
+### ❌ `test_find_document_in_error_folders`
+
+| Campo | Valore |
+|-------|--------|
+| Test | `tests.app.services.test_document_locator::test_find_document_in_error_folders` |
+| Tipo Errore | ❌ AssertionError |
+| Status | FAILURE |
+| Riga | 85 |
+| Tempo | 0.001s |
+
+**❌ Messaggio di Errore:**
+
+```
+AssertionError: assert None == '\\mock\\db\\path\\ERRORI ANALISI\\ASSENZA MATRICOLE\\ROSSI MARIO (12345)\\ANTINCENDIO\\ATTIVO\\ROSSI MARIO (12345) - ANTINCENDIO - 31_12_2025.pdf'
+```
+
+**📜 Stack Trace:**
+
+```python
+mock_db_path = '\\mock\\db\\path', base_cert_data = {'categoria': 'ANTINCENDIO', 'data_scadenza': '31/12/2025', 'matricola': '12345', 'nome': 'ROSSI MARIO'}
+
+    def test_find_document_in_error_folders(mock_db_path, base_cert_data):
+        """Test finding a document in the ERRORI ANALISI structure."""
+        expected_filename = "ROSSI MARIO (12345) - ANTINCENDIO - 31_12_2025.pdf"
+        # Structure: ERRORI ANALISI / <ErrCategory> / <EmployeeFolder> / <Category> / <Status> / <Filename>
+        # Note: Logic iterates error_categories. Let's place it in "ASSENZA MATRICOLE"
+        target_path = os.path.join(mock_db_path, "ERRORI ANALISI", "ASSENZA MATRICOLE", "ROSSI MARIO (12345)", "ANTINCENDIO", "ATTIVO", expected_filename)
+    
+        with patch("os.path.isfile") as mock_isfile:
+            mock_isfile.side_effect = lambda x: x == target_path
+    
+            result = find_document(mock_db_path, base_cert_data)
+>           assert result == target_path
+E           AssertionError: assert None == '\\mock\\db\\path\\ERRORI ANALISI\\ASSENZA MATRICOLE\\ROSSI MARIO (12345)\\ANTINCENDIO\\ATTIVO\\ROSSI MARIO (12345) - ANTINCENDIO - 31_12_2025.pdf'
+
+tests\app\services\test_document_locator.py:85: AssertionError
+```
+
+**❓ Perché fallisce:**
+
+Il test ha verificato una condizione che si è rivelata falsa
+
+**Causa probabile:** Il valore atteso non corrisponde al valore ottenuto
+
+**✅ Come risolvere:**
+
+1. Verifica che il valore atteso nel test sia corretto
+2. Se il test è corretto, il bug è nel codice sotto test - correggilo
+3. Se il comportamento è cambiato intenzionalmente, aggiorna il test
+4. Controlla se ci sono effetti collaterali o stato condiviso tra test
+
+**📚 Risorse:**
+
+- https://docs.pytest.org/en/stable/how-to/assert.html
+
+---
+
+## 📄 `tests/app/services/test_document_locator_filename.py`
+**1 test falliti**
+
+### ❌ `test_find_document_sanitizes_path`
+
+| Campo | Valore |
+|-------|--------|
+| Test | `tests.app.services.test_document_locator_filename::test_find_document_sanitizes_path` |
+| Tipo Errore | ❌ AssertionError |
+| Status | FAILURE |
+| Riga | 31 |
+| Tempo | 0.001s |
+
+**❌ Messaggio di Errore:**
+
+```
+AssertionError: assert None == '\\mock\\db\\DOCUMENTI DIPENDENTI\\De_Rossi Mario (123)\\ANTINCENDIO\\ATTIVO\\De_Rossi Mario (123) - ANTINCENDIO - 01_01_2025.pdf'
+```
+
+**📜 Stack Trace:**
+
+```python
+def test_find_document_sanitizes_path():
+        """
+        This test verifies that document_locator correctly sanitizes input data
+        to match the file system naming conventions.
+        """
+        db_path = "/mock/db"
+        cert_data = {
+            "nome": "De/Rossi Mario",
+            "matricola": "123",
+            "categoria": "ANTINCENDIO",
+            "data_scadenza": "01/01/2025"
+        }
+    
+        sanitized_folder = "De_Rossi Mario (123)"
+        sanitized_filename = "De_Rossi Mario (123) - ANTINCENDIO - 01_01_2025.pdf"
+    
+        expected_path = os.path.join(db_path, "DOCUMENTI DIPENDENTI", sanitized_folder, "ANTINCENDIO", "ATTIVO", sanitized_filename)
+        expected_path = os.path.normpath(expected_path)
+    
+        with patch("os.path.isfile") as mock_isfile:
+            mock_isfile.side_effect = lambda p: os.path.normpath(p) == expected_path
+    
+            result = find_document(db_path, cert_data)
+    
+            # This assertion will fail until the bug is fixed
+>           assert result == expected_path
+E           AssertionError: assert None == '\\mock\\db\\DOCUMENTI DIPENDENTI\\De_Rossi Mario (123)\\ANTINCENDIO\\ATTIVO\\De_Rossi Mario (123) - ANTINCENDIO - 01_01_2025.pdf'
+
+tests\app\services\test_document_locator_filename.py:31: AssertionError
 ```
 
 **❓ Perché fallisce:**
@@ -102,7 +838,7 @@ Il test ha verificato una condizione che si è rivelata falsa
 | Tipo Errore | ❌ AssertionError |
 | Status | FAILURE |
 | Riga | 928 |
-| Tempo | 0.011s |
+| Tempo | 0.012s |
 
 **❌ Messaggio di Errore:**
 
@@ -113,7 +849,7 @@ AssertionError: Expected 'load_memory_db' to have been called once. Called 0 tim
 **📜 Stack Trace:**
 
 ```python
-self = <MagicMock name='db_security.load_memory_db' id='2486835803248'>
+self = <MagicMock name='db_security.load_memory_db' id='2449369929184'>
 
     def assert_called_once(self):
         """assert that the mock was called only once.
@@ -168,14 +904,14 @@ Il test ha verificato una condizione che si è rivelata falsa
 | Tipo Errore | ❌ AssertionError |
 | Status | FAILURE |
 | Riga | 51 |
-| Tempo | 0.211s |
+| Tempo | 0.210s |
 
 **❌ Messaggio di Errore:**
 
 ```
 AssertionError: assert None == 'Fatal Lock'
- +  where None = <starlette.datastructures.State object at 0x0000024301831AF0>.startup_error
- +    where <starlette.datastructures.State object at 0x0000024301831AF0> = app.state
+ +  where None = <starlette.datastructures.State object at 0x0000023A48D62DE0>.startup_error
+ +    where <starlette.datastructures.State object at 0x0000023A48D62DE0> = app.state
 ```
 
 **📜 Stack Trace:**
@@ -191,8 +927,8 @@ AssertionError: assert None == 'Fatal Lock'
     
 >           assert app.state.startup_error == "Fatal Lock"
 E           AssertionError: assert None == 'Fatal Lock'
-E            +  where None = <starlette.datastructures.State object at 0x0000024301831AF0>.startup_error
-E            +    where <starlette.datastructures.State object at 0x0000024301831AF0> = app.state
+E            +  where None = <starlette.datastructures.State object at 0x0000023A48D62DE0>.startup_error
+E            +    where <starlette.datastructures.State object at 0x0000023A48D62DE0> = app.state
 
 tests\app\test_main_full.py:51: AssertionError
 ```
@@ -224,7 +960,7 @@ Il test ha verificato una condizione che si è rivelata falsa
 | Tipo Errore | ❌ AssertionError |
 | Status | FAILURE |
 | Riga | 960 |
-| Tempo | 0.017s |
+| Tempo | 0.019s |
 
 **❌ Messaggio di Errore:**
 
@@ -235,7 +971,7 @@ AssertionError: Expected 'organize_expired_files' to be called once. Called 0 ti
 **📜 Stack Trace:**
 
 ```python
-self = <MagicMock name='organize_expired_files' id='2486834800320'>, args = (<MagicMock name='SessionLocal()' id='2486827930240'>,), kwargs = {}
+self = <MagicMock name='organize_expired_files' id='2449369957728'>, args = (<MagicMock name='SessionLocal()' id='2449370163216'>,), kwargs = {}
 msg = "Expected 'organize_expired_files' to be called once. Called 0 times."
 
     def assert_called_once_with(self, /, *args, **kwargs):
@@ -297,7 +1033,7 @@ Il test ha verificato una condizione che si è rivelata falsa
 | Tipo Errore | ❓  |
 | Status | FAILURE |
 | Riga | 20 |
-| Tempo | 0.002s |
+| Tempo | 0.001s |
 
 **❌ Messaggio di Errore:**
 
@@ -308,7 +1044,7 @@ assert False is True
 **📜 Stack Trace:**
 
 ```python
-self = <test_security_service.TestSecurityService object at 0x00000243023DBBF0>, mock_processes = <MagicMock name='_get_running_processes_wmi' id='2486855603728'>
+self = <test_security_service.TestSecurityService object at 0x0000023A49301AF0>, mock_processes = <MagicMock name='_get_running_processes_wmi' id='2449388292528'>
 
     @patch('desktop_app.services.security_service.os.name', 'nt')
     # Patch where the name is used in security_service
@@ -354,7 +1090,7 @@ Errore durante l'esecuzione del test
 | Tipo Errore | ❓  |
 | Status | FAILURE |
 | Riga | 36 |
-| Tempo | 0.002s |
+| Tempo | 0.001s |
 
 **❌ Messaggio di Errore:**
 
@@ -365,8 +1101,8 @@ assert False is True
 **📜 Stack Trace:**
 
 ```python
-self = <test_security_service.TestSecurityService object at 0x00000243023DBF50>, mock_exists = <MagicMock name='exists' id='2486855701984'>
-mock_processes = <MagicMock name='_get_running_processes_wmi' id='2486855705872'>
+self = <test_security_service.TestSecurityService object at 0x0000023A49301E50>, mock_exists = <MagicMock name='exists' id='2449388280128'>
+mock_processes = <MagicMock name='_get_running_processes_wmi' id='2449388276240'>
 
     @patch('desktop_app.services.security_service.os.name', 'nt')
     @patch('desktop_app.services.security_service._get_running_processes_wmi')
@@ -425,7 +1161,7 @@ assert False is True
 **📜 Stack Trace:**
 
 ```python
-self = <test_security_service.TestSecurityService object at 0x00000243023F4650>, mock_processes = <MagicMock name='_get_running_processes_wmi' id='2486855834400'>
+self = <test_security_service.TestSecurityService object at 0x0000023A49302570>, mock_processes = <MagicMock name='_get_running_processes_wmi' id='2449389338256'>
 
     @patch('desktop_app.services.security_service._get_running_processes_wmi')
     def test_is_analysis_tool_running_detects_wireshark(self, mock_processes):
@@ -468,7 +1204,7 @@ Errore durante l'esecuzione del test
 | Tipo Errore | ❌ AssertionError |
 | Status | FAILURE |
 | Riga | 949 |
-| Tempo | 0.025s |
+| Tempo | 0.136s |
 
 **❌ Messaggio di Errore:**
 
@@ -488,8 +1224,8 @@ assert ('C:\\Users\\...me.dat', 'wb') == ('/tmp\\secur...me.dat', 'wb')
 **📜 Stack Trace:**
 
 ```python
-self = <MagicMock name='open' id='2486824158608'>, args = ('/tmp\\secure_time.dat', 'wb'), kwargs = {}, expected = call('/tmp\\secure_time.dat', 'wb')
-actual = call('C:\\Users\\gianc\\AppData\\Local\\Intelleo\\Licenza\\secure_time.dat', 'wb'), _error_message = <function NonCallableMock.assert_called_with.<locals>._error_message at 0x00000243042A02C0>
+self = <MagicMock name='open' id='2449359710464'>, args = ('/tmp\\secure_time.dat', 'wb'), kwargs = {}, expected = call('/tmp\\secure_time.dat', 'wb')
+actual = call('C:\\Users\\gianc\\AppData\\Local\\Intelleo\\Licenza\\secure_time.dat', 'wb'), _error_message = <function NonCallableMock.assert_called_with.<locals>._error_message at 0x0000023A4B26B420>
 cause = None
 
     def assert_called_with(self, /, *args, **kwargs):
@@ -546,7 +1282,7 @@ Il test ha verificato una condizione che si è rivelata falsa
 | Tipo Errore | ❌ AssertionError |
 | Status | FAILURE |
 | Riga | 918 |
-| Tempo | 0.139s |
+| Tempo | 0.240s |
 
 **❌ Messaggio di Errore:**
 
@@ -557,7 +1293,7 @@ AssertionError: Expected 'save_state' to have been called.
 **📜 Stack Trace:**
 
 ```python
-self = <MagicMock name='save_state' id='2486833991168'>
+self = <MagicMock name='save_state' id='2449392262400'>
 
     def assert_called(self):
         """assert that the mock was called at least once
@@ -612,7 +1348,7 @@ Il test ha verificato una condizione che si è rivelata falsa
 | Tipo Errore | ❓  |
 | Status | FAILURE |
 | Riga | 49 |
-| Tempo | 0.067s |
+| Tempo | 0.074s |
 
 **❌ Messaggio di Errore:**
 
@@ -623,7 +1359,7 @@ assert True is False
 **📜 Stack Trace:**
 
 ```python
-self = <test_time_service_secure.TestTimeServiceLogic object at 0x0000024302455910>, mock_get_time = <MagicMock name='get_network_time' id='2486855173616'>
+self = <test_time_service_secure.TestTimeServiceLogic object at 0x0000023A493904D0>, mock_get_time = <MagicMock name='get_network_time' id='2449389047968'>
 
     @patch("desktop_app.services.time_service.get_network_time")
     def test_check_system_clock_online_desync(self, mock_get_time):
@@ -667,7 +1403,7 @@ Errore durante l'esecuzione del test
 | Tipo Errore | ❌ AssertionError |
 | Status | FAILURE |
 | Riga | 70 |
-| Tempo | 0.099s |
+| Tempo | 0.197s |
 
 **❌ Messaggio di Errore:**
 
@@ -678,8 +1414,8 @@ AssertionError: assert 'Offline Mode' in 'OK (Online)'
 **📜 Stack Trace:**
 
 ```python
-self = <test_time_service_secure.TestTimeServiceLogic object at 0x0000024302455C70>, mock_save = <MagicMock name='save_state' id='2486835621968'>, mock_load = <MagicMock name='load_state' id='2486836999424'>
-mock_get_time = <MagicMock name='get_network_time' id='2486835823056'>
+self = <test_time_service_secure.TestTimeServiceLogic object at 0x0000023A49390830>, mock_save = <MagicMock name='save_state' id='2449389055600'>, mock_load = <MagicMock name='load_state' id='2449388861488'>
+mock_get_time = <MagicMock name='get_network_time' id='2449388860912'>
 
     @patch("desktop_app.services.time_service.get_network_time")
     @patch("desktop_app.services.time_service.SecureTimeStorage.load_state")
@@ -732,7 +1468,7 @@ Il test ha verificato una condizione che si è rivelata falsa
 | Tipo Errore | ❓  |
 | Status | FAILURE |
 | Riga | 96 |
-| Tempo | 0.099s |
+| Tempo | 0.102s |
 
 **❌ Messaggio di Errore:**
 
@@ -743,8 +1479,8 @@ assert True is False
 **📜 Stack Trace:**
 
 ```python
-self = <test_time_service_secure.TestTimeServiceLogic object at 0x0000024302455FD0>, mock_load = <MagicMock name='load_state' id='2486836727488'>
-mock_get_time = <MagicMock name='get_network_time' id='2486836724656'>
+self = <test_time_service_secure.TestTimeServiceLogic object at 0x0000023A49390B90>, mock_load = <MagicMock name='load_state' id='2449388858320'>
+mock_get_time = <MagicMock name='get_network_time' id='2449388853184'>
 
     @patch("desktop_app.services.time_service.get_network_time")
     @patch("desktop_app.services.time_service.SecureTimeStorage.load_state")
@@ -795,7 +1531,7 @@ Errore durante l'esecuzione del test
 | Tipo Errore | ❓  |
 | Status | FAILURE |
 | Riga | 116 |
-| Tempo | 0.100s |
+| Tempo | 0.197s |
 
 **❌ Messaggio di Errore:**
 
@@ -806,8 +1542,8 @@ assert True is False
 **📜 Stack Trace:**
 
 ```python
-self = <test_time_service_secure.TestTimeServiceLogic object at 0x0000024302456330>, mock_load = <MagicMock name='load_state' id='2486855605312'>
-mock_get_time = <MagicMock name='get_network_time' id='2486856692800'>
+self = <test_time_service_secure.TestTimeServiceLogic object at 0x0000023A49390EF0>, mock_load = <MagicMock name='load_state' id='2449388809216'>
+mock_get_time = <MagicMock name='get_network_time' id='2449388809888'>
 
     @patch("desktop_app.services.time_service.get_network_time")
     @patch("desktop_app.services.time_service.SecureTimeStorage.load_state")
@@ -862,7 +1598,7 @@ Errore durante l'esecuzione del test
 | Tipo Errore | ❌ AssertionError |
 | Status | FAILURE |
 | Riga | 949 |
-| Tempo | 0.005s |
+| Tempo | 0.004s |
 
 **❌ Messaggio di Errore:**
 
@@ -882,8 +1618,8 @@ assert ('Hello World...abellaNeural') == ('Hello World...T-IrmaNeural')
 **📜 Stack Trace:**
 
 ```python
-self = <MagicMock name='Communicate' id='2486856694768'>, args = ('Hello World', 'it-IT-IrmaNeural'), kwargs = {}, expected = call('Hello World', 'it-IT-IrmaNeural')
-actual = call('Hello World', 'it-IT-IsabellaNeural', rate='+10%', pitch='+2Hz'), _error_message = <function NonCallableMock.assert_called_with.<locals>._error_message at 0x000002430300FB00>, cause = None
+self = <MagicMock name='Communicate' id='2449388853664'>, args = ('Hello World', 'it-IT-IrmaNeural'), kwargs = {}, expected = call('Hello World', 'it-IT-IrmaNeural')
+actual = call('Hello World', 'it-IT-IsabellaNeural', rate='+10%', pitch='+2Hz'), _error_message = <function NonCallableMock.assert_called_with.<locals>._error_message at 0x0000023A49C04CC0>, cause = None
 
     def assert_called_with(self, /, *args, **kwargs):
         """assert that the last call was made with the specified arguments.
@@ -940,7 +1676,7 @@ Il test ha verificato una condizione che si è rivelata falsa
 | Tipo Errore | ❌ AssertionError |
 | Status | FAILURE |
 | Riga | 43 |
-| Tempo | 0.002s |
+| Tempo | 0.001s |
 
 **❌ Messaggio di Errore:**
 
@@ -1009,7 +1745,7 @@ AssertionError: Expected 'start_server' to have been called.
 **📜 Stack Trace:**
 
 ```python
-self = <MagicMock name='start_server' id='2486828134624'>
+self = <MagicMock name='start_server' id='2449392322800'>
 
     def assert_called(self):
         """assert that the mock was called at least once
@@ -1066,14 +1802,14 @@ Il test ha verificato una condizione che si è rivelata falsa
 | Test | `tests.desktop_app.test_toast::test_toast_history_persistence` |
 | Tipo Errore | ❌ AssertionError |
 | Status | FAILURE |
-| Tempo | 0.003s |
+| Tempo | 0.002s |
 
 **❌ Messaggio di Errore:**
 
 ```
 AssertionError: assert 0 == 1
- +  where 0 = len(<MagicMock name='mock.ToastManager.instance().history' id='2486859045088'>)
- +    where <MagicMock name='mock.ToastManager.instance().history' id='2486859045088'> = <MagicMock name='mock.ToastManager.instance()' id='2486861683440'>.history
+ +  where 0 = len(<MagicMock name='mock.ToastManager.instance().history' id='2449396014816'>)
+ +    where <MagicMock name='mock.ToastManager.instance().history' id='2449396014816'> = <MagicMock name='mock.ToastManager.instance()' id='2449395929488'>.history
 ```
 
 **📜 Stack Trace:**
@@ -1089,8 +1825,8 @@ def test_toast_history_persistence():
                 manager = ToastManager.instance()
 >               assert len(manager.history) == 1
 E               AssertionError: assert 0 == 1
-E                +  where 0 = len(<MagicMock name='mock.ToastManager.instance().history' id='2486859045088'>)
-E                +    where <MagicMock name='mock.ToastManager.instance().history' id='2486859045088'> = <MagicMock name='mock.ToastManager.instance()' id='2486861683440'>.history
+E                +  where 0 = len(<MagicMock name='mock.ToastManager.instance().history' id='2449396014816'>)
+E                +    where <MagicMock name='mock.ToastManager.instance().history' id='2449396014816'> = <MagicMock name='mock.ToastManager.instance()' id='2449395929488'>.history
 
 tests\desktop_app\test_toast.py:20: AssertionError
 ```
@@ -1135,7 +1871,7 @@ Expected: emit(None, 'info', 'T', 'M', 3000)
 **📜 Stack Trace:**
 
 ```python
-self = <MagicMock name='mock.ToastManager.instance().request_show_toast.emit' id='2486862353312'>, args = (None, 'info', 'T', 'M', 3000), kwargs = {}, expected = "emit(None, 'info', 'T', 'M', 3000)"
+self = <MagicMock name='mock.ToastManager.instance().request_show_toast.emit' id='2449396181152'>, args = (None, 'info', 'T', 'M', 3000), kwargs = {}, expected = "emit(None, 'info', 'T', 'M', 3000)"
 actual = 'not called.', error_message = "expected call not found.\nExpected: emit(None, 'info', 'T', 'M', 3000)\n  Actual: not called."
 
     def assert_called_with(self, /, *args, **kwargs):
@@ -1190,14 +1926,14 @@ Il test ha verificato una condizione che si è rivelata falsa
 | Tipo Errore | ❌ AssertionError |
 | Status | FAILURE |
 | Riga | 93 |
-| Tempo | 0.002s |
+| Tempo | 0.003s |
 
 **❌ Messaggio di Errore:**
 
 ```
 AssertionError: assert 0 == 1
- +  where 0 = len(<MagicMock name='mock.ToastManager.instance().active_toasts' id='2486863302000'>)
- +    where <MagicMock name='mock.ToastManager.instance().active_toasts' id='2486863302000'> = <MagicMock name='mock.ToastManager.instance()' id='2486861683440'>.active_toasts
+ +  where 0 = len(<MagicMock name='mock.ToastManager.instance().active_toasts' id='2449396212240'>)
+ +    where <MagicMock name='mock.ToastManager.instance().active_toasts' id='2449396212240'> = <MagicMock name='mock.ToastManager.instance()' id='2449395929488'>.active_toasts
 ```
 
 **📜 Stack Trace:**
@@ -1229,8 +1965,8 @@ def test_stacking_logic_call():
                  manager.show_toast(None, "info", "T1", "M1")
 >                assert len(manager.active_toasts) == 1
 E                AssertionError: assert 0 == 1
-E                 +  where 0 = len(<MagicMock name='mock.ToastManager.instance().active_toasts' id='2486863302000'>)
-E                 +    where <MagicMock name='mock.ToastManager.instance().active_toasts' id='2486863302000'> = <MagicMock name='mock.ToastManager.instance()' id='2486861683440'>.active_toasts
+E                 +  where 0 = len(<MagicMock name='mock.ToastManager.instance().active_toasts' id='2449396212240'>)
+E                 +    where <MagicMock name='mock.ToastManager.instance().active_toasts' id='2449396212240'> = <MagicMock name='mock.ToastManager.instance()' id='2449395929488'>.active_toasts
 
 tests\desktop_app\test_toast.py:93: AssertionError
 ```
@@ -1265,7 +2001,7 @@ Il test ha verificato una condizione che si è rivelata falsa
 | Tipo Errore | ❌ AssertionError |
 | Status | FAILURE |
 | Riga | 940 |
-| Tempo | 0.134s |
+| Tempo | 0.005s |
 
 **❌ Messaggio di Errore:**
 
@@ -1278,7 +2014,7 @@ Expected: open('/tmp/audit.csv', 'wb')
 **📜 Stack Trace:**
 
 ```python
-self = <MagicMock name='open' id='2486865814128'>, args = ('/tmp/audit.csv', 'wb'), kwargs = {}, expected = "open('/tmp/audit.csv', 'wb')", actual = 'not called.'
+self = <MagicMock name='open' id='2449370293328'>, args = ('/tmp/audit.csv', 'wb'), kwargs = {}, expected = "open('/tmp/audit.csv', 'wb')", actual = 'not called.'
 error_message = "expected call not found.\nExpected: open('/tmp/audit.csv', 'wb')\n  Actual: not called."
 
     def assert_called_with(self, /, *args, **kwargs):
@@ -1333,7 +2069,7 @@ Il test ha verificato una condizione che si è rivelata falsa
 | Tipo Errore | 🔍 AttributeError |
 | Status | FAILURE |
 | Riga | 169 |
-| Tempo | 0.002s |
+| Tempo | 0.003s |
 
 **❌ Messaggio di Errore:**
 
@@ -1385,7 +2121,7 @@ Tentativo di accedere a un attributo inesistente
 | Tipo Errore | 🔍 AttributeError |
 | Status | FAILURE |
 | Riga | 211 |
-| Tempo | 0.002s |
+| Tempo | 0.003s |
 
 **❌ Messaggio di Errore:**
 
@@ -1437,7 +2173,7 @@ Tentativo di accedere a un attributo inesistente
 | Tipo Errore | ❌ AssertionError |
 | Status | FAILURE |
 | Riga | 940 |
-| Tempo | 0.004s |
+| Tempo | 0.003s |
 
 **❌ Messaggio di Errore:**
 
@@ -1450,7 +2186,7 @@ Expected: delete_user(2)
 **📜 Stack Trace:**
 
 ```python
-self = <MagicMock name='mock.delete_user' id='2486861684736'>, args = (2,), kwargs = {}, expected = 'delete_user(2)', actual = 'not called.'
+self = <MagicMock name='mock.delete_user' id='2449396571152'>, args = (2,), kwargs = {}, expected = 'delete_user(2)', actual = 'not called.'
 error_message = 'expected call not found.\nExpected: delete_user(2)\n  Actual: not called.'
 
     def assert_called_with(self, /, *args, **kwargs):
@@ -1505,7 +2241,7 @@ Il test ha verificato una condizione che si è rivelata falsa
 | Tipo Errore | ❌ AssertionError |
 | Status | FAILURE |
 | Riga | 940 |
-| Tempo | 0.005s |
+| Tempo | 0.003s |
 
 **❌ Messaggio di Errore:**
 
@@ -1518,7 +2254,7 @@ Expected: show_warning(<ANY>, 'Azione Non Consentita', <ANY>)
 **📜 Stack Trace:**
 
 ```python
-self = <MagicMock name='mock.CustomMessageDialog.show_warning' id='2486861477024'>, args = (<ANY>, 'Azione Non Consentita', <ANY>), kwargs = {}, expected = "show_warning(<ANY>, 'Azione Non Consentita', <ANY>)"
+self = <MagicMock name='mock.CustomMessageDialog.show_warning' id='2449389318704'>, args = (<ANY>, 'Azione Non Consentita', <ANY>), kwargs = {}, expected = "show_warning(<ANY>, 'Azione Non Consentita', <ANY>)"
 actual = 'not called.', error_message = "expected call not found.\nExpected: show_warning(<ANY>, 'Azione Non Consentita', <ANY>)\n  Actual: not called."
 
     def assert_called_with(self, /, *args, **kwargs):
@@ -1576,7 +2312,7 @@ Il test ha verificato una condizione che si è rivelata falsa
 | Tipo Errore | 🔍 AttributeError |
 | Status | FAILURE |
 | Riga | 198 |
-| Tempo | 4.079s |
+| Tempo | 4.059s |
 
 **❌ Messaggio di Errore:**
 
@@ -1587,7 +2323,7 @@ AttributeError: 'DummyQWidget' object has no attribute 'setTextColor'
 **📜 Stack Trace:**
 
 ```python
-self = <urllib3.connection.HTTPConnection object at 0x0000024304FAFD40>
+self = <urllib3.connection.HTTPConnection object at 0x0000023A4B930650>
 
     def _new_conn(self) -> socket.socket:
         """Establish a socket connection and set nodelay settings on it.
@@ -1612,7 +2348,7 @@ self = <urllib3.connection.HTTPConnection object at 0x0000024304FAFD40>
             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 E           AttributeError: 'DummyQWidget' object has no attribute 'setTextColor'
 
-desktop_app\views\import_view.py:520: AttributeError
+desktop_app\views\import_view.py:504: AttributeError
 ```
 
 **❓ Perché fallisce:**
@@ -1701,7 +2437,7 @@ Tentativo di accedere a un attributo inesistente
 | Tipo Errore | ❌ AssertionError |
 | Status | FAILURE |
 | Riga | 940 |
-| Tempo | 0.014s |
+| Tempo | 0.143s |
 
 **❌ Messaggio di Errore:**
 
@@ -1714,7 +2450,7 @@ Expected: change_password('primoaccesso', 'new')
 **📜 Stack Trace:**
 
 ```python
-self = <MagicMock name='mock.change_password' id='2486870888752'>, args = ('primoaccesso', 'new'), kwargs = {}, expected = "change_password('primoaccesso', 'new')", actual = 'not called.'
+self = <MagicMock name='mock.change_password' id='2449399218928'>, args = ('primoaccesso', 'new'), kwargs = {}, expected = "change_password('primoaccesso', 'new')", actual = 'not called.'
 error_message = "expected call not found.\nExpected: change_password('primoaccesso', 'new')\n  Actual: not called."
 
     def assert_called_with(self, /, *args, **kwargs):
@@ -1774,7 +2510,7 @@ Il test ha verificato una condizione che si è rivelata falsa
 **❌ Messaggio di Errore:**
 
 ```
-AssertionError: <MagicMock name='mock.LoginView().username_input.isEnabled()' id='2486869978592'> is not false
+AssertionError: <MagicMock name='mock.LoginView().username_input.isEnabled()' id='2449397311168'> is not false
 ```
 
 **📜 Stack Trace:**
@@ -1790,7 +2526,7 @@ self = <test_login_view_coverage.TestLoginViewCoverage testMethod=test_init_chec
     
             view_bad = LoginView(self.mock_api_client, license_ok=False)
 >           self.assertFalse(view_bad.username_input.isEnabled())
-E           AssertionError: <MagicMock name='mock.LoginView().username_input.isEnabled()' id='2486869978592'> is not false
+E           AssertionError: <MagicMock name='mock.LoginView().username_input.isEnabled()' id='2449397311168'> is not false
 
 tests\desktop_app\views\test_login_view_coverage.py:73: AssertionError
 ```
@@ -1833,7 +2569,7 @@ AssertionError: Expected 'LicenseUpdateWorker' to have been called.
 **📜 Stack Trace:**
 
 ```python
-self = <MagicMock name='LicenseUpdateWorker' id='2486869891440'>
+self = <MagicMock name='LicenseUpdateWorker' id='2449389206704'>
 
     def assert_called(self):
         """assert that the mock was called at least once
@@ -1899,7 +2635,7 @@ AssertionError: Expected 'show_warning' to have been called.
 **📜 Stack Trace:**
 
 ```python
-self = <MagicMock name='CustomMessageDialog.show_warning' id='2486870531568'>
+self = <MagicMock name='CustomMessageDialog.show_warning' id='2449393269648'>
 
     def assert_called(self):
         """assert that the mock was called at least once
@@ -1971,7 +2707,7 @@ Expected: set_token({'access_token': 'tok', 'user_id': 1})
 **📜 Stack Trace:**
 
 ```python
-self = <MagicMock name='mock.set_token' id='2486870961776'>, args = ({'access_token': 'tok', 'user_id': 1},), kwargs = {}, expected = "set_token({'access_token': 'tok', 'user_id': 1})", actual = 'not called.'
+self = <MagicMock name='mock.set_token' id='2449396626160'>, args = ({'access_token': 'tok', 'user_id': 1},), kwargs = {}, expected = "set_token({'access_token': 'tok', 'user_id': 1})", actual = 'not called.'
 error_message = "expected call not found.\nExpected: set_token({'access_token': 'tok', 'user_id': 1})\n  Actual: not called."
 
     def assert_called_with(self, /, *args, **kwargs):
@@ -2037,7 +2773,7 @@ AssertionError: Expected 'UpdateWorker' to have been called.
 **📜 Stack Trace:**
 
 ```python
-self = <MagicMock name='UpdateWorker' id='2486870229360'>
+self = <MagicMock name='UpdateWorker' id='2449393749120'>
 
     def assert_called(self):
         """assert that the mock was called at least once
@@ -2098,7 +2834,7 @@ Il test ha verificato una condizione che si è rivelata falsa
 | Tipo Errore | ❌ AssertionError |
 | Status | FAILURE |
 | Riga | 113 |
-| Tempo | 0.234s |
+| Tempo | 0.229s |
 
 **❌ Messaggio di Errore:**
 
