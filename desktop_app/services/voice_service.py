@@ -18,13 +18,13 @@ class TTSWorker(QThread):
     finished = pyqtSignal(str) # Emits path to generated file
     error = pyqtSignal(str)
 
-    def __init__(self, text, voice="it-IT-IsabellaNeural"):
+    def __init__(self, text, voice="it-IT-ElsaNeural"):
         super().__init__()
         self.text = text
         self.voice = voice
-        # Personality Tuning Parameters
-        self.rate = "+10%"
-        self.pitch = "+2Hz"
+        # Personality Tuning Parameters - Reduced to avoid "No audio received" errors
+        self.rate = "+0%"
+        self.pitch = "+0Hz"
 
     def run(self):
         try:
@@ -40,14 +40,23 @@ class TTSWorker(QThread):
             self.error.emit(str(e))
 
     async def _generate_audio(self, path):
-        # Apply Rate and Pitch tuning
-        communicate = edge_tts.Communicate(
-            self.text,
-            self.voice,
-            rate=self.rate,
-            pitch=self.pitch
-        )
-        await communicate.save(path)
+        try:
+            # Try with tuning first
+            communicate = edge_tts.Communicate(
+                self.text,
+                self.voice,
+                rate=self.rate,
+                pitch=self.pitch
+            )
+            await communicate.save(path)
+        except Exception as e:
+            logger.warning(f"TTS Tuning Failed ({e}), retrying without parameters...")
+            # Fallback: Raw parameters (most stable)
+            communicate = edge_tts.Communicate(
+                self.text,
+                self.voice
+            )
+            await communicate.save(path)
 
 class VoiceService(QObject):
     """
@@ -85,8 +94,8 @@ class VoiceService(QObject):
         self.stop()
 
         # Start generation in background thread
-        # Use Isabella as the new standard
-        self.worker = TTSWorker(text, voice="it-IT-IsabellaNeural")
+        # Use Elsa as the standard stable voice
+        self.worker = TTSWorker(text, voice="it-IT-ElsaNeural")
         self.worker.finished.connect(self._play_audio)
         self.worker.error.connect(lambda e: logger.error(f"TTS Error: {e}"))
         self.worker.start()
