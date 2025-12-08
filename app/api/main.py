@@ -622,6 +622,9 @@ def _persist_certificate_update(db, db_cert, update_data, old_cert_data, certifi
     Persists the certificate update to the database and filesystem.
     Refactored to handle the save, move, and commit phases.
     """
+    # Initialize status with a default or existing value
+    status = certificate_logic.get_certificate_status(db, db_cert)
+
     # Check constraints before file move
     try:
         db.flush()
@@ -631,6 +634,7 @@ def _persist_certificate_update(db, db_cert, update_data, old_cert_data, certifi
 
     # File Synchronization
     try:
+        # This call updates status variable
         file_moved, old_file_path, new_file_path, status = _sync_cert_file_system(db_cert, old_cert_data, db)
     except PermissionError:
         db.rollback()

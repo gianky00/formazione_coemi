@@ -97,7 +97,8 @@ class TestDBSecurityFailures(unittest.TestCase):
     def test_heartbeat_failure_triggers_readonly(self):
         """Test that 3 heartbeat failures force read-only mode."""
         mgr = DBSecurityManager()
-        # Explicitly ensure lock_manager is a mock to prevent AttributeError
+        # Explicitly replace lock_manager with a MagicMock to guarantee attributes like return_value exist.
+        # This bypasses potential patching failures of the LockManager class during init.
         mgr.lock_manager = MagicMock()
         mgr.is_read_only = False
         mgr.lock_manager.update_heartbeat.return_value = False
