@@ -33,6 +33,8 @@ router = APIRouter()
 DATE_FORMAT_DMY = '%d/%m/%Y'
 STR_DA_ASSEGNARE = "DA ASSEGNARE"
 STR_NON_TROVATO = "Non trovato in anagrafica (matricola mancante)."
+STR_CERT_NON_TROVATO = "Certificato non trovato"
+STR_DIP_NON_TROVATO = "Dipendente non trovato"
 
 def _process_orphan_cert(cert, match, database_path, db):
     """
@@ -88,45 +90,27 @@ def get_corsi(db: Session = Depends(get_db), license: bool = Depends(deps.verify
 def health_check():
     return {"status": "ok"}
 
-@router.post("/upload-pdf/", dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
-async def upload_pdf(
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-    current_user: UserModel = Depends(deps.get_current_user)
-):
-    MAX_FILE_SIZE = settings.MAX_UPLOAD_SIZE
-
-    # Read file with size limit check
-    pdf_bytes = bytearray()
+async def _read_file_securely(file: UploadFile, max_size: int) -> bytes:
+    """Reads file content securely enforcing size limits."""
+    content = bytearray()
     while True:
-        chunk = await file.read(1024 * 1024)  # Read 1MB chunks
-        if not chunk:
-            break
-        pdf_bytes.extend(chunk)
-        if len(pdf_bytes) > MAX_FILE_SIZE:
-            raise HTTPException(status_code=413, detail=f"Il file supera il limite massimo di {MAX_FILE_SIZE // (1024*1024)}MB.")
+        chunk = await file.read(1024 * 1024)
+        if not chunk: break
+        content.extend(chunk)
+        if len(content) > max_size:
+            raise HTTPException(status_code=413, detail=f"Il file supera il limite massimo di {max_size // (1024*1024)}MB.")
+    return bytes(content)
 
-    if not verify_file_signature(bytes(pdf_bytes), 'pdf'):
-         raise HTTPException(status_code=400, detail="File non valido: firma digitale PDF non riconosciuta.")
-
-    extracted_data = ai_extraction.extract_entities_with_ai(bytes(pdf_bytes))
-    if "error" in extracted_data:
-        if extracted_data.get("is_rejected"):
-             log_security_action(db, current_user, "AI_REJECT", f"File rejected by AI: {file.filename}. Reason: {extracted_data['error']}", category="AI_ANALYSIS", severity="MEDIUM")
-             raise HTTPException(status_code=422, detail=extracted_data["error"])
-        if extracted_data.get("status_code") == 429:
-            raise HTTPException(status_code=429, detail=extracted_data["error"])
-        raise HTTPException(status_code=500, detail=extracted_data["error"])
-
-    # Flexible Date Parsing and Correction
+def _normalize_extracted_dates(extracted_data):
+    """Parses and normalizes dates in extracted data."""
     for date_field in ["data_scadenza", "data_rilascio", "data_nascita"]:
         if extracted_data.get(date_field):
             parsed_date = parse_date_flexible(extracted_data[date_field])
             if parsed_date:
                 extracted_data[date_field] = parsed_date.strftime(DATE_FORMAT_DMY)
-            # If parsing fails, we leave it as is (or could set to None/warn)
 
-    # Logic to calculate expiration if missing
+def _infer_expiration_date(db, extracted_data):
+    """Calculates missing expiration date based on course category."""
     if not extracted_data.get("data_scadenza") and extracted_data.get("data_rilascio"):
         try:
             issue_date = datetime.strptime(extracted_data["data_rilascio"], DATE_FORMAT_DMY).date()
@@ -138,6 +122,29 @@ async def upload_pdf(
                     extracted_data["data_scadenza"] = expiration_date.strftime(DATE_FORMAT_DMY)
         except (ValueError, TypeError):
             pass
+
+@router.post("/upload-pdf/", dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
+async def upload_pdf(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_user)
+):
+    pdf_bytes = await _read_file_securely(file, settings.MAX_UPLOAD_SIZE)
+
+    if not verify_file_signature(pdf_bytes, 'pdf'):
+         raise HTTPException(status_code=400, detail="File non valido: firma digitale PDF non riconosciuta.")
+
+    extracted_data = ai_extraction.extract_entities_with_ai(pdf_bytes)
+    if "error" in extracted_data:
+        if extracted_data.get("is_rejected"):
+             log_security_action(db, current_user, "AI_REJECT", f"File rejected by AI: {file.filename}. Reason: {extracted_data['error']}", category="AI_ANALYSIS", severity="MEDIUM")
+             raise HTTPException(status_code=422, detail=extracted_data["error"])
+        if extracted_data.get("status_code") == 429:
+            raise HTTPException(status_code=429, detail=extracted_data["error"])
+        raise HTTPException(status_code=500, detail=extracted_data["error"])
+
+    _normalize_extracted_dates(extracted_data)
+    _infer_expiration_date(db, extracted_data)
 
     return {"filename": file.filename, "entities": extracted_data}
 
@@ -187,7 +194,7 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
 def get_certificato(certificato_id: int, db: Session = Depends(get_db)):
     db_cert = db.get(Certificato, certificato_id)
     if not db_cert:
-        raise HTTPException(status_code=404, detail="Certificato non trovato")
+        raise HTTPException(status_code=404, detail=STR_CERT_NON_TROVATO)
 
     status = certificate_logic.get_certificate_status(db, db_cert)
 
@@ -237,55 +244,69 @@ def _get_or_create_course(db, categoria, corso_nome):
         db.flush()
     return course
 
+def _validate_cert_input(certificato):
+    if not certificato.data_rilascio:
+        raise HTTPException(status_code=422, detail="La data di rilascio non può essere vuota.")
+    if not certificato.nome or not certificato.nome.strip():
+        raise HTTPException(status_code=400, detail="Il nome non può essere vuoto.")
+    if len(certificato.nome.strip().split()) < 2:
+        raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
+
+def _check_duplicate_cert(db, course_id, data_rilascio, dipendente_id, nome_raw):
+    query = db.query(Certificato).filter(
+        Certificato.corso_id == course_id,
+        Certificato.data_rilascio == data_rilascio
+    )
+    if dipendente_id:
+        query = query.filter(Certificato.dipendente_id == dipendente_id)
+    else:
+        query = query.filter(
+            Certificato.dipendente_id.is_(None),
+            Certificato.nome_dipendente_raw.ilike(f"%{nome_raw.strip()}%")
+        )
+    return query.first() is not None
+
+def _archive_obsolete_certs(db, new_cert):
+    try:
+        older_certs = db.query(Certificato).join(Corso).filter(
+            Certificato.dipendente_id == new_cert.dipendente_id,
+            Corso.categoria_corso == new_cert.corso.categoria_corso,
+            Certificato.id != new_cert.id,
+            Certificato.data_rilascio < new_cert.data_rilascio
+        ).all()
+        for old_cert in older_certs:
+            if certificate_logic.get_certificate_status(db, old_cert) == "archiviato":
+                archive_certificate_file(db, old_cert)
+    except Exception as e:
+        print(f"Error archiving older certificates: {e}")
+
 @router.post("/certificati/", response_model=CertificatoSchema, dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
 def create_certificato(
     certificato: CertificatoCreazioneSchema,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_user)
 ):
-    if not certificato.data_rilascio:
-        raise HTTPException(status_code=422, detail="La data di rilascio non può essere vuota.")
+    _validate_cert_input(certificato)
 
-    if not certificato.nome or not certificato.nome.strip():
-        raise HTTPException(status_code=400, detail="Il nome non può essere vuoto.")
-
-    nome_parts = certificato.nome.strip().split()
-    if len(nome_parts) < 2:
-        raise HTTPException(status_code=400, detail="Formato nome non valido. Inserire nome e cognome.")
-
-    # Cerca una corrispondenza esatta nei dati anagrafici
     dob = parse_date_flexible(certificato.data_nascita) if certificato.data_nascita else None
     dipendente_trovato = matcher.find_employee_by_name(db, certificato.nome, dob)
     dipendente_id = dipendente_trovato.id if dipendente_trovato else None
 
     course = _get_or_create_course(db, certificato.categoria, certificato.corso)
+    rilascio_date = datetime.strptime(certificato.data_rilascio, DATE_FORMAT_DMY).date()
 
-    # Controllo duplicati
-    existing_cert_query = db.query(Certificato).filter(
-        Certificato.corso_id == course.id,
-        Certificato.data_rilascio == datetime.strptime(certificato.data_rilascio, DATE_FORMAT_DMY).date()
-    )
-
-    if dipendente_id:
-        existing_cert_query = existing_cert_query.filter(Certificato.dipendente_id == dipendente_id)
-    else:
-        # Per gli orfani, controlla anche il nome raw per evitare duplicati per la stessa persona non mappata
-        existing_cert_query = existing_cert_query.filter(
-            Certificato.dipendente_id.is_(None),
-            Certificato.nome_dipendente_raw.ilike(f"%{certificato.nome.strip()}%")
-        )
-
-    if existing_cert_query.first():
+    if _check_duplicate_cert(db, course.id, rilascio_date, dipendente_id, certificato.nome):
         raise HTTPException(status_code=409, detail="Un certificato identico per questo dipendente e corso esiste già.")
+
+    scadenza_date = datetime.strptime(certificato.data_scadenza, DATE_FORMAT_DMY).date() if certificato.data_scadenza else None
 
     new_cert = Certificato(
         dipendente_id=dipendente_id,
         nome_dipendente_raw=certificato.nome.strip(),
         data_nascita_raw=certificato.data_nascita,
         corso_id=course.id,
-        data_rilascio=datetime.strptime(certificato.data_rilascio, DATE_FORMAT_DMY).date(),
-        data_scadenza_calcolata=datetime.strptime(certificato.data_scadenza, DATE_FORMAT_DMY).date() if certificato.data_scadenza else None,
-        # Bug 7 Fix: Reverted to AUTOMATIC to ensure proper validation workflow and orphans visibility
+        data_rilascio=rilascio_date,
+        data_scadenza_calcolata=scadenza_date,
         stato_validazione=ValidationStatus.AUTOMATIC
     )
     db.add(new_cert)
@@ -294,39 +315,21 @@ def create_certificato(
         db.refresh(new_cert)
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=409, detail="Un certificato identico per questo dipendente e corso esiste già.")
+        raise HTTPException(status_code=409, detail="Un certificato identico esiste già.")
+
+    _archive_obsolete_certs(db, new_cert)
+
+    # Log
+    dipendente_info = db.get(Dipendente, new_cert.dipendente_id) if new_cert.dipendente_id else None
+    log_msg = f"creato certificato per {certificato.nome.upper()} - {certificato.categoria.upper()}"
+    log_security_action(db, current_user, "CERTIFICATE_CREATE", log_msg, category="CERTIFICATE")
 
     status = certificate_logic.get_certificate_status(db, new_cert)
-
-    dipendente_info = db.get(Dipendente, new_cert.dipendente_id) if new_cert.dipendente_id else None
-    ragione_fallimento = None
-    if not dipendente_info:
-        ragione_fallimento = STR_NON_TROVATO
-
-    matricola_log = dipendente_info.matricola if dipendente_info else "N/A"
-    scadenza_log = certificato.data_scadenza if certificato.data_scadenza else "nessuna scadenza"
-    log_msg = f"creato certificato per {certificato.nome.upper()} ({matricola_log}) - {certificato.categoria.upper()} - {scadenza_log} (data scadenza)"
-    # Real-time Archiving: Check if this new certificate obsoletes older ones
-    try:
-        older_certs = db.query(Certificato).join(Corso).filter(
-            Certificato.dipendente_id == new_cert.dipendente_id,
-            Corso.categoria_corso == new_cert.corso.categoria_corso,
-            Certificato.id != new_cert.id,
-            Certificato.data_rilascio < new_cert.data_rilascio
-        ).all()
-
-        for old_cert in older_certs:
-            # Check if it is now archiviato
-            if certificate_logic.get_certificate_status(db, old_cert) == "archiviato":
-                archive_certificate_file(db, old_cert)
-    except Exception as e:
-        print(f"Error archiving older certificates: {e}")
-
-    log_security_action(db, current_user, "CERTIFICATE_CREATE", log_msg, category="CERTIFICATE")
+    ragione_fallimento = STR_NON_TROVATO if not dipendente_info else None
 
     return CertificatoSchema(
         id=new_cert.id,
-        nome=f"{dipendente_info.cognome} {dipendente_info.nome}" if dipendente_info else new_cert.nome_dipendente_raw or "Da Assegnare",
+        nome=f"{dipendente_info.cognome} {dipendente_info.nome}" if dipendente_info else new_cert.nome_dipendente_raw,
         data_nascita=dipendente_info.data_nascita.strftime(DATE_FORMAT_DMY) if dipendente_info and dipendente_info.data_nascita else new_cert.data_nascita_raw,
         matricola=dipendente_info.matricola if dipendente_info else None,
         corso=new_cert.corso.nome_corso,
@@ -345,7 +348,7 @@ def valida_certificato(
 ):
     db_cert = db.get(Certificato, certificato_id)
     if not db_cert:
-        raise HTTPException(status_code=404, detail="Certificato non trovato")
+        raise HTTPException(status_code=404, detail=STR_CERT_NON_TROVATO)
     db_cert.stato_validazione = ValidationStatus.MANUAL
     db.commit()
     db.refresh(db_cert)
@@ -387,7 +390,7 @@ def update_certificato(
 ):
     db_cert = db.get(Certificato, certificato_id)
     if not db_cert:
-        raise HTTPException(status_code=404, detail="Certificato non trovato")
+        raise HTTPException(status_code=404, detail=STR_CERT_NON_TROVATO)
 
     # Capture old state for file renaming
     old_cert_data = {
@@ -556,7 +559,7 @@ def delete_certificato(
 ):
     db_cert = db.get(Certificato, certificato_id)
     if not db_cert:
-        raise HTTPException(status_code=404, detail="Certificato non trovato")
+        raise HTTPException(status_code=404, detail=STR_CERT_NON_TROVATO)
 
     # Snapshot for logging
     log_details = f"eliminato certificato ID {certificato_id} - {db_cert.nome_dipendente_raw or 'Sconosciuto'} - {db_cert.corso.nome_corso}"
@@ -746,7 +749,7 @@ def get_dipendente_detail(dipendente_id: int, db: Session = Depends(get_db)):
     ).filter(Dipendente.id == dipendente_id).first()
 
     if not dipendente:
-        raise HTTPException(status_code=404, detail="Dipendente non trovato")
+        raise HTTPException(status_code=404, detail=STR_DIP_NON_TROVATO)
 
     # Calculate status for all certs
     status_map = certificate_logic.get_bulk_certificate_statuses(db, dipendente.certificati)
@@ -829,7 +832,7 @@ def update_dipendente(
 ):
     dipendente = db.get(Dipendente, dipendente_id)
     if not dipendente:
-        raise HTTPException(status_code=404, detail="Dipendente non trovato")
+        raise HTTPException(status_code=404, detail=STR_DIP_NON_TROVATO)
 
     update_dict = dipendente_data.model_dump(exclude_unset=True)
 
@@ -867,7 +870,7 @@ def delete_dipendente(
 ):
     dipendente = db.get(Dipendente, dipendente_id)
     if not dipendente:
-        raise HTTPException(status_code=404, detail="Dipendente non trovato")
+        raise HTTPException(status_code=404, detail=STR_DIP_NON_TROVATO)
 
     log_details = f"Eliminato dipendente {dipendente.cognome} {dipendente.nome} (ID {dipendente_id})"
     db.delete(dipendente)

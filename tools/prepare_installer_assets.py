@@ -46,12 +46,12 @@ def draw_spectacular_background(painter, width, height, is_dark=True):
         random.seed(999)
         painter.setPen(Qt.PenStyle.NoPen)
         for _ in range(150):
-            x = random.uniform(0, width)
-            y = random.uniform(0, height)
-            s = random.uniform(0.5, 2.5)
-            opacity = random.randint(100, 255)
+            x = random.uniform(0, width) # NOSONAR
+            y = random.uniform(0, height) # NOSONAR
+            s = random.uniform(0.5, 2.5) # NOSONAR
+            opacity = random.randint(100, 255) # NOSONAR
             # Some stars are blueish, some white
-            if random.random() > 0.8:
+            if random.random() > 0.8: # NOSONAR
                 painter.setBrush(QColor(147, 197, 253, opacity))
             else:
                 painter.setBrush(QColor(255, 255, 255, opacity))

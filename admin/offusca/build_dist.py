@@ -98,7 +98,7 @@ def _scan_file_imports(path, std_libs):
                 root_pkg = node.module.split('.')[0]
                 if root_pkg not in std_libs: imports.add(root_pkg)
     except Exception: # S5754: Catch-all is fine here for scanner resilience, but let's be explicit
-        pass # NOSONAR: Ignore parse errors during scan
+        pass # NOSONAR
     return imports
 
 def scan_imports(source_dirs):
@@ -191,7 +191,7 @@ def collect_submodules(base_dir):
                 modules.append(module_name)
     return modules
 
-def _prepare_obfuscation(iscc_exe):
+def _prepare_obfuscation():
     kill_existing_process()
 
     if os.path.exists(DIST_DIR):
@@ -253,7 +253,8 @@ def build():
             sys.exit(1)
 
         iscc_exe, system_dlls = verify_environment()
-        auto_detected_libs = _prepare_obfuscation(iscc_exe)
+        # S1172: Removed unused iscc_exe parameter from _prepare_obfuscation
+        auto_detected_libs = _prepare_obfuscation()
 
         log_and_print("\n--- Step 2/7: Building Modern Guide Frontend ---")
         try:

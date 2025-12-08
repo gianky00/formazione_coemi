@@ -764,6 +764,34 @@ class LoginView(QWidget):
         user_info["welcome_speech"] = speech_text
         user_info["pending_documents_count"] = self.pending_count
 
+    def _handle_password_change(self):
+        """Helper to handle forced password change workflow."""
+        while True:
+            dialog = ForcePasswordChangeDialog(self)
+            if dialog.exec():
+                new_pw, confirm_pw = dialog.get_data()
+                if not new_pw:
+                    CustomMessageDialog.show_warning(self, "Errore", "Password vuota.")
+                    continue
+                if new_pw != confirm_pw:
+                    CustomMessageDialog.show_warning(self, "Errore", "Le password non coincidono.")
+                    continue
+
+                try:
+                    self.api_client.change_password("primoaccesso", new_pw)
+                    CustomMessageDialog.show_info(self, "Successo", "Password aggiornata. Procedi pure.")
+                    return True
+                except Exception as e:
+                    err = str(e)
+                    if hasattr(e, 'response'):
+                        try: err = e.response.json()['detail']
+                        except Exception: pass
+                    CustomMessageDialog.show_error(self, "Errore", f"Errore cambio password: {err}")
+            else:
+                self.api_client.logout()
+                self.login_btn.set_loading(False)
+                return False
+
     def on_login_success(self, response):
         # S3776: Refactored to reduce complexity
         try:
@@ -772,34 +800,10 @@ class LoginView(QWidget):
 
             if user_info.get("require_password_change"):
                 if user_info.get("read_only"):
-                     # S2772: Removed pass
                      CustomMessageDialog.show_warning(self, "Attenzione", "È richiesto il cambio password, ma il database è in sola lettura. Riprova più tardi.")
                 else:
-                    while True:
-                        dialog = ForcePasswordChangeDialog(self)
-                        if dialog.exec():
-                            new_pw, confirm_pw = dialog.get_data()
-                            if not new_pw:
-                                CustomMessageDialog.show_warning(self, "Errore", "Password vuota.")
-                                continue
-                            if new_pw != confirm_pw:
-                                CustomMessageDialog.show_warning(self, "Errore", "Le password non coincidono.")
-                                continue
-
-                            try:
-                                self.api_client.change_password("primoaccesso", new_pw)
-                                CustomMessageDialog.show_info(self, "Successo", "Password aggiornata. Procedi pure.")
-                                break
-                            except Exception as e:
-                                err = str(e)
-                                if hasattr(e, 'response'):
-                                    try: err = e.response.json()['detail']
-                                    except Exception: pass
-                                CustomMessageDialog.show_error(self, "Errore", f"Errore cambio password: {err}")
-                        else:
-                            self.api_client.logout()
-                            self.login_btn.set_loading(False)
-                            return
+                    if not self._handle_password_change():
+                        return
 
             if user_info.get("read_only"):
                 owner = user_info.get("lock_owner") or {}

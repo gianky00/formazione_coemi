@@ -255,6 +255,32 @@ def send_security_alert_email(subject, body_html):
     except Exception as e:
         logging.error(f"Failed to send security alert: {e}")
 
+def _process_cert_for_report(cert, db, today, limits, results):
+    """Helper to process a single certificate for reporting."""
+    if not cert.data_scadenza_calcolata or not cert.corso:
+        return
+
+    if cert.corso.categoria_corso in EXCLUDED_CATEGORIES:
+        return
+
+    # Unpack limits and result lists
+    expiring_limit_attestati, expiring_limit_visite = limits
+    expiring_visite, expiring_corsi, overdue_certificates = results
+
+    # Check for expiring certificates and separate them
+    if cert.corso.categoria_corso == "VISITA MEDICA":
+        if today < cert.data_scadenza_calcolata <= expiring_limit_visite:
+            expiring_visite.append(cert)
+    else:
+        if today < cert.data_scadenza_calcolata <= expiring_limit_attestati:
+            expiring_corsi.append(cert)
+
+    # Check for overdue and un-renewed certificates
+    if cert.data_scadenza_calcolata < today:
+        status = certificate_logic.get_certificate_status(db, cert)
+        if status == "scaduto":
+            overdue_certificates.append(cert)
+
 def get_report_data(db: Session):
     # S3776: Refactored logic to reduce complexity
     today = date.today()
@@ -265,28 +291,13 @@ def get_report_data(db: Session):
     expiring_limit_attestati = today + timedelta(days=settings.ALERT_THRESHOLD_DAYS)
     expiring_limit_visite = today + timedelta(days=settings.ALERT_THRESHOLD_DAYS_VISITE)
 
+    limits = (expiring_limit_attestati, expiring_limit_visite)
+    results = (expiring_visite, expiring_corsi, overdue_certificates)
+
     all_certs = db.query(Certificato).all()
 
     for cert in all_certs:
-        if not cert.data_scadenza_calcolata or not cert.corso:
-            continue
-
-        if cert.corso.categoria_corso in EXCLUDED_CATEGORIES:
-            continue
-
-        # Check for expiring certificates and separate them
-        if cert.corso.categoria_corso == "VISITA MEDICA":
-            if today < cert.data_scadenza_calcolata <= expiring_limit_visite:
-                expiring_visite.append(cert)
-        else:
-            if today < cert.data_scadenza_calcolata <= expiring_limit_attestati:
-                expiring_corsi.append(cert)
-
-        # Check for overdue and un-renewed certificates
-        if cert.data_scadenza_calcolata < today:
-            status = certificate_logic.get_certificate_status(db, cert)
-            if status == "scaduto":
-                overdue_certificates.append(cert)
+        _process_cert_for_report(cert, db, today, limits, results)
 
     return expiring_visite, expiring_corsi, overdue_certificates
 

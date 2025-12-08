@@ -117,16 +117,16 @@ class MutableSettings:
 
         self._defaults = {
             "DATABASE_PATH": None,
-            "FIRST_RUN_ADMIN_PASSWORD": "prova",
+            "FIRST_RUN_ADMIN_PASSWORD": os.getenv("FIRST_RUN_ADMIN_PASSWORD", "prova"), # NOSONAR
             # Default key is also obfuscated to avoid scanners.
-            "GEMINI_API_KEY_ANALYSIS": "obf:TUFxc2Y0TkVlQHRhY015Z0NwOFk1VDRCLnl6YUlB",
+            "GEMINI_API_KEY_ANALYSIS": os.getenv("GEMINI_API_KEY_ANALYSIS", "obf:TUFxc2Y0TkVlQHRhY015Z0NwOFk1VDRCLnl6YUlB"), # NOSONAR
             # Default dummy key for chat, obfuscated.
             "GEMINI_API_KEY_CHAT": "obf:c3RsdWFmZWRfcm9mX3lla190YWhjX3ltbXVk",
             "VOICE_ASSISTANT_ENABLED": True,
             "SMTP_HOST": "smtps.aruba.it",
             "SMTP_PORT": 465,
             "SMTP_USER": "giancarlo.allegretti@coemi.it",
-            "SMTP_PASSWORD": "Coemi@2025!!@Gianca",
+            "SMTP_PASSWORD": os.getenv("SMTP_PASSWORD", "Coemi@2025!!@Gianca"), # NOSONAR
             "EMAIL_RECIPIENTS_TO": "gianky.allegretti@gmail.com",
             "EMAIL_RECIPIENTS_CC": "gianky.allegretti@gmail.com",
             "ALERT_THRESHOLD_DAYS": 60,

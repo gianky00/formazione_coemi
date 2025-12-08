@@ -93,9 +93,10 @@ def clean_text_for_display(text: str) -> str:
     """
     # 1. Always replace acute accents on a, i, u (Phonetic stress markers)
     # S6397: Replaced character class [x] with x
-    text = re.sub(r'á', 'a', text)
-    text = re.sub(r'í', 'i', text)
-    text = re.sub(r'ú', 'u', text)
+    # S5361: Replaced re.sub with str.replace for simple replacements
+    text = text.replace('á', 'a')
+    text = text.replace('í', 'i')
+    text = text.replace('ú', 'u')
 
     # Regex lookahead (?=[^\W_]) ensures the character is followed by a word character
     # that is NOT an underscore. This prevents stripping accents before a Markdown underscore.
