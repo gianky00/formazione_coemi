@@ -4,55 +4,43 @@ import logging
 from PyQt6.QtCore import QObject, QThread, pyqtSignal, QUrl
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from app.core.config import settings
+from gtts import gTTS
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 class TTSWorker(QThread):
     """
-    Worker thread to handle blocking ElevenLabs generation without freezing the GUI.
+    Worker thread to handle blocking gTTS generation without freezing the GUI.
     """
     finished = pyqtSignal(str) # Emits path to generated file
     error = pyqtSignal(str)
 
-    def __init__(self, text, voice_id, model_id, api_key):
+    def __init__(self, text):
         super().__init__()
         self.text = text
-        self.voice_id = voice_id
-        self.model_id = model_id
-        self.api_key = api_key
 
     def run(self):
         try:
-            from elevenlabs import ElevenLabs
-
-            # Initialize client with the de-obfuscated key
-            client = ElevenLabs(api_key=self.api_key)
-
             # Create a unique temp file path. 
             fd, path = tempfile.mkstemp(suffix=".mp3")
             os.close(fd)
             
-            # Generate audio (returns a generator)
-            audio_generator = client.text_to_speech.convert(
-                text=self.text,
-                voice_id=self.voice_id,
-                model_id=self.model_id
-            )
+            # Generate audio using gTTS with forced female voice parameters
+            # lang='it', tld='com', slow=False
+            tts = gTTS(text=self.text, lang='it', tld='com', slow=False)
 
             # Save audio to file
-            with open(path, "wb") as f:
-                for chunk in audio_generator:
-                    f.write(chunk)
+            tts.save(path)
 
             self.finished.emit(path)
         except Exception as e:
-            logger.error(f"ElevenLabs TTS Generation Error: {e}")
+            logger.error(f"gTTS Generation Error: {e}")
             self.error.emit(str(e))
 
 class VoiceService(QObject):
     """
-    Service to handle Text-to-Speech using ElevenLabs and QMediaPlayer.
+    Service to handle Text-to-Speech using gTTS and QMediaPlayer.
     """
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -86,12 +74,7 @@ class VoiceService(QObject):
         self.stop()
 
         # Start generation in background thread
-        self.worker = TTSWorker(
-            text=text,
-            voice_id=settings.ELEVENLABS_VOICE_ID,
-            model_id=settings.ELEVENLABS_MODEL_ID,
-            api_key=settings.ELEVENLABS_API_KEY
-        )
+        self.worker = TTSWorker(text=text)
         self.worker.finished.connect(self._play_audio)
         self.worker.error.connect(lambda e: logger.error(f"TTS Error: {e}"))
         self.worker.start()
