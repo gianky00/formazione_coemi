@@ -158,12 +158,25 @@ class Sidebar(QFrame):
         self.setFixedWidth(260)
         self.setObjectName("sidebar")
 
-        # Main Layout
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
 
-        # --- Header ---
+        self.buttons = {}
+        self.is_collapsed = False
+        self.animation = QPropertyAnimation(self, b"minimumWidth")
+        self.animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        self.animation.setDuration(300)
+
+        self._setup_header()
+        self._setup_user_info()
+        self._setup_navigation()
+        self.main_layout.addStretch()
+        self._setup_license_info()
+        self._setup_footer()
+
+    def _setup_header(self):
+        """Initializes the header section."""
         self.header_frame = QFrame()
         self.header_frame.setObjectName("sidebar_header")
         self.header_frame.setFixedHeight(64)
@@ -192,10 +205,10 @@ class Sidebar(QFrame):
              self.logo_label.setStyleSheet("color: #1E3A8A; font-weight: bold; font-size: 18px;")
 
         self.header_layout.addWidget(self.logo_label, alignment=Qt.AlignmentFlag.AlignRight)
-
         self.main_layout.addWidget(self.header_frame)
 
-        # --- User Info ---
+    def _setup_user_info(self):
+        """Initializes the user info section."""
         self.user_info_frame = QFrame()
         self.user_info_frame.setStyleSheet("background-color: transparent; padding: 10px 12px;")
         self.user_info_layout = QVBoxLayout(self.user_info_frame)
@@ -214,14 +227,14 @@ class Sidebar(QFrame):
 
         self.main_layout.addWidget(self.user_info_frame)
 
-        # --- Navigation Items ---
+    def _setup_navigation(self):
+        """Initializes the navigation menu."""
         self.nav_container = QWidget()
         self.nav_layout = QVBoxLayout(self.nav_container)
         self.nav_layout.setContentsMargins(0, 10, 0, 10)
         self.nav_layout.setSpacing(4)
         self.nav_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        self.buttons = {}
         self.add_button("import", "Analisi Documenti", "file-text.svg")
         self.add_button("validation", "Convalida Dati", "database.svg")
         self.add_button("scadenzario", "Scadenzario", "calendar.svg")
@@ -239,9 +252,8 @@ class Sidebar(QFrame):
 
         self.main_layout.addWidget(self.nav_container)
 
-        self.main_layout.addStretch()
-
-        # --- License Info ---
+    def _setup_license_info(self):
+        """Initializes the license information section."""
         self.license_frame = QFrame()
         self.license_layout = QVBoxLayout(self.license_frame)
         self.license_layout.setContentsMargins(12, 5, 12, 10)
@@ -258,7 +270,6 @@ class Sidebar(QFrame):
                   l1.setStyleSheet("color: #93C5FD; font-size: 12px;")
                   self.license_layout.addWidget(l1)
 
-             # S1192: Extract constant for repeated string
              LICENSE_EXPIRY_KEY = "Scadenza Licenza"
              expiry_str = license_data.get(LICENSE_EXPIRY_KEY, "")
              if expiry_str:
@@ -282,7 +293,6 @@ class Sidebar(QFrame):
                       l3.setStyleSheet("color: #FFFFFF; font-size: 13px;")
                       self.license_layout.addWidget(l3)
                   except ValueError:
-                      # Ignore date parsing errors in UI
                       pass
              if "Generato il" in license_data:
                   l4 = QLabel(f"Generato il: {license_data['Generato il']}")
@@ -291,6 +301,8 @@ class Sidebar(QFrame):
 
         self.main_layout.addWidget(self.license_frame)
 
+    def _setup_footer(self):
+        """Initializes the footer section."""
         self.disconnect_btn = QPushButton("Disconnetti")
         self.disconnect_btn.setObjectName("disconnect_btn")
         self.disconnect_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -304,11 +316,6 @@ class Sidebar(QFrame):
         self.footer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.footer_label.setStyleSheet("font-size: 12px;")
         self.main_layout.addWidget(self.footer_label)
-
-        self.is_collapsed = False
-        self.animation = QPropertyAnimation(self, b"minimumWidth")
-        self.animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
-        self.animation.setDuration(300)
 
     def read_license_info(self):
         return LicenseManager.get_license_data() or {}

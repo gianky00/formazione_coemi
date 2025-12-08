@@ -1,41 +1,35 @@
 import unittest
-from unittest.mock import MagicMock, patch, mock_open, PropertyMock
+from unittest.mock import MagicMock, patch, mock_open
 import os
 import json
 import time
 from pathlib import Path
 from cryptography.fernet import InvalidToken
 import sqlite3
-
-# Import the class to test
-# We need to patch 'app.core.config.settings' and 'app.core.config.get_user_data_dir' 
-# BEFORE importing db_security if possible, or patch them in the test.
-# Since we are testing unit logic, we can import the module and patch where necessary.
-
-from app.core.db_security import DBSecurityManager
 import pytest
+
+# Import the module explicitly for robust patching
+import app.core.db_security as db_security_module
+from app.core.db_security import DBSecurityManager
 
 class TestDBSecurityFailures(unittest.TestCase):
     
     def setUp(self):
-        # Patch configuration to avoid real file system usage during init
-        self.settings_patcher = patch('app.core.db_security.settings')
+        # Patch configuration using patch.object for reliability
+        self.settings_patcher = patch.object(db_security_module, 'settings')
         self.mock_settings = self.settings_patcher.start()
         self.mock_settings.DATABASE_PATH = None
         
-        self.user_data_patcher = patch('app.core.db_security.get_user_data_dir')
+        self.user_data_patcher = patch.object(db_security_module, 'get_user_data_dir')
         self.mock_get_user_data = self.user_data_patcher.start()
         self.mock_get_user_data.return_value = Path('/tmp/mock_data')
         
-        # Patch LockManager to prevent real file locking
-        self.lock_mgr_patcher = patch('app.core.db_security.LockManager')
+        # Patch LockManager
+        self.lock_mgr_patcher = patch.object(db_security_module, 'LockManager')
         self.mock_lock_mgr_cls = self.lock_mgr_patcher.start()
         self.mock_lock_mgr = self.mock_lock_mgr_cls.return_value
         
-        # Patch OS/File ops usually
-        # IMPORTANT: DBSecurityManager stores paths as Path objects. 
-        # When checking existence, it calls p.exists().
-        # Patching Path.exists on the class affects all instances.
+        # Patch Path.exists on the class globally as it's used by Path instances
         self.path_exists_patcher = patch('pathlib.Path.exists')
         self.mock_exists = self.path_exists_patcher.start()
         self.mock_exists.return_value = False # Default to no DB existing
@@ -51,14 +45,14 @@ class TestDBSecurityFailures(unittest.TestCase):
         # Force existence check to return True
         self.mock_exists.return_value = True
         
-        # Mock opening the lock file
-        with patch('builtins.open', mock_open(read_data=b'L{invalid_json')) as m_open:
-            with patch('app.core.db_security.os.remove') as m_remove:
+        # Mock opening the lock file with corrupt JSON
+        with patch('builtins.open', mock_open(read_data=b'L{invalid_json')):
+            # Patch os.remove on the module to ensure we catch the call
+            with patch.object(db_security_module.os, 'remove') as m_remove:
                 # Initialize manager (triggering the check)
                 mgr = DBSecurityManager()
                 
                 # Verify removal was attempted
-                # Note: mock_exists.return_value applies to ALL path checks, including lock path
                 m_remove.assert_called()
 
     def test_stale_lock_recovery_dead_pid(self):
@@ -68,8 +62,8 @@ class TestDBSecurityFailures(unittest.TestCase):
         mock_file_content = b'L' + lock_data
         
         with patch('builtins.open', mock_open(read_data=mock_file_content)):
-            with patch('app.core.db_security.psutil.pid_exists', return_value=False):
-                with patch('app.core.db_security.os.remove') as m_remove:
+            with patch.object(db_security_module.psutil, 'pid_exists', return_value=False):
+                with patch.object(db_security_module.os, 'remove') as m_remove:
                     mgr = DBSecurityManager()
                     m_remove.assert_called()
 
@@ -80,10 +74,10 @@ class TestDBSecurityFailures(unittest.TestCase):
         mock_file_content = b'L' + lock_data
         
         with patch('builtins.open', mock_open(read_data=mock_file_content)):
-            with patch('app.core.db_security.psutil.pid_exists', return_value=True):
-                with patch('app.core.db_security.psutil.Process') as m_proc:
+            with patch.object(db_security_module.psutil, 'pid_exists', return_value=True):
+                with patch.object(db_security_module.psutil, 'Process') as m_proc:
                     m_proc.return_value.name.return_value = "chrome.exe"
-                    with patch('app.core.db_security.os.remove') as m_remove:
+                    with patch.object(db_security_module.os, 'remove') as m_remove:
                         mgr = DBSecurityManager()
                         m_remove.assert_called()
 
@@ -93,22 +87,20 @@ class TestDBSecurityFailures(unittest.TestCase):
         mock_file_content = b'L' + lock_data
         
         with patch('builtins.open', mock_open(read_data=mock_file_content)):
-            with patch('app.core.db_security.psutil.pid_exists', return_value=True):
-                with patch('app.core.db_security.psutil.Process') as m_proc:
+            with patch.object(db_security_module.psutil, 'pid_exists', return_value=True):
+                with patch.object(db_security_module.psutil, 'Process') as m_proc:
                     m_proc.return_value.name.return_value = "python.exe"
-                    with patch('app.core.db_security.os.remove') as m_remove:
+                    with patch.object(db_security_module.os, 'remove') as m_remove:
                         mgr = DBSecurityManager()
                         m_remove.assert_not_called()
 
     def test_heartbeat_failure_triggers_readonly(self):
         """Test that 3 heartbeat failures force read-only mode."""
         mgr = DBSecurityManager()
+        # Explicitly ensure lock_manager is a mock to prevent AttributeError
+        mgr.lock_manager = MagicMock()
         mgr.is_read_only = False
         mgr.lock_manager.update_heartbeat.return_value = False
-        
-        # We need to access the inner _tick function which is private and local.
-        # Alternatively, we can inspect the class implementation.
-        # However, checking the logic via calling _start_heartbeat and mocking timer is better.
         
         with patch('threading.Timer') as m_timer:
             mgr._start_heartbeat()
@@ -168,13 +160,8 @@ class TestDBSecurityFailures(unittest.TestCase):
         mgr.active_connection.serialize.return_value = b'db_data'
         mgr.db_path = Path('/tmp/mock_data/db.db')
         
-        # We need to mock _safe_write specifically or the underlying calls.
-        # Since _safe_write has the @retry decorator, it's best to verify the decorator behavior.
-        # However, tenacity wraps the method.
-        
-        # Let's mock the internal implementation of _safe_write
         with patch('builtins.open', mock_open()) as m_open:
-            with patch('os.replace') as m_replace:
+            with patch.object(db_security_module.os, 'replace') as m_replace:
                 # First 2 calls fail, 3rd succeeds
                 m_replace.side_effect = [PermissionError, PermissionError, None]
                 
@@ -186,11 +173,8 @@ class TestDBSecurityFailures(unittest.TestCase):
     def test_verify_integrity_corrupt_sqlite(self):
         """Test integrity check fails on corrupt internal data."""
         mgr = DBSecurityManager()
-        # Create a real invalid sqlite DB in memory for the check
         
-        # Mock reading a plain file
         with patch('builtins.open', mock_open(read_data=b'NOT_A_DB_HEADER')):
-            # Mock sqlite3.connect to return a mock that fails integrity check
             with patch('sqlite3.connect') as m_connect:
                 mock_conn = MagicMock()
                 mock_cursor = MagicMock()
@@ -214,7 +198,6 @@ class TestDBSecurityFailures(unittest.TestCase):
         file2 = MagicMock()
         file2.stat.return_value.st_mtime = 200 # Newer
         
-        # We want to keep 1, delete 1. file1 is older.
         with patch.object(Path, 'glob', return_value=[file2, file1]):
              # unlink raises Exception
              file1.unlink.side_effect = PermissionError("Cannot delete")
@@ -235,12 +218,13 @@ class TestDBSecurityFailures(unittest.TestCase):
         target = Path('/new/path')
         
         with patch('shutil.move') as m_move:
-            with patch('pathlib.Path.mkdir'): # prevent actual mkdir globally
-                # We already mocked settings in setUp via app.core.db_security.settings
-                
+            with patch('pathlib.Path.mkdir'):
+                # Call the method
                 mgr.move_database(target)
                 
+                # Verify shutil.move
                 m_move.assert_called_with(str(old_path), str(target / 'db.db'))
+                # Verify settings were saved via the module reference we patched
                 self.mock_settings.save_mutable_settings.assert_called()
 
     def test_move_database_failure_readonly(self):
@@ -249,4 +233,3 @@ class TestDBSecurityFailures(unittest.TestCase):
         mgr.is_read_only = True
         with self.assertRaises(PermissionError):
             mgr.move_database(Path('/new'))
-

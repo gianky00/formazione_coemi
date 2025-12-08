@@ -71,11 +71,9 @@ const Sidebar = () => {
     // Prefer globalThis over window for environment agnosticism
     const globalContext = globalThis;
 
-    if (globalContext.qt && globalContext.qt.webChannelTransport) {
-      // Assign to a variable to avoid "new" side effect warning, although QWebChannel is designed this way.
-      // eslint-disable-next-line no-unused-vars
-      const channel = new globalContext.QWebChannel(globalContext.qt.webChannelTransport, function(c) {
-        if (c.objects && c.objects.bridge) {
+    if (globalContext.qt?.webChannelTransport) {
+      new globalContext.QWebChannel(globalContext.qt.webChannelTransport, function(c) {
+        if (c.objects?.bridge) {
             setBridge(c.objects.bridge);
         }
       });
