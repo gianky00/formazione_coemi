@@ -22,6 +22,13 @@ OBFUSCATED_GITHUB_TOKEN = "obf:WkZrMlIyVTBLRXJ4ZFlGeUtteTkzMFBSc0xJYkJjSUpLSDNZX
 LICENSE_REPO_OWNER = "gianky00"
 LICENSE_REPO_NAME = "intelleo-licenses"
 
+# ElevenLabs Configuration (Obfuscated)
+# Key: sk_760121e13ac514c2bf623a0c9e15a552bd65a0ddb4b7bffe
+# Obfuscated via security.obfuscate_string
+OBFUSCATED_ELEVENLABS_KEY = "obf:ZWZmYjdiNGJkZDBhNTZkYjI1NWE1MWU5YzBhMzI2ZmIyYzQxNWNhMzFlMTIxMDY3X2tz"
+ELEVENLABS_VOICE_ID = "XrExE9yKIg1WjnnlVkGX" # Matilda
+ELEVENLABS_MODEL_ID = "eleven_multilingual_v2"
+
 SETTINGS_FILENAME = "settings.json"
 
 # --- Mutable User Configuration ---
@@ -191,6 +198,10 @@ class SettingsManager:
         self._OBFUSCATED_GITHUB_TOKEN = OBFUSCATED_GITHUB_TOKEN
         self.LICENSE_REPO_OWNER = LICENSE_REPO_OWNER
         self.LICENSE_REPO_NAME = LICENSE_REPO_NAME
+        # ElevenLabs
+        self._OBFUSCATED_ELEVENLABS_KEY = OBFUSCATED_ELEVENLABS_KEY
+        self.ELEVENLABS_VOICE_ID = ELEVENLABS_VOICE_ID
+        self.ELEVENLABS_MODEL_ID = ELEVENLABS_MODEL_ID
 
         # Mutable settings
         settings_file_path = get_user_data_dir() / SETTINGS_FILENAME
@@ -201,6 +212,10 @@ class SettingsManager:
     @property
     def LICENSE_GITHUB_TOKEN(self): # NOSONAR
         return reveal_string(self._OBFUSCATED_GITHUB_TOKEN)
+
+    @property
+    def ELEVENLABS_API_KEY(self): # NOSONAR
+        return reveal_string(self._OBFUSCATED_ELEVENLABS_KEY)
 
     @property
     def FIRST_RUN_ADMIN_PASSWORD(self): # NOSONAR

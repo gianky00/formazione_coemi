@@ -205,13 +205,13 @@ class ValidationView(QWidget):
     def edit_data(self):
         if getattr(self, 'is_read_only', False): return
 
-        selected_ids = self.get_selected_ids()
-        if not selected_ids or len(selected_ids) > 1:
-            CustomMessageDialog.show_warning(self, "Selezione Invalida", "Seleziona una singola riga da modificare.")
-            return
-
-        cert_id = selected_ids[0]
         try:
+            selected_ids = self.get_selected_ids()
+            if not selected_ids or len(selected_ids) > 1:
+                CustomMessageDialog.show_warning(self, "Selezione Invalida", "Seleziona una singola riga da modificare.")
+                return
+
+            cert_id = selected_ids[0]
             response = requests.get(f"{self.api_client.base_url}/certificati/{cert_id}", headers=self.api_client._get_headers(), timeout=10)
             response.raise_for_status()
             cert_data = response.json()
@@ -232,6 +232,9 @@ class ValidationView(QWidget):
                     self.load_data()
         except requests.exceptions.RequestException as e:
             CustomMessageDialog.show_error(self, "Errore", f"Impossibile modificare il certificato: {e}")
+        except Exception as e:
+            print(f"Error in edit_data: {e}")
+            CustomMessageDialog.show_error(self, "Errore", f"Si è verificato un errore inatteso: {e}")
 
     def load_data(self):
         self.set_loading(True)
@@ -364,33 +367,37 @@ class ValidationView(QWidget):
         self.load_data()
 
     def _show_context_menu(self, pos):
-        index = self.table_view.indexAt(pos)
-        if not index.isValid(): return
+        try:
+            index = self.table_view.indexAt(pos)
+            if not index.isValid(): return
 
-        menu = QMenu(self)
-        open_pdf_action = QAction("Apri PDF", self)
-        open_folder_action = QAction("Apri percorso file", self)
-        menu.addAction(open_pdf_action)
-        menu.addAction(open_folder_action)
+            menu = QMenu(self)
+            open_pdf_action = QAction("Apri PDF", self)
+            open_folder_action = QAction("Apri percorso file", self)
+            menu.addAction(open_pdf_action)
+            menu.addAction(open_folder_action)
 
-        action = menu.exec(self.table_view.viewport().mapToGlobal(pos))
-        if not action: return
+            action = menu.exec(self.table_view.viewport().mapToGlobal(pos))
+            if not action: return
 
-        row_idx = index.row()
-        if not hasattr(self, 'model') or row_idx >= self.model.rowCount(): return
+            row_idx = index.row()
+            if not hasattr(self, 'model') or row_idx >= self.model.rowCount(): return
 
-        row_data = self.df.iloc[row_idx]
-        cert_data = {
-            'nome': row_data.get('DIPENDENTE'),
-            'matricola': row_data.get('matricola'),
-            'categoria': row_data.get('categoria'),
-            'data_scadenza': row_data.get('data_scadenza')
-        }
+            row_data = self.df.iloc[row_idx]
+            cert_data = {
+                'nome': row_data.get('DIPENDENTE'),
+                'matricola': row_data.get('matricola'),
+                'categoria': row_data.get('categoria'),
+                'data_scadenza': row_data.get('data_scadenza')
+            }
 
-        if action == open_pdf_action:
-            self._open_document(cert_data, open_folder=False)
-        elif action == open_folder_action:
-            self._open_document(cert_data, open_folder=True)
+            if action == open_pdf_action:
+                self._open_document(cert_data, open_folder=False)
+            elif action == open_folder_action:
+                self._open_document(cert_data, open_folder=True)
+        except Exception as e:
+            print(f"Error in context menu: {e}")
+            CustomMessageDialog.show_error(self, "Errore", f"Impossibile eseguire l'azione: {e}")
 
     def _open_document(self, cert_data, open_folder=False):
         try:
