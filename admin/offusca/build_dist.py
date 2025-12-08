@@ -101,13 +101,9 @@ def _scan_file_imports(path, std_libs):
         pass # NOSONAR
     return imports
 
-def scan_imports(source_dirs):
-    # S3776: Refactored to reduce complexity
-    log_and_print("--- Scanning source code for imports ---")
-    detected_imports = set()
-    std_libs = get_std_libs()
+def _gather_files_to_scan(source_dirs):
+    """Helper to collect all .py files from source directories."""
     files_to_scan = [os.path.join(ROOT_DIR, ENTRY_SCRIPT), os.path.join(ROOT_DIR, "launcher.py")]
-    
     for source_dir in source_dirs:
         full_source_dir = os.path.join(ROOT_DIR, source_dir)
         if not os.path.exists(full_source_dir): continue
@@ -115,6 +111,15 @@ def scan_imports(source_dirs):
             for file in files:
                 if file.endswith(".py"):
                     files_to_scan.append(os.path.join(root, file))
+    return files_to_scan
+
+def scan_imports(source_dirs):
+    # S3776: Refactored to reduce complexity
+    log_and_print("--- Scanning source code for imports ---")
+    detected_imports = set()
+    std_libs = get_std_libs()
+
+    files_to_scan = _gather_files_to_scan(source_dirs)
 
     for path in files_to_scan:
         detected_imports.update(_scan_file_imports(path, std_libs))
@@ -253,114 +258,124 @@ def build():
             sys.exit(1)
 
         iscc_exe, system_dlls = verify_environment()
-        # S1172: Removed unused iscc_exe parameter from _prepare_obfuscation
         auto_detected_libs = _prepare_obfuscation()
 
-        log_and_print("\n--- Step 2/7: Building Modern Guide Frontend ---")
-        try:
-            guide_build_script = os.path.join(ROOT_DIR, "tools", "build_guide.py")
-            run_command([sys.executable, guide_build_script])
-        except Exception as e:
-            log_and_print(f"Guide build warning: {e}", "WARNING")
-
+        _build_guide()
         _run_pyarmor()
         _prepare_assets()
 
         log_and_print("\n--- Step 5/7: Packaging with PyInstaller (This may take a while) ---")
-        sep = ";" if os.name == 'nt' else ":"
-        runtime_dir = None
-        for name in os.listdir(OBF_DIR):
-            if name.startswith("pyarmor_runtime_") and os.path.isdir(os.path.join(OBF_DIR, name)):
-                runtime_dir = name
-                break
+
+        runtime_dir = _find_pyarmor_runtime()
         if not runtime_dir:
             log_and_print("ERROR: PyArmor runtime folder not found inside obfuscated dir!", "ERROR")
             sys.exit(1)
 
-        add_data = [
-            f"{os.path.join(OBF_DIR, 'desktop_app', 'assets')}{sep}desktop_app/assets",
-            f"{os.path.join(OBF_DIR, 'desktop_app', 'icons')}{sep}desktop_app/icons",
-            f"{os.path.join(OBF_DIR, runtime_dir)}{sep}{runtime_dir}",
-            f"{os.path.join(ROOT_DIR, 'guide_frontend', 'dist')}{sep}guide",
-            f"{os.path.join(ROOT_DIR, 'docs', 'LYRA_PROFILE.md')}{sep}_internal/docs"
-        ]
-
-        cmd_pyinstaller = [
-            sys.executable, "-m", "PyInstaller",
-            "--name", APP_NAME,
-            "--onedir",
-            "--console",
-            "--clean",
-            "--noconfirm",
-            "--icon", os.path.join(OBF_DIR, "desktop_app", "icons", "icon.ico"),
-            "--distpath", DIST_DIR,
-            "--workpath", os.path.join(DIST_DIR, "build"),
-            f"--paths={OBF_DIR}",
-            f"--runtime-hook={os.path.join(OBF_DIR, 'rthook_pyqt6.py')}", 
-        ]
-
-        for d in add_data:
-            cmd_pyinstaller.extend(["--add-data", d])
-
-        # Explicitly collect packages
-        cmd_pyinstaller.extend(["--collect-all", "google.cloud"])
-        cmd_pyinstaller.extend(["--collect-all", "google.cloud.aiplatform"])
-        cmd_pyinstaller.extend(["--collect-all", "google.generativeai"])
-        cmd_pyinstaller.extend(["--collect-all", "grpc"])
-        cmd_pyinstaller.extend(["--collect-all", "google.protobuf"])
-        cmd_pyinstaller.extend(["--collect-all", "desktop_app"])
-        cmd_pyinstaller.extend(["--collect-all", "PyQt6.QtWebEngineWidgets"])
-        cmd_pyinstaller.extend(["--collect-all", "PyQt6.QtWebEngineCore"])
-        cmd_pyinstaller.extend(["--collect-all", "PyQt6.QtWebChannel"])
-        cmd_pyinstaller.extend(["--collect-all", "PyQt6-WebEngine"])
-        cmd_pyinstaller.extend(["--collect-all", "passlib"])
-        cmd_pyinstaller.extend(["--collect-all", "bcrypt"])
-        cmd_pyinstaller.extend(["--collect-all", "jose"])
-        cmd_pyinstaller.extend(["--collect-all", "cryptography"])
-        cmd_pyinstaller.extend(["--collect-all", "PyQt6"])
-        cmd_pyinstaller.extend(["--collect-all", "geoip2"])
-        cmd_pyinstaller.extend(["--collect-all", "user_agents"])
-        cmd_pyinstaller.extend(["--collect-all", "apscheduler"])
-
-        manual_hidden_imports = [
-            "launcher", 
-            "views", "utils", "components", "api_client",
-            "main_window_ui", "edit_dialog", "gantt_item", "view_models",
-            "desktop_app.main", 
-            "desktop_app.components", 
-            "desktop_app.views", "desktop_app.utils", "desktop_app.components",
-            "sqlalchemy.sql.default_comparator", "sqlalchemy.dialects.sqlite",
-            "pysqlite2", "MySQLdb", "psycopg2", "dotenv",
-            "win32com.client", "pythoncom", "win32api", "pywintypes", "win32timezone",
-            "fastapi", "starlette",
-            "uvicorn.logging", "uvicorn.loops", "uvicorn.loops.auto",
-            "uvicorn.protocols", "uvicorn.protocols.http", "uvicorn.protocols.http.auto",
-            "uvicorn.lifespan.on", "multipart", "python_multipart",
-            "PyQt6.QtSvg", "PyQt6.QtNetwork", "PyQt6.QtPrintSupport",
-            "PyQt6.QtWidgets", "PyQt6.QtCore", "PyQt6.QtGui",
-            "PyQt6.QtWebEngineWidgets", "PyQt6.QtWebEngineCore", "PyQt6.QtWebChannel",
-            "email.mime.text", "email.mime.multipart", "email.mime.application",
-            "email.mime.base", "email.mime.image", "email.header", "email.utils",
-            "email.encoders", "encodings",
-            "pydantic_settings", "httpx",
-            "google.cloud.aiplatform", "google.cloud.aiplatform_v1",
-            "google.api_core", "google.auth", "google.protobuf", "grpc",
-            "passlib", "passlib.handlers.bcrypt",
-            "bcrypt",
-            "jose", "jose.backends.cryptography_backend",
-            "cryptography", "cryptography.hazmat.backends.openssl",
-            "pandas", "tenacity", "fpdf", "ua_parser"
-        ]
-
-        all_hidden_imports = list(set(manual_hidden_imports + auto_detected_libs))
-        all_hidden_imports.extend(collect_submodules("desktop_app"))
-        all_hidden_imports.extend(collect_submodules("app"))
-
-        for imp in all_hidden_imports:
-            cmd_pyinstaller.extend(["--hidden-import", imp])
+        cmd_pyinstaller = _prepare_pyinstaller_cmd(runtime_dir)
+        _add_hidden_imports(cmd_pyinstaller, auto_detected_libs)
 
         cmd_pyinstaller.append(os.path.join(OBF_DIR, ENTRY_SCRIPT))
         run_command(cmd_pyinstaller)
+
+def _build_guide():
+    """Builds the frontend guide."""
+    log_and_print("\n--- Step 2/7: Building Modern Guide Frontend ---")
+    try:
+        guide_build_script = os.path.join(ROOT_DIR, "tools", "build_guide.py")
+        run_command([sys.executable, guide_build_script])
+    except Exception as e:
+        log_and_print(f"Guide build warning: {e}", "WARNING")
+
+def _find_pyarmor_runtime():
+    """Finds the PyArmor runtime directory."""
+    for name in os.listdir(OBF_DIR):
+        if name.startswith("pyarmor_runtime_") and os.path.isdir(os.path.join(OBF_DIR, name)):
+            return name
+    return None
+
+def _prepare_pyinstaller_cmd(runtime_dir):
+    """Prepares the base PyInstaller command with data additions."""
+    sep = ";" if os.name == 'nt' else ":"
+    add_data = [
+        f"{os.path.join(OBF_DIR, 'desktop_app', 'assets')}{sep}desktop_app/assets",
+        f"{os.path.join(OBF_DIR, 'desktop_app', 'icons')}{sep}desktop_app/icons",
+        f"{os.path.join(OBF_DIR, runtime_dir)}{sep}{runtime_dir}",
+        f"{os.path.join(ROOT_DIR, 'guide_frontend', 'dist')}{sep}guide",
+        f"{os.path.join(ROOT_DIR, 'docs', 'LYRA_PROFILE.md')}{sep}_internal/docs"
+    ]
+
+    cmd = [
+        sys.executable, "-m", "PyInstaller",
+        "--name", APP_NAME,
+        "--onedir",
+        "--console",
+        "--clean",
+        "--noconfirm",
+        "--icon", os.path.join(OBF_DIR, "desktop_app", "icons", "icon.ico"),
+        "--distpath", DIST_DIR,
+        "--workpath", os.path.join(DIST_DIR, "build"),
+        f"--paths={OBF_DIR}",
+        f"--runtime-hook={os.path.join(OBF_DIR, 'rthook_pyqt6.py')}",
+    ]
+
+    for d in add_data:
+        cmd.extend(["--add-data", d])
+
+    _add_collect_all(cmd)
+
+    return cmd
+
+def _add_collect_all(cmd):
+    """Adds --collect-all flags."""
+    packages = [
+        "google.cloud", "google.cloud.aiplatform", "google.generativeai",
+        "grpc", "google.protobuf", "desktop_app",
+        "PyQt6.QtWebEngineWidgets", "PyQt6.QtWebEngineCore",
+        "PyQt6.QtWebChannel", "PyQt6-WebEngine",
+        "passlib", "bcrypt", "jose", "cryptography", "PyQt6",
+        "geoip2", "user_agents", "apscheduler"
+    ]
+    for pkg in packages:
+        cmd.extend(["--collect-all", pkg])
+
+def _add_hidden_imports(cmd, auto_detected_libs):
+    """Adds hidden imports."""
+    manual_hidden_imports = [
+        "launcher",
+        "views", "utils", "components", "api_client",
+        "main_window_ui", "edit_dialog", "gantt_item", "view_models",
+        "desktop_app.main",
+        "desktop_app.components",
+        "desktop_app.views", "desktop_app.utils", "desktop_app.components",
+        "sqlalchemy.sql.default_comparator", "sqlalchemy.dialects.sqlite",
+        "pysqlite2", "MySQLdb", "psycopg2", "dotenv",
+        "win32com.client", "pythoncom", "win32api", "pywintypes", "win32timezone",
+        "fastapi", "starlette",
+        "uvicorn.logging", "uvicorn.loops", "uvicorn.loops.auto",
+        "uvicorn.protocols", "uvicorn.protocols.http", "uvicorn.protocols.http.auto",
+        "uvicorn.lifespan.on", "multipart", "python_multipart",
+        "PyQt6.QtSvg", "PyQt6.QtNetwork", "PyQt6.QtPrintSupport",
+        "PyQt6.QtWidgets", "PyQt6.QtCore", "PyQt6.QtGui",
+        "PyQt6.QtWebEngineWidgets", "PyQt6.QtWebEngineCore", "PyQt6.QtWebChannel",
+        "email.mime.text", "email.mime.multipart", "email.mime.application",
+        "email.mime.base", "email.mime.image", "email.header", "email.utils",
+        "email.encoders", "encodings",
+        "pydantic_settings", "httpx",
+        "google.cloud.aiplatform", "google.cloud.aiplatform_v1",
+        "google.api_core", "google.auth", "google.protobuf", "grpc",
+        "passlib", "passlib.handlers.bcrypt",
+        "bcrypt",
+        "jose", "jose.backends.cryptography_backend",
+        "cryptography", "cryptography.hazmat.backends.openssl",
+        "pandas", "tenacity", "fpdf", "ua_parser"
+    ]
+
+    all_hidden_imports = list(set(manual_hidden_imports + auto_detected_libs))
+    all_hidden_imports.extend(collect_submodules("desktop_app"))
+    all_hidden_imports.extend(collect_submodules("app"))
+
+    for imp in all_hidden_imports:
+        cmd.extend(["--hidden-import", imp])
 
         log_and_print("\n--- Step 6/7: Post-Build Cleanup & DLL Injection ---")
 

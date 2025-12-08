@@ -792,6 +792,22 @@ class LoginView(QWidget):
                 self.login_btn.set_loading(False)
                 return False
 
+    def _check_read_only(self, user_info):
+        """Displays warning if read-only."""
+        if user_info.get("read_only"):
+            owner = user_info.get("lock_owner") or {}
+            msg = f"⚠️ DATABASE IN USO\n\nUtente: {owner.get('username', 'N/A')}\nHost: {owner.get('hostname', 'N/A')}\nPID: {owner.get('pid', 'N/A')}\n\nL'applicazione si avvierà in modalità SOLA LETTURA.\nNon sarà possibile salvare nuove modifiche."
+            CustomMessageDialog.show_warning(self, "Modalità Sola Lettura", msg)
+
+    def _fetch_pending_count(self):
+        """Fetches pending certificates count."""
+        try:
+            cert_list = self.api_client.get("certificati", params={"validated": "false"})
+            self.pending_count = len(cert_list)
+        except Exception as e:
+            print(f"[LoginView] Error fetching pending count: {e}")
+            self.pending_count = 0
+
     def on_login_success(self, response):
         # S3776: Refactored to reduce complexity
         try:
@@ -801,22 +817,11 @@ class LoginView(QWidget):
             if user_info.get("require_password_change"):
                 if user_info.get("read_only"):
                      CustomMessageDialog.show_warning(self, "Attenzione", "È richiesto il cambio password, ma il database è in sola lettura. Riprova più tardi.")
-                else:
-                    if not self._handle_password_change():
-                        return
+                elif not self._handle_password_change():
+                    return
 
-            if user_info.get("read_only"):
-                owner = user_info.get("lock_owner") or {}
-                msg = f"⚠️ DATABASE IN USO\n\nUtente: {owner.get('username', 'N/A')}\nHost: {owner.get('hostname', 'N/A')}\nPID: {owner.get('pid', 'N/A')}\n\nL'applicazione si avvierà in modalità SOLA LETTURA.\nNon sarà possibile salvare nuove modifiche."
-                CustomMessageDialog.show_warning(self, "Modalità Sola Lettura", msg)
-
-            try:
-                cert_list = self.api_client.get("certificati", params={"validated": "false"})
-                self.pending_count = len(cert_list)
-            except Exception as e:
-                print(f"[LoginView] Error fetching pending count: {e}")
-                self.pending_count = 0
-
+            self._check_read_only(user_info)
+            self._fetch_pending_count()
             self._prepare_welcome_message(user_info)
             self._animate_success_exit()
 

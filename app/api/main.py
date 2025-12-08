@@ -36,18 +36,46 @@ STR_NON_TROVATO = "Non trovato in anagrafica (matricola mancante)."
 STR_CERT_NON_TROVATO = "Certificato non trovato"
 STR_DIP_NON_TROVATO = "Dipendente non trovato"
 
+def _get_orphan_cert_data(cert):
+    """Helper to extract data from an orphan certificate for file lookup."""
+    return {
+        'nome': cert.nome_dipendente_raw,
+        'matricola': None,
+        'categoria': cert.corso.categoria_corso if cert.corso else None,
+        'data_scadenza': cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY) if cert.data_scadenza_calcolata else None
+    }
+
+def _move_linked_cert_file(cert, match, old_path, database_path, db):
+    """Helper to move the file of a newly linked certificate."""
+    if not (old_path and os.path.exists(old_path)):
+        return
+
+    status = certificate_logic.get_certificate_status(db, cert)
+    target_status = "ATTIVO"
+    if status == "scaduto": target_status = "SCADUTO"
+    elif status == "archiviato": target_status = "STORICO"
+
+    # Prepare new data
+    new_cert_data = {
+        'nome': f"{match.cognome} {match.nome}",
+        'matricola': match.matricola,
+        'categoria': cert.corso.categoria_corso if cert.corso else None,
+        'data_scadenza': cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY) if cert.data_scadenza_calcolata else None
+    }
+
+    new_path = construct_certificate_path(database_path, new_cert_data, status=target_status)
+
+    if old_path != new_path:
+        os.makedirs(os.path.dirname(new_path), exist_ok=True)
+        shutil.move(old_path, new_path)
+
 def _process_orphan_cert(cert, match, database_path, db):
     """
     Helper function to process linking an orphaned certificate to a matched employee
     and moving the associated file.
     """
     # Capture Old Data (Orphan state) for file logic
-    old_cert_data = {
-        'nome': cert.nome_dipendente_raw,
-        'matricola': None,
-        'categoria': cert.corso.categoria_corso if cert.corso else None,
-        'data_scadenza': cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY) if cert.data_scadenza_calcolata else None
-    }
+    old_cert_data = _get_orphan_cert_data(cert)
 
     # Link Employee
     cert.dipendente_id = match.id
@@ -56,25 +84,7 @@ def _process_orphan_cert(cert, match, database_path, db):
     if database_path and old_cert_data['categoria']:
         try:
             old_path = find_document(database_path, old_cert_data)
-            if old_path and os.path.exists(old_path):
-                status = certificate_logic.get_certificate_status(db, cert)
-                target_status = "ATTIVO"
-                if status == "scaduto": target_status = "SCADUTO"
-                elif status == "archiviato": target_status = "STORICO"
-
-                # Prepare new data
-                new_cert_data = {
-                    'nome': f"{match.cognome} {match.nome}",
-                    'matricola': match.matricola,
-                    'categoria': old_cert_data['categoria'],
-                    'data_scadenza': old_cert_data['data_scadenza']
-                }
-
-                new_path = construct_certificate_path(database_path, new_cert_data, status=target_status)
-
-                if old_path != new_path:
-                    os.makedirs(os.path.dirname(new_path), exist_ok=True)
-                    shutil.move(old_path, new_path)
+            _move_linked_cert_file(cert, match, old_path, database_path, db)
         except Exception as e:
             print(f"Error moving orphan file {old_cert_data}: {e}")
 
@@ -164,31 +174,35 @@ def get_certificati(validated: Optional[bool] = Query(None), db: Session = Depen
         if not cert.corso:
             continue
 
-        ragione_fallimento = None
-        if cert.dipendente:
-            nome_completo = f"{cert.dipendente.cognome} {cert.dipendente.nome}"
-            data_nascita = cert.dipendente.data_nascita.strftime(DATE_FORMAT_DMY) if cert.dipendente.data_nascita else None
-            matricola = cert.dipendente.matricola
-        else:
-            nome_completo = cert.nome_dipendente_raw or STR_DA_ASSEGNARE
-            data_nascita = cert.data_nascita_raw
-            matricola = None
-            ragione_fallimento = STR_NON_TROVATO
-
-        status = status_map.get(cert.id, "attivo")
-        result.append(CertificatoSchema(
-            id=cert.id,
-            nome=nome_completo,
-            data_nascita=data_nascita,
-            matricola=matricola,
-            corso=cert.corso.nome_corso,
-            categoria=cert.corso.categoria_corso or "General",
-            data_rilascio=cert.data_rilascio.strftime(DATE_FORMAT_DMY),
-            data_scadenza=cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY) if cert.data_scadenza_calcolata else None,
-            stato_certificato=status,
-            assegnazione_fallita_ragione=ragione_fallimento
-        ))
+        _append_cert_to_result(cert, status_map, result)
     return result
+
+def _append_cert_to_result(cert, status_map, result):
+    """Helper to format and append certificate to result list."""
+    ragione_fallimento = None
+    if cert.dipendente:
+        nome_completo = f"{cert.dipendente.cognome} {cert.dipendente.nome}"
+        data_nascita = cert.dipendente.data_nascita.strftime(DATE_FORMAT_DMY) if cert.dipendente.data_nascita else None
+        matricola = cert.dipendente.matricola
+    else:
+        nome_completo = cert.nome_dipendente_raw or STR_DA_ASSEGNARE
+        data_nascita = cert.data_nascita_raw
+        matricola = None
+        ragione_fallimento = STR_NON_TROVATO
+
+    status = status_map.get(cert.id, "attivo")
+    result.append(CertificatoSchema(
+        id=cert.id,
+        nome=nome_completo,
+        data_nascita=data_nascita,
+        matricola=matricola,
+        corso=cert.corso.nome_corso,
+        categoria=cert.corso.categoria_corso or "General",
+        data_rilascio=cert.data_rilascio.strftime(DATE_FORMAT_DMY),
+        data_scadenza=cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY) if cert.data_scadenza_calcolata else None,
+        stato_certificato=status,
+        assegnazione_fallita_ragione=ragione_fallimento
+    ))
 
 @router.get("/certificati/{certificato_id}", response_model=CertificatoSchema, dependencies=[Depends(deps.verify_license)])
 def get_certificato(certificato_id: int, db: Session = Depends(get_db)):
@@ -381,6 +395,30 @@ def valida_certificato(
         stato_certificato=status
     )
 
+def _handle_file_rename(database_path, status, old_file_path, new_cert_data):
+    """Helper to handle file renaming during certificate update."""
+    # Determine target status folder
+    if status in ["attivo", "in_scadenza"]:
+        target_status = "ATTIVO"
+    else:
+        target_status = "STORICO"
+
+    new_file_path = construct_certificate_path(database_path, new_cert_data, status=target_status)
+
+    if old_file_path != new_file_path:
+        # Bug 5 Fix: Prevent Overwrite
+        dest_dir = os.path.dirname(new_file_path)
+        os.makedirs(dest_dir, exist_ok=True)
+
+        filename = os.path.basename(new_file_path)
+        unique_filename = get_unique_filename(dest_dir, filename)
+        new_file_path = os.path.join(dest_dir, unique_filename)
+
+        shutil.move(old_file_path, new_file_path)
+        return True, new_file_path
+
+    return False, None
+
 @router.put("/certificati/{certificato_id}", response_model=CertificatoSchema, dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
 def update_certificato(
     certificato_id: int,
@@ -495,25 +533,9 @@ def update_certificato(
                 old_file_path = find_document(database_path, old_cert_data)
 
                 if old_file_path and os.path.exists(old_file_path):
-                    # Determine target status folder
-                    if status in ["attivo", "in_scadenza"]:
-                        target_status = "ATTIVO"
-                    else:
-                        target_status = "STORICO"
-
-                    new_file_path = construct_certificate_path(database_path, new_cert_data, status=target_status)
-
-                    if old_file_path != new_file_path:
-                        # Bug 5 Fix: Prevent Overwrite
-                        dest_dir = os.path.dirname(new_file_path)
-                        os.makedirs(dest_dir, exist_ok=True)
-
-                        filename = os.path.basename(new_file_path)
-                        unique_filename = get_unique_filename(dest_dir, filename)
-                        new_file_path = os.path.join(dest_dir, unique_filename)
-
-                        shutil.move(old_file_path, new_file_path)
-                        file_moved = True
+                    file_moved, new_file_path = _handle_file_rename(
+                        database_path, status, old_file_path, new_cert_data
+                    )
     except PermissionError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Impossibile spostare il file: File in uso o permessi negati.")
@@ -601,6 +623,40 @@ def delete_certificato(
 
     return {"message": "Certificato cancellato con successo"}
 
+def _handle_new_dipendente(db, warnings, data):
+    """Helper to handle new or ambiguous employee logic."""
+    cognome, nome, parsed_data_nascita, badge, parsed_data_assunzione, data_nascita_str = data
+
+    found_by_identity = False
+    if parsed_data_nascita:
+        matches = db.query(Dipendente).filter(
+            Dipendente.nome.ilike(nome),
+            Dipendente.cognome.ilike(cognome),
+            Dipendente.data_nascita == parsed_data_nascita
+        ).all()
+
+        if len(matches) == 1:
+            dipendente = matches[0]
+            dipendente.matricola = badge
+            dipendente.nome = nome
+            dipendente.cognome = cognome
+            if parsed_data_assunzione:
+                dipendente.data_assunzione = parsed_data_assunzione
+            found_by_identity = True
+        elif len(matches) > 1:
+            warnings.append(f"Duplicato rilevato per {cognome} {nome} ({data_nascita_str}). Impossibile assegnare matricola {badge} automaticamente.")
+            return
+
+    if not found_by_identity:
+        dipendente = Dipendente(
+            cognome=cognome,
+            nome=nome,
+            matricola=badge,
+            data_nascita=parsed_data_nascita,
+            data_assunzione=parsed_data_assunzione
+        )
+        db.add(dipendente)
+
 @router.post("/dipendenti/import-csv", dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
 async def import_dipendenti_csv(
     file: UploadFile = File(...),
@@ -649,64 +705,7 @@ async def import_dipendenti_csv(
     warnings = []
 
     for row in reader:
-        cognome = row.get('Cognome')
-        nome = row.get('Nome')
-        data_nascita = row.get('Data_nascita')
-        badge = row.get('Badge')
-        data_assunzione = row.get('Data_assunzione')
-
-        if not all([cognome, nome, badge]):
-            continue
-
-        parsed_data_nascita = parse_date_flexible(data_nascita) if data_nascita else None
-        parsed_data_assunzione = parse_date_flexible(data_assunzione) if data_assunzione else None
-
-        # Step 1: Cerca per Matricola (Upsert standard)
-        dipendente = db.query(Dipendente).filter(Dipendente.matricola == badge).first()
-
-        if dipendente:
-            # Trovato per matricola -> Aggiorna dati anagrafici
-            dipendente.cognome = cognome
-            dipendente.nome = nome
-            dipendente.data_nascita = parsed_data_nascita
-            if parsed_data_assunzione:
-                dipendente.data_assunzione = parsed_data_assunzione
-        else:
-            # Step 2: Matricola non trovata. Cerca per Cognome + Nome + Data Nascita (Gestione Riassunzione/Cambio Matricola)
-            found_by_identity = False
-            if parsed_data_nascita:
-                # Cerca corrispondenza esatta di identità
-                matches = db.query(Dipendente).filter(
-                    Dipendente.nome.ilike(nome),
-                    Dipendente.cognome.ilike(cognome),
-                    Dipendente.data_nascita == parsed_data_nascita
-                ).all()
-
-                if len(matches) == 1:
-                    # Persona trovata univocamente -> Aggiorna la matricola
-                    dipendente = matches[0]
-                    dipendente.matricola = badge
-                    # Aggiorna anche anagrafica per uniformità (es. correzione nome)
-                    dipendente.nome = nome
-                    dipendente.cognome = cognome
-                    if parsed_data_assunzione:
-                        dipendente.data_assunzione = parsed_data_assunzione
-                    found_by_identity = True
-                elif len(matches) > 1:
-                    # Duplicati nel DB -> Ambiguo -> Skip e Warning
-                    warnings.append(f"Duplicato rilevato per {cognome} {nome} ({data_nascita}). Impossibile assegnare matricola {badge} automaticamente.")
-                    continue
-
-            if not found_by_identity:
-                # Nessuna corrispondenza o dati insufficienti -> Crea nuovo
-                dipendente = Dipendente(
-                    cognome=cognome,
-                    nome=nome,
-                    matricola=badge,
-                    data_nascita=parsed_data_nascita,
-                    data_assunzione=parsed_data_assunzione
-                )
-                db.add(dipendente)
+        _process_csv_row(row, db, warnings)
 
     try:
         db.commit()
@@ -737,6 +736,37 @@ async def import_dipendenti_csv(
         "message": f"Importazione completata con successo. {linked_count} certificati orfani collegati.",
         "warnings": warnings
     }
+
+def _process_csv_row(row, db, warnings):
+    """Processes a single row from the CSV import."""
+    cognome = row.get('Cognome')
+    nome = row.get('Nome')
+    data_nascita = row.get('Data_nascita')
+    badge = row.get('Badge')
+    data_assunzione = row.get('Data_assunzione')
+
+    if not all([cognome, nome, badge]):
+        return
+
+    parsed_data_nascita = parse_date_flexible(data_nascita) if data_nascita else None
+    parsed_data_assunzione = parse_date_flexible(data_assunzione) if data_assunzione else None
+
+    # Step 1: Cerca per Matricola (Upsert standard)
+    dipendente = db.query(Dipendente).filter(Dipendente.matricola == badge).first()
+
+    if dipendente:
+        # Trovato per matricola -> Aggiorna dati anagrafici
+        dipendente.cognome = cognome
+        dipendente.nome = nome
+        dipendente.data_nascita = parsed_data_nascita
+        if parsed_data_assunzione:
+            dipendente.data_assunzione = parsed_data_assunzione
+    else:
+        # Step 2: Matricola non trovata
+        _handle_new_dipendente(
+            db, warnings,
+            (cognome, nome, parsed_data_nascita, badge, parsed_data_assunzione, data_nascita)
+        )
 
 @router.get("/dipendenti", response_model=List[DipendenteSchema], dependencies=[Depends(deps.verify_license)])
 def get_dipendenti(db: Session = Depends(get_db)):
