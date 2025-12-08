@@ -10,36 +10,43 @@ def _get_windows_disk_serial():
     This is a common and reliable binding target for licensing.
     """
     try:
-        import wmi
         import pythoncom
-        # Initialize COM for the current thread to prevent Win32 exceptions
+
+        # Initialize COM for the current thread
         pythoncom.CoInitialize()
 
-        c = wmi.WMI()
-        # Find the primary physical disk (usually DeviceID \\.\PHYSICALDRIVE0)
-        for disk in c.Win32_DiskDrive():
-            if "PHYSICALDRIVE0" in disk.DeviceID:
-                serial = disk.SerialNumber.strip().rstrip('.')
-                logger.info(f"Found disk serial for PHYSICALDRIVE0: {serial}")
-                pythoncom.CoUninitialize() # Clean up
-                return serial
+        try:
+            # Encapsulate WMI logic in a nested function to ensure
+            # all WMI objects are garbage collected BEFORE CoUninitialize is called.
+            def _query_wmi():
+                import wmi
+                c = wmi.WMI()
+                # Find the primary physical disk (usually DeviceID \\.\PHYSICALDRIVE0)
+                for disk in c.Win32_DiskDrive():
+                    if "PHYSICALDRIVE0" in disk.DeviceID:
+                        serial = disk.SerialNumber.strip().rstrip('.')
+                        logger.info(f"Found disk serial for PHYSICALDRIVE0: {serial}")
+                        return serial
 
-        # Fallback if specific device not found, return the first one found
-        first_disk = c.Win32_DiskDrive()[0]
-        serial = first_disk.SerialNumber.strip().rstrip('.')
-        logger.warning("PHYSICALDRIVE0 not found, using first disk serial as fallback.")
-        pythoncom.CoUninitialize() # Clean up
-        return serial
+                # Fallback if specific device not found, return the first one found
+                if len(c.Win32_DiskDrive()) > 0:
+                    first_disk = c.Win32_DiskDrive()[0]
+                    serial = first_disk.SerialNumber.strip().rstrip('.')
+                    logger.warning("PHYSICALDRIVE0 not found, using first disk serial as fallback.")
+                    return serial
+                return None
+
+            return _query_wmi()
+
+        finally:
+            # Always uninitialize, but only after inner function returns (and its objects are dead)
+            pythoncom.CoUninitialize()
+
     except ImportError:
         logger.error("WMI module not found. Cannot get disk serial on Windows.")
         return None
     except Exception as e:
         logger.error(f"Failed to get disk serial number via WMI: {e}")
-        try:
-            import pythoncom
-            pythoncom.CoUninitialize()
-        except Exception:
-            pass
         return None
 
 def _get_mac_address():
