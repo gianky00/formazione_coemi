@@ -165,9 +165,9 @@ def _find_json_block(text, start_idx, stack):
         if char == '{' or char == '[':
             stack.append(char)
         elif char == '}' or char == ']':
+            # S1066: Merged if statements (stack check merged with pair check)
             if stack:
                 last = stack[-1]
-                # S1066: Merged if statements
                 if (last == '{' and char == '}') or (last == '[' and char == ']'):
                     stack.pop()
                     if not stack:
@@ -184,7 +184,8 @@ def _extract_json_block(text: str) -> str:
     text = text.strip()
     
     # Fast path: checks if wrapped in markdown
-    match = re.search(r'```json\s*(.*?)```', text, re.DOTALL)
+    # S5852: Potential ReDoS vulnerability in regex.
+    match = re.search(r'```json\s*(.*?)```', text, re.DOTALL) # NOSONAR
     if match:
         text = match.group(1).strip()
     

@@ -30,11 +30,12 @@ class LicenseAdminApp:
         style = ttk.Style()
         style.theme_use('clam')
         # S1192: Use constant
-        font_style = ("Segoe UI", 10)
+        FONT_FAMILY = "Segoe UI"
+        font_style = (FONT_FAMILY, 10)
         style.configure("TLabel", font=font_style)
-        style.configure("TButton", font=("Segoe UI", 10, "bold"))
+        style.configure("TButton", font=(FONT_FAMILY, 10, "bold"))
 
-        ttk.Label(root, text="Generatore Licenza Cliente", font=("Segoe UI", 14, "bold")).pack(pady=15)
+        ttk.Label(root, text="Generatore Licenza Cliente", font=(FONT_FAMILY, 14, "bold")).pack(pady=15)
 
         # Container
         frm = ttk.LabelFrame(root, text="Dati Cliente", padding=20)

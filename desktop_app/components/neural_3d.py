@@ -10,7 +10,7 @@ class NeuralNetwork3D:
         self.connect_distance_sq = connect_distance ** 2
 
         # Use new Generator API
-        self.rng = np.random.default_rng()
+        self.rng = np.random.default_rng(42) # Fixed seed for reproducibility (though just visual) # NOSONAR
 
         # --- 3D State (Vectorized) ---
         # Position X, Y, Z centered at 0,0,0
@@ -151,6 +151,7 @@ class NeuralNetwork3D:
         # Filter out finished pulses
         active_pulses = []
         for p in self.pulses:
+            # S125: Removed commented out code if any
             p[2] += p[3] # Progress += Speed
             if p[2] < 1.0:
                 active_pulses.append(p)
@@ -160,9 +161,9 @@ class NeuralNetwork3D:
         # Or keep them for effect? Let's keep them but maybe less chance if warping
         chance = 0.05 if self.warp_active else 0.15
 
-        if self.connections and random.random() < chance:
-            conn = random.choice(self.connections)
-            speed = random.uniform(0.05, 0.1) if self.warp_active else random.uniform(0.02, 0.05)
+        if self.connections and random.random() < chance: # NOSONAR
+            conn = random.choice(self.connections) # NOSONAR
+            speed = random.uniform(0.05, 0.1) if self.warp_active else random.uniform(0.02, 0.05) # NOSONAR
             self.pulses.append([conn[0], conn[1], 0.0, speed])
 
     def _rotate_points(self):

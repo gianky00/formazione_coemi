@@ -258,9 +258,11 @@ class Sidebar(QFrame):
                   l1.setStyleSheet("color: #93C5FD; font-size: 12px;")
                   self.license_layout.addWidget(l1)
 
-             expiry_str = license_data.get("Scadenza Licenza", "")
+             # S1192: Extract constant for repeated string
+             LICENSE_EXPIRY_KEY = "Scadenza Licenza"
+             expiry_str = license_data.get(LICENSE_EXPIRY_KEY, "")
              if expiry_str:
-                  l2 = QLabel(f"Scadenza Licenza:\n{expiry_str}")
+                  l2 = QLabel(f"{LICENSE_EXPIRY_KEY}:\n{expiry_str}")
                   l2.setStyleSheet("color: #93C5FD; font-size: 12px;")
                   self.license_layout.addWidget(l2)
                   try:
@@ -616,43 +618,31 @@ class MainDashboardWidget(QWidget):
 
         self._connect_cross_view_signals()
 
+    def _safe_connect(self, signal, slot):
+        """Helper to connect signal to slot safely."""
+        try: signal.disconnect(slot)
+        except Exception: pass
+        signal.connect(slot)
+
     def _connect_cross_view_signals(self):
-        # Refresh logic across views
-        imp = self.views.get("import")
-        val = self.views.get("validation")
-        db = self.views.get("database")
-        scad = self.views.get("scadenzario")
-        ana = self.views.get("anagrafica")
-
-        if imp and val:
-            try: imp.import_completed.disconnect(val.refresh_data)
-            except Exception: pass
-            imp.import_completed.connect(val.refresh_data)
-
-        if val and db:
-            try: val.validation_completed.disconnect(db.load_data)
-            except Exception: pass
-            val.validation_completed.connect(db.load_data)
+        # Refresh logic across views (Refactored to reduce complexity)
+        views = self.views
         
-        if val and scad:
-            try: val.validation_completed.disconnect(scad.refresh_data)
-            except Exception: pass
-            val.validation_completed.connect(scad.refresh_data)
+        # Mapping: Source View Key -> Signal Name -> Target View Key -> Slot Name
+        connections = [
+            ("import", "import_completed", "validation", "refresh_data"),
+            ("validation", "validation_completed", "database", "load_data"),
+            ("validation", "validation_completed", "scadenzario", "refresh_data"),
+            ("database", "database_changed", "scadenzario", "refresh_data"),
+            ("anagrafica", "data_changed", "database", "load_data"),
+            ("anagrafica", "data_changed", "scadenzario", "refresh_data"),
+        ]
 
-        if db and scad:
-             try: db.database_changed.disconnect(scad.refresh_data)
-             except Exception: pass
-             db.database_changed.connect(scad.refresh_data)
-
-        if ana and db:
-            try: ana.data_changed.disconnect(db.load_data)
-            except Exception: pass
-            ana.data_changed.connect(db.load_data)
-
-        if ana and scad:
-            try: ana.data_changed.disconnect(scad.refresh_data)
-            except Exception: pass
-            ana.data_changed.connect(scad.refresh_data)
+        for src_key, signal_name, dst_key, slot_name in connections:
+            src = views.get(src_key)
+            dst = views.get(dst_key)
+            if src and dst and hasattr(src, signal_name) and hasattr(dst, slot_name):
+                self._safe_connect(getattr(src, signal_name), getattr(dst, slot_name))
 
     def _connect_signals(self):
         # Sidebar connections (Always safe)
@@ -734,11 +724,14 @@ class MainDashboardWidget(QWidget):
 
     def _check_license_status(self):
         license_data = LicenseManager.get_license_data()
-        if not license_data or "Scadenza Licenza" not in license_data:
+        # S1192: Using same key concept, but since method is far, using literal if not shared globally.
+        # But consistent with above fix.
+        LICENSE_EXPIRY_KEY = "Scadenza Licenza"
+        if not license_data or LICENSE_EXPIRY_KEY not in license_data:
             self.logout_requested.emit()
             return
         try:
-            expiry_date = datetime.strptime(license_data["Scadenza Licenza"], "%d/%m/%Y").date()
+            expiry_date = datetime.strptime(license_data[LICENSE_EXPIRY_KEY], "%d/%m/%Y").date()
             if date.today() > expiry_date:
                 CustomMessageDialog.show_warning(self, "Licenza Scaduta", "La licenza è scaduta.")
                 self.logout_requested.emit()

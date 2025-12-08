@@ -13,12 +13,13 @@ from desktop_app.constants import STYLE_QFRAME_CARD
 class KPIStatWidget(QFrame):
     def __init__(self, title, value, color="#3B82F6", parent=None):
         super().__init__(parent)
-        self.setStyleSheet(f"""
-            QFrame {{
+        # S3457: Use normal string since no interpolation
+        self.setStyleSheet("""
+            QFrame {
                 background-color: #FFFFFF;
                 border: 1px solid #E5E7EB;
                 border-radius: 8px;
-            }}
+            }
         """)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(15, 15, 15, 15)
@@ -28,6 +29,7 @@ class KPIStatWidget(QFrame):
         layout.addWidget(lbl_title)
 
         self.lbl_value = QLabel(str(value))
+        # S3457: f-string used correctly here
         self.lbl_value.setStyleSheet(f"color: {color}; font-size: 24px; font-weight: 800; border: none;")
         layout.addWidget(self.lbl_value)
 

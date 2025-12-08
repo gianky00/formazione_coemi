@@ -394,8 +394,44 @@ def _check_db_integrity(target):
         is_valid = db_security.verify_integrity(target)
     return exists, is_valid
 
+def _handle_browse_action(parent, target, db_security, settings):
+    from pathlib import Path
+    from app.core.config import get_user_data_dir
+
+    file_path, _ = QFileDialog.getOpenFileName(parent, "Seleziona Database", str(get_user_data_dir()), "Database Files (*.db *.bak)")
+    if not file_path: return
+
+    file_path = os.path.normpath(file_path)
+    path_obj = Path(file_path)
+
+    if path_obj.suffix.lower() == ".bak":
+        reply = QMessageBox.question(parent, "Ripristino Backup", f"Ripristinare dal backup:\n{path_obj.name}?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                db_security.db_path = target
+                db_security.data_dir = target.parent
+                db_security.restore_from_backup(path_obj)
+                restart_app()
+            except Exception as e:
+                QMessageBox.critical(parent, "Errore", f"Ripristino fallito: {e}")
+    else:
+        settings.save_mutable_settings({"DATABASE_PATH": file_path})
+        restart_app()
+
+def _handle_create_action(parent):
+    from pathlib import Path
+    from app.core.config import get_user_data_dir
+    try:
+        dir_path = QFileDialog.getExistingDirectory(parent, "Seleziona Cartella per Nuovo Database", str(get_user_data_dir()))
+        if dir_path:
+            target = Path(dir_path) / DATABASE_FILENAME
+            initialize_new_database(target)
+            restart_app()
+    except Exception as e:
+        QMessageBox.critical(parent, "Errore Creazione", f"Impossibile creare il database:\n{e}")
+
 def _handle_recovery_action(parent, msg, target):
-    # S3776: Refactored logic
+    # S3776: Refactored logic to reduce complexity
     browse_btn = msg.addButton("Sfoglia / Ripristina...", QMessageBox.ButtonRole.ActionRole)
     create_btn = msg.addButton("Crea Nuovo Database", QMessageBox.ButtonRole.ActionRole)
     msg.addButton("Esci", QMessageBox.ButtonRole.RejectRole)
@@ -404,40 +440,13 @@ def _handle_recovery_action(parent, msg, target):
     msg.exec()
 
     clicked = msg.clickedButton()
-    from app.core.config import settings, get_user_data_dir
+    from app.core.config import settings
     from app.core.db_security import db_security
-    from pathlib import Path
 
     if clicked == browse_btn:
-        file_path, _ = QFileDialog.getOpenFileName(parent, "Seleziona Database", str(get_user_data_dir()), "Database Files (*.db *.bak)")
-        if file_path:
-            file_path = os.path.normpath(file_path)
-            path_obj = Path(file_path)
-
-            if path_obj.suffix.lower() == ".bak":
-                reply = QMessageBox.question(parent, "Ripristino Backup", f"Ripristinare dal backup:\n{path_obj.name}?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-                if reply == QMessageBox.StandardButton.Yes:
-                    try:
-                        db_security.db_path = target
-                        db_security.data_dir = target.parent
-                        db_security.restore_from_backup(path_obj)
-                        restart_app()
-                    except Exception as e:
-                        QMessageBox.critical(parent, "Errore", f"Ripristino fallito: {e}")
-            else:
-                settings.save_mutable_settings({"DATABASE_PATH": file_path})
-                restart_app()
-
+        _handle_browse_action(parent, target, db_security, settings)
     elif clicked == create_btn:
-        try:
-            dir_path = QFileDialog.getExistingDirectory(parent, "Seleziona Cartella per Nuovo Database", str(get_user_data_dir()))
-            if dir_path:
-                target = Path(dir_path) / DATABASE_FILENAME
-                initialize_new_database(target)
-                restart_app()
-        except Exception as e:
-            QMessageBox.critical(parent, "Errore Creazione", f"Impossibile creare il database:\n{e}")
-
+        _handle_create_action(parent)
     else:
         sys.exit(1)
 
