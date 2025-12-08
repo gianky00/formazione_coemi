@@ -89,6 +89,13 @@ REQUEST_TIMEOUT = 30
 
 # Security Hotspots
 HOTSPOT_STATUSES = 'TO_REVIEW'
+
+# Constants for duplicated strings
+REGEX_HTML_TAGS = r'<[^>]+>'
+TABLE_HEADER_METRICS = "| Metrica | Valore |"
+TABLE_HEADER_SEPARATOR = "|---------|--------|"
+SECTION_HOW_TO_FIX = "**✅ Come risolvere:**"
+SECTION_RESOURCES = "**📚 Risorse:**"
 # ============================================================
 
 API_ISSUES = f"{SONARCLOUD_URL}/api/issues/search"
@@ -180,9 +187,9 @@ def parse_effort(effort_str):
     total = 0
     effort_str = effort_str.lower()
     # ReDoS-safe patterns: restricted repetition for whitespace
-    h = re.search(r'(\d+)\s{0,20}h', effort_str)
-    m = re.search(r'(\d+)\s{0,20}min', effort_str)
-    d = re.search(r'(\d+)\s{0,20}d', effort_str)
+    h = re.search(r'(\d+)\s{0,20}h', effort_str) # NOSONAR: Internal controlled input, risk acceptable
+    m = re.search(r'(\d+)\s{0,20}min', effort_str) # NOSONAR: Internal controlled input, risk acceptable
+    d = re.search(r'(\d+)\s{0,20}d', effort_str) # NOSONAR: Internal controlled input, risk acceptable
     if h: total += int(h.group(1)) * 60
     if m: total += int(m.group(1))
     if d: total += int(d.group(1)) * 8 * 60
@@ -224,15 +231,15 @@ def clean_html(text, preserve_code_blocks=True):
     text = re.sub(r'<br\s*/?>', '\n', text)
     # ReDoS-safe pattern: avoid nested quantifiers or catastrophic backtracking
     # Using explicit exclusion [^>]* instead of . and restricted quantifiers where possible
-    text = re.sub(r'<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>', r'[\2](\1)', text) # NOSONAR: Internal controlled input, risk acceptable
-    text = re.sub(r'<[^>]+>', '', text)
+    text = re.sub(r'<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>', r'[\2](\1)', text) # NOSONAR
+    text = re.sub(REGEX_HTML_TAGS, '', text)
     
     entities = {'&nbsp;': ' ', '&lt;': '<', '&gt;': '>', '&amp;': '&', '&quot;': '"', '&#39;': "'"}
     for k, v in entities.items():
         text = text.replace(k, v)
     
     for i, block in enumerate(code_blocks):
-        clean_block = re.sub(r'<[^>]+>', '', block)
+        clean_block = re.sub(REGEX_HTML_TAGS, '', block)
         text = text.replace(f"__CODE_BLOCK_{i}__", f"\n```\n{clean_block.strip()}\n```\n")
     
     text = re.sub(r'\n{3,}', '\n\n', text)
@@ -427,12 +434,8 @@ def get_error_type_info(error_type):
 # JUNIT.XML PARSER
 # ============================================================
 
-def parse_junit_xml():
-    """Parsa il file junit.xml e estrae i dettagli dei test falliti."""
-    global test_failures_details
-    test_failures_details = []
-    
-    # Cerca il file junit.xml
+def _find_junit_file():
+    """Helper per trovare il file junit.xml."""
     junit_paths = [
         JUNIT_XML_PATH,
         os.path.join(os.path.dirname(__file__), JUNIT_XML_PATH),
@@ -441,13 +444,58 @@ def parse_junit_xml():
         'test-results.xml',
         'report.xml'
     ]
-    
-    junit_file = None
     for path in junit_paths:
         if os.path.exists(path):
-            junit_file = path
-            break
+            return path
+    return None
+
+def _process_test_case(testcase, summary):
+    """Processa un singolo test case."""
+    classname = testcase.get('classname', '')
+    name = testcase.get('name', '')
+    time_taken = float(testcase.get('time', 0))
+
+    # Converti classname in filepath
+    filepath = classname.replace('.', '/') + '.py'
+
+    failure = testcase.find('failure')
+    error = testcase.find('error')
+
+    if failure is not None or error is not None:
+        element = failure if failure is not None else error
+        status = 'FAILURE' if failure is not None else 'ERROR'
+
+        message = element.get('message', '')
+        full_text = element.text or ''
+
+        # Estrai tipo di errore
+        error_type = element.get('type', '')
+        if not error_type and ':' in message:
+            error_type = message.split(':')[0].strip()
+
+        # Estrai riga dal traceback
+        line_match = re.search(r':(\d+):', full_text)
+        line = int(line_match.group(1)) if line_match else None
+
+        test_failures_details.append({
+            'classname': classname,
+            'name': name,
+            'filepath': filepath,
+            'line': line,
+            'time': time_taken,
+            'status': status,
+            'error_type': error_type,
+            'message': message,
+            'traceback': full_text.strip(),
+            'error_info': get_error_type_info(error_type)
+        })
+
+def parse_junit_xml():
+    """Parsa il file junit.xml e estrae i dettagli dei test falliti."""
+    global test_failures_details
+    test_failures_details = []
     
+    junit_file = _find_junit_file()
     if not junit_file:
         return None
     
@@ -465,7 +513,6 @@ def parse_junit_xml():
             'time': 0
         }
         
-        # Cerca testsuites o testsuite
         testsuites = root.findall('.//testsuite')
         if not testsuites and root.tag == 'testsuite':
             testsuites = [root]
@@ -478,45 +525,7 @@ def parse_junit_xml():
             summary['time'] += float(testsuite.get('time', 0))
             
             for testcase in testsuite.findall('testcase'):
-                classname = testcase.get('classname', '')
-                name = testcase.get('name', '')
-                time_taken = float(testcase.get('time', 0))
-                
-                # Converti classname in filepath
-                filepath = classname.replace('.', '/') + '.py'
-                
-                failure = testcase.find('failure')
-                error = testcase.find('error')
-                skipped = testcase.find('skipped')
-                
-                if failure is not None or error is not None:
-                    element = failure if failure is not None else error
-                    status = 'FAILURE' if failure is not None else 'ERROR'
-                    
-                    message = element.get('message', '')
-                    full_text = element.text or ''
-                    
-                    # Estrai tipo di errore
-                    error_type = element.get('type', '')
-                    if not error_type and ':' in message:
-                        error_type = message.split(':')[0].strip()
-                    
-                    # Estrai riga dal traceback
-                    line_match = re.search(r':(\d+):', full_text)
-                    line = int(line_match.group(1)) if line_match else None
-                    
-                    test_failures_details.append({
-                        'classname': classname,
-                        'name': name,
-                        'filepath': filepath,
-                        'line': line,
-                        'time': time_taken,
-                        'status': status,
-                        'error_type': error_type,
-                        'message': message,
-                        'traceback': full_text.strip(),
-                        'error_info': get_error_type_info(error_type)
-                    })
+                _process_test_case(testcase, summary)
         
         summary['passed'] = summary['total'] - summary['failures'] - summary['errors'] - summary['skipped']
         
@@ -584,7 +593,7 @@ def get_source_lines(component, start_line, end_line, context=3):
             lines = []
             for src in data.get('sources', []):
                 line_num = src.get('line', 0)
-                code = re.sub(r'<[^>]+>', '', src.get('code', ''))
+                code = re.sub(REGEX_HTML_TAGS, '', src.get('code', ''))
                 marker = " >>> " if start_line <= line_num <= end_line else "     "
                 lines.append(f"{marker}{line_num}: {code}")
             source_cache[cache_key] = '\n'.join(lines)
@@ -651,6 +660,18 @@ def test_connection():
         return False, str(e)
 
 
+def _fetch_issues_page(quality, page):
+    """Helper per recuperare una pagina di issues."""
+    data = api_request(API_ISSUES, {
+        'componentKeys': PROJECT_KEY,
+        'impactSoftwareQualities': quality,
+        'statuses': ISSUE_STATUSES,
+        'ps': PAGE_SIZE,
+        'p': page,
+        'additionalFields': 'comments,rules'
+    })
+    return data
+
 def fetch_all_issues():
     """Recupera tutti gli issues."""
     all_issues = []
@@ -662,15 +683,7 @@ def fetch_all_issues():
         quality_count = 0
         
         while True:
-            data = api_request(API_ISSUES, {
-                'componentKeys': PROJECT_KEY,
-                'impactSoftwareQualities': quality,
-                'statuses': ISSUE_STATUSES,
-                'ps': PAGE_SIZE,
-                'p': page,
-                'additionalFields': 'comments,rules'
-            })
-            
+            data = _fetch_issues_page(quality, page)
             if not data:
                 break
             
@@ -700,7 +713,7 @@ def fetch_all_issues():
 def fetch_security_hotspots():
     """Recupera Security Hotspots."""
     all_hotspots = []
-    print(f"\n   Estrazione Security Hotspots...")
+    print("\n   Estrazione Security Hotspots...")
     page = 1
     
     while True:
@@ -890,6 +903,74 @@ def group_by_file(issues):
 # FILE GENERATORS
 # ============================================================
 
+def _append_test_failure_details(md, test):
+    """Helper per aggiungere i dettagli di un singolo test fallito."""
+    name = test.get('name', '')
+    error_type = test.get('error_type', 'Unknown')
+    message = test.get('message', '')
+    traceback = test.get('traceback', '')
+    status = test.get('status', 'FAILURE')
+    line = test.get('line')
+    error_info = test.get('error_info', {})
+
+    status_emoji = "❌" if status == 'FAILURE' else "💥"
+
+    md.append(f"### {status_emoji} `{name}`")
+    md.append("")
+
+    md.append("| Campo | Valore |")
+    md.append("|-------|--------|")
+    md.append(f"| Test | `{test.get('classname', '')}::{name}` |")
+    md.append(f"| Tipo Errore | {error_info.get('emoji', '❓')} {error_type} |")
+    md.append(f"| Status | {status} |")
+    if line:
+        md.append(f"| Riga | {line} |")
+    md.append(f"| Tempo | {test.get('time', 0):.3f}s |")
+    md.append("")
+
+    md.append("**❌ Messaggio di Errore:**")
+    md.append("")
+    md.append("```")
+    md.append(message[:500] if message else "Nessun messaggio")
+    md.append("```")
+    md.append("")
+
+    if traceback:
+        md.append("**📜 Stack Trace:**")
+        md.append("")
+        md.append("```python")
+        tb_lines = traceback.split('\n')
+        if len(tb_lines) > 30:
+            md.append('\n'.join(tb_lines[:15]))
+            md.append("... (troncato) ...")
+            md.append('\n'.join(tb_lines[-10:]))
+        else:
+            md.append(traceback)
+        md.append("```")
+        md.append("")
+
+    md.append("**❓ Perché fallisce:**")
+    md.append("")
+    md.append(error_info.get('description', 'Errore durante esecuzione del test'))
+    md.append("")
+    md.append(f"**Causa probabile:** {error_info.get('cause', 'Verifica il messaggio di errore')}")
+    md.append("")
+
+    md.append(SECTION_HOW_TO_FIX)
+    md.append("")
+    md.append(error_info.get('how_to_fix', 'Analizza lo stack trace per identificare il problema'))
+    md.append("")
+
+    if error_info.get('resources'):
+        md.append(SECTION_RESOURCES)
+        md.append("")
+        for resource in error_info.get('resources', []):
+            md.append(f"- {resource}")
+        md.append("")
+
+    md.append("---")
+    md.append("")
+
 def generate_test_failures_file(junit_summary, test_analysis, timestamp):
     """Genera file JULES_TEST_FAILURES con tutti i dettagli."""
     # pylint: disable=unused-argument
@@ -904,11 +985,10 @@ def generate_test_failures_file(junit_summary, test_analysis, timestamp):
     md.append(f"**File sorgente:** {junit_summary.get('file', 'junit.xml')}")
     md.append("")
     
-    # Statistiche
     md.append("## 📊 Statistiche Test")
     md.append("")
-    md.append("| Metrica | Valore |")
-    md.append("|---------|--------|")
+    md.append(TABLE_HEADER_METRICS)
+    md.append(TABLE_HEADER_SEPARATOR)
     md.append(f"| Test totali | {junit_summary.get('total', 0)} |")
     md.append(f"| ✅ Passati | {junit_summary.get('passed', 0)} |")
     md.append(f"| ❌ Falliti | {junit_summary.get('failures', 0)} |")
@@ -919,7 +999,6 @@ def generate_test_failures_file(junit_summary, test_analysis, timestamp):
     md.append(f"| Success Rate | {success_rate:.1f}% |")
     md.append("")
     
-    # Tipi di errore
     md.append("## 🏷️ Tipi di Errore")
     md.append("")
     md.append("| Tipo | Count | Descrizione |")
@@ -929,7 +1008,6 @@ def generate_test_failures_file(junit_summary, test_analysis, timestamp):
         md.append(f"| {info['emoji']} {error_type} | {count} | {info['description'][:40]}... |")
     md.append("")
     
-    # Istruzioni
     md.append("## 📝 Istruzioni per Jules")
     md.append("")
     md.append("Per ogni test fallito troverai:")
@@ -943,85 +1021,12 @@ def generate_test_failures_file(junit_summary, test_analysis, timestamp):
     md.append("---")
     md.append("")
     
-    # Raggruppa per file
     for filepath, tests in sorted(test_analysis['by_file'].items()):
         md.append(f"## 📄 `{filepath}`")
         md.append(f"**{len(tests)} test falliti**")
         md.append("")
-        
         for test in tests:
-            name = test.get('name', '')
-            error_type = test.get('error_type', 'Unknown')
-            message = test.get('message', '')
-            traceback = test.get('traceback', '')
-            status = test.get('status', 'FAILURE')
-            line = test.get('line')
-            error_info = test.get('error_info', {})
-            
-            status_emoji = "❌" if status == 'FAILURE' else "💥"
-            
-            md.append(f"### {status_emoji} `{name}`")
-            md.append("")
-            
-            # Info tabella
-            md.append("| Campo | Valore |")
-            md.append("|-------|--------|")
-            md.append(f"| Test | `{test.get('classname', '')}::{name}` |")
-            md.append(f"| Tipo Errore | {error_info.get('emoji', '❓')} {error_type} |")
-            md.append(f"| Status | {status} |")
-            if line:
-                md.append(f"| Riga | {line} |")
-            md.append(f"| Tempo | {test.get('time', 0):.3f}s |")
-            md.append("")
-            
-            # Messaggio errore
-            md.append("**❌ Messaggio di Errore:**")
-            md.append("")
-            md.append("```")
-            md.append(message[:500] if message else "Nessun messaggio")
-            md.append("```")
-            md.append("")
-            
-            # Stack trace
-            if traceback:
-                md.append("**📜 Stack Trace:**")
-                md.append("")
-                md.append("```python")
-                # Limita lunghezza traceback
-                tb_lines = traceback.split('\n')
-                if len(tb_lines) > 30:
-                    md.append('\n'.join(tb_lines[:15]))
-                    md.append("... (troncato) ...")
-                    md.append('\n'.join(tb_lines[-10:]))
-                else:
-                    md.append(traceback)
-                md.append("```")
-                md.append("")
-            
-            # Perché fallisce
-            md.append("**❓ Perché fallisce:**")
-            md.append("")
-            md.append(error_info.get('description', 'Errore durante esecuzione del test'))
-            md.append("")
-            md.append(f"**Causa probabile:** {error_info.get('cause', 'Verifica il messaggio di errore')}")
-            md.append("")
-            
-            # Come risolvere
-            md.append("**✅ Come risolvere:**")
-            md.append("")
-            md.append(error_info.get('how_to_fix', 'Analizza lo stack trace per identificare il problema'))
-            md.append("")
-            
-            # Risorse
-            if error_info.get('resources'):
-                md.append("**📚 Risorse:**")
-                md.append("")
-                for resource in error_info.get('resources', []):
-                    md.append(f"- {resource}")
-                md.append("")
-            
-            md.append("---")
-            md.append("")
+            _append_test_failure_details(md, test)
     
     filename = f"JULES_TEST_FAILURES_{timestamp}.md"
     filepath = get_output_path(filename)
@@ -1031,17 +1036,8 @@ def generate_test_failures_file(junit_summary, test_analysis, timestamp):
     return filename, len(test_failures_details)
 
 
-def generate_dynamic_prompts(issues, analysis, issues_count, hotspots, hotspot_analysis, junit_summary, test_analysis):
-    """Genera prompt dinamici."""
-    prompts = {}
-    
-    total_issues = analysis['total']
-    total_effort = format_duration(analysis['total_effort_minutes'])
-    total_hotspots = len(hotspots)
-    total_test_failures = len(test_failures_details) if test_failures_details else 0
-    
-    # PROMPT PRINCIPALE
-    prompts['main'] = f"""# 🎯 Prompt per Jules - Fix Completo
+def _generate_main_prompt(total_issues, total_hotspots, total_test_failures, total_effort, issues_count):
+    prompt = f"""# 🎯 Prompt per Jules - Fix Completo
 
 ## Contesto
 Repository con:
@@ -1053,19 +1049,18 @@ Tempo stimato: **{total_effort}**
 
 ## Priorità di correzione
 """
-    
     if total_test_failures > 0:
-        prompts['main'] += f"1. 🧪 **TEST FAILURES** ({total_test_failures}) - I test devono passare!\n"
+        prompt += f"1. 🧪 **TEST FAILURES** ({total_test_failures}) - I test devono passare!\n"
     if total_hotspots > 0:
-        prompts['main'] += f"2. 🔥 **SECURITY HOTSPOTS** ({total_hotspots}) - Vulnerabilità critiche\n"
+        prompt += f"2. 🔥 **SECURITY HOTSPOTS** ({total_hotspots}) - Vulnerabilità critiche\n"
     if issues_count.get('SECURITY', 0) > 0:
-        prompts['main'] += f"3. 🟣 **SECURITY** ({issues_count['SECURITY']}) - Issues sicurezza\n"
+        prompt += f"3. 🟣 **SECURITY** ({issues_count['SECURITY']}) - Issues sicurezza\n"
     if issues_count.get('RELIABILITY', 0) > 0:
-        prompts['main'] += f"4. 🔴 **RELIABILITY** ({issues_count['RELIABILITY']}) - Bug\n"
+        prompt += f"4. 🔴 **RELIABILITY** ({issues_count['RELIABILITY']}) - Bug\n"
     if issues_count.get('MAINTAINABILITY', 0) > 0:
-        prompts['main'] += f"5. 🟡 **MAINTAINABILITY** ({issues_count['MAINTAINABILITY']}) - Code smell\n"
+        prompt += f"5. 🟡 **MAINTAINABILITY** ({issues_count['MAINTAINABILITY']}) - Code smell\n"
     
-    prompts['main'] += """
+    prompt += """
 ## Istruzioni
 Per ogni problema:
 1. Apri il file indicato
@@ -1074,23 +1069,23 @@ Per ogni problema:
 4. Applica "Come risolvere"
 5. Verifica che funzioni
 """
+    return prompt
 
-    # PROMPT TEST FAILURES
-    if total_test_failures > 0:
-        by_error = test_analysis['by_error_type'].most_common(5) if test_analysis else []
-        
-        prompts['test_failures'] = f"""# 🧪 Prompt per Jules - Fix Test Failures
+def _generate_test_failures_prompt(total_test_failures, test_analysis):
+    by_error = test_analysis['by_error_type'].most_common(5) if test_analysis else []
+
+    prompt = f"""# 🧪 Prompt per Jules - Fix Test Failures
 
 ## Obiettivo
 Correggi tutti i **{total_test_failures} test falliti** per far passare la CI/CD.
 
 ## Tipi di errore trovati
 """
-        for error_type, count in by_error:
-            info = get_error_type_info(error_type)
-            prompts['test_failures'] += f"- {info['emoji']} **{error_type}** ({count}x)\n"
-        
-        prompts['test_failures'] += f"""
+    for error_type, count in by_error:
+        info = get_error_type_info(error_type)
+        prompt += f"- {info['emoji']} **{error_type}** ({count}x)\n"
+
+    prompt += """
 ## Strategia di fix
 
 ### Per AssertionError:
@@ -1110,12 +1105,12 @@ Correggi tutti i **{total_test_failures} test falliti** per far passare la CI/CD
 
 ## File da modificare
 """
-        if test_analysis:
-            for filepath in list(test_analysis['by_file'].keys())[:10]:
-                count = len(test_analysis['by_file'][filepath])
-                prompts['test_failures'] += f"- `{filepath}` ({count} test)\n"
-        
-        prompts['test_failures'] += """
+    if test_analysis:
+        for filepath in list(test_analysis['by_file'].keys())[:10]:
+            count = len(test_analysis['by_file'][filepath])
+            prompt += f"- `{filepath}` ({count} test)\n"
+
+    prompt += """
 ## Comando per verificare
 ```bash
 pytest -v --tb=short
@@ -1126,8 +1121,52 @@ pytest -v --tb=short
 git add -A && git commit -m "test: fix failing tests"
 ```
 """
+    return prompt
 
-    # PROMPT HOTSPOTS
+def _generate_quality_prompt(quality, issues_count, analysis):
+    count = issues_count.get(quality, 0)
+    if count == 0:
+        return None
+
+    effort = format_duration(analysis['effort_by_quality'].get(quality, 0))
+    emoji = get_quality_emoji(quality)
+    desc = get_quality_description(quality)
+
+    return f"""# {emoji} Prompt per Jules - Fix {quality}
+
+## Obiettivo
+Correggi **{count} issues {quality}**
+Tempo stimato: **{effort}**
+
+## Descrizione
+{desc}
+
+## Istruzioni
+1. Apri `JULES_{quality}_ONLY_*.md`
+2. Per ogni issue: file → riga → fix
+3. Testa dopo ogni modifica
+
+## Commit
+```
+git add -A && git commit -m "fix({quality.lower()}): risolti {count} issues"
+```
+"""
+
+def generate_dynamic_prompts(issues, analysis, issues_count, hotspots, hotspot_analysis, test_analysis):
+    """Genera prompt dinamici."""
+    # pylint: disable=unused-argument
+    prompts = {}
+
+    total_issues = analysis['total']
+    total_effort = format_duration(analysis['total_effort_minutes'])
+    total_hotspots = len(hotspots)
+    total_test_failures = len(test_failures_details) if test_failures_details else 0
+
+    prompts['main'] = _generate_main_prompt(total_issues, total_hotspots, total_test_failures, total_effort, issues_count)
+
+    if total_test_failures > 0:
+        prompts['test_failures'] = _generate_test_failures_prompt(total_test_failures, test_analysis)
+
     if total_hotspots > 0:
         prompts['hotspots'] = f"""# 🔥 Prompt per Jules - Fix Security Hotspots
 
@@ -1150,7 +1189,6 @@ Revisiona e correggi **{total_hotspots} Security Hotspots**.
 4. Se falso positivo → aggiungi `# NOSONAR` con commento
 """
 
-    # PROMPT RAPIDO
     prompts['quick'] = f"""# ⚡ Prompt Rapido
 
 Fix: {total_test_failures} test + {total_hotspots} hotspots + {total_issues} issues
@@ -1164,36 +1202,10 @@ Ordine:
 Tempo: {total_effort}
 """
 
-    # PROMPT PER QUALITY
     for quality in SOFTWARE_QUALITIES:
-        count = issues_count.get(quality, 0)
-        if count == 0:
-            continue
-        
-        qi = [i for i in issues if i.get('software_quality') == quality]
-        effort = format_duration(analysis['effort_by_quality'].get(quality, 0))
-        emoji = get_quality_emoji(quality)
-        desc = get_quality_description(quality)
-        
-        prompts[quality.lower()] = f"""# {emoji} Prompt per Jules - Fix {quality}
-
-## Obiettivo
-Correggi **{count} issues {quality}**
-Tempo stimato: **{effort}**
-
-## Descrizione
-{desc}
-
-## Istruzioni
-1. Apri `JULES_{quality}_ONLY_*.md`
-2. Per ogni issue: file → riga → fix
-3. Testa dopo ogni modifica
-
-## Commit
-```
-git add -A && git commit -m "fix({quality.lower()}): risolti {count} issues"
-```
-"""
+        p = _generate_quality_prompt(quality, issues_count, analysis)
+        if p:
+            prompts[quality.lower()] = p
 
     return prompts
 
@@ -1208,7 +1220,7 @@ def generate_summary(issues, analysis, issues_count, hotspots, hotspot_analysis,
     md.append("")
     md.append(f"**Progetto:** {PROJECT_KEY}")
     md.append(f"**Data:** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    md.append(f"**Versione:** SonarCloud Exporter v5.0")
+    md.append("**Versione:** SonarCloud Exporter v5.0")
     md.append(f"**Filtro issues:** {ISSUE_STATUSES}")
     md.append("")
     md.append("---")
@@ -1222,6 +1234,7 @@ def generate_summary(issues, analysis, issues_count, hotspots, hotspot_analysis,
         md.append("")
         conditions = quality_gate.get('conditions', [])
         if conditions:
+            md.append(TABLE_HEADER_METRICS)
             md.append("| Metrica | Valore | Soglia | Stato |")
             md.append("|---------|--------|--------|-------|")
             for c in conditions:
@@ -1236,8 +1249,8 @@ def generate_summary(issues, analysis, issues_count, hotspots, hotspot_analysis,
     if junit_summary:
         md.append(f"**📁 Sorgente:** `{junit_summary.get('file', 'junit.xml')}`")
         md.append("")
-        md.append("| Metrica | Valore |")
-        md.append("|---------|--------|")
+        md.append(TABLE_HEADER_METRICS)
+        md.append(TABLE_HEADER_SEPARATOR)
         md.append(f"| Test totali | {junit_summary.get('total', 0)} |")
         md.append(f"| ✅ Passati | {junit_summary.get('passed', 0)} |")
         md.append(f"| ❌ Falliti | {junit_summary.get('failures', 0)} |")
@@ -1257,8 +1270,8 @@ def generate_summary(issues, analysis, issues_count, hotspots, hotspot_analysis,
                 md.append(f"- {info['emoji']} **{error_type}**: {count}")
             md.append("")
     elif test_metrics:
-        md.append("| Metrica | Valore |")
-        md.append("|---------|--------|")
+        md.append(TABLE_HEADER_METRICS)
+        md.append(TABLE_HEADER_SEPARATOR)
         md.append(f"| Test totali | {test_metrics.get('tests', 0)} |")
         md.append(f"| ❌ Falliti | {test_metrics.get('test_failures', 0)} |")
         md.append(f"| 💥 Errori | {test_metrics.get('test_errors', 0)} |")
@@ -1281,8 +1294,8 @@ def generate_summary(issues, analysis, issues_count, hotspots, hotspot_analysis,
     if coverage_metrics:
         md.append("## 📈 Coverage")
         md.append("")
-        md.append("| Metrica | Valore |")
-        md.append("|---------|--------|")
+        md.append(TABLE_HEADER_METRICS)
+        md.append(TABLE_HEADER_SEPARATOR)
         md.append(f"| Coverage totale | **{coverage_metrics.get('coverage', 'N/A')}%** |")
         md.append(f"| Line coverage | {coverage_metrics.get('line_coverage', 'N/A')}% |")
         if coverage_metrics.get('branch_coverage'):
@@ -1342,7 +1355,7 @@ def generate_summary(issues, analysis, issues_count, hotspots, hotspot_analysis,
     md.append("")
     
     # Prompts
-    prompts = generate_dynamic_prompts(issues, analysis, issues_count, hotspots, hotspot_analysis, junit_summary, test_analysis)
+    prompts = generate_dynamic_prompts(issues, analysis, issues_count, hotspots, hotspot_analysis, test_analysis)
     
     md.append("---")
     md.append("")
@@ -1394,6 +1407,39 @@ def generate_prompts_file(prompts, timestamp):
     return filename
 
 
+def _append_hotspot_details(md, items):
+    """Helper per aggiungere i dettagli degli hotspot."""
+    for h in items:
+        fp = h.get('component', '').replace(f"{PROJECT_KEY}:", "")
+        line = h.get('line', '?')
+        msg = h.get('message', '')
+        risk = h.get('vulnerabilityProbability', 'MEDIUM')
+        lang = detect_language(fp)
+
+        md.append(f"### {get_hotspot_risk_emoji(risk)} `{fp}:{line}`")
+        md.append("")
+        md.append(f"**Problema:** {msg}")
+        md.append("")
+
+        if h.get('source_code'):
+            md.append(f"```{lang}")
+            md.append(h['source_code'])
+            md.append("```")
+            md.append("")
+
+        if h.get('risk_description'):
+            md.append("**❓ Rischio:**")
+            md.append(h['risk_description'][:500])
+            md.append("")
+
+        if h.get('fix_recommendations'):
+            md.append(SECTION_HOW_TO_FIX)
+            md.append(h['fix_recommendations'][:600])
+            md.append("")
+
+        md.append("---")
+        md.append("")
+
 def generate_hotspots_file(hotspots, hotspot_analysis, timestamp):
     """Genera file hotspots."""
     if not hotspots:
@@ -1417,43 +1463,51 @@ def generate_hotspots_file(hotspots, hotspot_analysis, timestamp):
         md.append(f"## 📁 {cat.upper()} ({len(items)})")
         md.append(f"**{desc}**")
         md.append("")
-        
-        for h in items:
-            fp = h.get('component', '').replace(f"{PROJECT_KEY}:", "")
-            line = h.get('line', '?')
-            msg = h.get('message', '')
-            risk = h.get('vulnerabilityProbability', 'MEDIUM')
-            lang = detect_language(fp)
-            
-            md.append(f"### {get_hotspot_risk_emoji(risk)} `{fp}:{line}`")
-            md.append("")
-            md.append(f"**Problema:** {msg}")
-            md.append("")
-            
-            if h.get('source_code'):
-                md.append(f"```{lang}")
-                md.append(h['source_code'])
-                md.append("```")
-                md.append("")
-            
-            if h.get('risk_description'):
-                md.append("**❓ Rischio:**")
-                md.append(h['risk_description'][:500])
-                md.append("")
-            
-            if h.get('fix_recommendations'):
-                md.append("**✅ Come risolvere:**")
-                md.append(h['fix_recommendations'][:600])
-                md.append("")
-            
-            md.append("---")
-            md.append("")
+        _append_hotspot_details(md, items)
     
     filename = f"JULES_HOTSPOTS_{timestamp}.md"
     with open(get_output_path(filename), 'w', encoding='utf-8') as f:
         f.write('\n'.join(md))
     return filename, len(hotspots)
 
+
+def _append_issue_details(md, file_issues, lang):
+    """Helper per aggiungere i dettagli degli issues."""
+    for issue in sorted(file_issues, key=lambda x: x.get('line', 0) or 0):
+        line = issue.get('line', '?')
+        msg = issue.get('message', '')
+        rule = issue.get('rule', '')
+        severity = issue.get('severity', '')
+        source = issue.get('source_code', '')
+        rule_info = rules_cache.get(rule, {})
+
+        md.append(f"### Riga {line} {get_severity_emoji(severity)}")
+        md.append(f"**Problema:** {msg}")
+        md.append("")
+
+        if source:
+            md.append(f"```{lang}")
+            md.append(source)
+            md.append("```")
+            md.append("")
+
+        if rule_info.get('root_cause'):
+            md.append("**❓ Perché:**")
+            md.append(rule_info['root_cause'][:600])
+            md.append("")
+
+        if rule_info.get('how_to_fix'):
+            md.append(SECTION_HOW_TO_FIX)
+            md.append(rule_info['how_to_fix'][:800])
+            md.append("")
+
+        if rule_info.get('resources'):
+            md.append(SECTION_RESOURCES)
+            md.append(rule_info['resources'][:400])
+            md.append("")
+
+        md.append("---")
+        md.append("")
 
 def generate_quality_specific_file(issues, quality, output_file):
     """Genera file per quality specifica."""
@@ -1471,42 +1525,7 @@ def generate_quality_specific_file(issues, quality, output_file):
         lang = detect_language(fp)
         md.append(f"## 📄 `{fp}` ({len(file_issues)})")
         md.append("")
-        
-        for issue in sorted(file_issues, key=lambda x: x.get('line', 0) or 0):
-            line = issue.get('line', '?')
-            msg = issue.get('message', '')
-            rule = issue.get('rule', '')
-            severity = issue.get('severity', '')
-            source = issue.get('source_code', '')
-            rule_info = rules_cache.get(rule, {})
-            
-            md.append(f"### Riga {line} {get_severity_emoji(severity)}")
-            md.append(f"**Problema:** {msg}")
-            md.append("")
-            
-            if source:
-                md.append(f"```{lang}")
-                md.append(source)
-                md.append("```")
-                md.append("")
-            
-            if rule_info.get('root_cause'):
-                md.append("**❓ Perché:**")
-                md.append(rule_info['root_cause'][:600])
-                md.append("")
-            
-            if rule_info.get('how_to_fix'):
-                md.append("**✅ Come risolvere:**")
-                md.append(rule_info['how_to_fix'][:800])
-                md.append("")
-            
-            if rule_info.get('resources'):
-                md.append("**📚 Risorse:**")
-                md.append(rule_info['resources'][:400])
-                md.append("")
-            
-            md.append("---")
-            md.append("")
+        _append_issue_details(md, file_issues, lang)
     
     with open(get_output_path(output_file), 'w', encoding='utf-8') as f:
         f.write('\n'.join(md))
@@ -1540,6 +1559,46 @@ def generate_compact(issues, output_file):
     return len(issues)
 
 
+def _append_ultra_issue_details(md, file_issues, lang):
+    """Helper per aggiungere i dettagli ultra-completi."""
+    for issue in sorted(file_issues, key=lambda x: x.get('line', 0) or 0):
+        line = issue.get('line', '?')
+        msg = issue.get('message', '')
+        rule = issue.get('rule', '')
+        severity = issue.get('severity', '')
+        quality = issue.get('software_quality', '')
+        source = issue.get('source_code', '')
+        rule_info = rules_cache.get(rule, {})
+
+        md.append(f"### Riga {line} {get_quality_emoji(quality)} {get_severity_emoji(severity)}")
+        md.append(f"**Problema:** {msg}")
+        md.append(f"**Regola:** `{rule}` - {rule_info.get('name', '')}")
+        md.append("")
+
+        if source:
+            md.append(f"```{lang}")
+            md.append(source)
+            md.append("```")
+            md.append("")
+
+        if rule_info.get('root_cause'):
+            md.append("**❓ Perché è un problema:**")
+            md.append(rule_info['root_cause'][:800])
+            md.append("")
+
+        if rule_info.get('how_to_fix'):
+            md.append(SECTION_HOW_TO_FIX)
+            md.append(rule_info['how_to_fix'][:1000])
+            md.append("")
+
+        if rule_info.get('resources'):
+            md.append(SECTION_RESOURCES)
+            md.append(rule_info['resources'][:500])
+            md.append("")
+
+        md.append("---")
+        md.append("")
+
 def generate_ultra_complete(issues, output_file):
     """Genera file ultra-completo."""
     by_file = group_by_file(issues)
@@ -1551,44 +1610,7 @@ def generate_ultra_complete(issues, output_file):
         lang = detect_language(fp)
         md.append(f"## 📄 `{fp}`")
         md.append("")
-        
-        for issue in sorted(file_issues, key=lambda x: x.get('line', 0) or 0):
-            line = issue.get('line', '?')
-            msg = issue.get('message', '')
-            rule = issue.get('rule', '')
-            severity = issue.get('severity', '')
-            quality = issue.get('software_quality', '')
-            source = issue.get('source_code', '')
-            rule_info = rules_cache.get(rule, {})
-            
-            md.append(f"### Riga {line} {get_quality_emoji(quality)} {get_severity_emoji(severity)}")
-            md.append(f"**Problema:** {msg}")
-            md.append(f"**Regola:** `{rule}` - {rule_info.get('name', '')}")
-            md.append("")
-            
-            if source:
-                md.append(f"```{lang}")
-                md.append(source)
-                md.append("```")
-                md.append("")
-            
-            if rule_info.get('root_cause'):
-                md.append("**❓ Perché è un problema:**")
-                md.append(rule_info['root_cause'][:800])
-                md.append("")
-            
-            if rule_info.get('how_to_fix'):
-                md.append("**✅ Come risolvere:**")
-                md.append(rule_info['how_to_fix'][:1000])
-                md.append("")
-            
-            if rule_info.get('resources'):
-                md.append("**📚 Risorse:**")
-                md.append(rule_info['resources'][:500])
-                md.append("")
-            
-            md.append("---")
-            md.append("")
+        _append_ultra_issue_details(md, file_issues, lang)
     
     with open(get_output_path(output_file), 'w', encoding='utf-8') as f:
         f.write('\n'.join(md))
@@ -1598,6 +1620,52 @@ def generate_ultra_complete(issues, output_file):
 # ============================================================
 # MAIN
 # ============================================================
+
+def _print_validation_results(errors, warnings):
+    for w in warnings:
+        print(f"   ⚠️ {w}")
+    if errors:
+        for e in errors:
+            print(f"   ❌ {e}")
+
+def _print_junit_summary(junit_summary):
+    if junit_summary:
+        print(f"   ✓ {junit_summary['file']}")
+        print(f"      Tests: {junit_summary['total']}, Failed: {junit_summary['failures']}, Errors: {junit_summary['errors']}")
+    else:
+        print("   ○ junit.xml non trovato")
+        print("      Per abilitare: pytest --junitxml=junit.xml")
+
+def _print_generated_files(timestamp, test_failures_details, all_hotspots, issues_count, all_issues, fname_summary, fname_prompts):
+    print("\n📌 FILE GENERATI:")
+    if test_failures_details:
+        print(f"   🧪 JULES_TEST_FAILURES_{timestamp}.md - {len(test_failures_details)} test falliti")
+    if all_hotspots:
+        print(f"   🔥 JULES_HOTSPOTS_{timestamp}.md - {len(all_hotspots)} hotspots")
+    for q in GENERATE_SEPARATE_FILES_FOR:
+        if issues_count.get(q, 0) > 0:
+            print(f"   {get_quality_emoji(q)} JULES_{q}_ONLY_{timestamp}.md")
+    if all_issues:
+        print(f"   📄 JULES_COMPACT_{timestamp}.md")
+        print(f"   📚 JULES_ULTRA_COMPLETE_{timestamp}.md")
+    print(f"   📊 {fname_summary}")
+    print(f"   🤖 {fname_prompts}")
+
+def _print_recommended_order(test_failures_details, all_hotspots, issues_count):
+    print("\n" + "=" * 70)
+    print("💡 ORDINE CONSIGLIATO:")
+    print("=" * 70)
+    order = 1
+    if test_failures_details:
+        print(f"   {order}. 🧪 TEST FAILURES - I test devono passare!")
+        order += 1
+    if all_hotspots:
+        print(f"   {order}. 🔥 HOTSPOTS - Sicurezza")
+        order += 1
+    for q in ['SECURITY', 'RELIABILITY', 'MAINTAINABILITY']:
+        if issues_count.get(q, 0) > 0:
+            print(f"   {order}. {get_quality_emoji(q)} {q}")
+            order += 1
 
 def main():
     stats['start_time'] = datetime.now()
@@ -1613,11 +1681,8 @@ def main():
     # Validazione
     print("\n0. Validazione...")
     errors, warnings = validate_configuration()
-    for w in warnings:
-        print(f"   ⚠️ {w}")
+    _print_validation_results(errors, warnings)
     if errors:
-        for e in errors:
-            print(f"   ❌ {e}")
         return
     print("   ✓ OK")
     
@@ -1645,13 +1710,10 @@ def main():
     junit_summary = parse_junit_xml()
     test_analysis = None
     
+    _print_junit_summary(junit_summary)
+
     if junit_summary:
-        print(f"   ✓ {junit_summary['file']}")
-        print(f"      Tests: {junit_summary['total']}, Failed: {junit_summary['failures']}, Errors: {junit_summary['errors']}")
         test_analysis = analyze_test_failures()
-    else:
-        print(f"   ○ junit.xml non trovato")
-        print(f"      Per abilitare: pytest --junitxml=junit.xml")
     
     if test_metrics:
         print(f"   ✓ SonarCloud: {test_metrics.get('tests', 0)} test, {test_metrics.get('test_failures', 0)} falliti")
@@ -1759,35 +1821,8 @@ def main():
     print(f"\n📊 Durata: {duration:.1f}s | API: {stats['api_calls']} | Retry: {stats['retries']}")
     print(f"\n📁 Output: {output_dir}")
     
-    # Riepilogo
-    print("\n📌 FILE GENERATI:")
-    if test_failures_details:
-        print(f"   🧪 JULES_TEST_FAILURES_{timestamp}.md - {len(test_failures_details)} test falliti")
-    if all_hotspots:
-        print(f"   🔥 JULES_HOTSPOTS_{timestamp}.md - {len(all_hotspots)} hotspots")
-    for q in GENERATE_SEPARATE_FILES_FOR:
-        if issues_count.get(q, 0) > 0:
-            print(f"   {get_quality_emoji(q)} JULES_{q}_ONLY_{timestamp}.md")
-    if all_issues:
-        print(f"   📄 JULES_COMPACT_{timestamp}.md")
-        print(f"   📚 JULES_ULTRA_COMPLETE_{timestamp}.md")
-    print(f"   📊 {fname_summary}")
-    print(f"   🤖 {fname_prompts}")
-    
-    print("\n" + "=" * 70)
-    print("💡 ORDINE CONSIGLIATO:")
-    print("=" * 70)
-    order = 1
-    if test_failures_details:
-        print(f"   {order}. 🧪 TEST FAILURES - I test devono passare!")
-        order += 1
-    if all_hotspots:
-        print(f"   {order}. 🔥 HOTSPOTS - Sicurezza")
-        order += 1
-    for q in ['SECURITY', 'RELIABILITY', 'MAINTAINABILITY']:
-        if issues_count.get(q, 0) > 0:
-            print(f"   {order}. {get_quality_emoji(q)} {q}")
-            order += 1
+    _print_generated_files(timestamp, test_failures_details, all_hotspots, issues_count, all_issues, fname_summary, fname_prompts)
+    _print_recommended_order(test_failures_details, all_hotspots, issues_count)
     
     print(f"\nTempo stimato: {format_duration(analysis['total_effort_minutes'])}")
     print("=" * 70)
