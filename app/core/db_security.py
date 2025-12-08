@@ -92,7 +92,7 @@ class DBSecurityManager:
         try:
             proc = psutil.Process(pid)
             name = proc.name().lower()
-            valid_names = ["python", "intelleo", "main", "launcher", "boot_loader"]
+            valid_names = ["python", "intelleo", "main", "launcher", "boot_loader", "pytest"]
             if not any(v in name for v in valid_names):
                 return True, f"PID {pid} exists ({name}) but is unrelated"
             else:

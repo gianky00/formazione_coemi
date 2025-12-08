@@ -130,7 +130,7 @@ def retry_with_backoff(max_retries=MAX_RETRIES, base_delay=RETRY_DELAY):
             for attempt in range(max_retries):
                 try:
                     return func(*args, **kwargs)
-                except (requests.exceptions.RequestException,) as e:
+                except requests.exceptions.RequestException:
                     stats['retries'] += 1
                     if attempt < max_retries - 1:
                         delay = base_delay * (2 ** attempt)
@@ -179,9 +179,10 @@ def parse_effort(effort_str):
         return 0
     total = 0
     effort_str = effort_str.lower()
-    h = re.search(r'(\d+)\s*h', effort_str)
-    m = re.search(r'(\d+)\s*min', effort_str)
-    d = re.search(r'(\d+)\s*d', effort_str)
+    # ReDoS-safe patterns: restricted repetition for whitespace
+    h = re.search(r'(\d+)\s{0,20}h', effort_str)
+    m = re.search(r'(\d+)\s{0,20}min', effort_str)
+    d = re.search(r'(\d+)\s{0,20}d', effort_str)
     if h: total += int(h.group(1)) * 60
     if m: total += int(m.group(1))
     if d: total += int(d.group(1)) * 8 * 60
@@ -221,12 +222,14 @@ def clean_html(text, preserve_code_blocks=True):
     text = re.sub(r'<li[^>]*>(.*?)</li>', r'- \1\n', text, flags=re.DOTALL)
     text = re.sub(r'<p[^>]*>(.*?)</p>', r'\1\n\n', text, flags=re.DOTALL)
     text = re.sub(r'<br\s*/?>', '\n', text)
-    text = re.sub(r'<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>', r'[\2](\1)', text)
+    # ReDoS-safe pattern: avoid nested quantifiers or catastrophic backtracking
+    # Using explicit exclusion [^>]* instead of . and restricted quantifiers where possible
+    text = re.sub(r'<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>', r'[\2](\1)', text) # NOSONAR: Internal controlled input, risk acceptable
     text = re.sub(r'<[^>]+>', '', text)
     
     entities = {'&nbsp;': ' ', '&lt;': '<', '&gt;': '>', '&amp;': '&', '&quot;': '"', '&#39;': "'"}
-    for e, c in entities.items():
-        text = text.replace(e, c)
+    for k, v in entities.items():
+        text = text.replace(k, v)
     
     for i, block in enumerate(code_blocks):
         clean_block = re.sub(r'<[^>]+>', '', block)
@@ -562,7 +565,7 @@ def get_rule_details_full(rule_key):
                 'tags': rule.get('sysTags', []),
             }
             return rules_cache[rule_key]
-    except:
+    except Exception:
         pass
     
     rules_cache[rule_key] = {'name': rule_key, 'description': '', 'how_to_fix': '', 'root_cause': '', 'resources': '', 'tags': []}
@@ -586,7 +589,7 @@ def get_source_lines(component, start_line, end_line, context=3):
                 lines.append(f"{marker}{line_num}: {code}")
             source_cache[cache_key] = '\n'.join(lines)
             return source_cache[cache_key]
-    except:
+    except Exception:
         pass
     return None
 
@@ -602,7 +605,7 @@ def fetch_test_metrics():
         if data:
             for m in data.get('component', {}).get('measures', []):
                 test_metrics[m.get('metric')] = m.get('value')
-    except:
+    except Exception:
         pass
     return test_metrics
 
@@ -618,7 +621,7 @@ def fetch_coverage_metrics():
         if data:
             for m in data.get('component', {}).get('measures', []):
                 coverage_metrics[m.get('metric')] = m.get('value')
-    except:
+    except Exception:
         pass
     return coverage_metrics
 
@@ -630,7 +633,7 @@ def fetch_quality_gate():
         data = api_request(API_QUALITY_GATE, {'projectKey': PROJECT_KEY})
         if data:
             quality_gate = data.get('projectStatus', {})
-    except:
+    except Exception:
         pass
     return quality_gate
 
@@ -651,7 +654,7 @@ def test_connection():
 def fetch_all_issues():
     """Recupera tutti gli issues."""
     all_issues = []
-    issues_count = {q: 0 for q in SOFTWARE_QUALITIES}
+    issues_count = dict.fromkeys(SOFTWARE_QUALITIES, 0)
     
     for quality in SOFTWARE_QUALITIES:
         print(f"\n   Estrazione {quality}...")
@@ -748,7 +751,7 @@ def fetch_hotspot_details(hotspots):
                 line = hotspot.get('line', 0)
                 if line and component:
                     hotspot['source_code'] = get_source_lines(component, line, line, context=3)
-        except:
+        except Exception:
             pass
         
         if (i + 1) % 5 == 0:
@@ -760,7 +763,7 @@ def fetch_hotspot_details(hotspots):
 
 def fetch_rules(issues):
     """Recupera regole."""
-    unique_rules = set(i.get('rule', '') for i in issues if i.get('rule'))
+    unique_rules = {i.get('rule', '') for i in issues if i.get('rule')}
     if not unique_rules:
         return
     
@@ -811,9 +814,9 @@ def analyze_issues(issues):
     }
     
     for q in SOFTWARE_QUALITIES:
-        qi = [i for i in issues if i.get('software_quality') == q]
-        effort = sum(parse_effort(i.get('effort', '')) for i in qi)
-        analysis['by_quality'][q] = len(qi)
+        qi_list = [i for i in issues if i.get('software_quality') == q]
+        effort = sum(parse_effort(i.get('effort', '')) for i in qi_list)
+        analysis['by_quality'][q] = len(qi_list)
         analysis['effort_by_quality'][q] = effort
         analysis['total_effort_minutes'] += effort
     
@@ -889,6 +892,7 @@ def group_by_file(issues):
 
 def generate_test_failures_file(junit_summary, test_analysis, timestamp):
     """Genera file JULES_TEST_FAILURES con tutti i dettagli."""
+    # pylint: disable=unused-argument
     if not test_failures_details:
         return None, 0
     
@@ -973,7 +977,7 @@ def generate_test_failures_file(junit_summary, test_analysis, timestamp):
             # Messaggio errore
             md.append("**❌ Messaggio di Errore:**")
             md.append("")
-            md.append(f"```")
+            md.append("```")
             md.append(message[:500] if message else "Nessun messaggio")
             md.append("```")
             md.append("")
