@@ -1,7 +1,7 @@
 # 🧪 Test Failures - Fix Guide
 
 **Progetto:** gianky00_formazione_coemi
-**Data:** 2025-12-08 16:43
+**Data:** 2025-12-08 17:40
 **File sorgente:** junit.xml
 
 ## 📊 Statistiche Test
@@ -9,18 +9,18 @@
 | Metrica | Valore |
 |---------|--------|
 | Test totali | 580 |
-| ✅ Passati | 573 |
-| ❌ Falliti | 7 |
+| ✅ Passati | 575 |
+| ❌ Falliti | 5 |
 | 💥 Errori | 0 |
 | ⏭️ Skippati | 0 |
-| ⏱️ Tempo | 110.66s |
-| Success Rate | 98.8% |
+| ⏱️ Tempo | 113.03s |
+| Success Rate | 99.1% |
 
 ## 🏷️ Tipi di Errore
 
 | Tipo | Count | Descrizione |
 |------|-------|-------------|
-| ❌ AssertionError | 6 | Il test ha verificato una condizione che... |
+| ❌ AssertionError | 4 | Il test ha verificato una condizione che... |
 | 🔍 AttributeError | 1 | Tentativo di accedere a un attributo ine... |
 
 ## 📝 Istruzioni per Jules
@@ -46,7 +46,7 @@ Per ogni test fallito troverai:
 | Tipo Errore | 🔍 AttributeError |
 | Status | FAILURE |
 | Riga | 107 |
-| Tempo | 0.002s |
+| Tempo | 0.003s |
 
 **❌ Messaggio di Errore:**
 
@@ -108,7 +108,7 @@ AssertionError: Expected 'save_mutable_settings' to have been called.
 **📜 Stack Trace:**
 
 ```python
-self = <MagicMock name='settings.save_mutable_settings' id='2780919639520'>
+self = <MagicMock name='settings.save_mutable_settings' id='1920112141728'>
 
     def assert_called(self):
         """assert that the mock was called at least once
@@ -163,7 +163,7 @@ Il test ha verificato una condizione che si è rivelata falsa
 | Tipo Errore | ❌ AssertionError |
 | Status | FAILURE |
 | Riga | 918 |
-| Tempo | 0.006s |
+| Tempo | 0.007s |
 
 **❌ Messaggio di Errore:**
 
@@ -174,7 +174,7 @@ AssertionError: Expected 'remove' to have been called.
 **📜 Stack Trace:**
 
 ```python
-self = <MagicMock name='remove' id='2780929166176'>
+self = <MagicMock name='remove' id='1920117283184'>
 
     def assert_called(self):
         """assert that the mock was called at least once
@@ -229,7 +229,7 @@ Il test ha verificato una condizione che si è rivelata falsa
 | Tipo Errore | ❌ AssertionError |
 | Status | FAILURE |
 | Riga | 918 |
-| Tempo | 0.006s |
+| Tempo | 0.005s |
 
 **❌ Messaggio di Errore:**
 
@@ -240,7 +240,7 @@ AssertionError: Expected 'remove' to have been called.
 **📜 Stack Trace:**
 
 ```python
-self = <MagicMock name='remove' id='2780919446176'>
+self = <MagicMock name='remove' id='1920116325696'>
 
     def assert_called(self):
         """assert that the mock was called at least once
@@ -295,7 +295,7 @@ Il test ha verificato una condizione che si è rivelata falsa
 | Tipo Errore | ❌ AssertionError |
 | Status | FAILURE |
 | Riga | 918 |
-| Tempo | 0.007s |
+| Tempo | 0.006s |
 
 **❌ Messaggio di Errore:**
 
@@ -306,7 +306,7 @@ AssertionError: Expected 'remove' to have been called.
 **📜 Stack Trace:**
 
 ```python
-self = <MagicMock name='remove' id='2780928511104'>
+self = <MagicMock name='remove' id='1920116980432'>
 
     def assert_called(self):
         """assert that the mock was called at least once
@@ -332,147 +332,6 @@ During handling of the above exception, another exception occurred:
 E                       AssertionError: Expected 'remove' to have been called.
 
 tests\app\core\test_db_security_failures.py:88: AssertionError
-```
-
-**❓ Perché fallisce:**
-
-Il test ha verificato una condizione che si è rivelata falsa
-
-**Causa probabile:** Il valore atteso non corrisponde al valore ottenuto
-
-**✅ Come risolvere:**
-
-1. Verifica che il valore atteso nel test sia corretto
-2. Se il test è corretto, il bug è nel codice sotto test - correggilo
-3. Se il comportamento è cambiato intenzionalmente, aggiorna il test
-4. Controlla se ci sono effetti collaterali o stato condiviso tra test
-
-**📚 Risorse:**
-
-- https://docs.pytest.org/en/stable/how-to/assert.html
-
----
-
-## 📄 `tests/desktop_app/services/test_sound_manager/TestSoundManager.py`
-**1 test falliti**
-
-### ❌ `test_worker_run_success`
-
-| Campo | Valore |
-|-------|--------|
-| Test | `tests.desktop_app.services.test_sound_manager.TestSoundManager::test_worker_run_success` |
-| Tipo Errore | ❌ AssertionError |
-| Status | FAILURE |
-| Riga | 918 |
-| Tempo | 0.002s |
-
-**❌ Messaggio di Errore:**
-
-```
-AssertionError: Expected 'run_until_complete' to have been called.
-```
-
-**📜 Stack Trace:**
-
-```python
-self = <MagicMock name='new_event_loop().run_until_complete' id='2778844391152'>
-
-    def assert_called(self):
-        """assert that the mock was called at least once
-        """
-        if self.call_count == 0:
-            msg = ("Expected '%s' to have been called." %
-                   (self._mock_name or 'mock'))
->           raise AssertionError(msg)
-E           AssertionError: Expected 'run_until_complete' to have been called.
-
-C:\Program Files\Python312\Lib\unittest\mock.py:918: AssertionError
-
-During handling of the above exception, another exception occurred:
-
-... (troncato) ...
-                # communicate instance is returned by mock_edge_tts.Communicate(...)
-                communicate_instance = mock_edge_tts.Communicate.return_value
-    
-                # Check call to Communicate constructor - SKIPPED due to module import patching flakiness
-                # mock_edge_tts.Communicate.assert_called_with("text", "it-IT-IrmaNeural")
-    
->               mock_loop.run_until_complete.assert_called()
-E               AssertionError: Expected 'run_until_complete' to have been called.
-
-tests\desktop_app\services\test_sound_manager.py:162: AssertionError
-```
-
-**❓ Perché fallisce:**
-
-Il test ha verificato una condizione che si è rivelata falsa
-
-**Causa probabile:** Il valore atteso non corrisponde al valore ottenuto
-
-**✅ Come risolvere:**
-
-1. Verifica che il valore atteso nel test sia corretto
-2. Se il test è corretto, il bug è nel codice sotto test - correggilo
-3. Se il comportamento è cambiato intenzionalmente, aggiorna il test
-4. Controlla se ci sono effetti collaterali o stato condiviso tra test
-
-**📚 Risorse:**
-
-- https://docs.pytest.org/en/stable/how-to/assert.html
-
----
-
-## 📄 `tests/desktop_app/views/test_anagrafica_view.py`
-**1 test falliti**
-
-### ❌ `test_filter_list`
-
-| Campo | Valore |
-|-------|--------|
-| Test | `tests.desktop_app.views.test_anagrafica_view::test_filter_list` |
-| Tipo Errore | ❌ AssertionError |
-| Status | FAILURE |
-| Riga | 72 |
-| Tempo | 0.003s |
-
-**❌ Messaggio di Errore:**
-
-```
-AssertionError: assert 2 == 1
- +  where 2 = len([<MagicMock name='mock()' id='2778852164816'>, <MagicMock name='mock()' id='2778852164816'>])
- +    where [<MagicMock name='mock()' id='2778852164816'>, <MagicMock name='mock()' id='2778852164816'>] = <tests.desktop_app.mock_qt.DummyQWidget object at 0x00000287007DD130>.widgets
- +      where <tests.desktop_app.mock_qt.DummyQWidget object at 0x00000287007DD130> = <desktop_app.views.anagrafica_view.AnagraficaView object at 0x00000287007DC8F0>.list_wi
-```
-
-**📜 Stack Trace:**
-
-```python
-def test_filter_list():
-        mock_api = MagicMock()
-        view = AnagraficaView(mock_api)
-        view.all_employees = [
-            {"id": 1, "nome": "Mario", "cognome": "Rossi", "matricola": "M1"},
-            {"id": 2, "nome": "Luigi", "cognome": "Verdi", "matricola": "M2"}
-        ]
-    
-        mock_item_cls = MagicMock()
-    
-        # IMPORTANT: We need to make sure the view is not auto-refreshed or we clear it first manually
-        # view.list_widget.widgets is accumulated if not cleared.
-        # The view calls refresh_data on showEvent. Here we are unit testing filter_list directly.
-        # view init calls refresh_data if not careful, but init calls setup_ui only. showEvent is not called.
-        # But initialization calls refresh_data? No.
-... (troncato) ...
-        with patch("desktop_app.views.anagrafica_view.QListWidgetItem", mock_item_cls):
-            view.filter_list("Luigi")
-    
->       assert len(view.list_widget.widgets) == 1
-E       AssertionError: assert 2 == 1
-E        +  where 2 = len([<MagicMock name='mock()' id='2778852164816'>, <MagicMock name='mock()' id='2778852164816'>])
-E        +    where [<MagicMock name='mock()' id='2778852164816'>, <MagicMock name='mock()' id='2778852164816'>] = <tests.desktop_app.mock_qt.DummyQWidget object at 0x00000287007DD130>.widgets
-E        +      where <tests.desktop_app.mock_qt.DummyQWidget object at 0x00000287007DD130> = <desktop_app.views.anagrafica_view.AnagraficaView object at 0x00000287007DC8F0>.list_widget
-
-tests\desktop_app\views\test_anagrafica_view.py:72: AssertionError
 ```
 
 **❓ Perché fallisce:**
