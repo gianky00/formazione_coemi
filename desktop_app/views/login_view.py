@@ -808,17 +808,29 @@ class LoginView(QWidget):
             print(f"[LoginView] Error fetching pending count: {e}")
             self.pending_count = 0
 
+    def _check_password_requirement(self, user_info):
+        """Checks if password change is required and handles it."""
+        if user_info.get("require_password_change"):
+            if user_info.get("read_only"):
+                 CustomMessageDialog.show_warning(self, "Attenzione", "È richiesto il cambio password, ma il database è in sola lettura. Riprova più tardi.")
+                 # Allow login? No, standard is block if pw change required.
+                 # But in read-only, maybe we allow? The logic before was implicit fallthrough?
+                 # Wait, logic before:
+                 # if req_change:
+                 #    if readonly: warn. (And then continues? Yes, because 'elif not...' is skipped)
+                 #    elif not handle_pw(): return
+                 # So if readonly, it warned and continued.
+            elif not self._handle_password_change():
+                return False
+        return True
+
     def on_login_success(self, response):
-        # S3776: Refactored to reduce complexity
         try:
             self.api_client.set_token(response)
             user_info = self.api_client.user_info
 
-            if user_info.get("require_password_change"):
-                if user_info.get("read_only"):
-                     CustomMessageDialog.show_warning(self, "Attenzione", "È richiesto il cambio password, ma il database è in sola lettura. Riprova più tardi.")
-                elif not self._handle_password_change():
-                    return
+            if not self._check_password_requirement(user_info):
+                return
 
             self._check_read_only(user_info)
             self._fetch_pending_count()

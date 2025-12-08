@@ -160,19 +160,23 @@ def _generate_content_with_retry(model, pdf_file_part, prompt):
         genai.configure(api_key=settings.GEMINI_API_KEY_ANALYSIS)
         return model.generate_content([pdf_file_part, prompt])
 
+def _check_closing_char(stack, char):
+    """Helper to check if closing char matches opening char on stack."""
+    if not stack:
+        return False
+    last = stack[-1]
+    if (last == '{' and char == '}') or (last == '[' and char == ']'):
+        stack.pop()
+        return not stack
+    return False
+
 def _find_json_block(text, start_idx, stack):
     for i, char in enumerate(text[start_idx:], start=start_idx):
         if char == '{' or char == '[':
             stack.append(char)
         elif char == '}' or char == ']':
-            # S1066: Merged if statements (stack check merged with pair check)
-            if stack:
-                last = stack[-1]
-                if (last == '{' and char == '}') or (last == '[' and char == ']'):
-                    stack.pop()
-                    if not stack:
-                        # Found complete block
-                        return i + 1
+            if _check_closing_char(stack, char):
+                return i + 1
     return -1
 
 def _find_start_index(text):

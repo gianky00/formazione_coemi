@@ -147,17 +147,15 @@ class TestSoundManager(unittest.TestCase):
             
             # Mock asyncio loop
             with patch('asyncio.new_event_loop') as m_loop:
-                mock_loop = MagicMock()
-                m_loop.return_value = mock_loop
-                
-                worker.run()
-                
+                with patch('asyncio.set_event_loop'): # Patch to avoid type check error
+                    mock_loop = MagicMock()
+                    m_loop.return_value = mock_loop
+
+                    worker.run()
+
                 # Verify that it called communicate.save() inside the loop
                 # communicate instance is returned by mock_edge_tts.Communicate(...)
                 communicate_instance = mock_edge_tts.Communicate.return_value
-                
-                # Check call to Communicate constructor - SKIPPED due to module import patching flakiness
-                # mock_edge_tts.Communicate.assert_called_with("text", "it-IT-IrmaNeural")
                 
                 mock_loop.run_until_complete.assert_called()
                 communicate_instance.save.assert_called()

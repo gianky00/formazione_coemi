@@ -67,6 +67,8 @@ def test_filter_list():
     view.list_widget.widgets = [] # Force reset manually to ensure test isolation
     
     with patch("desktop_app.views.anagrafica_view.QListWidgetItem", mock_item_cls):
+        # Set text on search bar because filter_list reads from it
+        view.search_bar.setText("Luigi")
         view.filter_list("Luigi")
     
     assert len(view.list_widget.widgets) == 1

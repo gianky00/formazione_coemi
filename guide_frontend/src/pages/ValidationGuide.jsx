@@ -1,9 +1,8 @@
 import React from 'react';
-import GuideCard from '../components/ui/GuideCard';
 import Note from '../components/ui/Note';
 import Step from '../components/ui/Step';
 import ValidationSimulator from '../components/ValidationSimulator';
-import { Database, CheckCircle, AlertOctagon } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
 
 const ValidationGuide = () => {
   return (

@@ -265,59 +265,68 @@ class PdfWorker(QObject):
             
         return certs_to_process
 
+    def _upload_pdf(self, file_path, original_filename):
+        with open(file_path, 'rb') as f:
+            files = {'file': (original_filename, f, 'application/pdf')}
+            return requests.post(f"{self.api_client.base_url}/upload-pdf/", files=files, headers=self.api_client._get_headers(), timeout=300)
+
+    def _process_successful_upload(self, response, file_path, original_filename):
+        data = response.json()
+        entities = data.get('entities', {})
+        certs_to_process = self._prepare_certificates(entities)
+
+        for idx, certificato in enumerate(certs_to_process):
+            current_op_path = file_path
+            if idx < len(certs_to_process) - 1:
+                current_op_path = f"{file_path}_copy_{idx}.pdf"
+                shutil.copy2(file_path, current_op_path)
+
+            save_response = requests.post(f"{self.api_client.base_url}/certificati/", json=certificato, headers=self.api_client._get_headers(), timeout=30)
+            self._handle_save_response(save_response, original_filename, certificato, current_op_path)
+
+    def _handle_upload_error(self, response, file_path, original_filename):
+        if response.status_code == 422:
+            try:
+                error_detail = response.json().get("detail", "")
+                if "REJECTED" in str(error_detail):
+                    self._handle_rejection(original_filename, file_path, error_detail)
+                    return
+            except Exception:
+                pass
+
+        self.log_message.emit(f"Errore durante l'elaborazione di {original_filename}: {response.text}", "red")
+        self.move_to_error(f"Errore Analisi: {response.text}")
+
+    def _handle_rejection(self, original_filename, file_path, error_detail):
+        self.log_message.emit(f"File scartato (Generico/Syllabus): {original_filename}", "orange")
+        target_dir = os.path.join(self.output_folder, DIR_ANALYSIS_ERRORS, "SCARTATI")
+        os.makedirs(target_dir, exist_ok=True)
+        try:
+            shutil.move(file_path, os.path.join(target_dir, original_filename))
+            txt_filename = os.path.splitext(original_filename)[0] + ".txt"
+            txt_path = os.path.join(target_dir, txt_filename)
+            try:
+                with open(txt_path, "w", encoding="utf-8") as f:
+                    f.write(f"File: {original_filename}\n")
+                    f.write(f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
+                    f.write(f"Motivo Scarto: {error_detail}\n")
+            except Exception as txt_err:
+                self.log_message.emit(f"Impossibile creare file TXT per scarto: {txt_err}", "orange")
+        except Exception as e:
+            self.log_message.emit(f"Impossibile spostare il file scartato {original_filename}: {e}", "red")
+
     def process_pdf(self, file_path):
         original_filename = os.path.basename(file_path)
         self.current_file_path = file_path # Store for fallback
 
         try:
-            with open(file_path, 'rb') as f:
-                files = {'file': (original_filename, f, 'application/pdf')}
-                response = requests.post(f"{self.api_client.base_url}/upload-pdf/", files=files, headers=self.api_client._get_headers(), timeout=300)
+            response = self._upload_pdf(file_path, original_filename)
 
             if response.status_code == 200:
-                data = response.json()
-                entities = data.get('entities', {})
-                certs_to_process = self._prepare_certificates(entities)
-
-                for idx, certificato in enumerate(certs_to_process):
-                    current_op_path = file_path
-                    if idx < len(certs_to_process) - 1:
-                        current_op_path = f"{file_path}_copy_{idx}.pdf"
-                        shutil.copy2(file_path, current_op_path)
-
-                    save_response = requests.post(f"{self.api_client.base_url}/certificati/", json=certificato, headers=self.api_client._get_headers(), timeout=30)
-                    self._handle_save_response(save_response, original_filename, certificato, current_op_path)
-
-            elif response.status_code == 422:
-                try:
-                    error_detail = response.json().get("detail", "")
-                    if "REJECTED" in str(error_detail):
-                        self.log_message.emit(f"File scartato (Generico/Syllabus): {original_filename}", "orange")
-                        target_dir = os.path.join(self.output_folder, DIR_ANALYSIS_ERRORS, "SCARTATI")
-                        os.makedirs(target_dir, exist_ok=True)
-                        try:
-                            shutil.move(file_path, os.path.join(target_dir, original_filename))
-                            txt_filename = os.path.splitext(original_filename)[0] + ".txt"
-                            txt_path = os.path.join(target_dir, txt_filename)
-                            try:
-                                with open(txt_path, "w", encoding="utf-8") as f:
-                                    f.write(f"File: {original_filename}\n")
-                                    f.write(f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
-                                    f.write(f"Motivo Scarto: {error_detail}\n")
-                            except Exception as txt_err:
-                                self.log_message.emit(f"Impossibile creare file TXT per scarto: {txt_err}", "orange")
-                        except Exception as e:
-                            self.log_message.emit(f"Impossibile spostare il file scartato {original_filename}: {e}", "red")
-                        return
-                except Exception:
-                    pass
-
-                self.log_message.emit(f"Errore durante l'elaborazione di {original_filename}: {response.text}", "red")
-                self.move_to_error(f"Errore Analisi: {response.text}")
-
+                self._process_successful_upload(response, file_path, original_filename)
             else:
-                self.log_message.emit(f"Errore durante l'elaborazione di {original_filename}: {response.text}", "red")
-                self.move_to_error(f"Errore Analisi: {response.text}")
+                self._handle_upload_error(response, file_path, original_filename)
+
         except (requests.exceptions.RequestException, IOError) as e:
             self.log_message.emit(f"Errore critico durante l'elaborazione di {original_filename}: {e}", "red")
             self.move_to_error(f"Errore Critico: {e}")

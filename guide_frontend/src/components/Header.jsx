@@ -88,9 +88,9 @@ const Header = () => {
               className="absolute top-full mt-2 left-0 w-full bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden py-2"
             >
               {results.length > 0 ? (
-                results.map((result, index) => (
+                results.map((result) => (
                   <button
-                    key={index}
+                    key={result.path}
                     onClick={() => selectResult(result.path)}
                     className="w-full text-left px-4 py-2.5 hover:bg-blue-50 flex items-center gap-3 transition-colors group"
                   >

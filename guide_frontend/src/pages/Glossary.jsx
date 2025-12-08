@@ -1,7 +1,6 @@
 import React from 'react';
 import GuideCard from '../components/ui/GuideCard';
-import Note from '../components/ui/Note';
-import { Book, Tag, Hash, FileQuestion } from 'lucide-react';
+import { Book } from 'lucide-react';
 
 const Glossary = () => {
   const terms = [
@@ -49,8 +48,8 @@ const Glossary = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-6">
-        {terms.map((item, idx) => (
-            <GuideCard key={idx} className="hover:border-blue-300 transition-colors group">
+        {terms.map((item) => (
+            <GuideCard key={item.term} className="hover:border-blue-300 transition-colors group">
                 <h3 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2 group-hover:text-blue-700">
                     <Book size={18} className="text-gray-400 group-hover:text-blue-500"/>
                     {item.term}

@@ -1,9 +1,8 @@
 import React from 'react';
 import GuideCard from '../components/ui/GuideCard';
 import Note from '../components/ui/Note';
-import Step from '../components/ui/Step';
 import ImportSimulator from '../components/ImportSimulator';
-import { UploadCloud, FolderOpen, AlertTriangle } from 'lucide-react';
+import { UploadCloud, FolderOpen, FileText } from 'lucide-react';
 
 const ImportGuide = () => {
   return (
@@ -86,5 +85,4 @@ const ImportGuide = () => {
   );
 };
 
-import { FileText } from 'lucide-react'; // Fix missing import for icon used in GuideCard
 export default ImportGuide;

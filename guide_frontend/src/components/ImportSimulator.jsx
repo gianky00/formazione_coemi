@@ -92,20 +92,18 @@ const ImportSimulator = () => {
               exit={{ opacity: 0, scale: 0.9 }}
               className="text-center w-full max-w-md"
             >
-              <div
+              <button
                 onClick={simulateProcess}
                 onKeyDown={handleKeyDown}
-                role="button"
-                tabIndex={0}
-                className="border-2 border-dashed border-blue-300 rounded-xl p-10 bg-blue-50/50 hover:bg-blue-50 hover:border-blue-500 transition-all cursor-pointer group"
+                className="w-full border-2 border-dashed border-blue-300 rounded-xl p-10 bg-blue-50/50 hover:bg-blue-50 hover:border-blue-500 transition-all cursor-pointer group"
               >
                 <UploadCloud size={48} className="mx-auto text-blue-400 group-hover:text-blue-600 mb-4 transition-colors" />
                 <h3 className="text-lg font-bold text-gray-700 mb-2">Trascina qui i tuoi file PDF</h3>
                 <p className="text-sm text-gray-500 mb-6">oppure clicca per selezionare una cartella</p>
-                <button className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium shadow-sm group-hover:bg-blue-700 transition-colors">
+                <span className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium shadow-sm group-hover:bg-blue-700 transition-colors inline-block">
                   Seleziona File
-                </button>
-              </div>
+                </span>
+              </button>
             </motion.div>
           )}
 

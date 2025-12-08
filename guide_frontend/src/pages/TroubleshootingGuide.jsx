@@ -1,6 +1,5 @@
 import React from 'react';
 import GuideCard from '../components/ui/GuideCard';
-import Note from '../components/ui/Note';
 import Accordion from '../components/ui/Accordion';
 import { HelpCircle, WifiOff, FileX, ShieldAlert } from 'lucide-react';
 

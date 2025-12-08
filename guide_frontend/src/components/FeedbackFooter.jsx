@@ -23,7 +23,7 @@ const FeedbackFooter = () => {
       <div className="flex flex-col items-center justify-center text-center">
 
         <AnimatePresence mode="wait">
-          {!voted ? (
+          {voted === null ? (
             <motion.div
               key="voting"
               initial={{ opacity: 0, y: 10 }}
