@@ -53,8 +53,9 @@ class ForcePasswordChangeDialog(QDialog):
         return self.new_password.text(), self.confirm_password.text()
 
 class LoginWorker(QThread):
-    finished_success = pyqtSignal(object)
-    finished_error = pyqtSignal(object)
+    # S5754: Use explicit types to avoid PyQt_PyObject signature mismatch on Windows
+    finished_success = pyqtSignal(dict)
+    finished_error = pyqtSignal(str)
 
     def __init__(self, api_client, username, password):
         super().__init__()
