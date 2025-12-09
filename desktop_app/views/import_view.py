@@ -573,7 +573,7 @@ class ImportView(QWidget):
         self.worker = PdfWorker(file_paths, self.api_client, output_folder)
         WorkerManager.instance().register_worker(self.worker)
 
-        self.worker.started.connect(self.worker.run) # Wait, PdfWorker inherits QThread, run is called by start()
+        # S3776: Removed duplicate connection. start() calls run() automatically in the new thread.
         self.worker.finished_processing.connect(self.on_processing_finished)
         self.worker.finished.connect(self.worker.deleteLater)
         self.worker.log_message.connect(self.append_log_message)

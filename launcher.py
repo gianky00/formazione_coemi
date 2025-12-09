@@ -20,59 +20,8 @@ LICENSE_FILE_CONFIG = "config.dat"
 
 # --- PHASE 2: LOGGING CONFIGURATION ---
 # Must be configured BEFORE any other imports to capture everything
-def setup_global_logging():
-    try:
-        from desktop_app.services.path_service import get_user_data_dir
-
-        # 1. Determine Log Path
-        log_dir = os.path.join(get_user_data_dir(), "logs")
-        os.makedirs(log_dir, exist_ok=True)
-        log_file = os.path.join(log_dir, "intelleo.log")
-
-        # 2. Configure Root Logger
-        root_logger = logging.getLogger()
-        root_logger.setLevel(logging.INFO)
-
-        # Remove existing handlers (e.g. from previous runs or other libs)
-        for handler in root_logger.handlers[:]:
-            root_logger.removeHandler(handler)
-
-        # 3. Rotating File Handler
-        file_handler = logging.handlers.RotatingFileHandler(
-            log_file,
-            maxBytes=5 * 1024 * 1024, # 5MB
-            backupCount=3,
-            encoding='utf-8'
-        )
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        file_handler.setFormatter(formatter)
-        root_logger.addHandler(file_handler)
-
-        # 4. Console Handler (for dev/debugging)
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setFormatter(formatter)
-        root_logger.addHandler(console_handler)
-
-        # 5. Noise Reduction (Silence noisy libraries)
-        # Suppress request logs for PostHog/Sentry/UpdateChecks unless critical
-        logging.getLogger("urllib3").setLevel(logging.WARNING)
-        logging.getLogger("requests").setLevel(logging.WARNING)
-        logging.getLogger("httpx").setLevel(logging.WARNING)
-        logging.getLogger("asyncio").setLevel(logging.WARNING)
-        logging.getLogger("multipart").setLevel(logging.WARNING)
-        logging.getLogger("watchfiles").setLevel(logging.WARNING)
-        logging.getLogger("uqi").setLevel(logging.WARNING) # Common noisy lib
-
-        # Uvicorn Access Log - Keep it at WARNING to avoid flooding with every health check
-        logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-        logging.getLogger("uvicorn.error").setLevel(logging.INFO)
-
-        logging.info("Global logging initialized.")
-
-    except Exception as e:
-        print(f"[CRITICAL] Failed to setup logging: {e}")
-
-setup_global_logging()
+from app.utils.logging import setup_logging
+setup_logging()
 
 # --- SENTRY INTEGRATION ---
 import sentry_sdk

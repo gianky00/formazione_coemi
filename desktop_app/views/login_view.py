@@ -53,8 +53,8 @@ class ForcePasswordChangeDialog(QDialog):
         return self.new_password.text(), self.confirm_password.text()
 
 class LoginWorker(QThread):
-    finished_success = pyqtSignal(dict)
-    finished_error = pyqtSignal(str)
+    finished_success = pyqtSignal(object)
+    finished_error = pyqtSignal(object)
 
     def __init__(self, api_client, username, password):
         super().__init__()
@@ -73,7 +73,6 @@ class LoginWorker(QThread):
                      detail = e.response.json().get('detail')
                      if detail: error_msg = detail
                  except Exception:
-                     # Fallback to string representation if parsing fails
                      pass
             self.finished_error.emit(error_msg)
 
