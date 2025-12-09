@@ -26,11 +26,17 @@ class SystemCheckWorker(QObject):
     def run(self):
         try:
             status = self.api_client.get_lock_status()
-            self.result_ready.emit(status)
-        except Exception:
-            # Silent fail for network issues during status check
-            pass
-        self.finished.emit()
+            # Ensure status is always a dict before emitting
+            if status and isinstance(status, dict):
+                self.result_ready.emit(status)
+            else:
+                self.result_ready.emit({})
+        except Exception as e:
+            # Log network issues during status check but don't crash
+            import logging
+            logging.getLogger(__name__).debug(f"System check failed (non-critical): {e}")
+        finally:
+            self.finished.emit()
 
 class BellButton(QPushButton):
     def __init__(self, parent=None):

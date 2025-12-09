@@ -71,12 +71,21 @@ class LoginWorker(QThread):
             if hasattr(e, 'response') and e.response is not None:
                 try:
                     detail = e.response.json().get('detail')
-                    if detail: 
-                        error_msg = detail
-                except (ValueError, KeyError, AttributeError) as parse_err:
+                    if detail:
+                        # FastAPI can return detail as dict/list for validation errors
+                        # Always convert to string for safe emission
+                        if isinstance(detail, (dict, list)):
+                            error_msg = str(detail)
+                        else:
+                            error_msg = str(detail)
+                except (ValueError, KeyError, AttributeError, TypeError) as parse_err:
                     # JSON parsing failed, use original error message
                     print(f"[LoginWorker] Could not parse error response: {parse_err}")
-            self.finished_error.emit(error_msg)
+            
+            # Ensure error_msg is always a valid string before emitting
+            if error_msg is None:
+                error_msg = "Errore sconosciuto durante il login"
+            self.finished_error.emit(str(error_msg))
 
 class LicenseUpdateWorker(QThread):
     """Worker to run license update in a separate thread."""

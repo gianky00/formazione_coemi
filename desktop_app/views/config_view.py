@@ -313,17 +313,22 @@ class OptimizeWorker(QThread):
             url = f"{self.api_client.base_url}/system/optimize"
             headers = self.api_client._get_headers()
             start = datetime.now()
-            response = requests.post(url, headers=headers, timeout=300) # Increased timeout
+            response = requests.post(url, headers=headers, timeout=300)  # Increased timeout
             duration = (datetime.now() - start).total_seconds()
 
             if response.status_code == 200:
                 res = response.json()
+                if not isinstance(res, dict):
+                    res = {}
                 res['duration'] = duration
                 self.finished.emit(res)
             else:
-                self.error.emit(f"Errore server: {response.text}")
+                # Ensure response.text is a valid string
+                error_text = str(response.text) if response.text else "Errore sconosciuto"
+                self.error.emit(f"Errore server: {error_text}")
         except Exception as e:
-            self.error.emit(str(e))
+            # Ensure error message is always a valid string
+            self.error.emit(str(e) if e else "Errore di connessione")
 
 class DatabaseSettingsWidget(QFrame):
     def __init__(self, api_client, parent=None):
