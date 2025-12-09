@@ -83,8 +83,8 @@ class ComplianceBar(QWidget):
         layout.addWidget(lbl_detail)
 
 class StatsWorker(QThread):
-    data_ready = pyqtSignal(dict, list)
-    error_occurred = pyqtSignal(str)
+    data_ready = pyqtSignal(object, object)
+    error_occurred = pyqtSignal(object)
 
     def __init__(self, api_client):
         super().__init__()
