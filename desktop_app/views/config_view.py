@@ -978,25 +978,72 @@ class ConfigView(QWidget):
             es_widget.smtp_port_input.setText("465")
 
     def import_csv(self):
+        """Import employees from CSV file with robust error handling."""
+        import sentry_sdk
+        
         # Bug 9 Fix: Filter allow uppercase CSV
-        file_path, _ = QFileDialog.getOpenFileName(self, "Seleziona CSV", "", "CSV Files (*.csv *.CSV)")
-        if file_path:
-            try:
-                if not self.api_client:
-                    CustomMessageDialog.show_error(self, "Errore", "Client API non inizializzato.")
-                    return
-                response = self.api_client.import_dipendenti_csv(file_path)
-                msg = response.get("message", "Successo") if isinstance(response, dict) else str(response)
-                ToastManager.success("Importazione Completata", msg, self.window())
-            except Exception as e:
-                error_msg = str(e)
-                if hasattr(e, 'response') and e.response is not None:
-                    try:
-                        detail = e.response.json().get('detail', str(e))
+        try:
+            file_path, _ = QFileDialog.getOpenFileName(self, "Seleziona CSV", "", "CSV Files (*.csv *.CSV)")
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            CustomMessageDialog.show_error(self, "Errore", f"Errore apertura dialog: {e}")
+            return
+            
+        if not file_path:
+            return
+            
+        try:
+            # Validate API client
+            if not self.api_client:
+                CustomMessageDialog.show_error(self, "Errore", "Client API non inizializzato.")
+                return
+            
+            # Validate file exists
+            import os
+            if not os.path.exists(file_path):
+                CustomMessageDialog.show_error(self, "Errore", "Il file selezionato non esiste.")
+                return
+                
+            # Attempt import
+            response = self.api_client.import_dipendenti_csv(file_path)
+            
+            # Process response safely
+            if isinstance(response, dict):
+                msg = response.get("message", "Importazione completata")
+                warnings = response.get("warnings", [])
+                if warnings:
+                    msg += f"\n\nAvvisi:\n" + "\n".join(warnings[:5])
+                    if len(warnings) > 5:
+                        msg += f"\n... e altri {len(warnings) - 5} avvisi."
+            else:
+                msg = str(response) if response else "Importazione completata"
+                
+            ToastManager.success("Importazione Completata", msg, self.window())
+            
+        except ValueError as e:
+            # File size or validation error
+            CustomMessageDialog.show_error(self, "Errore Validazione", str(e))
+        except Exception as e:
+            # Capture to Sentry
+            sentry_sdk.capture_exception(e)
+            
+            # Extract detailed error message
+            error_msg = str(e)
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    response_json = e.response.json()
+                    if isinstance(response_json, dict):
+                        detail = response_json.get('detail', str(e))
                         error_msg = str(detail)
-                    except Exception:
-                        error_msg = e.response.text if hasattr(e.response, 'text') else str(e)
-                CustomMessageDialog.show_error(self, "Errore Importazione", f"Impossibile importare: {error_msg}")
+                    else:
+                        error_msg = str(response_json)
+                except Exception:
+                    if hasattr(e.response, 'text'):
+                        error_msg = e.response.text[:500] if len(e.response.text) > 500 else e.response.text
+                    else:
+                        error_msg = str(e)
+                        
+            CustomMessageDialog.show_error(self, "Errore Importazione", f"Impossibile importare:\n{error_msg}")
 
     def _validate_config(self, gs, email):
         try:

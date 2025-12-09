@@ -48,6 +48,16 @@ def setup_styles(app: QApplication):
                 background-color: #F0F8FF;
                 color: #1F2937;
             }
+            
+            /* Tooltip Styles - Fix black window */
+            QToolTip {
+                background-color: #FFFFFF;
+                color: #1F2937;
+                border: 1px solid #E5E7EB;
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-size: 13px;
+            }
 
             /* Card Styles */
             .card, QFrame#card {
