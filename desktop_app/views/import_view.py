@@ -1,4 +1,3 @@
-
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QTextEdit, QFileDialog, QLabel, QFrame, QSizePolicy, QHBoxLayout, QProgressBar
 from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt, QVariantAnimation, QSize
 from PyQt6.QtGui import QIcon, QColor
@@ -13,12 +12,13 @@ from ..components.animated_widgets import LoadingOverlay
 from ..components.visuals import HolographicScanner
 from ..workers.file_scanner_worker import FileScannerWorker
 from desktop_app.constants import DATE_FORMAT_FILE, DIR_ANALYSIS_ERRORS
+from desktop_app.services.worker_manager import WorkerManager
 
 import time
 from collections import deque
 
-class PdfWorker(QObject):
-    finished = pyqtSignal(int, int) # archived_count, verify_count
+class PdfWorker(QThread):
+    finished_processing = pyqtSignal(int, int) # archived_count, verify_count
     progress = pyqtSignal(int)
     log_message = pyqtSignal(str, str)  # Message, Color
     status_update = pyqtSignal(str)
@@ -70,7 +70,7 @@ class PdfWorker(QObject):
                     etr_str = f"Circa {int(etr_seconds)} secondi rimanenti"
                 self.etr_update.emit(etr_str)
 
-        self.finished.emit(self.archived_count, self.verify_count)
+        self.finished_processing.emit(self.archived_count, self.verify_count)
 
     def _process_single_cert(self, original_filename, data, source_path):
         # S3776: Helper function to reduce Cognitive Complexity
@@ -266,9 +266,11 @@ class PdfWorker(QObject):
         return certs_to_process
 
     def _upload_pdf(self, file_path, original_filename):
-        with open(file_path, 'rb') as f:
-            files = {'file': (original_filename, f, 'application/pdf')}
-            return requests.post(f"{self.api_client.base_url}/upload-pdf/", files=files, headers=self.api_client._get_headers(), timeout=300)
+        try:
+            return self.api_client.upload_pdf(file_path, original_filename)
+        except Exception:
+            # Fallback if API client logic fails, but re-raise to catch
+            raise
 
     def _process_successful_upload(self, response, file_path, original_filename):
         data = response.json()
@@ -424,6 +426,9 @@ class ImportView(QWidget):
         self.layout.setContentsMargins(20, 20, 20, 20)
         self.layout.setSpacing(20)
 
+        self.worker = None # PdfWorker
+        self.scanner_thread = None # FileScannerWorker
+
         description = QLabel("Carica, analizza ed estrai automaticamente le informazioni dai tuoi documenti. (Max 20MB per file)")
         description.setStyleSheet("font-size: 16px; color: #6B7280;")
         self.layout.addWidget(description)
@@ -517,6 +522,9 @@ class ImportView(QWidget):
         self.drop_zone.setEnabled(False)
 
         self.scanner_thread = FileScannerWorker(urls)
+        # Register with WorkerManager
+        WorkerManager.instance().register_worker(self.scanner_thread)
+
         self.scanner_thread.finished.connect(self.on_scan_finished)
         self.scanner_thread.finished.connect(self.scanner_thread.deleteLater)
         self.scanner_thread.start()
@@ -548,6 +556,9 @@ class ImportView(QWidget):
              self.results_display.append(f"Errore critico: Percorso database non valido: {output_folder}")
              return
 
+        # Stop previous if any
+        self.stop_processing()
+
         # Configure and show progress bar
         self.progress_bar.setMaximum(len(file_paths))
         self.progress_bar.setValue(0)
@@ -558,28 +569,28 @@ class ImportView(QWidget):
         self.progress_frame.setVisible(True)
         self.scanner.setVisible(True) # Show Hologram
 
-        self.thread = QThread()
+        # PdfWorker is a QThread now
         self.worker = PdfWorker(file_paths, self.api_client, output_folder)
-        self.worker.moveToThread(self.thread)
+        WorkerManager.instance().register_worker(self.worker)
 
-        self.thread.started.connect(self.worker.run)
-        self.worker.finished.connect(self.on_processing_finished)
-        self.worker.finished.connect(self.thread.quit)
+        self.worker.started.connect(self.worker.run) # Wait, PdfWorker inherits QThread, run is called by start()
+        self.worker.finished_processing.connect(self.on_processing_finished)
         self.worker.finished.connect(self.worker.deleteLater)
-        self.thread.finished.connect(self.thread.deleteLater)
         self.worker.log_message.connect(self.append_log_message)
 
         self.worker.progress.connect(self.progress_bar.setValue)
         self.worker.status_update.connect(self.status_label.setText)
         self.worker.etr_update.connect(self.etr_label.setText)
 
-        self.thread.start()
+        self.worker.start()
 
     def stop_processing(self):
-        if hasattr(self, 'thread') and self.thread.isRunning():
+        if self.worker and self.worker.isRunning():
             self.worker.stop()
             self.stop_button.setText("Fermando...")
             self.stop_button.setEnabled(False)
+            self.worker.quit()
+            self.worker.wait()
 
     def append_log_message(self, message, color):
         color_map = {
@@ -604,16 +615,10 @@ class ImportView(QWidget):
         """
         Gracefully stops the worker thread if running.
         """
-        if hasattr(self, 'thread') and self.thread.isRunning():
-            print("[ImportView] Stopping worker thread...")
-            self.status_label.setText("Arresto in corso...")
-            self.worker.stop()
-            self.thread.quit()
-            # Wait for thread to finish (with timeout to prevent hanging)
-            if not self.thread.wait(3000):  # 3 seconds timeout
-                print("[ImportView] Thread did not finish in time. Terminating...")
-                self.thread.terminate()
-            print("[ImportView] Thread stopped.")
+        self.stop_processing()
+        if self.scanner_thread and self.scanner_thread.isRunning():
+            self.scanner_thread.quit()
+            self.scanner_thread.wait()
 
     def closeEvent(self, event):
         self.cleanup()

@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter, QBrush
 from desktop_app.api_client import APIClient
+from desktop_app.services.worker_manager import WorkerManager
 
 class KPIWidget(QFrame):
     def __init__(self, title, value, color="#1E3A8A", parent=None):
@@ -158,6 +159,8 @@ class StatsView(QWidget):
             return
 
         self.worker = StatsWorker(self.api_client)
+        WorkerManager.instance().register_worker(self.worker)
+
         self.worker.data_ready.connect(self.on_data_loaded)
         self.worker.error_occurred.connect(self.on_error)
         self.worker.finished.connect(self.worker.deleteLater)
@@ -199,3 +202,8 @@ class StatsView(QWidget):
         super().showEvent(event)
         # Still use QTimer 0 to defer, but now it starts a thread
         QTimer.singleShot(0, self.refresh_data)
+
+    def cleanup(self):
+        if self.worker and self.worker.isRunning():
+            self.worker.quit()
+            self.worker.wait()

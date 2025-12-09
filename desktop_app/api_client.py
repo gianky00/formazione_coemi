@@ -301,3 +301,10 @@ class APIClient:
         response = requests.post(url, json=payload, headers=self._get_headers(), timeout=60) # Encryption might take time
         response.raise_for_status()
         return response.json()
+
+    def upload_pdf(self, file_path, original_filename):
+        """Uploads a PDF file for processing."""
+        with open(file_path, 'rb') as f:
+            files = {'file': (original_filename, f, 'application/pdf')}
+            # S113: Increased timeout to 300s for large files
+            return requests.post(f"{self.base_url}/upload-pdf/", files=files, headers=self._get_headers(), timeout=300)

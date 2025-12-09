@@ -14,6 +14,7 @@ from app.utils.security import obfuscate_string, reveal_string
 from desktop_app.components.custom_dialog import CustomMessageDialog
 from desktop_app.components.toast import ToastManager
 from desktop_app.constants import LABEL_OPTIMIZE_DB
+from desktop_app.services.worker_manager import WorkerManager
 
 class ConfigLoaderWorker(QThread):
     config_ready = pyqtSignal(dict)
@@ -915,8 +916,11 @@ class ConfigView(QWidget):
         if self.loader_worker and self.loader_worker.isRunning():
             return
 
+        from desktop_app.services.worker_manager import WorkerManager
         is_admin = self.api_client.user_info.get("is_admin", False)
         self.loader_worker = ConfigLoaderWorker(self.api_client, is_admin)
+        WorkerManager.instance().register_worker(self.loader_worker)
+
         self.loader_worker.config_ready.connect(self.apply_config_data)
         self.loader_worker.users_ready.connect(self.apply_users_data)
         self.loader_worker.categories_ready.connect(self.apply_categories_data)
@@ -1035,6 +1039,7 @@ class ConfigView(QWidget):
             # S5754: Swallowed for UI stability, logged to stdout
             print(f"Error loading config into UI: {e}")
 
+    # ... (Keep remaining methods: apply_email_preset, import_csv, _validate_config, _build_config_payload, save_config, _perform_save_operation) ...
     def apply_email_preset(self):
         preset = self.email_settings.email_preset_combo.currentText()
         es_widget = self.email_settings
@@ -1149,3 +1154,8 @@ class ConfigView(QWidget):
             self.load_config()
         except Exception as e:
             CustomMessageDialog.show_error(self, "Errore", f"Impossibile salvare la configurazione: {e}")
+
+    def cleanup(self):
+        if self.loader_worker and self.loader_worker.isRunning():
+            self.loader_worker.quit()
+            self.loader_worker.wait()
