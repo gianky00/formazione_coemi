@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
                              QGridLayout, QScrollArea, QProgressBar)
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter, QBrush
 from desktop_app.api_client import APIClient
 
@@ -82,6 +82,25 @@ class ComplianceBar(QWidget):
         lbl_detail.setStyleSheet("color: #9CA3AF; font-size: 12px;")
         layout.addWidget(lbl_detail)
 
+class StatsWorker(QThread):
+    data_ready = pyqtSignal(dict, list)
+    error_occurred = pyqtSignal(str)
+
+    def __init__(self, api_client):
+        super().__init__()
+        self.api_client = api_client
+
+    def run(self):
+        try:
+            print("[StatsWorker] Fetching summary...")
+            summary = self.api_client.get("stats/summary")
+            print("[StatsWorker] Fetching compliance...")
+            compliance_data = self.api_client.get("stats/compliance")
+            self.data_ready.emit(summary or {}, compliance_data or [])
+        except Exception as e:
+            print(f"[StatsWorker] Error: {e}")
+            self.error_occurred.emit(str(e))
+
 class StatsView(QWidget):
     def __init__(self, api_client: APIClient, parent=None):
         super().__init__(parent)
@@ -130,19 +149,28 @@ class StatsView(QWidget):
         scroll.setWidget(self.compliance_container)
         self.layout.addWidget(scroll)
 
-        # Auto-refresh logic (optional, on show is better)
+        # Worker
+        self.worker = None
 
     def refresh_data(self):
-        try:
-            summary = self.api_client.get("stats/summary")
-            if summary:
-                self.kpi_total.update_value(summary.get("total_dipendenti", 0))
-                self.kpi_certs.update_value(summary.get("total_certificati", 0))
-                scad = summary.get("scaduti", 0) + summary.get("in_scadenza", 0)
-                self.kpi_expired.update_value(scad)
-                self.kpi_compliance.update_value(f"{summary.get('compliance_percent', 0)}%")
+        print("[StatsView] Refreshing data via Worker...")
+        if self.worker and self.worker.isRunning():
+            return
 
-            compliance_data = self.api_client.get("stats/compliance")
+        self.worker = StatsWorker(self.api_client)
+        self.worker.data_ready.connect(self.on_data_loaded)
+        self.worker.error_occurred.connect(self.on_error)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.worker.start()
+
+    def on_data_loaded(self, summary, compliance_data):
+        print("[StatsView] Data loaded. Updating UI...")
+        try:
+            self.kpi_total.update_value(summary.get("total_dipendenti", 0))
+            self.kpi_certs.update_value(summary.get("total_certificati", 0))
+            scad = summary.get("scaduti", 0) + summary.get("in_scadenza", 0)
+            self.kpi_expired.update_value(scad)
+            self.kpi_compliance.update_value(f"{summary.get('compliance_percent', 0)}%")
 
             # Clear layout
             for i in reversed(range(self.compliance_layout.count())):
@@ -161,10 +189,13 @@ class StatsView(QWidget):
                     if col > 1:
                         col = 0
                         row += 1
-
         except Exception as e:
-            print(f"Error fetching stats: {e}")
+            print(f"[StatsView] UI Update Error: {e}")
+
+    def on_error(self, error):
+        print(f"[StatsView] Worker Error: {error}")
 
     def showEvent(self, event):
         super().showEvent(event)
+        # Still use QTimer 0 to defer, but now it starts a thread
         QTimer.singleShot(0, self.refresh_data)

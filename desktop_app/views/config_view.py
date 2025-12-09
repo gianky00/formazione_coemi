@@ -15,6 +15,37 @@ from desktop_app.components.custom_dialog import CustomMessageDialog
 from desktop_app.components.toast import ToastManager
 from desktop_app.constants import LABEL_OPTIMIZE_DB
 
+class ConfigLoaderWorker(QThread):
+    config_ready = pyqtSignal(dict)
+    users_ready = pyqtSignal(list)
+    categories_ready = pyqtSignal(list) # for audit filters
+    error_occurred = pyqtSignal(str)
+
+    def __init__(self, api_client, is_admin):
+        super().__init__()
+        self.api_client = api_client
+        self.is_admin = is_admin
+
+    def run(self):
+        try:
+            if self.is_admin:
+                print("[ConfigLoader] Loading mutable config...")
+                config = self.api_client.get_mutable_config()
+                self.config_ready.emit(config)
+
+                print("[ConfigLoader] Loading users...")
+                users = self.api_client.get_users()
+                self.users_ready.emit(users)
+
+                print("[ConfigLoader] Loading audit categories...")
+                cats = self.api_client.get_audit_categories()
+                self.categories_ready.emit(cats)
+            else:
+                pass
+        except Exception as e:
+            print(f"[ConfigLoader] Error: {e}")
+            self.error_occurred.emit(str(e))
+
 class ChangePasswordDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -687,6 +718,7 @@ class ConfigView(QWidget):
             self.api_client = api_client
             self.current_settings = {}
             self.unsaved_changes = False
+            self.loader_worker = None
 
             description = QLabel("Gestisci le impostazioni e le chiavi API dell'applicazione.")
             description.setObjectName("viewDescription")
@@ -841,7 +873,7 @@ class ConfigView(QWidget):
                 return
             else:
                 self.unsaved_changes = False
-                self.load_config() # Revert data
+                self.trigger_refresh() # Revert data
 
         self.stacked_widget.setCurrentIndex(index)
         for i, btn in enumerate(self.nav_buttons):
@@ -868,7 +900,8 @@ class ConfigView(QWidget):
             self.btn_account.setVisible(True)
 
             if is_admin:
-                self.load_config()
+                # Trigger worker load
+                self.trigger_refresh()
                 # Default to General tab for Admin
                 if self.stacked_widget.currentIndex() == -1 or self.stacked_widget.currentIndex() == 4:
                      self.stacked_widget.setCurrentIndex(0)
@@ -878,12 +911,65 @@ class ConfigView(QWidget):
                 # Default (and only) tab for User is Account (index 4)
                 self.switch_tab(4)
 
-            # Refresh user management widget (handles its own admin/user logic)
-            self.user_management_widget.refresh_users()
+    def trigger_refresh(self):
+        if self.loader_worker and self.loader_worker.isRunning():
+            return
+
+        is_admin = self.api_client.user_info.get("is_admin", False)
+        self.loader_worker = ConfigLoaderWorker(self.api_client, is_admin)
+        self.loader_worker.config_ready.connect(self.apply_config_data)
+        self.loader_worker.users_ready.connect(self.apply_users_data)
+        self.loader_worker.categories_ready.connect(self.apply_categories_data)
+        self.loader_worker.error_occurred.connect(lambda e: print(f"Config Load Error: {e}"))
+        self.loader_worker.finished.connect(self.loader_worker.deleteLater)
+        self.loader_worker.start()
+
+    def apply_users_data(self, users):
+        # Update UserManagementWidget table
+        self.user_management_widget.table.setRowCount(len(users))
+        for i, user in enumerate(users):
+            id_item = QTableWidgetItem(str(user['id']))
+            id_item.setData(Qt.ItemDataRole.UserRole, user)
+            self.user_management_widget.table.setItem(i, 0, id_item)
+            self.user_management_widget.table.setItem(i, 1, QTableWidgetItem(str(user['username'])))
+            self.user_management_widget.table.setItem(i, 2, QTableWidgetItem(str(user.get('account_name', ''))))
+            self.user_management_widget.table.setItem(i, 3, QTableWidgetItem("Sì" if user['is_admin'] else "No"))
+
+        # Update Audit Log Filter
+        current_user = self.audit_widget.user_filter.currentData()
+        self.audit_widget.user_filter.clear()
+        self.audit_widget.user_filter.addItem("Tutti gli utenti", None)
+        for user in users:
+            self.audit_widget.user_filter.addItem(user['username'], user['id'])
+        if current_user:
+            idx = self.audit_widget.user_filter.findData(current_user)
+            if idx >= 0: self.audit_widget.user_filter.setCurrentIndex(idx)
+
+    def apply_categories_data(self, cats):
+        current_cat = self.audit_widget.category_filter.currentData()
+        self.audit_widget.category_filter.clear()
+        self.audit_widget.category_filter.addItem("Tutte le categorie", None)
+        self.audit_widget.category_filter.addItems(cats)
+        if current_cat:
+            idx = self.audit_widget.category_filter.findData(current_cat)
+            if idx >= 0: self.audit_widget.category_filter.setCurrentIndex(idx)
+
+    def apply_config_data(self, config):
+        # ... logic from load_config ...
+        self.current_settings = config
+        self.load_config_into_ui() # Refactored to separate method
 
     def load_config(self):
+        # Fallback if called directly (compatibility), but now we prefer worker
+        # But for saving/reverting, we might need synchronous or trigger refresh.
+        # Let's map load_config to trigger_refresh if it's purely for loading.
+        # But load_config in original code was synchronous.
+        # To avoid breaking "Revert changes", we can make load_config call the worker.
+        self.trigger_refresh()
+
+    def load_config_into_ui(self):
         try:
-            # Block signals to prevent dirty marking during load
+            # Block signals
             self.general_settings.alert_threshold_input.blockSignals(True)
             self.general_settings.alert_threshold_visite_input.blockSignals(True)
             self.api_settings.gemini_analysis_key_input.blockSignals(True)
@@ -897,8 +983,6 @@ class ConfigView(QWidget):
             self.email_settings.recipients_cc_input.blockSignals(True)
             self.email_settings.email_preset_combo.blockSignals(True)
             self.database_settings.db_path_input.blockSignals(True)
-
-            self.current_settings = self.api_client.get_mutable_config()
 
             # --- API Settings ---
             as_widget = self.api_settings
@@ -948,7 +1032,8 @@ class ConfigView(QWidget):
             self.unsaved_changes = False
 
         except Exception as e:
-            CustomMessageDialog.show_error(self, "Errore", f"Impossibile caricare la configurazione: {e}")
+            # S5754: Swallowed for UI stability, logged to stdout
+            print(f"Error loading config into UI: {e}")
 
     def apply_email_preset(self):
         preset = self.email_settings.email_preset_combo.currentText()

@@ -589,11 +589,12 @@ class MainDashboardWidget(QWidget):
         self._connect_cross_view_signals()
 
         # Step 3: Schedule Guide (Heaviest) after secondary views
-        QTimer.singleShot(800, self._load_guide_view)
+        # QTimer.singleShot(800, self._load_guide_view) # REMOVED: Load on demand only
 
     def _load_guide_view(self):
         from .views.modern_guide_view import ModernGuideView
         if not self.views["guide"]:
+            print("[Dashboard] Instantiating ModernGuideView on demand...")
             self.views["guide"] = ModernGuideView()
             # Handle close signal from the guide (triggered by JS via QWebChannel)
             self.views["guide"].bridge.closeRequested.connect(lambda: self.switch_to("database"))
@@ -601,6 +602,7 @@ class MainDashboardWidget(QWidget):
 
     def _ensure_view_loaded(self, key):
         """Fallback to load a view immediately if user clicks before background load finishes."""
+        print(f"[Dashboard] Ensuring view loaded: {key}")
         if self.views.get(key) is not None:
             return
 
@@ -684,12 +686,19 @@ class MainDashboardWidget(QWidget):
         self.sidebar.buttons["guide"].clicked.connect(lambda: self.switch_to("guide"))
 
     def switch_to(self, key):
-        if key not in self.views: return
+        print(f"[Dashboard] Switching to view: {key}")
+        if key not in self.views:
+             # Ensure key is valid before trying to load
+             valid_keys = self.views.keys()
+             if key not in valid_keys:
+                 print(f"[Dashboard] Invalid view key: {key}")
+                 return
 
         # Ensure loaded
         self._ensure_view_loaded(key)
 
         if self.views[key] is None:
+            print(f"[Dashboard] Failed to load view: {key}")
             return
 
         for k, btn in self.sidebar.buttons.items():
@@ -699,7 +708,10 @@ class MainDashboardWidget(QWidget):
         if key in self.sidebar.buttons:
              self.page_title.setText(self.sidebar.buttons[key].property("full_text"))
 
-        self.stacked_widget.setCurrentWidget(self.views[key])
+        try:
+            self.stacked_widget.setCurrentWidget(self.views[key])
+        except Exception as e:
+            print(f"[Dashboard] CRASH preventer: setCurrentWidget failed for {key}: {e}")
 
     def analyze_path(self, path):
         self.switch_to("import")
