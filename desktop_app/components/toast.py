@@ -30,10 +30,10 @@ class ToastNotification(QWidget):
         text_color = "#1F2937"
         msg_color = "#6B7280"
 
-        # Improved toast styling - more opaque and larger
+        # Toast styling - fully opaque background, highly visible
         self.setStyleSheet(f"""
             QWidget {{
-                background-color: rgba(255, 255, 255, 0.98);
+                background-color: #FFFFFF;
                 border: 2px solid {accent_color};
                 border-radius: 12px;
             }}
@@ -228,20 +228,23 @@ class ToastManager(QObject):
         target_geometry = self._get_target_geometry(parent)
 
         if target_geometry:
-            # Calculate Bottom Right of the target area
+            # Calculate TOP RIGHT of the target area (moved from bottom-right)
             x = target_geometry.x() + target_geometry.width() - toast.width() - 20
-            base_y = target_geometry.y() + target_geometry.height() - 20
+            # Start from top with some padding
+            base_y = target_geometry.y() + 70  # Offset from top to avoid header
 
-            # Calculate offset based on active toasts
+            # Calculate offset based on active toasts (stack downward)
             offset_y = 0
             for t in self.active_toasts:
                 if t.isVisible():
                     offset_y += t.height() + 10
 
-            y = base_y - toast.height() - offset_y
+            y = base_y + offset_y
 
-            if y < target_geometry.y():
-                 y = target_geometry.y() + 20
+            # Ensure toast doesn't go below screen
+            max_y = target_geometry.y() + target_geometry.height() - toast.height() - 20
+            if y > max_y:
+                y = max_y
 
             toast.move(x, y)
             toast.setProperty("target_geometry", target_geometry)
@@ -264,8 +267,9 @@ class ToastManager(QObject):
             target_geometry = toast.property("target_geometry")
             if not target_geometry: continue
 
-            base_y = target_geometry.y() + target_geometry.height() - 20
-            new_y = base_y - toast.height() - cumulative_offset
+            # Top-right positioning
+            base_y = target_geometry.y() + 70
+            new_y = base_y + cumulative_offset
 
             # Animate move
             if toast.y() != new_y:

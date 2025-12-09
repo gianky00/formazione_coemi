@@ -3,6 +3,10 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
 from PyQt6.QtCore import Qt, QTimer, QPoint, QThread, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter, QBrush, QLinearGradient, QCursor
 from desktop_app.api_client import APIClient
+import logging
+import sentry_sdk
+
+logger = logging.getLogger(__name__)
 
 
 class KPIWidget(QFrame):
@@ -111,7 +115,6 @@ class MultiColorBar(QWidget):
         # Expired segment (red)
         if self.expired_pct > 0:
             expired_seg = QFrame()
-            # Round right corners if it's the last segment
             if self.active_pct == 0 and self.expiring_pct == 0:
                 expired_seg.setStyleSheet("""
                     QFrame {
@@ -146,21 +149,34 @@ class MultiColorBar(QWidget):
 
 
 class StatsWorker(QThread):
-    """Worker thread to fetch stats data."""
+    """Worker thread to fetch stats data with proper lifecycle management."""
     result = pyqtSignal(dict, list)
     error = pyqtSignal(str)
     
-    def __init__(self, api_client):
-        super().__init__()
+    def __init__(self, api_client, parent=None):
+        super().__init__(parent)
         self.api_client = api_client
+        self._is_stopping = False
+    
+    def request_stop(self):
+        self._is_stopping = True
     
     def run(self):
         try:
+            if self._is_stopping:
+                return
             summary = self.api_client.get("stats/summary") or {}
+            if self._is_stopping:
+                return
             compliance = self.api_client.get("stats/compliance") or []
-            self.result.emit(summary, compliance)
+            if not self._is_stopping:
+                self.result.emit(summary, compliance)
         except Exception as e:
-            self.error.emit(str(e))
+            logger.error(f"StatsWorker error: {e}")
+            if sentry_sdk.is_initialized():
+                sentry_sdk.capture_exception(e)
+            if not self._is_stopping:
+                self.error.emit(str(e))
 
 
 class StatsView(QWidget):
@@ -168,6 +184,7 @@ class StatsView(QWidget):
         super().__init__(parent)
         self.api_client = api_client
         self._worker = None
+        self._is_destroyed = False
         
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(20, 20, 20, 20)
@@ -216,68 +233,95 @@ class StatsView(QWidget):
         self.layout.addWidget(scroll)
 
     def refresh_data(self):
-        if not self.api_client:
+        if not self.api_client or self._is_destroyed:
             return
-            
-        # Stop any running worker
-        if self._worker and self._worker.isRunning():
-            self._worker.quit()
-            self._worker.wait(1000)
         
-        self._worker = StatsWorker(self.api_client)
+        # Safely stop any running worker
+        self._stop_current_worker()
+        
+        # Create and start new worker with self as parent for proper lifecycle
+        self._worker = StatsWorker(self.api_client, self)
         self._worker.result.connect(self._on_data_received)
         self._worker.error.connect(self._on_error)
-        self._worker.finished.connect(self._cleanup_worker)
+        self._worker.finished.connect(self._on_worker_finished)
         self._worker.start()
     
-    def _cleanup_worker(self):
-        """Cleanup worker reference to prevent QThread destruction issues."""
-        if self._worker:
-            self._worker.deleteLater()
-            self._worker = None
+    def _stop_current_worker(self):
+        """Safely stop the current worker if running."""
+        if self._worker is not None:
+            try:
+                if self._worker.isRunning():
+                    self._worker.request_stop()
+                    self._worker.quit()
+                    # Wait with timeout
+                    if not self._worker.wait(2000):
+                        logger.warning("StatsWorker did not finish in time")
+                        self._worker.terminate()
+                        self._worker.wait(500)
+            except RuntimeError:
+                pass  # Thread already deleted
+            finally:
+                self._worker = None
+    
+    def _on_worker_finished(self):
+        """Cleanup worker reference after completion."""
+        # Don't delete worker here, let Qt handle it via parent relationship
+        pass
     
     def _on_error(self, error_msg):
-        pass  # Silently handle errors
+        logger.warning(f"Stats refresh error: {error_msg}")
     
     def _on_data_received(self, summary, compliance_data):
-        if summary:
-            self.kpi_total.update_value(summary.get("total_dipendenti", 0))
-            self.kpi_certs.update_value(summary.get("total_certificati", 0))
-            self.kpi_expired.update_value(summary.get("scaduti", 0))
-            self.kpi_expiring.update_value(summary.get("in_scadenza", 0))
-            self.kpi_compliance.update_value(f"{summary.get('compliance_percent', 0)}%")
+        if self._is_destroyed:
+            return
+            
+        try:
+            if summary:
+                self.kpi_total.update_value(summary.get("total_dipendenti", 0))
+                self.kpi_certs.update_value(summary.get("total_certificati", 0))
+                self.kpi_expired.update_value(summary.get("scaduti", 0))
+                self.kpi_expiring.update_value(summary.get("in_scadenza", 0))
+                self.kpi_compliance.update_value(f"{summary.get('compliance_percent', 0)}%")
 
-        # Clear layout
-        for i in reversed(range(self.compliance_layout.count())):
-            item = self.compliance_layout.itemAt(i)
-            if item.widget():
-                item.widget().setParent(None)
+            # Clear layout
+            for i in reversed(range(self.compliance_layout.count())):
+                item = self.compliance_layout.itemAt(i)
+                if item and item.widget():
+                    item.widget().setParent(None)
 
-        if compliance_data:
-            row = 0
-            col = 0
-            for item in compliance_data:
-                widget = MultiColorBar(
-                    item['category'],
-                    item.get('active', 0),
-                    item.get('expiring', 0),
-                    item.get('expired', 0),
-                    item['total']
-                )
-                self.compliance_layout.addWidget(widget, row, col)
-                col += 1
-                if col > 1:
-                    col = 0
-                    row += 1
+            if compliance_data:
+                row = 0
+                col = 0
+                for item in compliance_data:
+                    widget = MultiColorBar(
+                        item['category'],
+                        item.get('active', 0),
+                        item.get('expiring', 0),
+                        item.get('expired', 0),
+                        item['total']
+                    )
+                    self.compliance_layout.addWidget(widget, row, col)
+                    col += 1
+                    if col > 1:
+                        col = 0
+                        row += 1
+        except Exception as e:
+            logger.error(f"Error updating stats UI: {e}")
 
     def showEvent(self, event):
         super().showEvent(event)
         self.refresh_data()
     
+    def hideEvent(self, event):
+        """Stop worker when view is hidden."""
+        super().hideEvent(event)
+        self._stop_current_worker()
+    
     def cleanup(self):
         """Cleanup method called when view is destroyed."""
-        if self._worker and self._worker.isRunning():
-            self._worker.quit()
-            self._worker.wait(2000)
-            if self._worker.isRunning():
-                self._worker.terminate()
+        self._is_destroyed = True
+        self._stop_current_worker()
+    
+    def closeEvent(self, event):
+        self.cleanup()
+        super().closeEvent(event)

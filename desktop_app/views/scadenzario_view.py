@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGraphicsView, QGraph
                              QSplitter, QTreeWidget, QTreeWidgetItem, QGraphicsRectItem,
                              QGraphicsTextItem, QGraphicsLineItem, QPushButton, QHBoxLayout,
                              QScrollBar, QTreeWidgetItemIterator, QFileDialog, QComboBox,
-                             QProgressBar)
+                             QProgressBar, QFrame)
 from PyQt6.QtCore import Qt, QDate, QRectF, QVariantAnimation, QEasingCurve, pyqtSignal, QThreadPool, QLocale
 from PyQt6.QtGui import QColor, QBrush, QPen, QFont, QLinearGradient, QPainterPath, QPainter, QPageLayout, QPageSize, QImage
 from PyQt6.QtPrintSupport import QPrinter
@@ -35,57 +35,111 @@ class ScadenzarioView(QWidget):
         description.setStyleSheet("font-size: 14px; color: #6B7280;")
         self.layout.addWidget(description)
 
-        # Toolbar - wrapped in a widget with minimum height
-        toolbar_widget = QWidget()
-        toolbar_widget.setMinimumHeight(50)
-        toolbar_layout = QHBoxLayout(toolbar_widget)
-        toolbar_layout.setContentsMargins(0, 5, 0, 5)
+        # Toolbar - wrapped in a styled frame for visibility
+        toolbar_frame = QFrame()
+        toolbar_frame.setObjectName("scadenzario_toolbar")
+        toolbar_frame.setStyleSheet("""
+            QFrame#scadenzario_toolbar {
+                background-color: #FFFFFF;
+                border: 1px solid #E5E7EB;
+                border-radius: 8px;
+                padding: 5px;
+            }
+            QPushButton {
+                background-color: #3B82F6;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-weight: 600;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2563EB;
+            }
+            QPushButton:pressed {
+                background-color: #1D4ED8;
+            }
+            QPushButton#nav_btn {
+                background-color: #1E3A8A;
+                min-width: 40px;
+                font-size: 16px;
+            }
+            QPushButton#nav_btn:hover {
+                background-color: #1E40AF;
+            }
+            QPushButton#secondary_btn {
+                background-color: #F3F4F6;
+                color: #374151;
+                border: 1px solid #D1D5DB;
+            }
+            QPushButton#secondary_btn:hover {
+                background-color: #E5E7EB;
+            }
+            QComboBox {
+                padding: 8px 12px;
+                border: 1px solid #D1D5DB;
+                border-radius: 6px;
+                background-color: white;
+                font-size: 14px;
+            }
+        """)
+        toolbar_frame.setMinimumHeight(55)
+        
+        toolbar_layout = QHBoxLayout(toolbar_frame)
+        toolbar_layout.setContentsMargins(10, 5, 10, 5)
         toolbar_layout.setSpacing(10)
 
-        self.prev_month_button = AnimatedButton("<")
-        self.prev_month_button.setFixedSize(35, 35)
+        self.prev_month_button = QPushButton("◀ Prec")
+        self.prev_month_button.setObjectName("nav_btn")
+        self.prev_month_button.setFixedHeight(36)
         self.prev_month_button.clicked.connect(self.prev_month)
         toolbar_layout.addWidget(self.prev_month_button)
 
-        self.next_month_button = AnimatedButton(">")
-        self.next_month_button.setFixedSize(35, 35)
+        self.next_month_button = QPushButton("Succ ▶")
+        self.next_month_button.setObjectName("nav_btn")
+        self.next_month_button.setFixedHeight(36)
         self.next_month_button.clicked.connect(self.next_month)
         toolbar_layout.addWidget(self.next_month_button)
 
         toolbar_layout.addSpacing(15)
         zoom_label = QLabel("Zoom:")
-        zoom_label.setStyleSheet("font-weight: 500;")
+        zoom_label.setStyleSheet("font-weight: 600; font-size: 14px;")
         toolbar_layout.addWidget(zoom_label)
 
         self.zoom_combo = QComboBox()
         self.zoom_combo.addItems(["3 Mesi", "6 Mesi", "1 Anno"])
         self.zoom_combo.setCurrentIndex(0)
-        self.zoom_combo.setMinimumWidth(100)
+        self.zoom_combo.setMinimumWidth(110)
+        self.zoom_combo.setFixedHeight(36)
         self.zoom_combo.currentIndexChanged.connect(self.update_zoom_from_combo)
         toolbar_layout.addWidget(self.zoom_combo)
 
         toolbar_layout.addStretch()
 
-        self.generate_email_button = AnimatedButton("📧 Genera Email")
-        self.generate_email_button.setMinimumWidth(140)
-        self.generate_email_button.setFixedHeight(35)
+        self.generate_email_button = QPushButton("📧 Genera Email")
+        self.generate_email_button.setMinimumWidth(150)
+        self.generate_email_button.setFixedHeight(36)
         self.generate_email_button.clicked.connect(self.generate_email)
         toolbar_layout.addWidget(self.generate_email_button)
 
-        self.export_pdf_button = AnimatedButton("📄 Esporta PDF")
-        self.export_pdf_button.setMinimumWidth(130)
-        self.export_pdf_button.setFixedHeight(35)
-        self.export_pdf_button.set_colors("#FFFFFF", "#F9FAFB", "#F3F4F6", text="#1F2937")
+        self.export_pdf_button = QPushButton("📄 Esporta PDF")
+        self.export_pdf_button.setObjectName("secondary_btn")
+        self.export_pdf_button.setMinimumWidth(140)
+        self.export_pdf_button.setFixedHeight(36)
         self.export_pdf_button.clicked.connect(self.export_to_pdf)
         toolbar_layout.addWidget(self.export_pdf_button)
 
-        self.layout.addWidget(toolbar_widget)
+        self.layout.addWidget(toolbar_frame)
         
-        # Legend row
-        self.legend_layout = QHBoxLayout()
-        self.legend_layout.setSpacing(10)
+        # Legend row with visible colored boxes
+        legend_frame = QFrame()
+        legend_frame.setStyleSheet("QFrame { background-color: transparent; }")
+        self.legend_layout = QHBoxLayout(legend_frame)
+        self.legend_layout.setContentsMargins(0, 5, 0, 5)
+        self.legend_layout.setSpacing(15)
         self.legend_layout.addStretch()
-        self.layout.addLayout(self.legend_layout)
+        self.layout.addWidget(legend_frame)
 
         # Loading Bar (for data fetch)
         self.loading_bar = QProgressBar()
@@ -508,3 +562,11 @@ class ScadenzarioView(QWidget):
         # S1481: Unused exctype and tb
         _, value, _ = error_tuple
         CustomMessageDialog.show_error(self, title, f"{value}")
+    
+    def cleanup(self):
+        """Cleanup method to stop all running threads before destruction."""
+        # Wait for any pending thread pool tasks
+        try:
+            self.threadpool.waitForDone(2000)
+        except Exception:
+            pass

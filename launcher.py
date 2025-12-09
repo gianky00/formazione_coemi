@@ -87,7 +87,7 @@ import sentry_sdk
 from app import __version__
 
 def init_sentry():
-    """Initializes Sentry SDK for error tracking."""
+    """Initializes Sentry SDK for error tracking with thread hooks."""
     # Environment detection
     environment = "production" if getattr(sys, 'frozen', False) else "development"
 
@@ -99,8 +99,25 @@ def init_sentry():
         environment=environment,
         release=__version__,
         traces_sample_rate=1.0,
-        send_default_pii=True
+        send_default_pii=True,
+        # Enable threading integration for QThread
+        integrations=[],
+        default_integrations=True,
+        # Capture thread crashes
+        attach_stacktrace=True,
     )
+    
+    # Install threading exception hook for all threads
+    import threading
+    
+    def thread_excepthook(args):
+        """Global hook for thread exceptions."""
+        logging.critical(f"Thread exception in {args.thread.name}: {args.exc_type.__name__}: {args.exc_value}")
+        sentry_sdk.capture_exception(args.exc_value)
+    
+    # Python 3.8+
+    if hasattr(threading, 'excepthook'):
+        threading.excepthook = thread_excepthook
 
 def sentry_exception_hook(exctype, value, traceback):
     """
