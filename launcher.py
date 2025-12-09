@@ -13,6 +13,9 @@ import logging
 import logging.handlers
 import importlib
 
+# --- BUG FIX: Increase recursion limit to prevent crashes on bulk operations ---
+sys.setrecursionlimit(5000)
+
 # Constants
 DATABASE_FILENAME = "database_documenti.db"
 LICENSE_FILE_KEY = "pyarmor.rkey"
@@ -595,7 +598,7 @@ class StartupWorker(QThread):
             self.progress_update.emit("Connessione...", 60)
             t0 = time.time()
             ready = False
-            timeout = 15  # Reduced timeout
+            timeout = 60  # Increased timeout for stability
             
             while time.time() - t0 < timeout:
                 if check_port("127.0.0.1", self.server_port):

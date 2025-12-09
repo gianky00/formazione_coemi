@@ -787,14 +787,28 @@ async def import_dipendenti_csv(
 
     warnings = []
 
-    for row in reader:
-        _process_csv_row(row, db, warnings)
+    # Batch processing configuration
+    BATCH_SIZE = 50
+    rows_processed = 0
 
     try:
+        for row in reader:
+            _process_csv_row(row, db, warnings)
+            rows_processed += 1
+
+            # Commit every BATCH_SIZE rows to prevent memory overload
+            if rows_processed % BATCH_SIZE == 0:
+                db.commit()
+
+        # Final commit for remaining rows
         db.commit()
+
     except IntegrityError as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=f"Errore di integrità del database: {str(e)}")
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Errore durante l'importazione: {str(e)}")
 
     # Re-link orphaned certificates
     linked_count = _link_orphaned_certificates_after_import(db)
