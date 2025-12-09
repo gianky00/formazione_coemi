@@ -7,6 +7,10 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QSize, QDate, pyqtSignal
 from PyQt6.QtGui import QColor, QIcon, QStandardItemModel, QStandardItem
 from datetime import datetime
+try:
+    import sentry_sdk
+except ImportError:
+    sentry_sdk = None
 from desktop_app.api_client import APIClient
 from desktop_app.constants import STYLE_QFRAME_CARD
 
@@ -366,8 +370,6 @@ class AnagraficaView(QWidget):
 
     def refresh_data(self):
         """Loads the list of employees with robust error handling."""
-        import sentry_sdk
-        
         try:
             if not self.api_client:
                 return
@@ -386,7 +388,8 @@ class AnagraficaView(QWidget):
             self.all_employees = sorted(data, key=sort_key)
             self.filter_list("")
         except Exception as e:
-            sentry_sdk.capture_exception(e)
+            if sentry_sdk:
+                sentry_sdk.capture_exception(e)
             self.all_employees = []
             self.list_widget.clear()
             QMessageBox.critical(self, "Errore", f"Errore caricamento dipendenti: {e}")
@@ -424,8 +427,6 @@ class AnagraficaView(QWidget):
             self.load_employee_detail(emp_id)
 
     def load_employee_detail(self, emp_id):
-        import sentry_sdk
-        
         try:
             if not self.api_client:
                 return
@@ -439,7 +440,8 @@ class AnagraficaView(QWidget):
             self.populate_detail(data)
             self.right_stack.setCurrentWidget(self.page_detail)
         except Exception as e:
-            sentry_sdk.capture_exception(e)
+            if sentry_sdk:
+                sentry_sdk.capture_exception(e)
             QMessageBox.critical(self, "Errore", f"Impossibile caricare dettagli: {e}")
 
     def populate_detail(self, data):
@@ -477,8 +479,8 @@ class AnagraficaView(QWidget):
 
             self._populate_certs_table(data.get('certificati') or [])
         except Exception as e:
-            import sentry_sdk
-            sentry_sdk.capture_exception(e)
+            if sentry_sdk:
+                sentry_sdk.capture_exception(e)
             # Show partial data even on error
             self.lbl_name.setText("Errore caricamento")
             self.lbl_matricola.setText("-")
@@ -565,8 +567,6 @@ class AnagraficaView(QWidget):
              self.inp_assunzione.setDate(min_date)
 
     def save_employee(self):
-        import sentry_sdk
-        
         min_date = QDate(1900, 1, 1)
 
         nascita = self.inp_nascita.date()
@@ -612,7 +612,8 @@ class AnagraficaView(QWidget):
                     pass
 
         except Exception as e:
-            sentry_sdk.capture_exception(e)
+            if sentry_sdk:
+                sentry_sdk.capture_exception(e)
             # Handle API errors
             msg = str(e)
             if hasattr(e, 'response') and e.response is not None:
@@ -636,8 +637,6 @@ class AnagraficaView(QWidget):
             self.right_stack.setCurrentWidget(self.page_empty)
 
     def delete_current_employee(self):
-        import sentry_sdk
-        
         if not self.current_employee_id:
             return
         
@@ -660,5 +659,6 @@ class AnagraficaView(QWidget):
                 except RuntimeError:
                     pass
             except Exception as e:
-                sentry_sdk.capture_exception(e)
+                if sentry_sdk:
+                    sentry_sdk.capture_exception(e)
                 QMessageBox.critical(self, "Errore", f"Eliminazione fallita: {e}")

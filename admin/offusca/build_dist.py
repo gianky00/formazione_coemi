@@ -296,7 +296,8 @@ def _add_collect_all(cmd):
         "PyQt6.QtWebEngineWidgets", "PyQt6.QtWebEngineCore",
         "PyQt6.QtWebChannel", "PyQt6-WebEngine",
         "passlib", "bcrypt", "jose", "cryptography", "PyQt6",
-        "geoip2", "user_agents", "apscheduler"
+        "geoip2", "user_agents", "apscheduler",
+        "sentry_sdk"
     ]
     for pkg in packages:
         cmd.extend(["--collect-all", pkg])
@@ -330,7 +331,8 @@ def _add_hidden_imports(cmd, auto_detected_libs):
         "bcrypt",
         "jose", "jose.backends.cryptography_backend",
         "cryptography", "cryptography.hazmat.backends.openssl",
-        "pandas", "tenacity", "fpdf", "ua_parser"
+        "pandas", "tenacity", "fpdf", "ua_parser",
+        "sentry_sdk"
     ]
 
     all_hidden_imports = list(set(manual_hidden_imports + auto_detected_libs))
