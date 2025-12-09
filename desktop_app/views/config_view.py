@@ -981,7 +981,7 @@ class ConfigView(QWidget):
         """Import employees from CSV file with robust error handling using a background thread."""
         import sentry_sdk
         import os
-        from PyQt6.QtCore import QThread, pyqtSignal
+        from desktop_app.workers.csv_import_worker import CSVImportWorker
         
         # Bug 9 Fix: Filter allow uppercase CSV
         try:
@@ -1004,37 +1004,8 @@ class ConfigView(QWidget):
             CustomMessageDialog.show_error(self, "Errore", "Il file selezionato non esiste.")
             return
         
-        # Create worker class inline for CSV import
-        class CSVImportWorker(QThread):
-            finished_success = pyqtSignal(dict)
-            finished_error = pyqtSignal(str)
-            
-            def __init__(self, api_client, path):
-                super().__init__()
-                self.api_client = api_client
-                self.path = path
-            
-            def run(self):
-                try:
-                    response = self.api_client.import_dipendenti_csv(self.path)
-                    self.finished_success.emit(response if isinstance(response, dict) else {"message": str(response)})
-                except Exception as e:
-                    sentry_sdk.capture_exception(e)
-                    error_msg = str(e)
-                    if hasattr(e, 'response') and e.response is not None:
-                        try:
-                            response_json = e.response.json()
-                            if isinstance(response_json, dict):
-                                error_msg = str(response_json.get('detail', str(e)))
-                            else:
-                                error_msg = str(response_json)
-                        except Exception:
-                            if hasattr(e.response, 'text'):
-                                error_msg = e.response.text[:500] if len(e.response.text) > 500 else e.response.text
-                    self.finished_error.emit(error_msg)
-        
-        # Create and start worker
-        self._csv_worker = CSVImportWorker(self.api_client, file_path)
+        # Create and start worker with parent for proper lifecycle
+        self._csv_worker = CSVImportWorker(self.api_client, file_path, parent=self)
         
         def on_success(response):
             try:
@@ -1048,7 +1019,7 @@ class ConfigView(QWidget):
             except Exception as e:
                 sentry_sdk.capture_exception(e)
             finally:
-                self._csv_worker = None
+                self._cleanup_csv_worker()
         
         def on_error(error_msg):
             try:
@@ -1056,11 +1027,23 @@ class ConfigView(QWidget):
             except Exception as e:
                 sentry_sdk.capture_exception(e)
             finally:
-                self._csv_worker = None
+                self._cleanup_csv_worker()
         
         self._csv_worker.finished_success.connect(on_success)
         self._csv_worker.finished_error.connect(on_error)
+        self._csv_worker.finished.connect(self._cleanup_csv_worker)
         self._csv_worker.start()
+    
+    def _cleanup_csv_worker(self):
+        """Safely cleanup CSV worker reference."""
+        if hasattr(self, '_csv_worker') and self._csv_worker:
+            try:
+                if self._csv_worker.isRunning():
+                    self._csv_worker.quit()
+                    self._csv_worker.wait(1000)
+            except RuntimeError:
+                pass  # Thread already deleted
+            self._csv_worker = None
 
     def _validate_config(self, gs, email):
         try:
@@ -1153,3 +1136,7 @@ class ConfigView(QWidget):
             self.load_config()
         except Exception as e:
             CustomMessageDialog.show_error(self, "Errore", f"Impossibile salvare la configurazione: {e}")
+    
+    def cleanup(self):
+        """Cleanup method to stop all running threads before destruction."""
+        self._cleanup_csv_worker()

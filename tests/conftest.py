@@ -20,10 +20,16 @@ mock_ph.capture.return_value = None
 mock_ph.flush.return_value = None
 sys.modules["posthog"] = mock_ph
 
-# 3. Mock 'sentry_sdk' to prevent error tracking threads
+# 3. Mock 'sentry_sdk' and its integrations to prevent error tracking threads
 mock_sentry = MagicMock()
 mock_sentry.init.return_value = None
+mock_sentry.is_initialized.return_value = False
+mock_sentry.capture_exception.return_value = None
+mock_sentry.capture_message.return_value = None
 sys.modules["sentry_sdk"] = mock_sentry
+sys.modules["sentry_sdk.integrations"] = MagicMock()
+sys.modules["sentry_sdk.integrations.fastapi"] = MagicMock()
+sys.modules["sentry_sdk.integrations.starlette"] = MagicMock()
 
 # 4. Mock 'wandb' (if present)
 sys.modules["wandb"] = MagicMock()

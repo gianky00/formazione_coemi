@@ -434,3 +434,10 @@ class ValidationView(QWidget):
                  CustomMessageDialog.show_warning(self, "Non Trovato", "Il file PDF non è stato trovato nel percorso previsto.")
         except Exception as e:
             CustomMessageDialog.show_error(self, "Errore", f"Impossibile eseguire l'operazione: {e}")
+    
+    def cleanup(self):
+        """Cleanup method to stop all running threads before destruction."""
+        try:
+            self.threadpool.waitForDone(2000)
+        except Exception:
+            pass

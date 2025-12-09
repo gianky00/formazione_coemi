@@ -549,7 +549,7 @@ class ApplicationController:
         Triggers CSV import logic with background thread for safety.
         """
         import sentry_sdk
-        from PyQt6.QtCore import QThread, pyqtSignal
+        from desktop_app.workers.csv_import_worker import CSVImportWorker
         
         if self.dashboard and getattr(self.dashboard, 'is_read_only', False):
             CustomMessageDialog.show_warning(self.master_window, STR_SOLA_LETTURA, "Impossibile importare CSV in modalità Sola Lettura.")
@@ -559,32 +559,8 @@ class ApplicationController:
              self.pending_action = {"action": "import_csv", "path": path}
              return
 
-        # Create worker class for background import
-        class CSVImportWorker(QThread):
-            finished_success = pyqtSignal(dict)
-            finished_error = pyqtSignal(str)
-            
-            def __init__(self, api_client, file_path):
-                super().__init__()
-                self.api_client = api_client
-                self.file_path = file_path
-            
-            def run(self):
-                try:
-                    response = self.api_client.import_dipendenti_csv(self.file_path)
-                    self.finished_success.emit(response if isinstance(response, dict) else {"message": str(response)})
-                except Exception as e:
-                    sentry_sdk.capture_exception(e)
-                    error_msg = str(e)
-                    if hasattr(e, 'response') and e.response is not None:
-                        try:
-                            error_msg = str(e.response.json().get('detail', str(e)))
-                        except Exception:
-                            pass
-                    self.finished_error.emit(error_msg)
-        
-        # Create and start worker
-        self._csv_import_worker = CSVImportWorker(self.api_client, path)
+        # Create and start worker with master_window as parent
+        self._csv_import_worker = CSVImportWorker(self.api_client, path, parent=self.master_window)
         
         def on_success(response):
             try:
@@ -593,7 +569,7 @@ class ApplicationController:
             except Exception as e:
                 sentry_sdk.capture_exception(e)
             finally:
-                self._csv_import_worker = None
+                self._cleanup_csv_worker()
         
         def on_error(error_msg):
             try:
@@ -601,11 +577,23 @@ class ApplicationController:
             except Exception as e:
                 sentry_sdk.capture_exception(e)
             finally:
-                self._csv_import_worker = None
+                self._cleanup_csv_worker()
         
         self._csv_import_worker.finished_success.connect(on_success)
         self._csv_import_worker.finished_error.connect(on_error)
+        self._csv_import_worker.finished.connect(self._cleanup_csv_worker)
         self._csv_import_worker.start()
+    
+    def _cleanup_csv_worker(self):
+        """Safely cleanup CSV worker."""
+        if hasattr(self, '_csv_import_worker') and self._csv_import_worker:
+            try:
+                if self._csv_import_worker.isRunning():
+                    self._csv_import_worker.quit()
+                    self._csv_import_worker.wait(1000)
+            except RuntimeError:
+                pass
+            self._csv_import_worker = None
 
     def on_login_success(self, user_info):
         # Create Dashboard if not exists
