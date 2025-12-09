@@ -22,6 +22,8 @@ AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 ; Installa in C:\Program Files\Intelleo
 DefaultDirName={autopf}\{#MyAppName}
+PrivilegesRequiredOverridesAllowed=dialog
+ArchitecturesInstallIn64BitMode=x64
 DisableProgramGroupPage=yes
 
 ; === OUTPUT DIRECTORY ===
@@ -33,7 +35,6 @@ Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 WizardSizePercent=120
-WizardResizable=yes
 UninstallFilesDir={app}\Disinstalla
 LicenseFile=EULA.rtf
 ; Immagini personalizzate
@@ -313,7 +314,7 @@ var
 begin
   if CurStep = ssInstall then
   begin
-     if IsTaskSelected('cleancache') then
+     if WizardIsTaskSelected('cleancache') then
      begin
         DelTree(ExpandConstant('{localappdata}\Intelleo\cache'), True, True, True);
      end;
