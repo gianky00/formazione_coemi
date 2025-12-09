@@ -8,7 +8,8 @@ from app.services.document_locator import find_document, construct_certificate_p
 from app.core.config import settings, get_user_data_dir
 from app.utils.date_parser import parse_date_flexible
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# logging.basicConfig removed to prevent duplicate logs (handled by launcher.py)
+logger = logging.getLogger(__name__)
 
 DATE_FORMAT_DMY = '%d/%m/%Y'
 

@@ -17,7 +17,8 @@ from app.utils.audit import log_security_action
 import logging
 import threading
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# logging.basicConfig removed to prevent duplicate logs (handled by launcher.py)
+logger = logging.getLogger(__name__)
 
 EXCLUDED_CATEGORIES = ['ATEX', 'BLSD', 'DIRETTIVA SEVESO', 'DIRIGENTI E FORMATORI', 'H2S', 'MEDICO COMPETENTE', 'HLO']
 

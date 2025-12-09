@@ -9,7 +9,8 @@ from app.core.config import settings
 from app.core.constants import CATEGORIE_STATICHE
 from app.core.ai_lock import ai_global_lock
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# logging.basicConfig removed to prevent duplicate logs (handled by launcher.py)
+logger = logging.getLogger(__name__)
 
 class GeminiClient:
     _instance = None

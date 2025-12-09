@@ -12,7 +12,8 @@ from app.services.document_locator import find_document
 from datetime import date, timedelta
 from desktop_app.constants import DATE_FORMAT_FILE, DATE_FORMAT_DISPLAY
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# logging.basicConfig removed to prevent duplicate logs (handled by launcher.py)
+logger = logging.getLogger(__name__)
 
 def _gather_known_files(db, database_path):
     known_files = set()
