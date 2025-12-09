@@ -32,9 +32,19 @@ def reconfigure_engine(new_url: str):
 def get_db():
     """
     FastAPI dependency that provides a database session for each request.
+    
+    Ensures proper cleanup:
+    - Routes must explicitly call db.commit() for changes
+    - Any uncommitted changes are rolled back on close
+    - Session is always closed, releasing the connection
     """
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        # Explicit rollback on unhandled exceptions
+        db.rollback()
+        raise
     finally:
+        # Close will also rollback any uncommitted transaction
         db.close()

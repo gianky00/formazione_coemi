@@ -645,12 +645,24 @@ class ApplicationController:
 
     def _connect_dashboard_signals(self):
         # Connect notification signal from dashboard
+        # Use blockSignals pattern to avoid duplicate connections
         try:
+            # Disconnect first to prevent duplicates (if already connected)
+            try:
+                self.dashboard.notification_requested.disconnect(self.show_notification)
+            except (TypeError, RuntimeError):
+                pass  # Not connected yet, that's fine
+            
+            try:
+                self.dashboard.analysis_finished.disconnect(self.on_analysis_finished)
+            except (TypeError, RuntimeError):
+                pass  # Not connected yet, that's fine
+            
+            # Now connect
             self.dashboard.notification_requested.connect(self.show_notification)
-            # Connect Analysis Completion for Voice
             self.dashboard.analysis_finished.connect(self.on_analysis_finished)
-        except Exception:
-            pass # Already connected
+        except AttributeError as e:
+            print(f"[Controller] Dashboard signals not available: {e}")
 
     def _play_welcome_message(self, user_info):
         try:

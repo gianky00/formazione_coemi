@@ -22,9 +22,7 @@ OBFUSCATED_GITHUB_TOKEN = "obf:WkZrMlIyVTBLRXJ4ZFlGeUtteTkzMFBSc0xJYkJjSUpLSDNZX
 LICENSE_REPO_OWNER = "gianky00"
 LICENSE_REPO_NAME = "intelleo-licenses"
 
-# ElevenLabs Configuration (Obfuscated)
-# Key: sk_760121e13ac514c2bf623a0c9e15a552bd65a0ddb4b7bffe
-# Obfuscated via security.obfuscate_string
+# ElevenLabs Configuration (Obfuscated for production deployment)
 OBFUSCATED_ELEVENLABS_KEY = "obf:ZWZmYjdiNGJkZDBhNTZkYjI1NWE1MWU5YzBhMzI2ZmIyYzQxNWNhMzFlMTIxMDY3X2tz"
 ELEVENLABS_VOICE_ID = "XrExE9yKIg1WjnnlVkGX" # Matilda
 ELEVENLABS_MODEL_ID = "eleven_multilingual_v2"

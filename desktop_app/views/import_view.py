@@ -35,6 +35,9 @@ class PdfWorker(QObject):
         # Stats
         self.archived_count = 0
         self.verify_count = 0
+        
+        # Current file being processed (initialized to prevent AttributeError)
+        self.current_file_path = None
 
     def stop(self):
         self._is_stopped = True
@@ -192,7 +195,13 @@ class PdfWorker(QObject):
 
     def move_to_error(self, reason="Errore Generico", data=None, source_path=None):
         # Refactored to use helper logic
-        if source_path is None: source_path = self.current_file_path # Use instance var if not passed
+        if source_path is None:
+            source_path = self.current_file_path
+        
+        # Safety check - if still None, log and return
+        if source_path is None:
+            self.log_message.emit(f"ERRORE INTERNO: source_path non disponibile per errore: {reason}", "red")
+            return
 
         error_category = "ALTRI ERRORI"
         if reason and "matricola" in reason.lower():
@@ -420,6 +429,14 @@ class ImportView(QWidget):
     def __init__(self):
         super().__init__()
         self.api_client = APIClient()
+        
+        # Initialize thread-related attributes to prevent AttributeError
+        self.thread = None
+        self.worker = None
+        self.scanner_thread = None
+        self._pending_file_paths = None
+        self.is_read_only = False
+        
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(20, 20, 20, 20)
         self.layout.setSpacing(20)
@@ -534,21 +551,51 @@ class ImportView(QWidget):
             self.progress_frame.setVisible(False)
             return
 
-        # Get Output Path
-        try:
-            paths = self.api_client.get_paths()
-            output_folder = paths.get("database_path")
-        except Exception as e:
+        # Store file paths for later use after async path fetch
+        self._pending_file_paths = file_paths
+        
+        # Show loading state immediately
+        self.status_label.setText("Recupero configurazione...")
+        self.progress_frame.setVisible(True)
+        self.progress_bar.setRange(0, 0)  # Indeterminate
+        
+        # Fetch output path in background thread to avoid UI freeze
+        from desktop_app.workers.worker import Worker
+        from PyQt6.QtCore import QThreadPool
+        
+        def fetch_paths():
+            return self.api_client.get_paths()
+        
+        worker = Worker(fetch_paths)
+        worker.signals.result.connect(self._on_paths_fetched)
+        worker.signals.error.connect(self._on_paths_error)
+        QThreadPool.globalInstance().start(worker)
+
+    def _on_paths_fetched(self, paths):
+        """Called when path fetch completes successfully."""
+        output_folder = paths.get("database_path") if paths else None
+        
+        if not output_folder or not os.path.isdir(output_folder):
             self.results_display.setTextColor(QColor("#DC2626"))
-            self.results_display.append(f"Errore critico: Impossibile recuperare il percorso del database. {e}")
+            self.results_display.append(f"Errore critico: Percorso database non valido: {output_folder}")
+            self.progress_frame.setVisible(False)
             return
 
-        if not output_folder or not os.path.isdir(output_folder):
-             self.results_display.setTextColor(QColor("#DC2626"))
-             self.results_display.append(f"Errore critico: Percorso database non valido: {output_folder}")
-             return
+        self._start_processing(self._pending_file_paths, output_folder)
+        self._pending_file_paths = None
+    
+    def _on_paths_error(self, error_tuple):
+        """Called when path fetch fails."""
+        exctype, value, tb = error_tuple
+        self.results_display.setTextColor(QColor("#DC2626"))
+        self.results_display.append(f"Errore critico: Impossibile recuperare il percorso del database. {value}")
+        self.progress_frame.setVisible(False)
+        self._pending_file_paths = None
 
+    def _start_processing(self, file_paths, output_folder):
+        """Actually starts the PDF processing after paths are fetched."""
         # Configure and show progress bar
+        self.progress_bar.setRange(0, len(file_paths))
         self.progress_bar.setMaximum(len(file_paths))
         self.progress_bar.setValue(0)
         self.status_label.setText("Inizio elaborazione...")
@@ -556,7 +603,7 @@ class ImportView(QWidget):
         self.stop_button.setText("Stop")
         self.stop_button.setEnabled(True)
         self.progress_frame.setVisible(True)
-        self.scanner.setVisible(True) # Show Hologram
+        self.scanner.setVisible(True)  # Show Hologram
 
         self.thread = QThread()
         self.worker = PdfWorker(file_paths, self.api_client, output_folder)
@@ -603,17 +650,38 @@ class ImportView(QWidget):
     def cleanup(self):
         """
         Gracefully stops the worker thread if running.
+        Ensures proper cleanup to prevent memory leaks.
         """
-        if hasattr(self, 'thread') and self.thread.isRunning():
+        # Cleanup scanner thread if running
+        if hasattr(self, 'scanner_thread') and self.scanner_thread and self.scanner_thread.isRunning():
+            print("[ImportView] Stopping scanner thread...")
+            self.scanner_thread.quit()
+            self.scanner_thread.wait(2000)
+        
+        # Cleanup main worker thread if running
+        if hasattr(self, 'thread') and self.thread and self.thread.isRunning():
             print("[ImportView] Stopping worker thread...")
             self.status_label.setText("Arresto in corso...")
-            self.worker.stop()
+            
+            # Signal worker to stop
+            if hasattr(self, 'worker') and self.worker:
+                self.worker.stop()
+            
+            # Request thread to quit
             self.thread.quit()
+            
             # Wait for thread to finish (with timeout to prevent hanging)
             if not self.thread.wait(3000):  # 3 seconds timeout
                 print("[ImportView] Thread did not finish in time. Terminating...")
                 self.thread.terminate()
+                self.thread.wait(1000)  # Brief wait after terminate
+            
             print("[ImportView] Thread stopped.")
+        
+        # Clear references to help garbage collection
+        self.worker = None
+        self.thread = None
+        self._pending_file_paths = None
 
     def closeEvent(self, event):
         self.cleanup()

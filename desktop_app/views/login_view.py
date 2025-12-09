@@ -69,12 +69,13 @@ class LoginWorker(QThread):
         except Exception as e:
             error_msg = str(e)
             if hasattr(e, 'response') and e.response is not None:
-                 try:
-                     detail = e.response.json().get('detail')
-                     if detail: error_msg = detail
-                 except Exception:
-                     # Fallback to string representation if parsing fails
-                     pass
+                try:
+                    detail = e.response.json().get('detail')
+                    if detail: 
+                        error_msg = detail
+                except (ValueError, KeyError, AttributeError) as parse_err:
+                    # JSON parsing failed, use original error message
+                    print(f"[LoginWorker] Could not parse error response: {parse_err}")
             self.finished_error.emit(error_msg)
 
 class LicenseUpdateWorker(QThread):

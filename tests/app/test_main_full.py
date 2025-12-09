@@ -75,20 +75,25 @@ async def test_lifespan_db_load_failure_non_fatal():
 @pytest.mark.anyio
 async def test_lifespan_seeding_failure():
     # We must allow load_memory_db to succeed
+    # Mock the db_path property to return a MagicMock with exists() returning True
+    mock_path = MagicMock()
+    mock_path.exists.return_value = True
     with patch.object(DBSecurityManager, 'load_memory_db', return_value=None):
-        with patch("app.main.db_security.db_path.exists", return_value=True):
-             with patch("app.main.Base.metadata.create_all", side_effect=Exception("Seed Fail")):
-                 with patch("app.main.scheduler"):
+        with patch.object(DBSecurityManager, 'db_path', mock_path, create=True):
+            with patch("app.main.Base.metadata.create_all", side_effect=Exception("Seed Fail")):
+                with patch("app.main.scheduler"):
                     async with lifespan(app):
                         pass
 
 @pytest.mark.anyio
 async def test_lifespan_scheduler_shutdown_fail():
+    mock_path = MagicMock()
+    mock_path.exists.return_value = True
     with patch.object(DBSecurityManager, 'load_memory_db', return_value=None):
-         with patch("app.main.db_security.db_path.exists", return_value=True):
-             with patch("app.main.Base.metadata.create_all"), \
-                  patch("app.main.seed_database"), \
-                  patch("app.main.scheduler") as mock_sched:
+        with patch.object(DBSecurityManager, 'db_path', mock_path, create=True):
+            with patch("app.main.Base.metadata.create_all"), \
+                 patch("app.main.seed_database"), \
+                 patch("app.main.scheduler") as mock_sched:
 
                 mock_sched.start = MagicMock()
                 mock_sched.shutdown = MagicMock(side_effect=Exception("Shutdown Fail"))

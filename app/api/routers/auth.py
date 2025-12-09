@@ -1,5 +1,6 @@
 from datetime import timedelta, datetime, timezone
 from typing import Any
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -11,6 +12,8 @@ from app.schemas.schemas import Token, User, UserPasswordUpdate
 from app.api import deps
 from app.db.models import BlacklistedToken, AuditLog
 from app.utils.audit import log_security_action
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -31,11 +34,11 @@ def logout(
             db.add(blacklist_entry)
             db.commit()
             log_security_action(db, current_user, "LOGOUT", "Utente disconnesso con successo", category="AUTH", request=request)
-        except Exception:
+        except Exception as e:
             db.rollback()
             # If it failed, it's likely already blacklisted or race condition.
-            # We treat it as success (idempotent).
-            # S2772: Redundant pass removed
+            # Log but treat as success (idempotent behavior for logout)
+            logger.warning(f"Token blacklist failed (idempotent): {e}")
 
     # Force DB Sync and Cleanup on logout to ensure data persistence and lock release
     try:

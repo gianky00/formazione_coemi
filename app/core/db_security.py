@@ -105,6 +105,8 @@ class DBSecurityManager:
         """
         Detects if a lock file exists but belongs to a dead process.
         Strictly checks if PID exists. If dead, deletes lock immediately.
+        
+        File handle is properly managed using context manager to prevent leaks.
         """
         if not self.lock_path.exists():
             return
@@ -116,17 +118,27 @@ class DBSecurityManager:
             with open(self.lock_path, 'rb') as f:
                 f.seek(1)
                 data = f.read()
-                if not data: return
+                if not data:
+                    return
 
                 import json
                 try:
                     metadata = json.loads(data.decode('utf-8'))
                     should_remove, reason = self._should_remove_lock(metadata)
-                except Exception:
-                    # S5754: Handle general exception (e.g. JSONDecodeError)
+                except json.JSONDecodeError:
                     should_remove = True
-                    reason = "Corrupt lock file found"
+                    reason = "Corrupt lock file (invalid JSON)"
+                except UnicodeDecodeError:
+                    should_remove = True
+                    reason = "Corrupt lock file (invalid encoding)"
 
+        except PermissionError as e:
+            # File is locked by another process - this is expected, not stale
+            logger.debug(f"Lock file is actively held by another process: {e}")
+            return
+        except FileNotFoundError:
+            # File was deleted between exists() check and open() - that's fine
+            return
         except Exception as e:
             logger.error(f"Stale Lock Recovery failed: {e}")
             return
