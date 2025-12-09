@@ -182,6 +182,12 @@ class UserManagementWidget(QFrame):
         self.layout.addStretch()
 
     def refresh_users(self):
+        # Safety check - user_info might be None if not logged in
+        if not self.api_client or not self.api_client.user_info:
+            self.admin_container.setVisible(False)
+            self.title.setText("Il Mio Account")
+            return
+            
         is_admin = self.api_client.user_info.get("is_admin", False)
         self.admin_container.setVisible(is_admin)
         self.title.setText("Gestione Utenti" if is_admin else "Il Mio Account")
@@ -197,8 +203,8 @@ class UserManagementWidget(QFrame):
                     self.table.setItem(i, 1, QTableWidgetItem(str(user['username'])))
                     self.table.setItem(i, 2, QTableWidgetItem(str(user.get('account_name', ''))))
                     self.table.setItem(i, 3, QTableWidgetItem("Sì" if user['is_admin'] else "No"))
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[UserManagement] Error loading users: {e}")
 
     def add_user(self):
         dialog = UserDialog(self)
@@ -860,28 +866,37 @@ class ConfigView(QWidget):
 
     def showEvent(self, event):
         super().showEvent(event)
-        if self.api_client and self.api_client.user_info:
-            is_admin = self.api_client.user_info.get("is_admin", False)
-
-            # Show/Hide Admin Tabs
+        
+        # Safety check - don't proceed if not logged in
+        if not self.api_client or not self.api_client.user_info:
+            # Hide all admin tabs, show only account
             for btn in [self.btn_general, self.btn_database, self.btn_api, self.btn_email, self.btn_audit]:
-                btn.setVisible(is_admin)
-
+                btn.setVisible(False)
             self.btn_account.setVisible(True)
+            self.switch_tab(4)
+            return
+            
+        is_admin = self.api_client.user_info.get("is_admin", False)
 
-            if is_admin:
-                self.load_config()
-                # Default to General tab for Admin
-                if self.stacked_widget.currentIndex() == -1 or self.stacked_widget.currentIndex() == 4:
-                     self.stacked_widget.setCurrentIndex(0)
-                     for i, btn in enumerate(self.nav_buttons):
-                         btn.setChecked(i == 0)
-            else:
-                # Default (and only) tab for User is Account (index 4)
-                self.switch_tab(4)
+        # Show/Hide Admin Tabs
+        for btn in [self.btn_general, self.btn_database, self.btn_api, self.btn_email, self.btn_audit]:
+            btn.setVisible(is_admin)
 
-            # Refresh user management widget (handles its own admin/user logic)
-            self.user_management_widget.refresh_users()
+        self.btn_account.setVisible(True)
+
+        if is_admin:
+            self.load_config()
+            # Default to General tab for Admin
+            if self.stacked_widget.currentIndex() == -1 or self.stacked_widget.currentIndex() == 4:
+                 self.stacked_widget.setCurrentIndex(0)
+                 for i, btn in enumerate(self.nav_buttons):
+                     btn.setChecked(i == 0)
+        else:
+            # Default (and only) tab for User is Account (index 4)
+            self.switch_tab(4)
+
+        # Refresh user management widget (handles its own admin/user logic)
+        self.user_management_widget.refresh_users()
 
     def load_config(self):
         try:

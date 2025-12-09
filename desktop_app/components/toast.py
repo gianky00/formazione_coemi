@@ -171,13 +171,25 @@ class ToastManager(QObject):
             path = os.path.join(get_user_data_dir(), "notifications.json")
             if os.path.exists(path):
                 with open(path, 'r', encoding='utf-8') as f:
-                    self.history = json.load(f)
-                    # Convert timestamps back?
-                    # Actually, NotificationCenter will handle string display or parsing.
-                    # We leave them as strings or parse them if needed.
-                    # But NotificationCenter expects dicts.
+                    loaded = json.load(f)
+                    # Ensure loaded data is a valid list
+                    if isinstance(loaded, list):
+                        self.history = loaded
+                    else:
+                        self.history = []
+        except json.JSONDecodeError as e:
+            # Corrupted file - reset it
+            print(f"[Toast] Corrupted notification history, resetting: {e}")
+            self.history = []
+            # Try to delete corrupted file
+            try:
+                path = os.path.join(get_user_data_dir(), "notifications.json")
+                os.remove(path)
+            except Exception:
+                pass
         except Exception as e:
-            print(f"Error loading notification history: {e}")
+            print(f"[Toast] Error loading notification history: {e}")
+            self.history = []
 
     def show_toast(self, parent, type, title, message, duration=3000):
         # Bug 1: Thread Safety Check

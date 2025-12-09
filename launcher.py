@@ -31,41 +31,49 @@ def setup_global_logging():
 
         # 2. Configure Root Logger
         root_logger = logging.getLogger()
-        root_logger.setLevel(logging.INFO)
+        root_logger.setLevel(logging.DEBUG)  # Capture everything at root level
 
         # Remove existing handlers (e.g. from previous runs or other libs)
         for handler in root_logger.handlers[:]:
             root_logger.removeHandler(handler)
 
-        # 3. Rotating File Handler
+        # 3. Rotating File Handler (DEBUG level - capture all for diagnostics)
         file_handler = logging.handlers.RotatingFileHandler(
             log_file,
-            maxBytes=5 * 1024 * 1024, # 5MB
+            maxBytes=5 * 1024 * 1024,  # 5MB
             backupCount=3,
             encoding='utf-8'
         )
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        file_handler.setFormatter(formatter)
+        file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(file_formatter)
+        file_handler.setLevel(logging.DEBUG)
         root_logger.addHandler(file_handler)
 
-        # 4. Console Handler (for dev/debugging)
+        # 4. Console Handler - WARNING level only to reduce spam
         console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setFormatter(formatter)
+        console_formatter = logging.Formatter('%(levelname)s: %(message)s')
+        console_handler.setFormatter(console_formatter)
+        console_handler.setLevel(logging.WARNING)  # Only warnings and errors to console
         root_logger.addHandler(console_handler)
 
-        # 5. Noise Reduction (Silence noisy libraries)
-        # Suppress request logs for PostHog/Sentry/UpdateChecks unless critical
-        logging.getLogger("urllib3").setLevel(logging.WARNING)
-        logging.getLogger("requests").setLevel(logging.WARNING)
-        logging.getLogger("httpx").setLevel(logging.WARNING)
-        logging.getLogger("asyncio").setLevel(logging.WARNING)
-        logging.getLogger("multipart").setLevel(logging.WARNING)
-        logging.getLogger("watchfiles").setLevel(logging.WARNING)
-        logging.getLogger("uqi").setLevel(logging.WARNING) # Common noisy lib
-
-        # Uvicorn Access Log - Keep it at WARNING to avoid flooding with every health check
-        logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-        logging.getLogger("uvicorn.error").setLevel(logging.INFO)
+        # 5. Silence ALL noisy libraries to reduce spam
+        noisy_loggers = [
+            "urllib3", "requests", "httpx", "asyncio", "multipart",
+            "watchfiles", "uqi", "faker", "httpcore",
+            # Uvicorn - silence completely
+            "uvicorn", "uvicorn.access", "uvicorn.error",
+            # APScheduler - silence completely  
+            "apscheduler", "apscheduler.scheduler", "apscheduler.executors",
+            "apscheduler.executors.default",
+            # App components that are verbose
+            "app.core.db_security", "app.core.lock_manager",
+            "app.api.routers.system",
+            # Desktop app services
+            "desktop_app.services", "desktop_app.services.hardware_id_service",
+            "desktop_app.services.update_checker", "desktop_app.services.voice_service",
+        ]
+        for logger_name in noisy_loggers:
+            logging.getLogger(logger_name).setLevel(logging.ERROR)
 
         logging.info("Global logging initialized.")
 
@@ -245,11 +253,30 @@ def find_free_port(start_port=8000, max_port=8010):
 
 def start_server(port):
     from app.main import app
-    # Disable duplicate logs
-    # We already configured root logger. Uvicorn will use it if we don't override too much.
-    # But we want to ensure Uvicorn doesn't spam console if we are using file logging.
-
-    uvicorn.run(app, host="127.0.0.1", port=port, log_config=None) # log_config=None to inherit root logger
+    
+    # Custom log config to suppress uvicorn's default console output
+    # All output goes to our configured file handler only
+    log_config = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "default": {
+                "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            },
+        },
+        "handlers": {
+            "null": {
+                "class": "logging.NullHandler",
+            },
+        },
+        "loggers": {
+            "uvicorn": {"handlers": ["null"], "level": "ERROR"},
+            "uvicorn.error": {"handlers": ["null"], "level": "ERROR"},
+            "uvicorn.access": {"handlers": ["null"], "level": "ERROR"},
+        },
+    }
+    
+    uvicorn.run(app, host="127.0.0.1", port=port, log_config=log_config, log_level="error")
 
 def check_port(host, port):
     try:
