@@ -162,8 +162,8 @@ class StatsView(QWidget):
                         col = 0
                         row += 1
 
-        except Exception as e:
-            print(f"Error fetching stats: {e}")
+        except Exception:
+            pass
 
     def showEvent(self, event):
         super().showEvent(event)

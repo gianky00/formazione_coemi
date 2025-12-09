@@ -204,7 +204,7 @@ class UserManagementWidget(QFrame):
                     self.table.setItem(i, 2, QTableWidgetItem(str(user.get('account_name', ''))))
                     self.table.setItem(i, 3, QTableWidgetItem("Sì" if user['is_admin'] else "No"))
             except Exception as e:
-                print(f"[UserManagement] Error loading users: {e}")
+                pass
 
     def add_user(self):
         dialog = UserDialog(self)
@@ -684,9 +684,8 @@ class AuditLogWidget(QFrame):
                         item.setBackground(QColor("#FEF3C7")) # Yellow-ish
                         item.setForeground(QColor("#92400E"))
 
-        except Exception as e:
-            # CustomMessageDialog.show_error(self, "Errore", f"Impossibile caricare i log: {e}")
-            print(f"Error loading logs: {e}")
+        except Exception:
+            pass
 
 class ConfigView(QWidget):
     def __init__(self, api_client: APIClient):
@@ -792,8 +791,6 @@ class ConfigView(QWidget):
             self._connect_dirty_signals()
 
         except Exception as e:
-            print(f"CRITICAL ERROR in ConfigView.__init__: {e}")
-            traceback.print_exc()
             # Fallback UI to prevent crash
             if not hasattr(self, 'layout') or self.layout is None:
                 self.layout = QVBoxLayout(self)

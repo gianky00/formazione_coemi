@@ -74,7 +74,7 @@ class TestImportViewAdvanced(unittest.TestCase):
             self.view.drop_zone.parent = MagicMock(return_value=self.view)
 
     def test_process_dropped_files_start(self):
-        """Test that processing starts correctly."""
+        """Test that processing starts correctly - now uses async Worker pattern."""
         files = ["/tmp/test.pdf"]
         
         self.view.results_display.setTextColor = MagicMock()
@@ -82,31 +82,15 @@ class TestImportViewAdvanced(unittest.TestCase):
 
         self.mock_client_instance.get_paths.return_value = {"database_path": "/tmp/db"}
 
-        # Patch os.path.isdir to return True so logic proceeds
-        with patch('os.path.isdir', return_value=True):
+        # Patch the Worker and QThreadPool since processing is now async
+        # Worker is imported from desktop_app.workers.worker inside the method
+        with patch('desktop_app.workers.worker.Worker') as MockWorker, \
+             patch('PyQt6.QtCore.QThreadPool') as MockThreadPool:
             self.view.process_dropped_files(files)
-        
-        # Ensure thread was created before asserting
-        if hasattr(self.view, 'thread'):
-            self.view.thread.start.assert_called()
-        else:
-            # If thread not created, it implies earlier checks failed.
-            # get_paths -> /tmp/db
-            # isdir(/tmp/db) -> True (Patched)
-            # Logic: if not output_folder or not os.path.isdir -> return
-            # So it SHOULD pass.
             
-            # Wait, `self.view.thread` is assigned inside `process_dropped_files`.
-            # If `self.view.thread` does not exist, it returned early.
-            # Double check `get_paths` return value structure.
-            # APIClient mock returns {"database_path": "/tmp/db"}.
-            # Code: output_folder = paths.get("database_path") -> "/tmp/db".
-            
-            # If it failed, maybe `os.path.isdir` patch didn't work?
-            # It's imported as `os` in `import_view.py`.
-            # So `patch('os.path.isdir')` should work if we patch where used?
-            # Or `patch('desktop_app.views.import_view.os.path.isdir')`?
-            # Since `import os` is used, `os.path.isdir` refers to the module `os`'s path object.
+            # Verify that a Worker was created to fetch paths asynchronously
+            MockWorker.assert_called()
+            MockThreadPool.globalInstance().start.assert_called()
             # `patch('os.path.isdir')` patches the real `os.path`.
             # But if `import_view.py` does `from os import path`, then we need to patch `path`.
             # It does `import os`. So `os.path.isdir`.

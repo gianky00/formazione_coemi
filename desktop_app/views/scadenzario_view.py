@@ -25,8 +25,9 @@ class ResizingGraphicsView(QGraphicsView):
         self.resized.emit()
 
 class ScadenzarioView(QWidget):
-    def __init__(self):
+    def __init__(self, api_client=None):
         super().__init__()
+        self.api_client = api_client  # Will be set properly by MainDashboardWidget
         self.layout = QVBoxLayout(self)
         self.layout.setSpacing(10)
 
@@ -450,9 +451,8 @@ class ScadenzarioView(QWidget):
             worker.signals.error.connect(lambda err: self._on_generic_error(err, "Errore Esportazione"))
             worker.signals.finished.connect(self.loading_overlay.stop)
             self.threadpool.start(worker)
-        except Exception as e:
+        except Exception:
             self.loading_overlay.stop()
-            print(f"Error creating worker: {e}")
 
     def _on_pdf_downloaded(self, response, path):
         if response.status_code == 200:

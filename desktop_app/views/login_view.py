@@ -78,9 +78,9 @@ class LoginWorker(QThread):
                             error_msg = str(detail)
                         else:
                             error_msg = str(detail)
-                except (ValueError, KeyError, AttributeError, TypeError) as parse_err:
+                except (ValueError, KeyError, AttributeError, TypeError):
                     # JSON parsing failed, use original error message
-                    print(f"[LoginWorker] Could not parse error response: {parse_err}")
+                    pass
             
             # Ensure error_msg is always a valid string before emitting
             if error_msg is None:
@@ -561,9 +561,9 @@ class LoginView(QWidget):
         # The engine handles projection, connections, pulses, and drawing
         try:
             self.neural_engine.project_and_render(painter, self.width(), self.height())
-        except Exception as e:
+        except Exception:
             # Prevent crash during resize or close
-            print(f"3D Render Error: {e}")
+            pass
 
     def _auto_update_if_needed(self):
         from desktop_app.services.path_service import get_license_dir
@@ -622,13 +622,11 @@ class LoginView(QWidget):
         """
         # 1. Stop Login Worker
         if self.login_worker and self.login_worker.isRunning():
-            print("[LoginView] Stopping LoginWorker...")
             self.login_worker.quit()
             self.login_worker.wait()
 
         # 2. Stop License Worker
         if self.license_worker and self.license_worker.isRunning():
-            print("[LoginView] Stopping LicenseWorker...")
             self.license_worker.quit()
             self.license_worker.wait()
 
@@ -824,8 +822,7 @@ class LoginView(QWidget):
         try:
             cert_list = self.api_client.get("certificati", params={"validated": "false"})
             self.pending_count = len(cert_list)
-        except Exception as e:
-            print(f"[LoginView] Error fetching pending count: {e}")
+        except Exception:
             self.pending_count = 0
 
     def _check_password_requirement(self, user_info):

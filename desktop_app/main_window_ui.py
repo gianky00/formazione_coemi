@@ -545,21 +545,19 @@ class MainDashboardWidget(QWidget):
     def _load_essential_views(self):
         from .views.database_view import DatabaseView
         if not self.views["database"]:
-            self.views["database"] = DatabaseView()
-            self.views["database"].api_client = self.api_client
+            self.views["database"] = DatabaseView(api_client=self.api_client)
             if hasattr(self.views["database"], 'view_model'):
-                 self.views["database"].view_model.api_client = self.api_client
+                self.views["database"].view_model.api_client = self.api_client
             self.stacked_widget.addWidget(self.views["database"])
+            # Load data after api_client is set
+            self.views["database"].view_model.load_data()
 
     def _load_background_views(self):
-        # Load secondary views
+        # Load secondary views with proper api_client
         from .views.import_view import ImportView
         from .views.validation_view import ValidationView
         from .views.scadenzario_view import ScadenzarioView
         from .views.config_view import ConfigView
-
-        # We load them but don't force show. Only add to stack.
-        # This keeps the UI responsive.
 
         if not self.views["import"]:
             self.views["import"] = ImportView()
@@ -569,26 +567,25 @@ class MainDashboardWidget(QWidget):
             self.stacked_widget.addWidget(self.views["import"])
 
         if not self.views["validation"]:
-            self.views["validation"] = ValidationView(self.api_client)
+            self.views["validation"] = ValidationView(api_client=self.api_client)
             self.stacked_widget.addWidget(self.views["validation"])
 
         if not self.views["scadenzario"]:
-            self.views["scadenzario"] = ScadenzarioView()
-            self.views["scadenzario"].api_client = self.api_client
+            self.views["scadenzario"] = ScadenzarioView(api_client=self.api_client)
             self.stacked_widget.addWidget(self.views["scadenzario"])
 
         if not self.views["stats"]:
             from .views.stats_view import StatsView
-            self.views["stats"] = StatsView(self.api_client)
+            self.views["stats"] = StatsView(api_client=self.api_client)
             self.stacked_widget.addWidget(self.views["stats"])
 
         if not self.views["config"]:
-            self.views["config"] = ConfigView(self.api_client)
+            self.views["config"] = ConfigView(api_client=self.api_client)
             self.stacked_widget.addWidget(self.views["config"])
 
         if not self.views["anagrafica"]:
             from .views.anagrafica_view import AnagraficaView
-            self.views["anagrafica"] = AnagraficaView(self.api_client)
+            self.views["anagrafica"] = AnagraficaView(api_client=self.api_client)
             self.stacked_widget.addWidget(self.views["anagrafica"])
 
         # Connect signals now that views exist
@@ -631,24 +628,23 @@ class MainDashboardWidget(QWidget):
             self.stacked_widget.addWidget(self.views["import"])
         elif key == "validation":
             from .views.validation_view import ValidationView
-            self.views["validation"] = ValidationView(self.api_client)
+            self.views["validation"] = ValidationView(api_client=self.api_client)
             self.stacked_widget.addWidget(self.views["validation"])
         elif key == "scadenzario":
             from .views.scadenzario_view import ScadenzarioView
-            self.views["scadenzario"] = ScadenzarioView()
-            self.views["scadenzario"].api_client = self.api_client
+            self.views["scadenzario"] = ScadenzarioView(api_client=self.api_client)
             self.stacked_widget.addWidget(self.views["scadenzario"])
         elif key == "stats":
             from .views.stats_view import StatsView
-            self.views["stats"] = StatsView(self.api_client)
+            self.views["stats"] = StatsView(api_client=self.api_client)
             self.stacked_widget.addWidget(self.views["stats"])
         elif key == "config":
             from .views.config_view import ConfigView
-            self.views["config"] = ConfigView(self.api_client)
+            self.views["config"] = ConfigView(api_client=self.api_client)
             self.stacked_widget.addWidget(self.views["config"])
         elif key == "anagrafica":
             from .views.anagrafica_view import AnagraficaView
-            self.views["anagrafica"] = AnagraficaView(self.api_client)
+            self.views["anagrafica"] = AnagraficaView(api_client=self.api_client)
             self.stacked_widget.addWidget(self.views["anagrafica"])
 
     def _safe_connect(self, signal, slot):
@@ -748,8 +744,8 @@ class MainDashboardWidget(QWidget):
             if is_read_only and not getattr(self, 'is_read_only', False):
                 CustomMessageDialog.show_warning(self, "Connessione Persa", "L'applicazione è passata in modalità Sola Lettura.")
                 self.set_read_only_mode(True)
-        except Exception as e:
-            print(f"System check UI update failed: {e}")
+        except Exception:
+            pass
 
         import time
         if time.time() - self._last_license_check > 3600:
@@ -790,17 +786,15 @@ class MainDashboardWidget(QWidget):
         Cleanup all background threads and child views.
         """
         # Stop System Check Thread
-        if hasattr(self, 'check_thread') and self.check_thread.isRunning():
-            print("[Dashboard] Stopping system check thread...")
+        if hasattr(self, 'check_thread') and self.check_thread and self.check_thread.isRunning():
             self.check_thread.quit()
             if not self.check_thread.wait(2000):
-                 self.check_thread.terminate()
+                self.check_thread.terminate()
 
         # Cleanup Child Views
         for key, view in self.views.items():
             if view and hasattr(view, 'cleanup'):
-                print(f"[Dashboard] Cleaning up view: {key}")
                 try:
                     view.cleanup()
-                except Exception as e:
-                    print(f"[Dashboard] Error cleaning up {key}: {e}")
+                except Exception:
+                    pass

@@ -163,7 +163,7 @@ class ToastManager(QObject):
             with open(path, 'w', encoding='utf-8') as f:
                 json.dump(self.history, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            print(f"Error saving notification history: {e}")
+            pass
 
     def load_history(self):
         # Bug 8: Persistence
@@ -177,9 +177,8 @@ class ToastManager(QObject):
                         self.history = loaded
                     else:
                         self.history = []
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
             # Corrupted file - reset it
-            print(f"[Toast] Corrupted notification history, resetting: {e}")
             self.history = []
             # Try to delete corrupted file
             try:
@@ -187,8 +186,7 @@ class ToastManager(QObject):
                 os.remove(path)
             except Exception:
                 pass
-        except Exception as e:
-            print(f"[Toast] Error loading notification history: {e}")
+        except Exception:
             self.history = []
 
     def show_toast(self, parent, type, title, message, duration=3000):

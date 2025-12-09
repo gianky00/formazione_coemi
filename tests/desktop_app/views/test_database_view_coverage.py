@@ -41,7 +41,7 @@ class TestDatabaseViewCoverage(unittest.TestCase):
     def test_init_ui(self):
         self.assertTrue(self.view.filter_card.isVisible())
         self.assertTrue(self.view.table_view.isVisible())
-        self.MockViewModel.return_value.load_data.assert_called()
+        # load_data is no longer called in __init__, but via MainDashboardWidget after api_client is set
 
     def test_update_table_view(self):
         # Trigger data change

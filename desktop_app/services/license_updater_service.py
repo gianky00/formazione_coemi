@@ -31,7 +31,6 @@ class LicenseUpdaterService:
             response = self.api_client.get("/app_config/config/updater")
             self.config = response
         except Exception as e:
-            print(f"Failed to load updater configuration: {e}")
             raise RuntimeError("Impossibile caricare la configurazione per l'aggiornamento.") from e
         return self.config
 

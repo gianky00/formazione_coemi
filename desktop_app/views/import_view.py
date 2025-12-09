@@ -654,13 +654,11 @@ class ImportView(QWidget):
         """
         # Cleanup scanner thread if running
         if hasattr(self, 'scanner_thread') and self.scanner_thread and self.scanner_thread.isRunning():
-            print("[ImportView] Stopping scanner thread...")
             self.scanner_thread.quit()
             self.scanner_thread.wait(2000)
         
         # Cleanup main worker thread if running
         if hasattr(self, 'thread') and self.thread and self.thread.isRunning():
-            print("[ImportView] Stopping worker thread...")
             self.status_label.setText("Arresto in corso...")
             
             # Signal worker to stop
@@ -671,12 +669,9 @@ class ImportView(QWidget):
             self.thread.quit()
             
             # Wait for thread to finish (with timeout to prevent hanging)
-            if not self.thread.wait(3000):  # 3 seconds timeout
-                print("[ImportView] Thread did not finish in time. Terminating...")
+            if not self.thread.wait(3000):
                 self.thread.terminate()
-                self.thread.wait(1000)  # Brief wait after terminate
-            
-            print("[ImportView] Thread stopped.")
+                self.thread.wait(1000)
         
         # Clear references to help garbage collection
         self.worker = None

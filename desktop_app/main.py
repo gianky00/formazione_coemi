@@ -377,64 +377,50 @@ class MasterWindow(QMainWindow):
         """
         Intercept application close event to ensure robust logout and database cleanup.
         """
-        print("[DEBUG] MasterWindow closing...")
-        
         # Stop voice
         if self.controller and hasattr(self.controller, 'voice_service'):
-            self.controller.voice_service.cleanup()
+            try:
+                self.controller.voice_service.cleanup()
+            except Exception:
+                pass
 
         # Stop Dashboard Threads (Graceful Shutdown)
         if self.controller and self.controller.dashboard:
             try:
-                print("[DEBUG] Cleaning up dashboard threads...")
                 self.controller.dashboard.cleanup()
-            except Exception as e:
-                print(f"[ERROR] Dashboard cleanup failed: {e}")
+            except Exception:
+                pass
 
-        # 1. API Logout (Triggers backend token invalidation)
+        # API Logout (Triggers backend token invalidation)
         if self.controller and self.controller.api_client.access_token:
             try:
-                print("[DEBUG] Triggering API logout...")
-                # This call is blocking
                 self.controller.api_client.logout()
-            except Exception as e:
-                print(f"[ERROR] API Logout failed during close: {e}")
+            except Exception:
+                pass
 
-        # 2. Database Security Cleanup (Release Lock & Save)
+        # Database Security Cleanup (Release Lock & Save)
         try:
-            print("[DEBUG] Releasing Database Lock...")
             db_security.cleanup()
-        except Exception as e:
-            print(f"[CRITICAL] Database cleanup failed: {e}")
+        except Exception:
+            pass
 
         event.accept()
-
-        # 3. Force Process Termination
-        print("[DEBUG] Forcing Application Quit...")
         QApplication.quit()
 
 class ApplicationController:
     def __init__(self, license_ok=True, license_error=""):
-        print("[DEBUG] ApplicationController.__init__ started")
         self.api_client = APIClient()
-        
-        # Init Voice Service
         self.voice_service = VoiceService()
-        
-        print("[DEBUG] APIClient initialized. Creating MasterWindow...")
         self.master_window = MasterWindow(self, license_ok, license_error)
         self.dashboard = None
-        self.notification = None # Store reference to prevent GC
-        self.pending_action = None # Generalized from pending_analysis_path
+        self.notification = None
+        self.pending_action = None
 
         # Connect IPC Bridge
         self.ipc_bridge = IPCBridge.instance()
         self.ipc_bridge.action_received.connect(self.handle_ipc_action)
 
-        print("[DEBUG] ApplicationController initialized.")
-
     def start(self):
-        print("[DEBUG] ApplicationController.start called. Showing Max Window.")
         self.master_window.showMaximized()
         self.master_window.activateWindow()
         self.master_window.raise_()
@@ -443,8 +429,8 @@ class ApplicationController:
         # Check Backend Health to catch Startup Errors (e.g. DB Lock)
         self.check_backend_health()
 
-        # Phase 2: Check for Updates (Non-blocking)
-        QTimer.singleShot(3000, self.start_update_check)
+        # Phase 2: Check for Updates (Non-blocking, delayed)
+        QTimer.singleShot(5000, self.start_update_check)
 
     def start_update_check(self):
         """Starts the async update check worker."""
@@ -455,8 +441,8 @@ class ApplicationController:
             # Ensure cleanup
             self.update_worker.finished.connect(self.update_worker.deleteLater)
             self.update_worker.start()
-        except Exception as e:
-            print(f"[ERROR] Failed to start update check: {e}")
+        except Exception:
+            pass
 
     def prompt_update(self, version, url):
         """Displays a dialog asking the user to update."""
@@ -500,10 +486,9 @@ class ApplicationController:
                 CustomMessageDialog.show_error(self.master_window, "Errore Critico Database", f"Impossibile avviare l'applicazione:\n\n{detail}")
                 sys.exit(1)
 
-        except Exception as e:
-            print(f"[DEBUG] Health Check Warning: {e}")
+        except Exception:
             # We proceed, as network errors might be temporary or handled by LoginView
-            # S2772: Removed useless pass
+            pass
 
     def show_notification(self, title, message, icon_name="file-text.svg"):
         """Displays a toast notification."""
@@ -514,8 +499,6 @@ class ApplicationController:
         """
         Handles actions received from external instances (IPC).
         """
-        print(f"[CONTROLLER] IPC Action Received: {action} Data: {payload}")
-
         # Bring window to front
         self.master_window.showMaximized()
         self.master_window.activateWindow()
@@ -635,8 +618,7 @@ class ApplicationController:
                     display_str = dt.strftime("%d/%m/%Y\n%H:%M")
                 else:
                     display_str = str(prev_login_raw)
-            except Exception as e:
-                print(f"[DEBUG] Error parsing previous_login: {e}")
+            except Exception:
                 display_str = str(prev_login_raw)
         else:
             display_str = "Primo Accesso"
@@ -661,8 +643,8 @@ class ApplicationController:
             # Now connect
             self.dashboard.notification_requested.connect(self.show_notification)
             self.dashboard.analysis_finished.connect(self.on_analysis_finished)
-        except AttributeError as e:
-            print(f"[Controller] Dashboard signals not available: {e}")
+        except AttributeError:
+            pass
 
     def _play_welcome_message(self, user_info):
         try:
@@ -685,8 +667,8 @@ class ApplicationController:
                 
             QTimer.singleShot(1500, lambda: self.voice_service.speak(message_text))
             
-        except Exception as e:
-            print(f"[Controller] Error fetching expiring certs for welcome message: {e}")
+        except Exception:
+            pass
 
     def _handle_deferred_action(self, is_read_only):
         """Executes any pending action after login."""

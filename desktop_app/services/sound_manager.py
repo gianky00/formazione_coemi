@@ -72,16 +72,15 @@ class SoundManager(QObject):
             self.media_player = QMediaPlayer()
             self.audio_output = QAudioOutput()
             self.media_player.setAudioOutput(self.audio_output)
-        except Exception as e:
-            print(f"[SoundManager] Init Error: {e}")
+        except Exception:
             self.SOUND_ENABLED = False
             return
         
         try:
             self.temp_dir = tempfile.mkdtemp()
             self._generate_sounds()
-        except Exception as e:
-            print(f"[SoundManager] Generation Error: {e}")
+        except Exception:
+            pass
 
     def _generate_wav(self, filename, freq_func, duration=0.1, volume=0.5):
         sample_rate = 44100
@@ -135,9 +134,9 @@ class SoundManager(QObject):
             effect.setVolume(0.5)
             effect.play()
             self.effects_cache.append(effect) # Prevent GC
-        except Exception as e:
+        except Exception:
             # Catch potential audio device errors to prevent crashes
-            print(f"[SoundManager] Play Sound Error: {e}")
+            pass
 
     def speak(self, text):
         if not self.SOUND_ENABLED: return
@@ -159,9 +158,9 @@ class SoundManager(QObject):
             self.media_player.setSource(QUrl.fromLocalFile(filepath))
             self.audio_output.setVolume(1.0) # Full volume for speech
             self.media_player.play()
-        except Exception as e:
-            print(f"[SoundManager] Playback Error: {e}")
+        except Exception:
+            pass
 
     def _on_speech_error(self, error_msg):
-        print(f"[SoundManager] TTS Failed (Offline?): {error_msg}")
-        # Optionally play a fallback beep here if desired, but user requested silent fail if offline.
+        # TTS failed (offline?) - silent fail as requested
+        pass

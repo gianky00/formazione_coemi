@@ -233,7 +233,6 @@ class ValidationView(QWidget):
         except requests.exceptions.RequestException as e:
             CustomMessageDialog.show_error(self, "Errore", f"Impossibile modificare il certificato: {e}")
         except Exception as e:
-            print(f"Error in edit_data: {e}")
             CustomMessageDialog.show_error(self, "Errore", f"Si è verificato un errore inatteso: {e}")
 
     def load_data(self):
@@ -396,7 +395,6 @@ class ValidationView(QWidget):
             elif action == open_folder_action:
                 self._open_document(cert_data, open_folder=True)
         except Exception as e:
-            print(f"Error in context menu: {e}")
             CustomMessageDialog.show_error(self, "Errore", f"Impossibile eseguire l'azione: {e}")
 
     def _open_document(self, cert_data, open_folder=False):
@@ -419,6 +417,4 @@ class ValidationView(QWidget):
             else:
                  CustomMessageDialog.show_warning(self, "Non Trovato", "Il file PDF non è stato trovato nel percorso previsto.")
         except Exception as e:
-            # Logghiamo l'errore ma in modo che non faccia crashare l'app, utile per debugging
-            print(f"Error opening document: {e}")
             CustomMessageDialog.show_error(self, "Errore", f"Impossibile eseguire l'operazione: {e}")

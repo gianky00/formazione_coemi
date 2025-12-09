@@ -548,64 +548,50 @@ class StartupWorker(QThread):
 
     def run(self):
         try:
-            # 1. Environment Checks
-            self.progress_update.emit("Verifica ambiente...", 30)
+            # 1. Quick integrity check (non-blocking)
+            self.progress_update.emit("Inizializzazione...", 20)
             try:
-                from desktop_app.services.security_service import is_analysis_tool_running
                 from desktop_app.services.integrity_service import verify_critical_components
-
-                # Removed deprecated or too aggressive checks
-                # is_virtual_environment, is_debugger_active calls removed if not critical for startup
-
-                # We still check for analysis tools if the module exists
-                if is_analysis_tool_running():
-                     logging.warning("Analysis tool detected.")
-
                 is_intact, int_msg = verify_critical_components()
-                if not is_intact: raise RuntimeError(f"Integrità compromessa: {int_msg}")
-            except ImportError: pass
+                if not is_intact:
+                    raise RuntimeError(f"Integrità compromessa: {int_msg}")
+            except ImportError:
+                pass
 
-            # 2. Clock
-            self.progress_update.emit("Sincronizzazione orologio...", 40)
-            try:
-                from desktop_app.services.time_service import check_system_clock
-                clock_ok, clock_error = check_system_clock()
-                if not clock_ok: raise RuntimeError(clock_error)
-            except ImportError: pass
-
-            # 3. Server Start
-            self.progress_update.emit("Avvio Server Database...", 50)
+            # 2. Start Server IMMEDIATELY
+            self.progress_update.emit("Avvio servizi...", 40)
             threading.Thread(target=start_server, args=(self.server_port,), daemon=True).start()
 
-            # 4. Wait for Server
-            self.progress_update.emit("Connessione al Backend...", 60)
+            # 3. Wait for Server (with faster polling)
+            self.progress_update.emit("Connessione...", 60)
             t0 = time.time()
             ready = False
-            while time.time() - t0 < 20:
+            timeout = 15  # Reduced timeout
+            
+            while time.time() - t0 < timeout:
                 if check_port("127.0.0.1", self.server_port):
                     ready = True
                     break
                 elapsed = time.time() - t0
-                prog = 60 + int((elapsed / 20) * 30)
-                self.progress_update.emit("Connessione al Backend...", min(90, prog))
-                time.sleep(0.1)
+                prog = 60 + int((elapsed / timeout) * 30)
+                self.progress_update.emit("Connessione...", min(90, prog))
+                time.sleep(0.05)  # Faster polling
 
             if not ready:
-                raise TimeoutError("Timeout connessione al server locale.")
+                raise TimeoutError("Timeout connessione al server.")
 
-            # 5. Health Check
-            self.progress_update.emit("Verifica Connessione...", 92)
+            # 4. Quick Health Check
+            self.progress_update.emit("Verifica...", 95)
             try:
                 health_url = f"http://localhost:{self.server_port}/api/v1/health"
-                response = requests.get(health_url, timeout=5)
+                response = requests.get(health_url, timeout=3)
                 if response.status_code != 200:
-                    raise ConnectionError(f"Server Error: {response.json().get('detail')}")
-            except Exception as e:
+                    raise ConnectionError(f"Server Error: {response.status_code}")
+            except requests.exceptions.RequestException as e:
                 raise ConnectionError(f"Health Check Failed: {e}")
 
-            # 6. Ready
-            self.progress_update.emit("Caricamento interfaccia...", 98)
-            # License is guaranteed valid by Gatekeeper
+            # 5. Done
+            self.progress_update.emit("Pronto!", 100)
             self.startup_complete.emit(True, "OK")
 
         except Exception as e:
