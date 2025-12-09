@@ -105,7 +105,17 @@ class TestConfigViewCoverage(unittest.TestCase):
     def test_import_csv_action(self):
         with patch('desktop_app.views.config_view.QFileDialog.getOpenFileName', return_value=("imp.csv", "CSV")):
             with patch('os.path.exists', return_value=True):
+                # Configure mock return value
+                self.mock_api_client.import_dipendenti_csv.return_value = {"message": "OK"}
+                
                 self.view.import_csv()
+                
+                # In mock environment, thread.start() doesn't run the actual thread
+                # Manually call the worker's run method to test the logic
+                if hasattr(self.view, '_csv_worker') and self.view._csv_worker:
+                    # Manually invoke run() since DummyQThread doesn't execute it
+                    self.view._csv_worker.run()
+                
                 self.mock_api_client.import_dipendenti_csv.assert_called_with("imp.csv")
 
 if __name__ == '__main__':

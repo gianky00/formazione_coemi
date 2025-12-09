@@ -978,8 +978,10 @@ class ConfigView(QWidget):
             es_widget.smtp_port_input.setText("465")
 
     def import_csv(self):
-        """Import employees from CSV file with robust error handling."""
+        """Import employees from CSV file with robust error handling using a background thread."""
         import sentry_sdk
+        import os
+        from PyQt6.QtCore import QThread, pyqtSignal
         
         # Bug 9 Fix: Filter allow uppercase CSV
         try:
@@ -992,58 +994,73 @@ class ConfigView(QWidget):
         if not file_path:
             return
             
-        try:
-            # Validate API client
-            if not self.api_client:
-                CustomMessageDialog.show_error(self, "Errore", "Client API non inizializzato.")
-                return
+        # Validate API client
+        if not self.api_client:
+            CustomMessageDialog.show_error(self, "Errore", "Client API non inizializzato.")
+            return
+        
+        # Validate file exists
+        if not os.path.exists(file_path):
+            CustomMessageDialog.show_error(self, "Errore", "Il file selezionato non esiste.")
+            return
+        
+        # Create worker class inline for CSV import
+        class CSVImportWorker(QThread):
+            finished_success = pyqtSignal(dict)
+            finished_error = pyqtSignal(str)
             
-            # Validate file exists
-            import os
-            if not os.path.exists(file_path):
-                CustomMessageDialog.show_error(self, "Errore", "Il file selezionato non esiste.")
-                return
-                
-            # Attempt import
-            response = self.api_client.import_dipendenti_csv(file_path)
+            def __init__(self, api_client, path):
+                super().__init__()
+                self.api_client = api_client
+                self.path = path
             
-            # Process response safely
-            if isinstance(response, dict):
+            def run(self):
+                try:
+                    response = self.api_client.import_dipendenti_csv(self.path)
+                    self.finished_success.emit(response if isinstance(response, dict) else {"message": str(response)})
+                except Exception as e:
+                    sentry_sdk.capture_exception(e)
+                    error_msg = str(e)
+                    if hasattr(e, 'response') and e.response is not None:
+                        try:
+                            response_json = e.response.json()
+                            if isinstance(response_json, dict):
+                                error_msg = str(response_json.get('detail', str(e)))
+                            else:
+                                error_msg = str(response_json)
+                        except Exception:
+                            if hasattr(e.response, 'text'):
+                                error_msg = e.response.text[:500] if len(e.response.text) > 500 else e.response.text
+                    self.finished_error.emit(error_msg)
+        
+        # Create and start worker
+        self._csv_worker = CSVImportWorker(self.api_client, file_path)
+        
+        def on_success(response):
+            try:
                 msg = response.get("message", "Importazione completata")
                 warnings = response.get("warnings", [])
                 if warnings:
-                    msg += f"\n\nAvvisi:\n" + "\n".join(warnings[:5])
+                    msg += f"\n\nAvvisi:\n" + "\n".join(str(w) for w in warnings[:5])
                     if len(warnings) > 5:
                         msg += f"\n... e altri {len(warnings) - 5} avvisi."
-            else:
-                msg = str(response) if response else "Importazione completata"
-                
-            ToastManager.success("Importazione Completata", msg, self.window())
-            
-        except ValueError as e:
-            # File size or validation error
-            CustomMessageDialog.show_error(self, "Errore Validazione", str(e))
-        except Exception as e:
-            # Capture to Sentry
-            sentry_sdk.capture_exception(e)
-            
-            # Extract detailed error message
-            error_msg = str(e)
-            if hasattr(e, 'response') and e.response is not None:
-                try:
-                    response_json = e.response.json()
-                    if isinstance(response_json, dict):
-                        detail = response_json.get('detail', str(e))
-                        error_msg = str(detail)
-                    else:
-                        error_msg = str(response_json)
-                except Exception:
-                    if hasattr(e.response, 'text'):
-                        error_msg = e.response.text[:500] if len(e.response.text) > 500 else e.response.text
-                    else:
-                        error_msg = str(e)
-                        
-            CustomMessageDialog.show_error(self, "Errore Importazione", f"Impossibile importare:\n{error_msg}")
+                ToastManager.success("Importazione Completata", msg, self.window())
+            except Exception as e:
+                sentry_sdk.capture_exception(e)
+            finally:
+                self._csv_worker = None
+        
+        def on_error(error_msg):
+            try:
+                CustomMessageDialog.show_error(self, "Errore Importazione", f"Impossibile importare:\n{error_msg}")
+            except Exception as e:
+                sentry_sdk.capture_exception(e)
+            finally:
+                self._csv_worker = None
+        
+        self._csv_worker.finished_success.connect(on_success)
+        self._csv_worker.finished_error.connect(on_error)
+        self._csv_worker.start()
 
     def _validate_config(self, gs, email):
         try:

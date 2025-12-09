@@ -546,8 +546,11 @@ class ApplicationController:
 
     def import_dipendenti_csv(self, path):
         """
-        Triggers CSV import logic.
+        Triggers CSV import logic with background thread for safety.
         """
+        import sentry_sdk
+        from PyQt6.QtCore import QThread, pyqtSignal
+        
         if self.dashboard and getattr(self.dashboard, 'is_read_only', False):
             CustomMessageDialog.show_warning(self.master_window, STR_SOLA_LETTURA, "Impossibile importare CSV in modalità Sola Lettura.")
             return
@@ -556,19 +559,53 @@ class ApplicationController:
              self.pending_action = {"action": "import_csv", "path": path}
              return
 
-        try:
-            response = self.api_client.import_dipendenti_csv(path)
-            message = response.get("message", "Importazione riuscita.")
-            # We simplify the message for the toast
-            self.show_notification("Importazione Completata", message, icon_name="users.svg")
-
-            # Refresh data if needed (Dashboard usually auto-refreshes on tab switch, but we can force it)
-            if self.dashboard:
-                # Trigger refresh on validation/dashboard if needed
-                pass
-
-        except Exception as e:
-            CustomMessageDialog.show_error(self.master_window, "Errore Importazione", f"Impossibile importare il file:\n{e}")
+        # Create worker class for background import
+        class CSVImportWorker(QThread):
+            finished_success = pyqtSignal(dict)
+            finished_error = pyqtSignal(str)
+            
+            def __init__(self, api_client, file_path):
+                super().__init__()
+                self.api_client = api_client
+                self.file_path = file_path
+            
+            def run(self):
+                try:
+                    response = self.api_client.import_dipendenti_csv(self.file_path)
+                    self.finished_success.emit(response if isinstance(response, dict) else {"message": str(response)})
+                except Exception as e:
+                    sentry_sdk.capture_exception(e)
+                    error_msg = str(e)
+                    if hasattr(e, 'response') and e.response is not None:
+                        try:
+                            error_msg = str(e.response.json().get('detail', str(e)))
+                        except Exception:
+                            pass
+                    self.finished_error.emit(error_msg)
+        
+        # Create and start worker
+        self._csv_import_worker = CSVImportWorker(self.api_client, path)
+        
+        def on_success(response):
+            try:
+                message = response.get("message", "Importazione riuscita.")
+                self.show_notification("Importazione Completata", message, icon_name="users.svg")
+            except Exception as e:
+                sentry_sdk.capture_exception(e)
+            finally:
+                self._csv_import_worker = None
+        
+        def on_error(error_msg):
+            try:
+                CustomMessageDialog.show_error(self.master_window, "Errore Importazione", f"Impossibile importare il file:\n{error_msg}")
+            except Exception as e:
+                sentry_sdk.capture_exception(e)
+            finally:
+                self._csv_import_worker = None
+        
+        self._csv_import_worker.finished_success.connect(on_success)
+        self._csv_import_worker.finished_error.connect(on_error)
+        self._csv_import_worker.start()
 
     def on_login_success(self, user_info):
         # Create Dashboard if not exists
