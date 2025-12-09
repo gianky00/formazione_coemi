@@ -379,6 +379,14 @@ class MasterWindow(QMainWindow):
         """
         print("[DEBUG] MasterWindow closing...")
         
+        # 1. Stop LoginView threads (Fix for QThread destroyed while running)
+        if self.login_view:
+             try:
+                 print("[DEBUG] Cleaning up LoginView threads...")
+                 self.login_view.cleanup()
+             except Exception as e:
+                 print(f"[ERROR] LoginView cleanup failed: {e}")
+
         # Stop voice
         if self.controller and hasattr(self.controller, 'voice_service'):
             self.controller.voice_service.cleanup()

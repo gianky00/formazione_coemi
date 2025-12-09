@@ -7,6 +7,12 @@ def setup_logging():
     - Console: INFO level, simple format.
     - File: DEBUG level, detailed format.
     """
+    root_logger = logging.getLogger('')
+
+    # Check if handlers are already configured (e.g., by launcher.py)
+    if root_logger.handlers:
+        return
+
     logging.basicConfig(
         level=logging.DEBUG,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -21,7 +27,7 @@ def setup_logging():
     console_handler.setFormatter(formatter)
 
     # Add the console handler to the root logger
-    logging.getLogger('').addHandler(console_handler)
+    root_logger.addHandler(console_handler)
 
     # Silence noisy libraries
     logging.getLogger("uvicorn").setLevel(logging.WARNING)

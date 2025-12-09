@@ -53,8 +53,8 @@ class ForcePasswordChangeDialog(QDialog):
         return self.new_password.text(), self.confirm_password.text()
 
 class LoginWorker(QThread):
-    finished_success = pyqtSignal(object)
-    finished_error = pyqtSignal(object)
+    finished_success = pyqtSignal(dict)
+    finished_error = pyqtSignal(str)
 
     def __init__(self, api_client, username, password):
         super().__init__()
@@ -605,32 +605,22 @@ class LoginView(QWidget):
             else:
                 self.container.move(cx, cy)
 
-    def closeEvent(self, event):
+    def cleanup(self):
         """
-        Force quit all running threads when the view is closed.
-        This prevents 'Zombie' processes and 'Thread Destroyed' crashes.
+        Explicitly cleans up all threads and timers to prevent QThread destruction warnings.
         """
-        # 1. Stop Login Worker
-        if self.login_worker and self.login_worker.isRunning():
-            print("[LoginView] Stopping LoginWorker...")
-            self.login_worker.quit()
-            self.login_worker.wait()
-
-        # 2. Stop License Worker
-        if self.license_worker and self.license_worker.isRunning():
-            print("[LoginView] Stopping LicenseWorker...")
-            self.license_worker.quit()
-            self.license_worker.wait()
-
-        # 3. Stop Background Animation Timer
+        # 1. Stop Animation
         if self._anim_timer.isActive():
             self._anim_timer.stop()
-            
-        # 4. Stop Update Worker
-        if self.update_worker and self.update_worker.isRunning():
-            self.update_worker.quit()
-            self.update_worker.wait()
 
+        # 2. Stop Workers
+        for worker in [self.login_worker, self.license_worker, self.update_worker]:
+            if worker and worker.isRunning():
+                worker.quit()
+                worker.wait()
+
+    def closeEvent(self, event):
+        self.cleanup()
         event.accept()
 
     def reset_view(self):
