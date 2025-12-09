@@ -913,6 +913,8 @@ class DummyQGraphicsTextItem(DummyQObject):
         pass
     def setDefaultTextColor(self, color): # NOSONAR
         pass
+    def setZValue(self, value): # NOSONAR
+        pass
     def boundingRect(self): # NOSONAR
         m = MagicMock()
         m.width.return_value = 100

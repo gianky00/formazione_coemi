@@ -52,8 +52,9 @@ class TestPdfWorker(unittest.TestCase):
     @patch('desktop_app.views.import_view.requests.post')
     @patch('desktop_app.views.import_view.shutil.move')
     @patch('desktop_app.views.import_view.os.makedirs')
+    @patch('desktop_app.views.import_view.os.path.exists', return_value=True)
     @patch('builtins.open', new_callable=mock_open, read_data=b"pdf_content")
-    def test_process_pdf_success_active(self, mock_file, mock_makedirs, mock_move, mock_post):
+    def test_process_pdf_success_active(self, mock_file, mock_exists, mock_makedirs, mock_move, mock_post):
         file_path = os.path.join(self.output_folder, "doc.pdf")
 
         mock_upload_resp = MagicMock()
@@ -99,8 +100,9 @@ class TestPdfWorker(unittest.TestCase):
     @patch('desktop_app.views.import_view.requests.post')
     @patch('desktop_app.views.import_view.shutil.move')
     @patch('desktop_app.views.import_view.os.makedirs')
+    @patch('desktop_app.views.import_view.os.path.exists', return_value=True)
     @patch('builtins.open', new_callable=mock_open, read_data=b"pdf_content")
-    def test_process_pdf_success_expired_historical(self, mock_file, mock_makedirs, mock_move, mock_post):
+    def test_process_pdf_success_expired_historical(self, mock_file, mock_exists, mock_makedirs, mock_move, mock_post):
         file_path = os.path.join(self.output_folder, "old_doc.pdf")
 
         mock_upload_resp = MagicMock()
@@ -135,8 +137,9 @@ class TestPdfWorker(unittest.TestCase):
     @patch('desktop_app.views.import_view.requests.post')
     @patch('desktop_app.views.import_view.shutil.move')
     @patch('desktop_app.views.import_view.os.makedirs')
+    @patch('desktop_app.views.import_view.os.path.exists', return_value=True)
     @patch('builtins.open', new_callable=mock_open, read_data=b"pdf_content")
-    def test_process_pdf_no_expiration_nomine(self, mock_file, mock_makedirs, mock_move, mock_post):
+    def test_process_pdf_no_expiration_nomine(self, mock_file, mock_exists, mock_makedirs, mock_move, mock_post):
         file_path = os.path.join(self.output_folder, "nomina.pdf")
 
         mock_upload_resp = MagicMock()

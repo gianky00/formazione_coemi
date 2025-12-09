@@ -145,21 +145,32 @@ class PdfWorker(QObject):
             self.move_to_error(f"Errore Spostamento: {e}", cert_data, source_path=current_op_path)
 
     def _move_to_success_folder(self, cert_data, current_op_path):
-        """Helper to move file to the correct success folder."""
-        matricola = cert_data.get('matricola') if cert_data.get('matricola') else 'N-A'
+        """Helper to move file to the correct success folder (DOCUMENTI DIPENDENTI structure)."""
+        # Ensure we have valid folder and file path
+        if not self.output_folder:
+            raise ValueError("output_folder non configurato")
+        if not current_op_path or not os.path.exists(current_op_path):
+            raise ValueError(f"File sorgente non trovato: {current_op_path}")
+        
+        matricola = cert_data.get('matricola')
+        if not matricola:
+            matricola = 'N-A'
         categoria = cert_data.get('categoria', 'CATEGORIA_NON_TROVATA')
         nome_completo = cert_data.get('nome', 'ERRORE')
 
         data_scadenza_str = cert_data.get('data_scadenza')
-        stato = 'STORICO'
-        if not data_scadenza_str:
-            stato = 'ATTIVO'
-            file_scadenza = "no scadenza"
-        else:
-            scadenza_date = datetime.strptime(data_scadenza_str, '%d/%m/%Y').date()
-            if scadenza_date >= datetime.now().date():
-                stato = 'ATTIVO'
-            file_scadenza = scadenza_date.strftime(DATE_FORMAT_FILE)
+        stato = 'ATTIVO'
+        file_scadenza = "no scadenza"
+        
+        if data_scadenza_str:
+            try:
+                scadenza_date = datetime.strptime(data_scadenza_str, '%d/%m/%Y').date()
+                file_scadenza = scadenza_date.strftime(DATE_FORMAT_FILE)
+                if scadenza_date < datetime.now().date():
+                    stato = 'STORICO'
+            except ValueError:
+                # If date parsing fails, keep ATTIVO and use a fallback
+                file_scadenza = "data_non_valida"
 
         nome_fs = sanitize_filename(nome_completo)
         matricola_fs = sanitize_filename(str(matricola))
@@ -168,11 +179,18 @@ class PdfWorker(QObject):
         employee_folder_name = f"{nome_fs} ({matricola_fs})"
         new_filename = f"{nome_fs} ({matricola_fs}) - {categoria_fs} - {file_scadenza}.pdf"
 
+        # Create the full folder structure: DOCUMENTI DIPENDENTI / Employee / Category / Status
         documenti_folder = os.path.join(self.output_folder, "DOCUMENTI DIPENDENTI")
         dest_path = os.path.join(documenti_folder, employee_folder_name, categoria_fs, stato)
+        
+        # Create directories
         os.makedirs(dest_path, exist_ok=True)
-
-        shutil.move(current_op_path, os.path.join(dest_path, new_filename))
+        
+        # Move file
+        final_path = os.path.join(dest_path, new_filename)
+        shutil.move(current_op_path, final_path)
+        
+        self.log_message.emit(f"Archiviato in: {dest_path}", "green")
 
     def _handle_save_response(self, save_response, original_filename, certificato, current_op_path):
         # S3776: Refactored logic to reduce complexity

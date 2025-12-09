@@ -350,20 +350,36 @@ class ValidationView(QWidget):
         self.threadpool.start(worker)
 
     def _on_action_completed(self, result, action_type):
-        success = result.get("success", 0)
-        errors = result.get("errors", [])
+        try:
+            # Ensure result is a dict
+            if not isinstance(result, dict):
+                result = {"success": 0, "errors": []}
+            
+            success = result.get("success", 0)
+            errors = result.get("errors", [])
 
-        if errors:
-            CustomMessageDialog.show_warning(self, "Operazione Parzialmente Riuscita",
-                                f"{success} operazioni riuscite.\n"
-                                f"Errori su {len(errors)} elementi:\n" + "\n".join(errors))
-        else:
-            CustomMessageDialog.show_info(self, "Successo", f"Operazione completata con successo su {success} elementi.")
+            if errors:
+                # Ensure errors is a list of strings
+                error_list = [str(e) for e in errors] if isinstance(errors, list) else [str(errors)]
+                CustomMessageDialog.show_warning(self, "Operazione Parzialmente Riuscita",
+                                    f"{success} operazioni riuscite.\n"
+                                    f"Errori su {len(error_list)} elementi:\n" + "\n".join(error_list[:5]))
+            else:
+                CustomMessageDialog.show_info(self, "Successo", f"Operazione completata con successo su {success} elementi.")
 
-        if success > 0 and action_type == "validate":
-            self.validation_completed.emit()
+            if success > 0 and action_type == "validate":
+                try:
+                    self.validation_completed.emit()
+                except Exception:
+                    pass
 
-        self.load_data()
+            # Reload data after dialog is closed
+            try:
+                self.load_data()
+            except Exception:
+                pass
+        except Exception as e:
+            CustomMessageDialog.show_error(self, "Errore", f"Errore durante l'elaborazione del risultato: {e}")
 
     def _show_context_menu(self, pos):
         try:

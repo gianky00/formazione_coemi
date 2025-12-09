@@ -78,12 +78,15 @@ def test_config_view_init():
 def test_edit_dialog_init():
     from desktop_app.views.edit_dialog import EditCertificatoDialog
     data = {
-        "nome": "Mario", "corso": "C1", "categoria": "CAT1",
+        "nome": "Rossi Mario", "corso": "C1", "categoria": "CAT1",
         "data_rilascio": "01/01/2025", "data_scadenza": "01/01/2026"
     }
     categories = ["CAT1", "CAT2"]
     dialog = EditCertificatoDialog(data, categories)
     assert dialog is not None
-    # Test get_data
+    # Test get_data - now returns uppercase COGNOME NOME format
     res = dialog.get_data()
-    assert res['nome'] == "Mario"
+    # The dialog splits "Rossi Mario" into cognome="Rossi" and nome="Mario"
+    # and returns them as "ROSSI MARIO" (uppercase)
+    assert "ROSSI" in res['nome']
+    assert "MARIO" in res['nome']

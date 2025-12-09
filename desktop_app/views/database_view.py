@@ -410,8 +410,8 @@ class DatabaseView(QWidget):
         path, _ = QFileDialog.getSaveFileName(self, "Salva CSV", "certificati.csv", "CSV Files (*.csv)")
         if path:
             try:
-                self.model._data.to_csv(path, index=False)
-                # S3457: Fixed f-string usage
+                # Use semicolon as separator for Italian locale compatibility
+                self.model._data.to_csv(path, index=False, sep=';', encoding='utf-8-sig')
                 ToastManager.success("Esportazione Riuscita", "Dati esportati con successo.", self.window())
             except Exception as e:
                 self._show_error_message(f"Impossibile salvare il file: {e}")

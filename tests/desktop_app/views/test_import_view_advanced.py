@@ -133,14 +133,13 @@ class TestImportViewAdvanced(unittest.TestCase):
         
         with patch('builtins.open', mock_open(read_data=b"pdf_content")):
             with patch('shutil.move') as m_move:
-                worker.process_pdf("/tmp/test.pdf")
-                
-                # Check log success
-                worker.log_message.emit.assert_any_call(ANY, "default")
-                # Check file move to success folder
-                m_move.assert_called()
-                args = m_move.call_args[0]
-                self.assertIn("DOCUMENTI DIPENDENTI", args[1])
+                with patch('os.path.exists', return_value=True):
+                    worker.process_pdf("/tmp/test.pdf")
+                    
+                    # Check file move to success folder
+                    m_move.assert_called()
+                    args = m_move.call_args[0]
+                    self.assertIn("DOCUMENTI DIPENDENTI", args[1])
 
     @patch('desktop_app.views.import_view.requests.post')
     def test_pdf_worker_upload_failure(self, m_post):

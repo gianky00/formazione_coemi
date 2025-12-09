@@ -30,11 +30,12 @@ class ToastNotification(QWidget):
         text_color = "#1F2937"
         msg_color = "#6B7280"
 
+        # Improved toast styling - more opaque and larger
         self.setStyleSheet(f"""
             QWidget {{
-                background-color: {bg_color};
-                border: 1px solid #E5E7EB;
-                border-radius: 8px;
+                background-color: rgba(255, 255, 255, 0.98);
+                border: 2px solid {accent_color};
+                border-radius: 12px;
             }}
             QLabel {{
                 background: transparent;
@@ -42,17 +43,17 @@ class ToastNotification(QWidget):
             }}
             QLabel#title {{
                 font-weight: bold;
-                font-size: 14px;
+                font-size: 16px;
                 color: {text_color};
             }}
             QLabel#message {{
-                font-size: 12px;
+                font-size: 14px;
                 color: {msg_color};
             }}
             QWidget#accent {{
                 background-color: {accent_color};
-                border-top-left-radius: 8px;
-                border-bottom-left-radius: 8px;
+                border-top-left-radius: 10px;
+                border-bottom-left-radius: 10px;
                 border: none;
             }}
         """)
@@ -61,10 +62,10 @@ class ToastNotification(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
 
-        # Accent strip
+        # Accent strip - wider for better visibility
         accent = QWidget()
         accent.setObjectName("accent")
-        accent.setFixedWidth(6)
+        accent.setFixedWidth(8)
         layout.addWidget(accent)
 
         # Content
@@ -96,7 +97,7 @@ class ToastNotification(QWidget):
 
         self.adjustSize()
 
-    def show_toast(self, duration=3000):
+    def show_toast(self, duration=5000):
         self.show()
         # Animation Fade In
         self.anim = QPropertyAnimation(self.opacity_effect, b"opacity")

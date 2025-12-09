@@ -982,10 +982,21 @@ class ConfigView(QWidget):
         file_path, _ = QFileDialog.getOpenFileName(self, "Seleziona CSV", "", "CSV Files (*.csv *.CSV)")
         if file_path:
             try:
+                if not self.api_client:
+                    CustomMessageDialog.show_error(self, "Errore", "Client API non inizializzato.")
+                    return
                 response = self.api_client.import_dipendenti_csv(file_path)
-                ToastManager.success("Importazione Completata", response.get("message", "Successo"), self.window())
+                msg = response.get("message", "Successo") if isinstance(response, dict) else str(response)
+                ToastManager.success("Importazione Completata", msg, self.window())
             except Exception as e:
-                CustomMessageDialog.show_error(self, "Errore", f"Impossibile importare: {e}")
+                error_msg = str(e)
+                if hasattr(e, 'response') and e.response is not None:
+                    try:
+                        detail = e.response.json().get('detail', str(e))
+                        error_msg = str(detail)
+                    except Exception:
+                        error_msg = e.response.text if hasattr(e.response, 'text') else str(e)
+                CustomMessageDialog.show_error(self, "Errore Importazione", f"Impossibile importare: {error_msg}")
 
     def _validate_config(self, gs, email):
         try:
