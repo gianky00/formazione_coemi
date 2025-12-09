@@ -41,7 +41,7 @@ class TestDatabaseViewCoverage(unittest.TestCase):
     def test_init_ui(self):
         self.assertTrue(self.view.filter_card.isVisible())
         self.assertTrue(self.view.table_view.isVisible())
-        self.MockViewModel.return_value.load_data.assert_called()
+        # load_data is no longer called in __init__, but via MainDashboardWidget after api_client is set
 
     def test_update_table_view(self):
         # Trigger data change
@@ -75,7 +75,8 @@ class TestDatabaseViewCoverage(unittest.TestCase):
             # Mock to_csv
             with patch.object(self.view.model._data, 'to_csv') as mock_to_csv:
                 self.view.export_to_csv()
-                mock_to_csv.assert_called_with("test.csv", index=False)
+                # Updated: now uses semicolon separator and utf-8-sig encoding
+                mock_to_csv.assert_called_with("test.csv", index=False, sep=';', encoding='utf-8-sig')
 
     @patch('desktop_app.views.database_view.CustomMessageDialog')
     def test_delete_action(self, mock_dialog):

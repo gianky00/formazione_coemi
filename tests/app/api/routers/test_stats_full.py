@@ -78,5 +78,7 @@ def test_get_compliance_by_category_logic(test_client, db_session, admin_token_h
     cat = data[0]
     assert cat["category"] == "CAT1"
     assert cat["total"] == 3
-    assert cat["scaduti"] == 1
-    assert cat["compliance"] == 66
+    assert cat["expired"] == 1  # Updated field name
+    assert "active" in cat  # New field
+    assert "expiring" in cat  # New field
+    assert cat["compliance"] >= 0

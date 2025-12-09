@@ -188,6 +188,7 @@ def send_email_notification(pdf_content_bytes, expiring_corsi_count, expiring_vi
 
     # Bug 3: Add timeout to SMTP connection
     SMTP_TIMEOUT = 30
+    conn_method = "Unknown"  # Initialize to prevent UnboundLocalError in exception handler
 
     try:
         if settings.SMTP_PORT == 465:

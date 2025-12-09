@@ -38,9 +38,10 @@ class APIClient:
             try:
                 url = f"{self.base_url}/auth/logout"
                 requests.post(url, headers=self._get_headers(), timeout=5)
-            except Exception:
-                # Ignore network errors during logout, just clear local state
-                pass
+            except requests.exceptions.RequestException as e:
+                # Log network errors but don't block logout - user must be able to exit
+                import logging
+                logging.getLogger(__name__).warning(f"Logout request failed (non-blocking): {e}")
         self.clear_token()
 
     def _get_headers(self):
@@ -50,8 +51,10 @@ class APIClient:
 
         try:
             headers["X-Device-ID"] = get_device_id()
-        except Exception:
-            pass
+        except Exception as e:
+            # Device ID is optional - log but don't fail
+            import logging
+            logging.getLogger(__name__).debug(f"Could not get device ID (non-critical): {e}")
 
         return headers
 

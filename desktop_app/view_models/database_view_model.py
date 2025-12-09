@@ -56,7 +56,9 @@ class DatabaseViewModel(QObject):
     def _on_error(self, error_message):
         self._df_original = pd.DataFrame()
         self._df_filtered = pd.DataFrame()
-        self.error_occurred.emit(f"Errore durante il caricamento: {error_message}")
+        # Ensure error_message is always a string
+        safe_msg = str(error_message) if error_message else "Errore sconosciuto"
+        self.error_occurred.emit(f"Errore durante il caricamento: {safe_msg}")
         self.data_changed.emit()
 
     def filter_data(self, dipendente, categoria, stato, search_text=""):

@@ -48,6 +48,16 @@ def setup_styles(app: QApplication):
                 background-color: #F0F8FF;
                 color: #1F2937;
             }
+            
+            /* Tooltip Styles - Fix black window */
+            QToolTip {
+                background-color: #FFFFFF;
+                color: #1F2937;
+                border: 1px solid #E5E7EB;
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-size: 13px;
+            }
 
             /* Card Styles */
             .card, QFrame#card {
@@ -377,64 +387,50 @@ class MasterWindow(QMainWindow):
         """
         Intercept application close event to ensure robust logout and database cleanup.
         """
-        print("[DEBUG] MasterWindow closing...")
-        
         # Stop voice
         if self.controller and hasattr(self.controller, 'voice_service'):
-            self.controller.voice_service.cleanup()
+            try:
+                self.controller.voice_service.cleanup()
+            except Exception:
+                pass
 
         # Stop Dashboard Threads (Graceful Shutdown)
         if self.controller and self.controller.dashboard:
             try:
-                print("[DEBUG] Cleaning up dashboard threads...")
                 self.controller.dashboard.cleanup()
-            except Exception as e:
-                print(f"[ERROR] Dashboard cleanup failed: {e}")
+            except Exception:
+                pass
 
-        # 1. API Logout (Triggers backend token invalidation)
+        # API Logout (Triggers backend token invalidation)
         if self.controller and self.controller.api_client.access_token:
             try:
-                print("[DEBUG] Triggering API logout...")
-                # This call is blocking
                 self.controller.api_client.logout()
-            except Exception as e:
-                print(f"[ERROR] API Logout failed during close: {e}")
+            except Exception:
+                pass
 
-        # 2. Database Security Cleanup (Release Lock & Save)
+        # Database Security Cleanup (Release Lock & Save)
         try:
-            print("[DEBUG] Releasing Database Lock...")
             db_security.cleanup()
-        except Exception as e:
-            print(f"[CRITICAL] Database cleanup failed: {e}")
+        except Exception:
+            pass
 
         event.accept()
-
-        # 3. Force Process Termination
-        print("[DEBUG] Forcing Application Quit...")
         QApplication.quit()
 
 class ApplicationController:
     def __init__(self, license_ok=True, license_error=""):
-        print("[DEBUG] ApplicationController.__init__ started")
         self.api_client = APIClient()
-        
-        # Init Voice Service
         self.voice_service = VoiceService()
-        
-        print("[DEBUG] APIClient initialized. Creating MasterWindow...")
         self.master_window = MasterWindow(self, license_ok, license_error)
         self.dashboard = None
-        self.notification = None # Store reference to prevent GC
-        self.pending_action = None # Generalized from pending_analysis_path
+        self.notification = None
+        self.pending_action = None
 
         # Connect IPC Bridge
         self.ipc_bridge = IPCBridge.instance()
         self.ipc_bridge.action_received.connect(self.handle_ipc_action)
 
-        print("[DEBUG] ApplicationController initialized.")
-
     def start(self):
-        print("[DEBUG] ApplicationController.start called. Showing Max Window.")
         self.master_window.showMaximized()
         self.master_window.activateWindow()
         self.master_window.raise_()
@@ -443,8 +439,8 @@ class ApplicationController:
         # Check Backend Health to catch Startup Errors (e.g. DB Lock)
         self.check_backend_health()
 
-        # Phase 2: Check for Updates (Non-blocking)
-        QTimer.singleShot(3000, self.start_update_check)
+        # Phase 2: Check for Updates (Non-blocking, delayed)
+        QTimer.singleShot(5000, self.start_update_check)
 
     def start_update_check(self):
         """Starts the async update check worker."""
@@ -455,8 +451,8 @@ class ApplicationController:
             # Ensure cleanup
             self.update_worker.finished.connect(self.update_worker.deleteLater)
             self.update_worker.start()
-        except Exception as e:
-            print(f"[ERROR] Failed to start update check: {e}")
+        except Exception:
+            pass
 
     def prompt_update(self, version, url):
         """Displays a dialog asking the user to update."""
@@ -500,10 +496,9 @@ class ApplicationController:
                 CustomMessageDialog.show_error(self.master_window, "Errore Critico Database", f"Impossibile avviare l'applicazione:\n\n{detail}")
                 sys.exit(1)
 
-        except Exception as e:
-            print(f"[DEBUG] Health Check Warning: {e}")
+        except Exception:
             # We proceed, as network errors might be temporary or handled by LoginView
-            # S2772: Removed useless pass
+            pass
 
     def show_notification(self, title, message, icon_name="file-text.svg"):
         """Displays a toast notification."""
@@ -514,8 +509,6 @@ class ApplicationController:
         """
         Handles actions received from external instances (IPC).
         """
-        print(f"[CONTROLLER] IPC Action Received: {action} Data: {payload}")
-
         # Bring window to front
         self.master_window.showMaximized()
         self.master_window.activateWindow()
@@ -553,8 +546,11 @@ class ApplicationController:
 
     def import_dipendenti_csv(self, path):
         """
-        Triggers CSV import logic.
+        Triggers CSV import logic with background thread for safety.
         """
+        import sentry_sdk
+        from desktop_app.workers.csv_import_worker import CSVImportWorker
+        
         if self.dashboard and getattr(self.dashboard, 'is_read_only', False):
             CustomMessageDialog.show_warning(self.master_window, STR_SOLA_LETTURA, "Impossibile importare CSV in modalità Sola Lettura.")
             return
@@ -563,46 +559,72 @@ class ApplicationController:
              self.pending_action = {"action": "import_csv", "path": path}
              return
 
-        try:
-            response = self.api_client.import_dipendenti_csv(path)
-            message = response.get("message", "Importazione riuscita.")
-            # We simplify the message for the toast
-            self.show_notification("Importazione Completata", message, icon_name="users.svg")
-
-            # Refresh data if needed (Dashboard usually auto-refreshes on tab switch, but we can force it)
-            if self.dashboard:
-                # Trigger refresh on validation/dashboard if needed
+        # Create and start worker with master_window as parent
+        self._csv_import_worker = CSVImportWorker(self.api_client, path, parent=self.master_window)
+        
+        def on_success(response):
+            try:
+                message = response.get("message", "Importazione riuscita.")
+                self.show_notification("Importazione Completata", message, icon_name="users.svg")
+            except Exception as e:
+                sentry_sdk.capture_exception(e)
+            finally:
+                self._cleanup_csv_worker()
+        
+        def on_error(error_msg):
+            try:
+                CustomMessageDialog.show_error(self.master_window, "Errore Importazione", f"Impossibile importare il file:\n{error_msg}")
+            except Exception as e:
+                sentry_sdk.capture_exception(e)
+            finally:
+                self._cleanup_csv_worker()
+        
+        self._csv_import_worker.finished_success.connect(on_success)
+        self._csv_import_worker.finished_error.connect(on_error)
+        self._csv_import_worker.finished.connect(self._cleanup_csv_worker)
+        self._csv_import_worker.start()
+    
+    def _cleanup_csv_worker(self):
+        """Safely cleanup CSV worker."""
+        if hasattr(self, '_csv_import_worker') and self._csv_import_worker:
+            try:
+                if self._csv_import_worker.isRunning():
+                    self._csv_import_worker.quit()
+                    self._csv_import_worker.wait(1000)
+            except RuntimeError:
                 pass
-
-        except Exception as e:
-            CustomMessageDialog.show_error(self.master_window, "Errore Importazione", f"Impossibile importare il file:\n{e}")
+            self._csv_import_worker = None
 
     def on_login_success(self, user_info):
-        # Create Dashboard if not exists
-        self._ensure_dashboard_created()
+        try:
+            # Create Dashboard if not exists
+            self._ensure_dashboard_created()
 
-        # Setup Session Managers
-        self._setup_session_managers()
+            # Setup Session Managers
+            self._setup_session_managers()
 
-        # Propagate Read-Only State
-        is_read_only = user_info.get("read_only", False)
-        self.dashboard.set_read_only_mode(is_read_only)
+            # Propagate Read-Only State
+            is_read_only = user_info.get("read_only", False)
+            self.dashboard.set_read_only_mode(is_read_only)
 
-        # Update User Info in Sidebar
-        self._update_sidebar_user_info(user_info)
+            # Update User Info in Sidebar
+            self._update_sidebar_user_info(user_info)
 
-        # Connect Signals
-        self._connect_dashboard_signals()
-        
-        # Transition
-        self.master_window.show_dashboard(self.dashboard)
+            # Connect Signals
+            self._connect_dashboard_signals()
+            
+            # Transition
+            self.master_window.show_dashboard(self.dashboard)
 
-        # Voice Welcome
-        self._play_welcome_message(user_info)
+            # Voice Welcome
+            self._play_welcome_message(user_info)
 
-        # Handle deferred action
-        if self.pending_action:
-            self._handle_deferred_action(is_read_only)
+            # Handle deferred action
+            if self.pending_action:
+                self._handle_deferred_action(is_read_only)
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            CustomMessageDialog.show_error(self.master_window, "Errore Critico", f"Errore durante l'avvio della dashboard:\n{e}")
 
     def _ensure_dashboard_created(self):
         if not self.dashboard:
@@ -635,8 +657,7 @@ class ApplicationController:
                     display_str = dt.strftime("%d/%m/%Y\n%H:%M")
                 else:
                     display_str = str(prev_login_raw)
-            except Exception as e:
-                print(f"[DEBUG] Error parsing previous_login: {e}")
+            except Exception:
                 display_str = str(prev_login_raw)
         else:
             display_str = "Primo Accesso"
@@ -645,12 +666,24 @@ class ApplicationController:
 
     def _connect_dashboard_signals(self):
         # Connect notification signal from dashboard
+        # Use blockSignals pattern to avoid duplicate connections
         try:
+            # Disconnect first to prevent duplicates (if already connected)
+            try:
+                self.dashboard.notification_requested.disconnect(self.show_notification)
+            except (TypeError, RuntimeError):
+                pass  # Not connected yet, that's fine
+            
+            try:
+                self.dashboard.analysis_finished.disconnect(self.on_analysis_finished)
+            except (TypeError, RuntimeError):
+                pass  # Not connected yet, that's fine
+            
+            # Now connect
             self.dashboard.notification_requested.connect(self.show_notification)
-            # Connect Analysis Completion for Voice
             self.dashboard.analysis_finished.connect(self.on_analysis_finished)
-        except Exception:
-            pass # Already connected
+        except AttributeError:
+            pass
 
     def _play_welcome_message(self, user_info):
         try:
@@ -673,8 +706,8 @@ class ApplicationController:
                 
             QTimer.singleShot(1500, lambda: self.voice_service.speak(message_text))
             
-        except Exception as e:
-            print(f"[Controller] Error fetching expiring certs for welcome message: {e}")
+        except Exception:
+            pass
 
     def _handle_deferred_action(self, is_read_only):
         """Executes any pending action after login."""

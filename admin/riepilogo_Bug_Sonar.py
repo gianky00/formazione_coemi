@@ -181,18 +181,44 @@ def get_output_path(filename):
 
 
 def parse_effort(effort_str):
-    """Converte effort in minuti."""
+    """Converte effort in minuti usando parsing sicuro senza regex."""
     if not effort_str:
         return 0
     total = 0
-    effort_str = effort_str.lower()
-    # ReDoS-safe patterns: restricted repetition for whitespace
-    h = re.search(r'(\d+)\s{0,20}h', effort_str) # NOSONAR: Internal controlled input, risk acceptable
-    m = re.search(r'(\d+)\s{0,20}min', effort_str) # NOSONAR: Internal controlled input, risk acceptable
-    d = re.search(r'(\d+)\s{0,20}d', effort_str) # NOSONAR: Internal controlled input, risk acceptable
-    if h: total += int(h.group(1)) * 60
-    if m: total += int(m.group(1))
-    if d: total += int(d.group(1)) * 8 * 60
+    effort_str = effort_str.lower().strip()
+    
+    # Parse using simple string operations (ReDoS-safe)
+    # Split by common separators and look for patterns like "2h", "30min", "1d"
+    parts = effort_str.replace(',', ' ').split()
+    
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+        
+        # Extract numeric prefix
+        num_str = ""
+        suffix = ""
+        for char in part:
+            if char.isdigit():
+                num_str += char
+            else:
+                suffix = part[len(num_str):].strip()
+                break
+        
+        if not num_str:
+            continue
+            
+        value = int(num_str)
+        
+        # Check suffix for time unit
+        if suffix.startswith('h'):
+            total += value * 60
+        elif suffix.startswith('min'):
+            total += value
+        elif suffix.startswith('d'):
+            total += value * 8 * 60
+    
     return total
 
 
@@ -449,8 +475,9 @@ def _find_junit_file():
             return path
     return None
 
-def _process_test_case(testcase, summary):
+def _process_test_case(testcase, _summary):
     """Processa un singolo test case."""
+    # Note: _summary parameter kept for API compatibility but uses global test_failures_details
     classname = testcase.get('classname', '')
     name = testcase.get('name', '')
     time_taken = float(testcase.get('time', 0))
@@ -672,6 +699,34 @@ def _fetch_issues_page(quality, page):
     })
     return data
 
+def _fetch_quality_issues(quality):
+    """Helper per estrarre tutti gli issues di una quality."""
+    page = 1
+    issues = []
+    
+    while True:
+        data = _fetch_issues_page(quality, page)
+        if not data:
+            break
+        
+        page_issues = data.get('issues', [])
+        total = data.get('total', 0)
+        
+        for issue in page_issues:
+            issue['software_quality'] = quality
+        
+        issues.extend(page_issues)
+        
+        if total > 0:
+            print(f"      Pagina {page}: {len(page_issues)} issues (totale: {total})")
+        
+        if len(page_issues) < PAGE_SIZE:
+            break
+        page += 1
+        time.sleep(0.1)
+    
+    return issues
+
 def fetch_all_issues():
     """Recupera tutti gli issues."""
     all_issues = []
@@ -679,33 +734,10 @@ def fetch_all_issues():
     
     for quality in SOFTWARE_QUALITIES:
         print(f"\n   Estrazione {quality}...")
-        page = 1
-        quality_count = 0
-        
-        while True:
-            data = _fetch_issues_page(quality, page)
-            if not data:
-                break
-            
-            issues = data.get('issues', [])
-            total = data.get('total', 0)
-            
-            for issue in issues:
-                issue['software_quality'] = quality
-            
-            all_issues.extend(issues)
-            quality_count += len(issues)
-            
-            if total > 0:
-                print(f"      Pagina {page}: {len(issues)} issues (totale: {total})")
-            
-            if len(issues) < PAGE_SIZE:
-                break
-            page += 1
-            time.sleep(0.1)
-        
-        issues_count[quality] = quality_count
-        print(f"   {'✓' if quality_count else '○'} {quality}: {quality_count} issues")
+        quality_issues = _fetch_quality_issues(quality)
+        all_issues.extend(quality_issues)
+        issues_count[quality] = len(quality_issues)
+        print(f"   {'✓' if quality_issues else '○'} {quality}: {len(quality_issues)} issues")
     
     return all_issues, issues_count
 
@@ -1210,39 +1242,40 @@ Tempo: {total_effort}
     return prompts
 
 
-def generate_summary(issues, analysis, issues_count, hotspots, hotspot_analysis, 
-                     junit_summary, test_analysis, timestamp, generated_files):
-    """Genera SUMMARY."""
-    total_effort = format_duration(analysis['total_effort_minutes'])
-    
-    md = []
-    md.append("# 📊 SonarCloud Analysis Summary")
+def _generate_summary_header(total_effort):
+    """Helper: genera header del summary."""
+    return [
+        "# 📊 SonarCloud Analysis Summary",
+        "",
+        f"**Progetto:** {PROJECT_KEY}",
+        f"**Data:** {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+        "**Versione:** SonarCloud Exporter v5.0",
+        f"**Filtro issues:** {ISSUE_STATUSES}",
+        "",
+        "---",
+        ""
+    ]
+
+def _generate_quality_gate_section(md):
+    """Helper: genera sezione Quality Gate."""
+    if not quality_gate:
+        return
+    status = quality_gate.get('status', 'N/A')
+    emoji = "✅" if status == "OK" else "❌"
+    md.append(f"## 🚦 Quality Gate: {emoji} {status}")
     md.append("")
-    md.append(f"**Progetto:** {PROJECT_KEY}")
-    md.append(f"**Data:** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    md.append("**Versione:** SonarCloud Exporter v5.0")
-    md.append(f"**Filtro issues:** {ISSUE_STATUSES}")
-    md.append("")
-    md.append("---")
-    md.append("")
-    
-    # Quality Gate
-    if quality_gate:
-        status = quality_gate.get('status', 'N/A')
-        emoji = "✅" if status == "OK" else "❌"
-        md.append(f"## 🚦 Quality Gate: {emoji} {status}")
+    conditions = quality_gate.get('conditions', [])
+    if conditions:
+        md.append(TABLE_HEADER_METRICS)
+        md.append("| Metrica | Valore | Soglia | Stato |")
+        md.append("|---------|--------|--------|-------|")
+        for c in conditions:
+            c_emoji = "✅" if c.get('status') == "OK" else "❌"
+            md.append(f"| {c.get('metricKey', '')} | {c.get('actualValue', 'N/A')} | {c.get('errorThreshold', 'N/A')} | {c_emoji} |")
         md.append("")
-        conditions = quality_gate.get('conditions', [])
-        if conditions:
-            md.append(TABLE_HEADER_METRICS)
-            md.append("| Metrica | Valore | Soglia | Stato |")
-            md.append("|---------|--------|--------|-------|")
-            for c in conditions:
-                c_emoji = "✅" if c.get('status') == "OK" else "❌"
-                md.append(f"| {c.get('metricKey', '')} | {c.get('actualValue', 'N/A')} | {c.get('errorThreshold', 'N/A')} | {c_emoji} |")
-            md.append("")
-    
-    # Test Results
+
+def _generate_test_results_section(md, junit_summary, test_analysis):
+    """Helper: genera sezione Test Results."""
     md.append("## 🧪 Test Results")
     md.append("")
     
@@ -1278,37 +1311,31 @@ def generate_summary(issues, analysis, issues_count, hotspots, hotspot_analysis,
         md.append(f"| Success Rate | {test_metrics.get('test_success_density', 'N/A')}% |")
         md.append("")
         md.append("⚠️ **Per dettagli completi dei test falliti:**")
-        md.append("1. Esegui `pytest --junitxml=junit.xml`")
-        md.append("2. Metti `junit.xml` nella stessa cartella dello script")
-        md.append("3. Riesegui lo script")
-        md.append("")
+        md.extend(["1. Esegui `pytest --junitxml=junit.xml`",
+                   "2. Metti `junit.xml` nella stessa cartella dello script",
+                   "3. Riesegui lo script", ""])
     else:
-        md.append("⚠️ **Nessun dato test disponibile**")
-        md.append("")
-        md.append("Per abilitare:")
-        md.append("1. `sonar-project.properties`: aggiungi `sonar.python.xunit.reportPath=junit.xml`")
-        md.append("2. Esegui `pytest --junitxml=junit.xml`")
-        md.append("")
-    
-    # Coverage
-    if coverage_metrics:
-        md.append("## 📈 Coverage")
-        md.append("")
-        md.append(TABLE_HEADER_METRICS)
-        md.append(TABLE_HEADER_SEPARATOR)
-        md.append(f"| Coverage totale | **{coverage_metrics.get('coverage', 'N/A')}%** |")
-        md.append(f"| Line coverage | {coverage_metrics.get('line_coverage', 'N/A')}% |")
-        if coverage_metrics.get('branch_coverage'):
-            md.append(f"| Branch coverage | {coverage_metrics.get('branch_coverage', 'N/A')}% |")
-        md.append(f"| Linee da coprire | {coverage_metrics.get('lines_to_cover', 'N/A')} |")
-        md.append(f"| Non coperte | {coverage_metrics.get('uncovered_lines', 'N/A')} |")
-        md.append("")
-    
-    # Issues
-    md.append("## 📋 Issues")
-    md.append("")
-    md.append("| Categoria | Issues | Tempo | Priorità |")
-    md.append("|-----------|--------|-------|----------|")
+        md.extend(["⚠️ **Nessun dato test disponibile**", "",
+                   "Per abilitare:",
+                   "1. `sonar-project.properties`: aggiungi `sonar.python.xunit.reportPath=junit.xml`",
+                   "2. Esegui `pytest --junitxml=junit.xml`", ""])
+
+def _generate_coverage_section(md):
+    """Helper: genera sezione Coverage."""
+    if not coverage_metrics:
+        return
+    md.extend(["## 📈 Coverage", "", TABLE_HEADER_METRICS, TABLE_HEADER_SEPARATOR,
+               f"| Coverage totale | **{coverage_metrics.get('coverage', 'N/A')}%** |",
+               f"| Line coverage | {coverage_metrics.get('line_coverage', 'N/A')}% |"])
+    if coverage_metrics.get('branch_coverage'):
+        md.append(f"| Branch coverage | {coverage_metrics.get('branch_coverage', 'N/A')}% |")
+    md.extend([f"| Linee da coprire | {coverage_metrics.get('lines_to_cover', 'N/A')} |",
+               f"| Non coperte | {coverage_metrics.get('uncovered_lines', 'N/A')} |", ""])
+
+def _generate_issues_section(md, issues_count, analysis, total_effort):
+    """Helper: genera sezione Issues."""
+    md.extend(["## 📋 Issues", "", "| Categoria | Issues | Tempo | Priorità |",
+               "|-----------|--------|-------|----------|"])
     priority_map = {'SECURITY': '🔴 CRITICA', 'RELIABILITY': '🟠 ALTA', 'MAINTAINABILITY': '🟡 MEDIA'}
     for q in SOFTWARE_QUALITIES:
         count = issues_count.get(q, 0)
@@ -1316,33 +1343,42 @@ def generate_summary(issues, analysis, issues_count, hotspots, hotspot_analysis,
             emoji = get_quality_emoji(q)
             effort = format_duration(analysis['effort_by_quality'].get(q, 0))
             md.append(f"| {emoji} {q} | {count} | {effort} | {priority_map.get(q, '')} |")
-    md.append(f"| **TOTALE** | **{analysis['total']}** | **{total_effort}** | |")
+    md.extend([f"| **TOTALE** | **{analysis['total']}** | **{total_effort}** | |", ""])
+
+def _generate_hotspots_section(md, hotspots, hotspot_analysis):
+    """Helper: genera sezione Hotspots."""
+    if not hotspots:
+        return
+    md.extend(["## 🔥 Security Hotspots", "", f"**Totale:** {len(hotspots)} da revieware", "",
+               "| Categoria | Count | Rischio |", "|-----------|-------|---------|"])
+    for cat, items in sorted(hotspot_analysis['by_category'].items(), key=lambda x: -len(x[1])):
+        risk = items[0].get('vulnerabilityProbability', 'MEDIUM') if items else 'MEDIUM'
+        emoji = get_hotspot_risk_emoji(risk)
+        md.append(f"| {cat} | {len(items)} | {emoji} {risk} |")
     md.append("")
+
+def _generate_top_rules_section(md, analysis):
+    """Helper: genera sezione Top Rules."""
+    if not analysis['top_rules']:
+        return
+    md.extend(["## 🏆 Top 10 Regole Violate", "", "| # | Regola | Count |", "|---|--------|-------|"])
+    for i, (rule, count) in enumerate(analysis['top_rules'], 1):
+        name = rules_cache.get(rule, {}).get('name', rule)[:40]
+        md.append(f"| {i} | {name} | {count} |")
+    md.append("")
+
+def generate_summary(issues, analysis, issues_count, hotspots, hotspot_analysis, 
+                     junit_summary, test_analysis, timestamp, generated_files):
+    """Genera SUMMARY (refactored per ridurre complessità cognitiva)."""
+    total_effort = format_duration(analysis['total_effort_minutes'])
     
-    # Hotspots
-    if hotspots:
-        md.append("## 🔥 Security Hotspots")
-        md.append("")
-        md.append(f"**Totale:** {len(hotspots)} da revieware")
-        md.append("")
-        md.append("| Categoria | Count | Rischio |")
-        md.append("|-----------|-------|---------|")
-        for cat, items in sorted(hotspot_analysis['by_category'].items(), key=lambda x: -len(x[1])):
-            risk = items[0].get('vulnerabilityProbability', 'MEDIUM') if items else 'MEDIUM'
-            emoji = get_hotspot_risk_emoji(risk)
-            md.append(f"| {cat} | {len(items)} | {emoji} {risk} |")
-        md.append("")
-    
-    # Top Rules
-    if analysis['top_rules']:
-        md.append("## 🏆 Top 10 Regole Violate")
-        md.append("")
-        md.append("| # | Regola | Count |")
-        md.append("|---|--------|-------|")
-        for i, (rule, count) in enumerate(analysis['top_rules'], 1):
-            name = rules_cache.get(rule, {}).get('name', rule)[:40]
-            md.append(f"| {i} | {name} | {count} |")
-        md.append("")
+    md = _generate_summary_header(total_effort)
+    _generate_quality_gate_section(md)
+    _generate_test_results_section(md, junit_summary, test_analysis)
+    _generate_coverage_section(md)
+    _generate_issues_section(md, issues_count, analysis, total_effort)
+    _generate_hotspots_section(md, hotspots, hotspot_analysis)
+    _generate_top_rules_section(md, analysis)
     
     # Files
     md.append("## 📁 File Generati")
@@ -1667,9 +1703,8 @@ def _print_recommended_order(test_failures_details, all_hotspots, issues_count):
             print(f"   {order}. {get_quality_emoji(q)} {q}")
             order += 1
 
-def main():
-    stats['start_time'] = datetime.now()
-    
+def _main_print_header():
+    """Helper per stampare header."""
     print("=" * 70)
     print("🚀 SONARCLOUD ULTRA-COMPLETE EXPORTER v5.0")
     print("=" * 70)
@@ -1677,53 +1712,60 @@ def main():
     print(f"Output: {OUTPUT_SALVATAGGIO}")
     print(f"JUnit XML: {JUNIT_XML_PATH}")
     print("=" * 70)
-    
-    # Validazione
+
+def _main_validate_and_connect():
+    """Helper per validazione e connessione. Ritorna (success, output_dir)."""
     print("\n0. Validazione...")
     errors, warnings = validate_configuration()
     _print_validation_results(errors, warnings)
     if errors:
-        return
+        return False, None
     print("   ✓ OK")
     
-    # Output directory
     print("\n1. Preparazione output...")
     output_dir = ensure_output_directory()
     print(f"   📁 {output_dir}")
     
-    # Connessione
     print("\n2. Test connessione...")
     success, result = test_connection()
     if not success:
         print(f"   ❌ {result}")
-        return
+        return False, None
     print("   ✓ Connesso")
-    
-    # Metriche generali
+    return True, output_dir
+
+def _main_fetch_metrics():
+    """Helper per recupero metriche e junit."""
     print("\n3. Recupero metriche...")
     fetch_test_metrics()
     fetch_coverage_metrics()
     fetch_quality_gate()
     
-    # Parse junit.xml
     print("\n4. Parsing junit.xml...")
     junit_summary = parse_junit_xml()
-    test_analysis = None
-    
     _print_junit_summary(junit_summary)
-
-    if junit_summary:
-        test_analysis = analyze_test_failures()
+    
+    test_analysis = analyze_test_failures() if junit_summary else None
     
     if test_metrics:
         print(f"   ✓ SonarCloud: {test_metrics.get('tests', 0)} test, {test_metrics.get('test_failures', 0)} falliti")
-    
     if coverage_metrics:
         print(f"   ✓ Coverage: {coverage_metrics.get('coverage', 'N/A')}%")
-    
     if quality_gate:
         status = quality_gate.get('status', 'N/A')
         print(f"   {'✓' if status == 'OK' else '✗'} Quality Gate: {status}")
+    
+    return junit_summary, test_analysis
+
+def main():
+    stats['start_time'] = datetime.now()
+    _main_print_header()
+    
+    success, output_dir = _main_validate_and_connect()
+    if not success:
+        return
+    
+    junit_summary, test_analysis = _main_fetch_metrics()
     
     # Issues
     print("\n5. Estrazione issues...")

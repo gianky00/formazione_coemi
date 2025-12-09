@@ -84,15 +84,15 @@ class CertificatoTableModel(QAbstractTableModel):
 class DatabaseView(QWidget):
     database_changed = pyqtSignal()
 
-    def __init__(self):
+    def __init__(self, api_client=None):
         super().__init__()
         self.model = None
         self.view_model = DatabaseViewModel()
-        self.api_client = APIClient()
+        self.api_client = api_client  # Will be set properly by MainDashboardWidget
 
         self._init_ui()
         self._connect_signals()
-        self.view_model.load_data()
+        # Don't load data here - wait until api_client is properly set
 
     def _init_ui(self):
         self.layout = QVBoxLayout(self)
@@ -301,7 +301,6 @@ class DatabaseView(QWidget):
         )
 
     def set_read_only(self, is_read_only: bool):
-        print(f"[DEBUG] DashboardView.set_read_only: {is_read_only}")
         self.is_read_only = is_read_only
         self._update_button_states()
 
@@ -411,8 +410,8 @@ class DatabaseView(QWidget):
         path, _ = QFileDialog.getSaveFileName(self, "Salva CSV", "certificati.csv", "CSV Files (*.csv)")
         if path:
             try:
-                self.model._data.to_csv(path, index=False)
-                # S3457: Fixed f-string usage
+                # Use semicolon as separator for Italian locale compatibility
+                self.model._data.to_csv(path, index=False, sep=';', encoding='utf-8-sig')
                 ToastManager.success("Esportazione Riuscita", "Dati esportati con successo.", self.window())
             except Exception as e:
                 self._show_error_message(f"Impossibile salvare il file: {e}")

@@ -29,8 +29,8 @@ async def chat_endpoint(
     Chat endpoint using Gemini Flash with RAG context.
     """
     try:
-        # 1. Build Context
-        context = chat_service.get_rag_context(db, current_user)
+        # 1. Build Context (with user message for smart employee search)
+        context = chat_service.get_rag_context(db, current_user, request.message)
         
         # 2. Call AI
         # Convert Pydantic history to dict list

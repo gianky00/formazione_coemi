@@ -4,6 +4,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Cache the machine ID to avoid repeated expensive WMI calls and log spam
+_cached_machine_id = None
+
 def _get_windows_disk_serial():
     """
     Retrieves the serial number of the primary physical disk on Windows.
@@ -25,7 +28,7 @@ def _get_windows_disk_serial():
                 for disk in c.Win32_DiskDrive():
                     if "PHYSICALDRIVE0" in disk.DeviceID:
                         serial = disk.SerialNumber.strip().rstrip('.')
-                        logger.info(f"Found disk serial for PHYSICALDRIVE0: {serial}")
+                        logger.debug(f"Found disk serial for PHYSICALDRIVE0: {serial}")
                         return serial
 
                 # Fallback if specific device not found, return the first one found
@@ -66,15 +69,23 @@ def get_machine_id():
     Gets the most reliable and consistent hardware ID for the current OS.
     - On Windows, it prioritizes the disk serial number.
     - Falls back to the MAC address if the disk serial cannot be retrieved.
+    - Results are cached to avoid repeated expensive WMI calls.
     """
+    global _cached_machine_id
+    
+    # Return cached value if available
+    if _cached_machine_id is not None:
+        return _cached_machine_id
+    
     machine_id = None
     if os.name == 'nt':
-        logger.info("Windows OS detected. Attempting to get disk serial number.")
+        logger.debug("Windows OS detected. Attempting to get disk serial number.")
         machine_id = _get_windows_disk_serial()
 
     if not machine_id:
         logger.warning("Disk serial not found or OS is not Windows. Falling back to MAC address.")
         machine_id = _get_mac_address()
 
-    logger.info(f"Final determined Machine ID: {machine_id}")
+    logger.debug(f"Final determined Machine ID: {machine_id}")
+    _cached_machine_id = machine_id
     return machine_id

@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGraphicsView, QGraph
                              QSplitter, QTreeWidget, QTreeWidgetItem, QGraphicsRectItem,
                              QGraphicsTextItem, QGraphicsLineItem, QPushButton, QHBoxLayout,
                              QScrollBar, QTreeWidgetItemIterator, QFileDialog, QComboBox,
-                             QProgressBar)
+                             QProgressBar, QFrame)
 from PyQt6.QtCore import Qt, QDate, QRectF, QVariantAnimation, QEasingCurve, pyqtSignal, QThreadPool, QLocale
 from PyQt6.QtGui import QColor, QBrush, QPen, QFont, QLinearGradient, QPainterPath, QPainter, QPageLayout, QPageSize, QImage
 from PyQt6.QtPrintSupport import QPrinter
@@ -25,8 +25,9 @@ class ResizingGraphicsView(QGraphicsView):
         self.resized.emit()
 
 class ScadenzarioView(QWidget):
-    def __init__(self):
+    def __init__(self, api_client=None):
         super().__init__()
+        self.api_client = api_client  # Will be set properly by MainDashboardWidget
         self.layout = QVBoxLayout(self)
         self.layout.setSpacing(10)
 
@@ -34,46 +35,111 @@ class ScadenzarioView(QWidget):
         description.setStyleSheet("font-size: 14px; color: #6B7280;")
         self.layout.addWidget(description)
 
-        # Toolbar
-        toolbar_layout = QHBoxLayout()
+        # Toolbar - wrapped in a styled frame for visibility
+        toolbar_frame = QFrame()
+        toolbar_frame.setObjectName("scadenzario_toolbar")
+        toolbar_frame.setStyleSheet("""
+            QFrame#scadenzario_toolbar {
+                background-color: #FFFFFF;
+                border: 1px solid #E5E7EB;
+                border-radius: 8px;
+                padding: 5px;
+            }
+            QPushButton {
+                background-color: #3B82F6;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-weight: 600;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2563EB;
+            }
+            QPushButton:pressed {
+                background-color: #1D4ED8;
+            }
+            QPushButton#nav_btn {
+                background-color: #1E3A8A;
+                min-width: 40px;
+                font-size: 16px;
+            }
+            QPushButton#nav_btn:hover {
+                background-color: #1E40AF;
+            }
+            QPushButton#secondary_btn {
+                background-color: #F3F4F6;
+                color: #374151;
+                border: 1px solid #D1D5DB;
+            }
+            QPushButton#secondary_btn:hover {
+                background-color: #E5E7EB;
+            }
+            QComboBox {
+                padding: 8px 12px;
+                border: 1px solid #D1D5DB;
+                border-radius: 6px;
+                background-color: white;
+                font-size: 14px;
+            }
+        """)
+        toolbar_frame.setMinimumHeight(55)
+        
+        toolbar_layout = QHBoxLayout(toolbar_frame)
+        toolbar_layout.setContentsMargins(10, 5, 10, 5)
         toolbar_layout.setSpacing(10)
 
-        self.prev_month_button = AnimatedButton("<")
-        self.prev_month_button.setFixedSize(30, 30)
+        self.prev_month_button = QPushButton("◀ Prec")
+        self.prev_month_button.setObjectName("nav_btn")
+        self.prev_month_button.setFixedHeight(36)
         self.prev_month_button.clicked.connect(self.prev_month)
         toolbar_layout.addWidget(self.prev_month_button)
 
-        self.next_month_button = AnimatedButton(">")
-        self.next_month_button.setFixedSize(30, 30)
+        self.next_month_button = QPushButton("Succ ▶")
+        self.next_month_button.setObjectName("nav_btn")
+        self.next_month_button.setFixedHeight(36)
         self.next_month_button.clicked.connect(self.next_month)
         toolbar_layout.addWidget(self.next_month_button)
 
-        toolbar_layout.addSpacing(20)
+        toolbar_layout.addSpacing(15)
         zoom_label = QLabel("Zoom:")
+        zoom_label.setStyleSheet("font-weight: 600; font-size: 14px;")
         toolbar_layout.addWidget(zoom_label)
 
         self.zoom_combo = QComboBox()
         self.zoom_combo.addItems(["3 Mesi", "6 Mesi", "1 Anno"])
         self.zoom_combo.setCurrentIndex(0)
+        self.zoom_combo.setMinimumWidth(110)
+        self.zoom_combo.setFixedHeight(36)
         self.zoom_combo.currentIndexChanged.connect(self.update_zoom_from_combo)
         toolbar_layout.addWidget(self.zoom_combo)
 
         toolbar_layout.addStretch()
 
-        self.generate_email_button = AnimatedButton("Genera Email")
+        self.generate_email_button = QPushButton("📧 Genera Email")
+        self.generate_email_button.setMinimumWidth(150)
+        self.generate_email_button.setFixedHeight(36)
         self.generate_email_button.clicked.connect(self.generate_email)
         toolbar_layout.addWidget(self.generate_email_button)
 
-        self.export_pdf_button = AnimatedButton("Esporta PDF")
-        self.export_pdf_button.set_colors("#FFFFFF", "#F9FAFB", "#F3F4F6", text="#1F2937")
+        self.export_pdf_button = QPushButton("📄 Esporta PDF")
+        self.export_pdf_button.setObjectName("secondary_btn")
+        self.export_pdf_button.setMinimumWidth(140)
+        self.export_pdf_button.setFixedHeight(36)
         self.export_pdf_button.clicked.connect(self.export_to_pdf)
         toolbar_layout.addWidget(self.export_pdf_button)
 
-        self.legend_layout = QHBoxLayout()
+        self.layout.addWidget(toolbar_frame)
+        
+        # Legend row with visible colored boxes
+        legend_frame = QFrame()
+        legend_frame.setStyleSheet("QFrame { background-color: transparent; }")
+        self.legend_layout = QHBoxLayout(legend_frame)
+        self.legend_layout.setContentsMargins(0, 5, 0, 5)
+        self.legend_layout.setSpacing(15)
         self.legend_layout.addStretch()
-        toolbar_layout.addLayout(self.legend_layout)
-
-        self.layout.addLayout(toolbar_layout)
+        self.layout.addWidget(legend_frame)
 
         # Loading Bar (for data fetch)
         self.loading_bar = QProgressBar()
@@ -244,40 +310,46 @@ class ScadenzarioView(QWidget):
         
         self.employee_tree.setUpdatesEnabled(True)
 
-    def _draw_zones(self, scene_width, start_date, end_date, col_width):
+    def _draw_zones(self, scene_width, start_date, end_date, col_width, header_height):
+        """Draw colored zones for expired, expiring, and warning areas."""
         today = QDate.currentDate()
         zone_definitions = {
-            "scaduto": (start_date, today.addDays(-1), QColor(239, 68, 68, 30)),
-            "in_scadenza": (today, today.addDays(30), QColor(249, 115, 22, 30)),
-            "avviso": (today.addDays(31), today.addDays(90), QColor(251, 191, 36, 30))
+            "scaduto": (start_date, today.addDays(-1), QColor(239, 68, 68, 40), "#DC2626"),
+            "in_scadenza": (today, today.addDays(30), QColor(249, 115, 22, 40), "#EA580C"),
+            "avviso": (today.addDays(31), today.addDays(90), QColor(251, 191, 36, 40), "#D97706")
         }
-        zone_labels = {"scaduto": STATUS_EXPIRED, "in_scadenza": STATUS_EXPIRING_SOON, "avviso": "AVVISI"}
+        zone_labels = {"scaduto": "SCADUTI", "in_scadenza": "IN SCADENZA", "avviso": "AVVISI"}
 
-        for name, (zone_start, zone_end, color) in zone_definitions.items():
+        for name, (zone_start, zone_end, bg_color, text_color) in zone_definitions.items():
             start_x = max(0, start_date.daysTo(zone_start) * col_width)
             end_x = min(scene_width, start_date.daysTo(zone_end) * col_width)
             if end_x > start_x:
-                zone_rect = QGraphicsRectItem(start_x, 0, end_x - start_x, 2000)
-                zone_rect.setBrush(QBrush(color))
+                # Draw zone rectangle starting below header
+                zone_rect = QGraphicsRectItem(start_x, header_height, end_x - start_x, 2000)
+                zone_rect.setBrush(QBrush(bg_color))
                 zone_rect.setPen(QPen(Qt.PenStyle.NoPen))
                 zone_rect.setZValue(-1)
                 self.gantt_scene.addItem(zone_rect)
 
+                # Draw zone label in header area
                 label_text = zone_labels.get(name, name.upper())
                 lbl = QGraphicsTextItem(label_text)
                 font = QFont()
                 font.setBold(True)
-                font.setPointSize(12)
+                font.setPointSize(9)
                 lbl.setFont(font)
-                lbl.setDefaultTextColor(QColor(0, 0, 0, 100))
+                lbl.setDefaultTextColor(QColor(text_color))
 
+                # Center label in zone
                 lbl_width = lbl.boundingRect().width()
-                lbl_x = end_x - lbl_width - 10
-                if lbl_x < start_x: lbl_x = start_x + 5
-                lbl.setPos(lbl_x, 5)
+                zone_center = (start_x + end_x) / 2
+                lbl_x = zone_center - (lbl_width / 2)
+                lbl.setPos(lbl_x, 2)
+                lbl.setZValue(10)
                 self.gantt_scene.addItem(lbl)
 
     def _draw_month_headers(self, start_date, end_date, total_days, col_width):
+        """Draw month headers below the zone labels."""
         current_draw_date = start_date
         while current_draw_date <= end_date:
             if current_draw_date.day() != 1:
@@ -293,9 +365,11 @@ class ScadenzarioView(QWidget):
                 text = QGraphicsTextItem(month_name)
                 font = QFont()
                 font.setBold(True)
-                font.setPointSize(12)
+                font.setPointSize(10)
                 text.setFont(font)
-                text.setPos(days_from_start * col_width, 0)
+                text.setDefaultTextColor(QColor("#374151"))
+                # Position month headers at Y=15 (below zone labels at Y=2)
+                text.setPos(days_from_start * col_width + 5, 15)
                 self.gantt_scene.addItem(text)
             current_draw_date = current_draw_date.addMonths(1)
 
@@ -349,7 +423,7 @@ class ScadenzarioView(QWidget):
             if scene_width <= 0: scene_width = 700
             col_width = scene_width / total_days
 
-            self._draw_zones(scene_width, start_date, end_date, col_width)
+            self._draw_zones(scene_width, start_date, end_date, col_width, header_height)
             self._draw_month_headers(start_date, end_date, total_days, col_width)
             today_line = self._draw_today_line(start_date, end_date, today, col_width)
 
@@ -399,11 +473,22 @@ class ScadenzarioView(QWidget):
             self.generate_email_button.setToolTip("")
 
     def generate_email(self):
-        if getattr(self, 'is_read_only', False): return
+        if getattr(self, 'is_read_only', False):
+            return
+        
+        if not self.api_client or not self.api_client.base_url:
+            CustomMessageDialog.show_error(self, "Errore", "Client API non inizializzato.")
+            return
+            
         self.loading_overlay.set_text("Invio email in corso...")
+        self.loading_overlay.start()
 
         def send():
-            return requests.post(f"{self.api_client.base_url}/notifications/send-manual-alert", headers=self.api_client._get_headers(), timeout=60)
+            return requests.post(
+                f"{self.api_client.base_url}/notifications/send-manual-alert", 
+                headers=self.api_client._get_headers(), 
+                timeout=60
+            )
 
         try:
             worker = Worker(send)
@@ -416,12 +501,20 @@ class ScadenzarioView(QWidget):
             CustomMessageDialog.show_error(self, "Errore", f"Errore inizializzazione invio: {e}")
 
     def _on_email_sent(self, response):
-        if response.status_code == 200:
-            ToastManager.success("Successo", "Richiesta di invio email inviata con successo.", self.window())
-        else:
-            error_data = response.json()
-            error_detail = error_data.get("detail", "Errore sconosciuto dal server.")
-            CustomMessageDialog.show_error(self, "Errore Invio Email", f"Impossibile inviare l'email:\n{error_detail}")
+        try:
+            if response and response.status_code == 200:
+                ToastManager.success("Successo", "Richiesta di invio email inviata con successo.", self.window())
+            else:
+                error_detail = "Errore sconosciuto dal server."
+                if response:
+                    try:
+                        error_data = response.json()
+                        error_detail = error_data.get("detail", error_detail)
+                    except Exception:
+                        error_detail = response.text if hasattr(response, 'text') else str(response)
+                CustomMessageDialog.show_error(self, "Errore Invio Email", f"Impossibile inviare l'email:\n{error_detail}")
+        except Exception as e:
+            CustomMessageDialog.show_error(self, "Errore", f"Errore elaborazione risposta: {e}")
 
     def refresh_data(self):
         self.load_data()
@@ -450,9 +543,8 @@ class ScadenzarioView(QWidget):
             worker.signals.error.connect(lambda err: self._on_generic_error(err, "Errore Esportazione"))
             worker.signals.finished.connect(self.loading_overlay.stop)
             self.threadpool.start(worker)
-        except Exception as e:
+        except Exception:
             self.loading_overlay.stop()
-            print(f"Error creating worker: {e}")
 
     def _on_pdf_downloaded(self, response, path):
         if response.status_code == 200:
@@ -470,3 +562,11 @@ class ScadenzarioView(QWidget):
         # S1481: Unused exctype and tb
         _, value, _ = error_tuple
         CustomMessageDialog.show_error(self, title, f"{value}")
+    
+    def cleanup(self):
+        """Cleanup method to stop all running threads before destruction."""
+        # Wait for any pending thread pool tasks
+        try:
+            self.threadpool.waitForDone(2000)
+        except Exception:
+            pass

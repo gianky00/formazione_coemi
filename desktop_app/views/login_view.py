@@ -69,13 +69,23 @@ class LoginWorker(QThread):
         except Exception as e:
             error_msg = str(e)
             if hasattr(e, 'response') and e.response is not None:
-                 try:
-                     detail = e.response.json().get('detail')
-                     if detail: error_msg = detail
-                 except Exception:
-                     # Fallback to string representation if parsing fails
-                     pass
-            self.finished_error.emit(error_msg)
+                try:
+                    detail = e.response.json().get('detail')
+                    if detail:
+                        # FastAPI can return detail as dict/list for validation errors
+                        # Always convert to string for safe emission
+                        if isinstance(detail, (dict, list)):
+                            error_msg = str(detail)
+                        else:
+                            error_msg = str(detail)
+                except (ValueError, KeyError, AttributeError, TypeError):
+                    # JSON parsing failed, use original error message
+                    pass
+            
+            # Ensure error_msg is always a valid string before emitting
+            if error_msg is None:
+                error_msg = "Errore sconosciuto durante il login"
+            self.finished_error.emit(str(error_msg))
 
 class LicenseUpdateWorker(QThread):
     """Worker to run license update in a separate thread."""
@@ -551,9 +561,9 @@ class LoginView(QWidget):
         # The engine handles projection, connections, pulses, and drawing
         try:
             self.neural_engine.project_and_render(painter, self.width(), self.height())
-        except Exception as e:
+        except Exception:
             # Prevent crash during resize or close
-            print(f"3D Render Error: {e}")
+            pass
 
     def _auto_update_if_needed(self):
         from desktop_app.services.path_service import get_license_dir
@@ -612,13 +622,11 @@ class LoginView(QWidget):
         """
         # 1. Stop Login Worker
         if self.login_worker and self.login_worker.isRunning():
-            print("[LoginView] Stopping LoginWorker...")
             self.login_worker.quit()
             self.login_worker.wait()
 
         # 2. Stop License Worker
         if self.license_worker and self.license_worker.isRunning():
-            print("[LoginView] Stopping LicenseWorker...")
             self.license_worker.quit()
             self.license_worker.wait()
 
@@ -814,8 +822,7 @@ class LoginView(QWidget):
         try:
             cert_list = self.api_client.get("certificati", params={"validated": "false"})
             self.pending_count = len(cert_list)
-        except Exception as e:
-            print(f"[LoginView] Error fetching pending count: {e}")
+        except Exception:
             self.pending_count = 0
 
     def _check_password_requirement(self, user_info):
@@ -835,11 +842,13 @@ class LoginView(QWidget):
         return True
 
     def on_login_success(self, response):
+        import sentry_sdk
         try:
             self.api_client.set_token(response)
             user_info = self.api_client.user_info
 
             if not self._check_password_requirement(user_info):
+                self.login_btn.set_loading(False)
                 return
 
             self._check_read_only(user_info)
@@ -848,6 +857,8 @@ class LoginView(QWidget):
             self._animate_success_exit()
 
         except Exception as e:
+            if sentry_sdk.is_initialized():
+                sentry_sdk.capture_exception(e)
             self._on_login_error(str(e))
             self.login_btn.set_loading(False)
 

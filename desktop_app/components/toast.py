@@ -30,11 +30,12 @@ class ToastNotification(QWidget):
         text_color = "#1F2937"
         msg_color = "#6B7280"
 
+        # Toast styling - fully opaque background, highly visible
         self.setStyleSheet(f"""
             QWidget {{
-                background-color: {bg_color};
-                border: 1px solid #E5E7EB;
-                border-radius: 8px;
+                background-color: #FFFFFF;
+                border: 2px solid {accent_color};
+                border-radius: 12px;
             }}
             QLabel {{
                 background: transparent;
@@ -42,17 +43,17 @@ class ToastNotification(QWidget):
             }}
             QLabel#title {{
                 font-weight: bold;
-                font-size: 14px;
+                font-size: 16px;
                 color: {text_color};
             }}
             QLabel#message {{
-                font-size: 12px;
+                font-size: 14px;
                 color: {msg_color};
             }}
             QWidget#accent {{
                 background-color: {accent_color};
-                border-top-left-radius: 8px;
-                border-bottom-left-radius: 8px;
+                border-top-left-radius: 10px;
+                border-bottom-left-radius: 10px;
                 border: none;
             }}
         """)
@@ -61,10 +62,10 @@ class ToastNotification(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
 
-        # Accent strip
+        # Accent strip - wider for better visibility
         accent = QWidget()
         accent.setObjectName("accent")
-        accent.setFixedWidth(6)
+        accent.setFixedWidth(8)
         layout.addWidget(accent)
 
         # Content
@@ -96,7 +97,7 @@ class ToastNotification(QWidget):
 
         self.adjustSize()
 
-    def show_toast(self, duration=3000):
+    def show_toast(self, duration=5000):
         self.show()
         # Animation Fade In
         self.anim = QPropertyAnimation(self.opacity_effect, b"opacity")
@@ -163,7 +164,7 @@ class ToastManager(QObject):
             with open(path, 'w', encoding='utf-8') as f:
                 json.dump(self.history, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            print(f"Error saving notification history: {e}")
+            pass
 
     def load_history(self):
         # Bug 8: Persistence
@@ -171,13 +172,23 @@ class ToastManager(QObject):
             path = os.path.join(get_user_data_dir(), "notifications.json")
             if os.path.exists(path):
                 with open(path, 'r', encoding='utf-8') as f:
-                    self.history = json.load(f)
-                    # Convert timestamps back?
-                    # Actually, NotificationCenter will handle string display or parsing.
-                    # We leave them as strings or parse them if needed.
-                    # But NotificationCenter expects dicts.
-        except Exception as e:
-            print(f"Error loading notification history: {e}")
+                    loaded = json.load(f)
+                    # Ensure loaded data is a valid list
+                    if isinstance(loaded, list):
+                        self.history = loaded
+                    else:
+                        self.history = []
+        except json.JSONDecodeError:
+            # Corrupted file - reset it
+            self.history = []
+            # Try to delete corrupted file
+            try:
+                path = os.path.join(get_user_data_dir(), "notifications.json")
+                os.remove(path)
+            except Exception:
+                pass
+        except Exception:
+            self.history = []
 
     def show_toast(self, parent, type, title, message, duration=3000):
         # Bug 1: Thread Safety Check
@@ -217,20 +228,23 @@ class ToastManager(QObject):
         target_geometry = self._get_target_geometry(parent)
 
         if target_geometry:
-            # Calculate Bottom Right of the target area
+            # Calculate TOP RIGHT of the target area (moved from bottom-right)
             x = target_geometry.x() + target_geometry.width() - toast.width() - 20
-            base_y = target_geometry.y() + target_geometry.height() - 20
+            # Start from top with some padding
+            base_y = target_geometry.y() + 70  # Offset from top to avoid header
 
-            # Calculate offset based on active toasts
+            # Calculate offset based on active toasts (stack downward)
             offset_y = 0
             for t in self.active_toasts:
                 if t.isVisible():
                     offset_y += t.height() + 10
 
-            y = base_y - toast.height() - offset_y
+            y = base_y + offset_y
 
-            if y < target_geometry.y():
-                 y = target_geometry.y() + 20
+            # Ensure toast doesn't go below screen
+            max_y = target_geometry.y() + target_geometry.height() - toast.height() - 20
+            if y > max_y:
+                y = max_y
 
             toast.move(x, y)
             toast.setProperty("target_geometry", target_geometry)
@@ -253,8 +267,9 @@ class ToastManager(QObject):
             target_geometry = toast.property("target_geometry")
             if not target_geometry: continue
 
-            base_y = target_geometry.y() + target_geometry.height() - 20
-            new_y = base_y - toast.height() - cumulative_offset
+            # Top-right positioning
+            base_y = target_geometry.y() + 70
+            new_y = base_y + cumulative_offset
 
             # Animate move
             if toast.y() != new_y:

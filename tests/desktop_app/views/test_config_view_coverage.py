@@ -104,8 +104,22 @@ class TestConfigViewCoverage(unittest.TestCase):
 
     def test_import_csv_action(self):
         with patch('desktop_app.views.config_view.QFileDialog.getOpenFileName', return_value=("imp.csv", "CSV")):
-            self.view.import_csv()
-            self.mock_api_client.import_dipendenti_csv.assert_called_with("imp.csv")
+            with patch('os.path.exists', return_value=True):
+                with patch('desktop_app.workers.csv_import_worker.CSVImportWorker') as MockWorker:
+                    # Configure mock worker
+                    mock_instance = MockWorker.return_value
+                    mock_instance.isRunning.return_value = False
+                    
+                    # Configure mock return value
+                    self.mock_api_client.import_dipendenti_csv.return_value = {"message": "OK"}
+                    
+                    self.view.import_csv()
+                    
+                    # Verify worker was created with correct args
+                    MockWorker.assert_called_once()
+                    call_args = MockWorker.call_args
+                    assert call_args[0][0] == self.mock_api_client
+                    assert call_args[0][1] == "imp.csv"
 
 if __name__ == '__main__':
     unittest.main()

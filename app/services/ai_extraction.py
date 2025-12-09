@@ -153,11 +153,20 @@ JSON:
 def _generate_content_with_retry(model, pdf_file_part, prompt):
     """
     Wrapper for model.generate_content with tenacity retry logic.
+    
+    Note: The lock is held briefly only during the API call to prevent
+    race conditions with chat service configuration. The lock is released
+    automatically by the context manager even on exceptions.
     """
     logging.info("Calling AI for entity extraction...")
-    # Bug 2 Fix: Lock and configure for this specific call
+    
+    # Acquire lock to prevent race with chat configuration
+    # Lock is released automatically on any exception (context manager)
     with ai_global_lock:
-        genai.configure(api_key=settings.GEMINI_API_KEY_ANALYSIS)
+        # Only reconfigure if API key changed (optimization)
+        current_key = settings.GEMINI_API_KEY_ANALYSIS
+        if current_key:
+            genai.configure(api_key=current_key)
         return model.generate_content([pdf_file_part, prompt])
 
 def _check_closing_char(stack, char):

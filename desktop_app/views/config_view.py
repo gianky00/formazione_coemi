@@ -182,6 +182,12 @@ class UserManagementWidget(QFrame):
         self.layout.addStretch()
 
     def refresh_users(self):
+        # Safety check - user_info might be None if not logged in
+        if not self.api_client or not self.api_client.user_info:
+            self.admin_container.setVisible(False)
+            self.title.setText("Il Mio Account")
+            return
+            
         is_admin = self.api_client.user_info.get("is_admin", False)
         self.admin_container.setVisible(is_admin)
         self.title.setText("Gestione Utenti" if is_admin else "Il Mio Account")
@@ -197,7 +203,7 @@ class UserManagementWidget(QFrame):
                     self.table.setItem(i, 1, QTableWidgetItem(str(user['username'])))
                     self.table.setItem(i, 2, QTableWidgetItem(str(user.get('account_name', ''))))
                     self.table.setItem(i, 3, QTableWidgetItem("Sì" if user['is_admin'] else "No"))
-            except Exception:
+            except Exception as e:
                 pass
 
     def add_user(self):
@@ -313,17 +319,22 @@ class OptimizeWorker(QThread):
             url = f"{self.api_client.base_url}/system/optimize"
             headers = self.api_client._get_headers()
             start = datetime.now()
-            response = requests.post(url, headers=headers, timeout=300) # Increased timeout
+            response = requests.post(url, headers=headers, timeout=300)  # Increased timeout
             duration = (datetime.now() - start).total_seconds()
 
             if response.status_code == 200:
                 res = response.json()
+                if not isinstance(res, dict):
+                    res = {}
                 res['duration'] = duration
                 self.finished.emit(res)
             else:
-                self.error.emit(f"Errore server: {response.text}")
+                # Ensure response.text is a valid string
+                error_text = str(response.text) if response.text else "Errore sconosciuto"
+                self.error.emit(f"Errore server: {error_text}")
         except Exception as e:
-            self.error.emit(str(e))
+            # Ensure error message is always a valid string
+            self.error.emit(str(e) if e else "Errore di connessione")
 
 class DatabaseSettingsWidget(QFrame):
     def __init__(self, api_client, parent=None):
@@ -673,9 +684,8 @@ class AuditLogWidget(QFrame):
                         item.setBackground(QColor("#FEF3C7")) # Yellow-ish
                         item.setForeground(QColor("#92400E"))
 
-        except Exception as e:
-            # CustomMessageDialog.show_error(self, "Errore", f"Impossibile caricare i log: {e}")
-            print(f"Error loading logs: {e}")
+        except Exception:
+            pass
 
 class ConfigView(QWidget):
     def __init__(self, api_client: APIClient):
@@ -781,8 +791,6 @@ class ConfigView(QWidget):
             self._connect_dirty_signals()
 
         except Exception as e:
-            print(f"CRITICAL ERROR in ConfigView.__init__: {e}")
-            traceback.print_exc()
             # Fallback UI to prevent crash
             if not hasattr(self, 'layout') or self.layout is None:
                 self.layout = QVBoxLayout(self)
@@ -855,28 +863,37 @@ class ConfigView(QWidget):
 
     def showEvent(self, event):
         super().showEvent(event)
-        if self.api_client and self.api_client.user_info:
-            is_admin = self.api_client.user_info.get("is_admin", False)
-
-            # Show/Hide Admin Tabs
+        
+        # Safety check - don't proceed if not logged in
+        if not self.api_client or not self.api_client.user_info:
+            # Hide all admin tabs, show only account
             for btn in [self.btn_general, self.btn_database, self.btn_api, self.btn_email, self.btn_audit]:
-                btn.setVisible(is_admin)
-
+                btn.setVisible(False)
             self.btn_account.setVisible(True)
+            self.switch_tab(4)
+            return
+            
+        is_admin = self.api_client.user_info.get("is_admin", False)
 
-            if is_admin:
-                self.load_config()
-                # Default to General tab for Admin
-                if self.stacked_widget.currentIndex() == -1 or self.stacked_widget.currentIndex() == 4:
-                     self.stacked_widget.setCurrentIndex(0)
-                     for i, btn in enumerate(self.nav_buttons):
-                         btn.setChecked(i == 0)
-            else:
-                # Default (and only) tab for User is Account (index 4)
-                self.switch_tab(4)
+        # Show/Hide Admin Tabs
+        for btn in [self.btn_general, self.btn_database, self.btn_api, self.btn_email, self.btn_audit]:
+            btn.setVisible(is_admin)
 
-            # Refresh user management widget (handles its own admin/user logic)
-            self.user_management_widget.refresh_users()
+        self.btn_account.setVisible(True)
+
+        if is_admin:
+            self.load_config()
+            # Default to General tab for Admin
+            if self.stacked_widget.currentIndex() == -1 or self.stacked_widget.currentIndex() == 4:
+                 self.stacked_widget.setCurrentIndex(0)
+                 for i, btn in enumerate(self.nav_buttons):
+                     btn.setChecked(i == 0)
+        else:
+            # Default (and only) tab for User is Account (index 4)
+            self.switch_tab(4)
+
+        # Refresh user management widget (handles its own admin/user logic)
+        self.user_management_widget.refresh_users()
 
     def load_config(self):
         try:
@@ -961,14 +978,72 @@ class ConfigView(QWidget):
             es_widget.smtp_port_input.setText("465")
 
     def import_csv(self):
+        """Import employees from CSV file with robust error handling using a background thread."""
+        import sentry_sdk
+        import os
+        from desktop_app.workers.csv_import_worker import CSVImportWorker
+        
         # Bug 9 Fix: Filter allow uppercase CSV
-        file_path, _ = QFileDialog.getOpenFileName(self, "Seleziona CSV", "", "CSV Files (*.csv *.CSV)")
-        if file_path:
+        try:
+            file_path, _ = QFileDialog.getOpenFileName(self, "Seleziona CSV", "", "CSV Files (*.csv *.CSV)")
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            CustomMessageDialog.show_error(self, "Errore", f"Errore apertura dialog: {e}")
+            return
+            
+        if not file_path:
+            return
+            
+        # Validate API client
+        if not self.api_client:
+            CustomMessageDialog.show_error(self, "Errore", "Client API non inizializzato.")
+            return
+        
+        # Validate file exists
+        if not os.path.exists(file_path):
+            CustomMessageDialog.show_error(self, "Errore", "Il file selezionato non esiste.")
+            return
+        
+        # Create and start worker with parent for proper lifecycle
+        self._csv_worker = CSVImportWorker(self.api_client, file_path, parent=self)
+        
+        def on_success(response):
             try:
-                response = self.api_client.import_dipendenti_csv(file_path)
-                ToastManager.success("Importazione Completata", response.get("message", "Successo"), self.window())
+                msg = response.get("message", "Importazione completata")
+                warnings = response.get("warnings", [])
+                if warnings:
+                    msg += f"\n\nAvvisi:\n" + "\n".join(str(w) for w in warnings[:5])
+                    if len(warnings) > 5:
+                        msg += f"\n... e altri {len(warnings) - 5} avvisi."
+                ToastManager.success("Importazione Completata", msg, self.window())
             except Exception as e:
-                CustomMessageDialog.show_error(self, "Errore", f"Impossibile importare: {e}")
+                sentry_sdk.capture_exception(e)
+            finally:
+                self._cleanup_csv_worker()
+        
+        def on_error(error_msg):
+            try:
+                CustomMessageDialog.show_error(self, "Errore Importazione", f"Impossibile importare:\n{error_msg}")
+            except Exception as e:
+                sentry_sdk.capture_exception(e)
+            finally:
+                self._cleanup_csv_worker()
+        
+        self._csv_worker.finished_success.connect(on_success)
+        self._csv_worker.finished_error.connect(on_error)
+        self._csv_worker.finished.connect(self._cleanup_csv_worker)
+        self._csv_worker.start()
+    
+    def _cleanup_csv_worker(self):
+        """Safely cleanup CSV worker reference."""
+        if hasattr(self, '_csv_worker') and self._csv_worker:
+            try:
+                if self._csv_worker.isRunning():
+                    self._csv_worker.quit()
+                    self._csv_worker.wait(1000)
+            except RuntimeError:
+                pass  # Thread already deleted
+            self._csv_worker = None
 
     def _validate_config(self, gs, email):
         try:
@@ -1061,3 +1136,7 @@ class ConfigView(QWidget):
             self.load_config()
         except Exception as e:
             CustomMessageDialog.show_error(self, "Errore", f"Impossibile salvare la configurazione: {e}")
+    
+    def cleanup(self):
+        """Cleanup method to stop all running threads before destruction."""
+        self._cleanup_csv_worker()

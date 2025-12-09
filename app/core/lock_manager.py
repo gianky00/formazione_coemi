@@ -54,14 +54,39 @@ class LockManager:
         logger.info("Database is locked by another process.")
         self._is_locked = False
         owner_data = {"error": "Unknown (Could not read lock file)"}
+        
+        # Read metadata BEFORE cleaning up the handle
         try:
-            if self._lock_handle:
+            if self._lock_handle and not self._lock_handle.closed:
                 owner_data = self._read_metadata()
+            else:
+                # Handle was already closed or never opened, try to read directly
+                owner_data = self._read_metadata_from_file()
         except Exception as e:
             logger.error(f"Failed to read lock metadata: {e}")
         finally:
-             self._cleanup_handle()
+            self._cleanup_handle()
         return False, owner_data
+    
+    def _read_metadata_from_file(self) -> Dict:
+        """
+        Reads metadata directly from the lock file without holding a lock.
+        Used as fallback when handle is not available.
+        """
+        try:
+            with open(self.lock_file_path, 'rb') as f:
+                f.seek(1)
+                content = f.read()
+                if not content:
+                    return {"status": "Locked but empty metadata"}
+                return json.loads(content.decode('utf-8'))
+        except json.JSONDecodeError:
+            return {"status": "Locked (Corrupt Metadata)"}
+        except FileNotFoundError:
+            return {"status": "Lock file not found"}
+        except Exception as e:
+            logger.warning(f"Error reading metadata from file: {e}")
+            return {"status": f"Locked (Read Error: {e})"}
 
     def acquire(self, owner_metadata: Dict, retries: int = 3, delay: float = 0.5) -> Tuple[bool, Optional[Dict]]:
         # S3776: Refactored to reduce complexity
@@ -80,10 +105,13 @@ class LockManager:
             # Lock held by other process
             if attempt < retries:
                 logger.warning(f"Lock acquisition failed (Attempt {attempt+1}/{retries+1}). Retrying in {delay}s...")
+                # Clean up before retry, but preserve ability to read metadata on final attempt
                 self._cleanup_handle()
                 time.sleep(delay)
                 continue
 
+            # Final attempt failed - handle the lock failure
+            # Note: _handle_lock_failure will read metadata and clean up
             return self._handle_lock_failure()
 
         return False, {"error": "Retries exhausted"}

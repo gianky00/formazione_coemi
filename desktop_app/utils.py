@@ -74,11 +74,10 @@ def load_colored_icon(icon_name, color_hex):
         pixmap.loadFromData(data, "SVG")
         return QIcon(pixmap)
 
-    except Exception as e:
-        print(f"Error loading icon {icon_name}: {e}")
-        # Bug 5 Fix: Return empty QIcon if path is bad, avoiding crashes with invalid paths
+    except Exception:
+        # Return empty QIcon if loading fails, avoiding crashes with invalid paths
         if os.path.exists(path):
-             return QIcon(path)
+            return QIcon(path)
         return QIcon()
 
 def clean_text_for_display(text: str) -> str:

@@ -233,7 +233,6 @@ class ValidationView(QWidget):
         except requests.exceptions.RequestException as e:
             CustomMessageDialog.show_error(self, "Errore", f"Impossibile modificare il certificato: {e}")
         except Exception as e:
-            print(f"Error in edit_data: {e}")
             CustomMessageDialog.show_error(self, "Errore", f"Si è verificato un errore inatteso: {e}")
 
     def load_data(self):
@@ -351,20 +350,36 @@ class ValidationView(QWidget):
         self.threadpool.start(worker)
 
     def _on_action_completed(self, result, action_type):
-        success = result.get("success", 0)
-        errors = result.get("errors", [])
+        try:
+            # Ensure result is a dict
+            if not isinstance(result, dict):
+                result = {"success": 0, "errors": []}
+            
+            success = result.get("success", 0)
+            errors = result.get("errors", [])
 
-        if errors:
-            CustomMessageDialog.show_warning(self, "Operazione Parzialmente Riuscita",
-                                f"{success} operazioni riuscite.\n"
-                                f"Errori su {len(errors)} elementi:\n" + "\n".join(errors))
-        else:
-            CustomMessageDialog.show_info(self, "Successo", f"Operazione completata con successo su {success} elementi.")
+            if errors:
+                # Ensure errors is a list of strings
+                error_list = [str(e) for e in errors] if isinstance(errors, list) else [str(errors)]
+                CustomMessageDialog.show_warning(self, "Operazione Parzialmente Riuscita",
+                                    f"{success} operazioni riuscite.\n"
+                                    f"Errori su {len(error_list)} elementi:\n" + "\n".join(error_list[:5]))
+            else:
+                CustomMessageDialog.show_info(self, "Successo", f"Operazione completata con successo su {success} elementi.")
 
-        if success > 0 and action_type == "validate":
-            self.validation_completed.emit()
+            if success > 0 and action_type == "validate":
+                try:
+                    self.validation_completed.emit()
+                except Exception:
+                    pass
 
-        self.load_data()
+            # Reload data after dialog is closed
+            try:
+                self.load_data()
+            except Exception:
+                pass
+        except Exception as e:
+            CustomMessageDialog.show_error(self, "Errore", f"Errore durante l'elaborazione del risultato: {e}")
 
     def _show_context_menu(self, pos):
         try:
@@ -396,7 +411,6 @@ class ValidationView(QWidget):
             elif action == open_folder_action:
                 self._open_document(cert_data, open_folder=True)
         except Exception as e:
-            print(f"Error in context menu: {e}")
             CustomMessageDialog.show_error(self, "Errore", f"Impossibile eseguire l'azione: {e}")
 
     def _open_document(self, cert_data, open_folder=False):
@@ -419,6 +433,11 @@ class ValidationView(QWidget):
             else:
                  CustomMessageDialog.show_warning(self, "Non Trovato", "Il file PDF non è stato trovato nel percorso previsto.")
         except Exception as e:
-            # Logghiamo l'errore ma in modo che non faccia crashare l'app, utile per debugging
-            print(f"Error opening document: {e}")
             CustomMessageDialog.show_error(self, "Errore", f"Impossibile eseguire l'operazione: {e}")
+    
+    def cleanup(self):
+        """Cleanup method to stop all running threads before destruction."""
+        try:
+            self.threadpool.waitForDone(2000)
+        except Exception:
+            pass

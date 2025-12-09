@@ -35,7 +35,14 @@ class TestPathService:
                 assert result.replace("\\", "/") == expected
 
 class TestHardwareIdService:
+    def setup_method(self):
+        # Reset the cached machine ID before each test
+        hardware_id_service._cached_machine_id = None
+
     def test_get_machine_id_windows_wmi(self):
+        # Reset cache
+        hardware_id_service._cached_machine_id = None
+        
         with patch("os.name", "nt"):
             mock_wmi = MagicMock()
             mock_disk = MagicMock()
@@ -56,6 +63,9 @@ class TestHardwareIdService:
                 assert result == "serial.123"
 
     def test_get_machine_id_fallback_mac(self):
+        # Reset cache
+        hardware_id_service._cached_machine_id = None
+        
         with patch("os.name", "posix"), patch("uuid.getnode", return_value=0x1234567890AB):
             assert hardware_id_service.get_machine_id() == "12:34:56:78:90:AB"
 

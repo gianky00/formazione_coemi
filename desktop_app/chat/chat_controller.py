@@ -211,10 +211,16 @@ REGOLE FONDAMENTALI:
     def _on_worker_finished(self, response_text, new_history):
         self.history = new_history
 
+        # Ensure response_text is a valid string
+        if not response_text:
+            response_text = "Nessuna risposta disponibile."
+        
+        response_text = str(response_text)
+
         if "|||SPEECH|||" in response_text:
             parts = response_text.split("|||SPEECH|||")
-            ui_text_raw = parts[0].strip()
-            speech_text = parts[1].strip()
+            ui_text_raw = parts[0].strip() if len(parts) > 0 else ""
+            speech_text = parts[1].strip() if len(parts) > 1 else ""
         else:
             ui_text_raw = response_text
             speech_text = response_text
@@ -224,11 +230,14 @@ REGOLE FONDAMENTALI:
         # Apply deterministic phonetic normalization
         speech_text_normalized = PhoneticNormalizer.normalize(speech_text)
 
-        self.response_ready.emit(ui_text_clean)
-        self.speech_ready.emit(speech_text_normalized)
+        # Ensure we always emit valid strings
+        self.response_ready.emit(str(ui_text_clean) if ui_text_clean else "")
+        self.speech_ready.emit(str(speech_text_normalized) if speech_text_normalized else "")
 
     def _on_worker_error(self, error_msg):
-        self.response_ready.emit(f"Errore: {error_msg}")
+        # Ensure error_msg is always a string
+        safe_msg = str(error_msg) if error_msg else "Errore sconosciuto"
+        self.response_ready.emit(f"Errore: {safe_msg}")
 
     def _on_worker_cleanup(self):
         # S1186: Intentionally empty slot for future cleanup

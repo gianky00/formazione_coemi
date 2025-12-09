@@ -46,11 +46,17 @@ def get_stats_summary(db: Session = Depends(get_db), current_user = Depends(deps
 @router.get("/compliance")
 def get_compliance_by_category(db: Session = Depends(get_db), current_user = Depends(deps.get_current_user)):
     today = date.today()
+    threshold = today + timedelta(days=settings.ALERT_THRESHOLD_DAYS)
 
     results = db.query(
         Corso.categoria_corso,
         func.count(Certificato.id).label("total"),
-        func.sum(case((Certificato.data_scadenza_calcolata < today, 1), else_=0)).label("scaduti")
+        func.sum(case((Certificato.data_scadenza_calcolata < today, 1), else_=0)).label("scaduti"),
+        func.sum(case((
+            (Certificato.data_scadenza_calcolata >= today) & 
+            (Certificato.data_scadenza_calcolata <= threshold), 1
+        ), else_=0)).label("in_scadenza"),
+        func.sum(case((Certificato.data_scadenza_calcolata > threshold, 1), else_=0)).label("attivi")
     ).join(Certificato, Corso.id == Certificato.corso_id)\
      .filter(Certificato.stato_validazione == ValidationStatus.MANUAL)\
      .group_by(Corso.categoria_corso).all()
@@ -58,15 +64,19 @@ def get_compliance_by_category(db: Session = Depends(get_db), current_user = Dep
     data = []
     for row in results:
         cat = row[0]
-        total = row[1]
-        scaduti = row[2] or 0
-        valid_cnt = total - scaduti
-        percent = int((valid_cnt / total) * 100) if total > 0 else 0
+        total = row[1] or 0
+        expired = row[2] or 0
+        expiring = row[3] or 0
+        active = row[4] or 0
+        
+        compliance = int((active / total) * 100) if total > 0 else 0
         data.append({
             "category": cat,
             "total": total,
-            "scaduti": scaduti,
-            "compliance": percent
+            "active": active,
+            "expiring": expiring,
+            "expired": expired,
+            "compliance": compliance
         })
 
     data.sort(key=lambda x: x['compliance'])

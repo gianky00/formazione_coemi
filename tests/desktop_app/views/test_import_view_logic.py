@@ -30,25 +30,21 @@ class TestImportViewLogic:
         file_paths = ["/file1.pdf"]
         import_view.api_client.get_paths.return_value = {"database_path": "/tmp/db"}
 
-        with patch("desktop_app.views.import_view.PdfWorker") as MockWorker, \
-             patch("desktop_app.views.import_view.QThread"), \
-             patch("os.path.isdir", return_value=True):
+        # The method now uses async Worker pattern to fetch paths first
+        # Worker is imported from desktop_app.workers.worker inside the method
+        with patch("desktop_app.workers.worker.Worker") as MockWorker, \
+             patch("PyQt6.QtCore.QThreadPool") as MockThreadPool:
 
             mock_worker_instance = MockWorker.return_value
             mock_worker_instance.signals = MagicMock()
-
-            # Manually mock signals on the instance because WorkerSignals is not used here (PdfWorker has signals directly)
-            mock_worker_instance.finished = MagicMock()
-            mock_worker_instance.progress = MagicMock()
-            mock_worker_instance.log_message = MagicMock()
-            mock_worker_instance.status_update = MagicMock()
-            mock_worker_instance.etr_update = MagicMock()
+            mock_worker_instance.signals.result = MagicMock()
+            mock_worker_instance.signals.error = MagicMock()
 
             import_view.process_dropped_files(file_paths)
 
+            # Verify Worker was created for async path fetching
             MockWorker.assert_called()
-            # Verify thread start
-            import_view.thread.start.assert_called()
+            MockThreadPool.globalInstance().start.assert_called()
 
     def test_stop_processing(self, import_view):
         import_view.thread = MagicMock()

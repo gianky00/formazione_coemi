@@ -52,8 +52,14 @@ async def get_config_paths(
     db_path = settings.DATABASE_PATH
 
     final_path = default_dir
-    if db_path and Path(db_path).is_dir():
-         final_path = Path(db_path)
+    if db_path:
+        db_path_obj = Path(db_path)
+        # If it's a directory, use it directly
+        if db_path_obj.is_dir():
+            final_path = db_path_obj
+        # If it's a file (like database_documenti.db), use its parent directory
+        elif db_path_obj.is_file() or db_path_obj.suffix:
+            final_path = db_path_obj.parent
 
     return {
         "database_path": str(final_path),

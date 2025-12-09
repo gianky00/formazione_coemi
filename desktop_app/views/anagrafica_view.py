@@ -365,12 +365,30 @@ class AnagraficaView(QWidget):
         layout.addRow(btn_box)
 
     def refresh_data(self):
-        """Loads the list of employees."""
+        """Loads the list of employees with robust error handling."""
+        import sentry_sdk
+        
         try:
+            if not self.api_client:
+                return
+                
             data = self.api_client.get_dipendenti_list()
-            self.all_employees = sorted(data, key=lambda x: f"{x['cognome']} {x['nome']}")
+            
+            if not isinstance(data, list):
+                data = []
+            
+            # Safe sorting with None handling
+            def sort_key(x):
+                cognome = x.get('cognome') or ''
+                nome = x.get('nome') or ''
+                return f"{cognome} {nome}".lower()
+            
+            self.all_employees = sorted(data, key=sort_key)
             self.filter_list("")
         except Exception as e:
+            sentry_sdk.capture_exception(e)
+            self.all_employees = []
+            self.list_widget.clear()
             QMessageBox.critical(self, "Errore", f"Errore caricamento dipendenti: {e}")
 
     def filter_list(self, text):
@@ -378,51 +396,93 @@ class AnagraficaView(QWidget):
         self.list_widget.clear()
 
         for emp in self.all_employees:
-            full_name = f"{emp['cognome']} {emp['nome']}"
-            if search in full_name.lower() or (emp['matricola'] and search in emp['matricola'].lower()):
-                item = QListWidgetItem(full_name)
-                item.setData(Qt.ItemDataRole.UserRole, emp['id'])
-                # Subtitle (Matricola)
-                matr = emp['matricola'] or "N/A"
-                item.setToolTip(f"Matricola: {matr}")
-                self.list_widget.addItem(item)
+            try:
+                cognome = emp.get('cognome') or ''
+                nome = emp.get('nome') or ''
+                matricola = emp.get('matricola') or ''
+                emp_id = emp.get('id')
+                
+                full_name = f"{cognome} {nome}".strip()
+                if not full_name:
+                    full_name = "N/A"
+                
+                # Search in name or matricola
+                if search in full_name.lower() or (matricola and search in matricola.lower()):
+                    item = QListWidgetItem(full_name)
+                    item.setData(Qt.ItemDataRole.UserRole, emp_id)
+                    item.setToolTip(f"Matricola: {matricola or 'N/A'}")
+                    self.list_widget.addItem(item)
+            except Exception:
+                # Skip malformed employee entries
+                continue
 
     def on_employee_selected(self, item):
+        if item is None:
+            return
         emp_id = item.data(Qt.ItemDataRole.UserRole)
-        self.load_employee_detail(emp_id)
+        if emp_id is not None:
+            self.load_employee_detail(emp_id)
 
     def load_employee_detail(self, emp_id):
+        import sentry_sdk
+        
         try:
+            if not self.api_client:
+                return
+                
             data = self.api_client.get_dipendente_detail(emp_id)
+            
+            if not isinstance(data, dict):
+                raise ValueError("Risposta non valida dal server")
+                
             self.current_employee_id = emp_id
             self.populate_detail(data)
             self.right_stack.setCurrentWidget(self.page_detail)
         except Exception as e:
+            sentry_sdk.capture_exception(e)
             QMessageBox.critical(self, "Errore", f"Impossibile caricare dettagli: {e}")
 
     def populate_detail(self, data):
-        # S3776: Refactored logic to reduce complexity? Already quite split.
-        # Header
-        full_name = f"{data['cognome']} {data['nome']}"
-        self.lbl_name.setText(full_name)
-        self.lbl_matricola.setText(f"Matricola: {data['matricola'] or 'N/A'}")
-        self.lbl_dept.setText(f"Reparto: {data['categoria_reparto'] or 'Non assegnato'}")
+        """Populate the detail view with employee data, handling None values."""
+        try:
+            # Header - with None handling
+            cognome = data.get('cognome') or ''
+            nome = data.get('nome') or ''
+            full_name = f"{cognome} {nome}".strip() or "N/A"
+            
+            self.lbl_name.setText(full_name)
+            self.lbl_matricola.setText(f"Matricola: {data.get('matricola') or 'N/A'}")
+            self.lbl_dept.setText(f"Reparto: {data.get('categoria_reparto') or 'Non assegnato'}")
 
-        # Info Tab
-        self.detail_lbl_email.setText(data.get('email') or "-")
-        assunzione = data.get('data_assunzione')
-        if assunzione:
-            self.detail_lbl_assunzione.setText(datetime.strptime(assunzione, '%Y-%m-%d').strftime('%d/%m/%Y'))
-        else:
-            self.detail_lbl_assunzione.setText("-")
+            # Info Tab
+            self.detail_lbl_email.setText(data.get('email') or "-")
+            
+            assunzione = data.get('data_assunzione')
+            if assunzione:
+                try:
+                    self.detail_lbl_assunzione.setText(datetime.strptime(assunzione, '%Y-%m-%d').strftime('%d/%m/%Y'))
+                except ValueError:
+                    self.detail_lbl_assunzione.setText(str(assunzione))
+            else:
+                self.detail_lbl_assunzione.setText("-")
 
-        nascita = data.get('data_nascita')
-        if nascita:
-            self.detail_lbl_nascita.setText(datetime.strptime(nascita, '%Y-%m-%d').strftime('%d/%m/%Y'))
-        else:
-            self.detail_lbl_nascita.setText("-")
+            nascita = data.get('data_nascita')
+            if nascita:
+                try:
+                    self.detail_lbl_nascita.setText(datetime.strptime(nascita, '%Y-%m-%d').strftime('%d/%m/%Y'))
+                except ValueError:
+                    self.detail_lbl_nascita.setText(str(nascita))
+            else:
+                self.detail_lbl_nascita.setText("-")
 
-        self._populate_certs_table(data.get('certificati', []))
+            self._populate_certs_table(data.get('certificati') or [])
+        except Exception as e:
+            import sentry_sdk
+            sentry_sdk.capture_exception(e)
+            # Show partial data even on error
+            self.lbl_name.setText("Errore caricamento")
+            self.lbl_matricola.setText("-")
+            self.lbl_dept.setText("-")
 
     def _populate_certs_table(self, certs):
         total = len(certs)
@@ -505,6 +565,8 @@ class AnagraficaView(QWidget):
              self.inp_assunzione.setDate(min_date)
 
     def save_employee(self):
+        import sentry_sdk
+        
         min_date = QDate(1900, 1, 1)
 
         nascita = self.inp_nascita.date()
@@ -524,25 +586,47 @@ class AnagraficaView(QWidget):
             QMessageBox.warning(self, "Attenzione", "Nome e Cognome sono obbligatori.")
             return
 
+        if not self.api_client:
+            QMessageBox.critical(self, "Errore", "Client API non inizializzato.")
+            return
+
         try:
             if self.current_employee_id:
                 self.api_client.update_dipendente(self.current_employee_id, data)
                 QMessageBox.information(self, "Successo", "Dipendente aggiornato.")
                 self.refresh_data()
-                self.load_employee_detail(self.current_employee_id) # Go back to detail
-                self.data_changed.emit()
+                self.load_employee_detail(self.current_employee_id)
+                try:
+                    self.data_changed.emit()
+                except RuntimeError:
+                    pass  # Signal might be disconnected
             else:
                 new_emp = self.api_client.create_dipendente(data)
                 QMessageBox.information(self, "Successo", "Dipendente creato.")
                 self.refresh_data()
-                self.load_employee_detail(new_emp['id'])
-                self.data_changed.emit()
+                if isinstance(new_emp, dict) and 'id' in new_emp:
+                    self.load_employee_detail(new_emp['id'])
+                try:
+                    self.data_changed.emit()
+                except RuntimeError:
+                    pass
 
         except Exception as e:
-            # Handle API errors (e.g. 400 Bad Request for duplicates)
+            sentry_sdk.capture_exception(e)
+            # Handle API errors
             msg = str(e)
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    detail = e.response.json().get('detail', msg)
+                    msg = str(detail)
+                except Exception:
+                    pass
+            
             if "400" in msg and "Matricola" in msg:
                 msg = "Matricola già esistente."
+            elif "400" in msg:
+                msg = "Dati non validi. Controlla i campi."
+                
             QMessageBox.critical(self, "Errore", f"Salvataggio fallito: {msg}")
 
     def cancel_edit(self):
@@ -552,7 +636,14 @@ class AnagraficaView(QWidget):
             self.right_stack.setCurrentWidget(self.page_empty)
 
     def delete_current_employee(self):
-        if not self.current_employee_id: return
+        import sentry_sdk
+        
+        if not self.current_employee_id:
+            return
+        
+        if not self.api_client:
+            QMessageBox.critical(self, "Errore", "Client API non inizializzato.")
+            return
 
         reply = QMessageBox.question(self, "Conferma Eliminazione",
                                      "Sei sicuro di voler eliminare questo dipendente? I certificati diventeranno 'orfani'.",
@@ -564,6 +655,10 @@ class AnagraficaView(QWidget):
                 self.refresh_data()
                 self.right_stack.setCurrentWidget(self.page_empty)
                 self.current_employee_id = None
-                self.data_changed.emit()
+                try:
+                    self.data_changed.emit()
+                except RuntimeError:
+                    pass
             except Exception as e:
+                sentry_sdk.capture_exception(e)
                 QMessageBox.critical(self, "Errore", f"Eliminazione fallita: {e}")

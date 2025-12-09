@@ -72,9 +72,9 @@ const Sidebar = () => {
     const globalContext = globalThis;
 
     if (globalContext.qt?.webChannelTransport) {
-      // Assign to window to prevent object from being dropped immediately and ensure it persists
-      // Using window._channel to bypass linter checks for unused variables while ensuring persistence
-      window._channel = new globalContext.QWebChannel(globalContext.qt.webChannelTransport, function(c) {
+      // Assign to globalThis to prevent object from being dropped immediately and ensure it persists
+      // Using globalThis._channel for environment agnosticism
+      globalThis._channel = new globalContext.QWebChannel(globalContext.qt.webChannelTransport, function(c) {
         if (c.objects?.bridge) {
             setBridge(c.objects.bridge);
         }

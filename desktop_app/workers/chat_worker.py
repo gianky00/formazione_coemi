@@ -52,7 +52,9 @@ class ChatWorker(QThread):
             response = chat.send_message(self.user_message)
 
             # Emit response text and the updated history (including tool calls)
-            self.response_ready.emit(response.text, chat.history)
+            # Ensure response.text is never None
+            response_text = response.text if response.text else "Nessuna risposta disponibile."
+            self.response_ready.emit(str(response_text), chat.history)
 
         except Exception as e:
             logging.error(f"Gemini Worker Error: {e}")
@@ -61,7 +63,8 @@ class ChatWorker(QThread):
                 msg = "Ho pensato troppo forte. Riprova tra poco (Quota API esaurita)."
             elif "API key" in msg:
                 msg = "Chiave API non valida."
-            self.error_occurred.emit(msg)
+            # Ensure msg is always a valid string
+            self.error_occurred.emit(str(msg) if msg else "Errore sconosciuto")
 
     # --- TOOLS ---
 
