@@ -367,6 +367,7 @@ class DatabaseSettingsWidget(QFrame):
         self.form_layout = QFormLayout()
         self.form_layout.setSpacing(15)
         self.form_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        self.worker = None # Store reference
 
         self.layout.addWidget(QLabel("<b>Impostazioni Database</b>"))
 
@@ -400,8 +401,10 @@ class DatabaseSettingsWidget(QFrame):
             self.optimize_btn.setText("Ottimizzazione in corso...")
 
             self.worker = OptimizeWorker(self.api_client)
+            WorkerManager.instance().register_worker(self.worker) # Register
             self.worker.finished.connect(self.on_optimize_finished)
             self.worker.error.connect(self.on_optimize_error)
+            self.worker.finished.connect(self.worker.deleteLater)
             self.worker.start()
 
     def on_optimize_finished(self, result):
@@ -419,6 +422,12 @@ class DatabaseSettingsWidget(QFrame):
         self.optimize_btn.setEnabled(True)
         self.optimize_btn.setText(LABEL_OPTIMIZE_DB)
         ToastManager.error("Errore Ottimizzazione", error, self.window())
+
+    def cleanup(self):
+        if self.worker and self.worker.isRunning():
+            self.worker.quit()
+            if not self.worker.wait(1500):
+                print("OptimizeWorker did not stop gracefully.")
 
 class APISettingsWidget(QFrame):
     def __init__(self, parent=None):
@@ -708,6 +717,10 @@ class AuditLogWidget(QFrame):
         except Exception as e:
             # CustomMessageDialog.show_error(self, "Errore", f"Impossibile caricare i log: {e}")
             print(f"Error loading logs: {e}")
+
+    def cleanup(self):
+        if hasattr(self, 'search_timer') and self.search_timer.isActive():
+            self.search_timer.stop()
 
 class ConfigView(QWidget):
     def __init__(self, api_client: APIClient):
@@ -1156,6 +1169,19 @@ class ConfigView(QWidget):
             CustomMessageDialog.show_error(self, "Errore", f"Impossibile salvare la configurazione: {e}")
 
     def cleanup(self):
+        """
+        Robust cleanup of all threads and timers.
+        """
+        # 1. Main Loader
         if self.loader_worker and self.loader_worker.isRunning():
             self.loader_worker.quit()
-            self.loader_worker.wait()
+            if not self.loader_worker.wait(1500):
+                 print("ConfigLoaderWorker did not stop gracefully.")
+
+        # 2. Database Settings Worker
+        if hasattr(self, 'database_settings'):
+            self.database_settings.cleanup()
+
+        # 3. Audit Log Timer
+        if hasattr(self, 'audit_widget'):
+            self.audit_widget.cleanup()
