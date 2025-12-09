@@ -842,11 +842,13 @@ class LoginView(QWidget):
         return True
 
     def on_login_success(self, response):
+        import sentry_sdk
         try:
             self.api_client.set_token(response)
             user_info = self.api_client.user_info
 
             if not self._check_password_requirement(user_info):
+                self.login_btn.set_loading(False)
                 return
 
             self._check_read_only(user_info)
@@ -855,6 +857,8 @@ class LoginView(QWidget):
             self._animate_success_exit()
 
         except Exception as e:
+            if sentry_sdk.is_initialized():
+                sentry_sdk.capture_exception(e)
             self._on_login_error(str(e))
             self.login_btn.set_loading(False)
 

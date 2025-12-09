@@ -1,5 +1,6 @@
 from PyQt6.QtCore import QRunnable, pyqtSignal, QObject
 import requests
+import sentry_sdk
 
 class WorkerSignals(QObject):
     """
@@ -38,8 +39,10 @@ class FetchCertificatesWorker(QRunnable):
             data = response.json()
             self.signals.result.emit(data)
         except requests.exceptions.RequestException as e:
+            sentry_sdk.capture_exception(e)
             self.signals.error.emit(str(e))
         except Exception as e:
+            sentry_sdk.capture_exception(e)
             self.signals.error.emit(str(e))
         finally:
             self.signals.finished.emit()
@@ -71,6 +74,7 @@ class DeleteCertificatesWorker(QRunnable):
 
             self.signals.result.emit({"success": success_count, "errors": errors})
         except Exception as e:
+            sentry_sdk.capture_exception(e)
             # Bug 6 Fix: Emit partial result even on catastrophic failure if some succeeded
             if success_count > 0 or errors:
                  self.signals.result.emit({"success": success_count, "errors": errors + [f"Critical Stop: {str(e)}"]})
@@ -98,6 +102,7 @@ class UpdateCertificateWorker(QRunnable):
             response.raise_for_status()
             self.signals.result.emit(True)
         except Exception as e:
+            sentry_sdk.capture_exception(e)
             self.signals.error.emit(str(e))
         finally:
             self.signals.finished.emit()
@@ -129,6 +134,7 @@ class ValidateCertificatesWorker(QRunnable):
 
             self.signals.result.emit({"success": success_count, "errors": errors})
         except Exception as e:
+            sentry_sdk.capture_exception(e)
             # Bug 6 Fix: Partial result logic
             if success_count > 0 or errors:
                  self.signals.result.emit({"success": success_count, "errors": errors + [f"Critical Stop: {str(e)}"]})

@@ -596,31 +596,35 @@ class ApplicationController:
             self._csv_import_worker = None
 
     def on_login_success(self, user_info):
-        # Create Dashboard if not exists
-        self._ensure_dashboard_created()
+        try:
+            # Create Dashboard if not exists
+            self._ensure_dashboard_created()
 
-        # Setup Session Managers
-        self._setup_session_managers()
+            # Setup Session Managers
+            self._setup_session_managers()
 
-        # Propagate Read-Only State
-        is_read_only = user_info.get("read_only", False)
-        self.dashboard.set_read_only_mode(is_read_only)
+            # Propagate Read-Only State
+            is_read_only = user_info.get("read_only", False)
+            self.dashboard.set_read_only_mode(is_read_only)
 
-        # Update User Info in Sidebar
-        self._update_sidebar_user_info(user_info)
+            # Update User Info in Sidebar
+            self._update_sidebar_user_info(user_info)
 
-        # Connect Signals
-        self._connect_dashboard_signals()
-        
-        # Transition
-        self.master_window.show_dashboard(self.dashboard)
+            # Connect Signals
+            self._connect_dashboard_signals()
+            
+            # Transition
+            self.master_window.show_dashboard(self.dashboard)
 
-        # Voice Welcome
-        self._play_welcome_message(user_info)
+            # Voice Welcome
+            self._play_welcome_message(user_info)
 
-        # Handle deferred action
-        if self.pending_action:
-            self._handle_deferred_action(is_read_only)
+            # Handle deferred action
+            if self.pending_action:
+                self._handle_deferred_action(is_read_only)
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            CustomMessageDialog.show_error(self.master_window, "Errore Critico", f"Errore durante l'avvio della dashboard:\n{e}")
 
     def _ensure_dashboard_created(self):
         if not self.dashboard:
