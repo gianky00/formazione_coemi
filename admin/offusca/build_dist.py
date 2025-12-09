@@ -240,43 +240,6 @@ def _prepare_assets():
     if os.path.exists(os.path.join(ROOT_DIR, FILE_REQUIREMENTS)):
         shutil.copy(os.path.join(ROOT_DIR, FILE_REQUIREMENTS), os.path.join(OBF_DIR, FILE_REQUIREMENTS))
 
-def build():
-    # S3776: Refactored to reduce complexity
-    try:
-        log_and_print("Starting Build Process...")
-        log_and_print("\n--- Step 0/7: Generating Installer Assets (Deep Space Theme) ---")
-
-        assets_script = os.path.join(ROOT_DIR, "tools", "prepare_installer_assets.py")
-        if os.path.exists(assets_script):
-            cmd = [sys.executable, assets_script]
-            if platform.system() == "Linux" or os.environ.get("HEADLESS_BUILD"):
-                cmd.extend(["-platform", "offscreen"])
-                os.environ["QT_QPA_PLATFORM"] = "offscreen"
-            run_command(cmd)
-        else:
-            log_and_print(f"ERROR: Assets script not found at {assets_script}", "ERROR")
-            sys.exit(1)
-
-        iscc_exe, system_dlls = verify_environment()
-        auto_detected_libs = _prepare_obfuscation()
-
-        _build_guide()
-        _run_pyarmor()
-        _prepare_assets()
-
-        log_and_print("\n--- Step 5/7: Packaging with PyInstaller (This may take a while) ---")
-
-        runtime_dir = _find_pyarmor_runtime()
-        if not runtime_dir:
-            log_and_print("ERROR: PyArmor runtime folder not found inside obfuscated dir!", "ERROR")
-            sys.exit(1)
-
-        cmd_pyinstaller = _prepare_pyinstaller_cmd(runtime_dir)
-        _add_hidden_imports(cmd_pyinstaller, auto_detected_libs)
-
-        cmd_pyinstaller.append(os.path.join(OBF_DIR, ENTRY_SCRIPT))
-        run_command(cmd_pyinstaller)
-
 def _build_guide():
     """Builds the frontend guide."""
     log_and_print("\n--- Step 2/7: Building Modern Guide Frontend ---")
@@ -376,6 +339,43 @@ def _add_hidden_imports(cmd, auto_detected_libs):
 
     for imp in all_hidden_imports:
         cmd.extend(["--hidden-import", imp])
+
+def build():
+    # S3776: Refactored to reduce complexity
+    try:
+        log_and_print("Starting Build Process...")
+        log_and_print("\n--- Step 0/7: Generating Installer Assets (Deep Space Theme) ---")
+
+        assets_script = os.path.join(ROOT_DIR, "tools", "prepare_installer_assets.py")
+        if os.path.exists(assets_script):
+            cmd = [sys.executable, assets_script]
+            if platform.system() == "Linux" or os.environ.get("HEADLESS_BUILD"):
+                cmd.extend(["-platform", "offscreen"])
+                os.environ["QT_QPA_PLATFORM"] = "offscreen"
+            run_command(cmd)
+        else:
+            log_and_print(f"ERROR: Assets script not found at {assets_script}", "ERROR")
+            sys.exit(1)
+
+        iscc_exe, system_dlls = verify_environment()
+        auto_detected_libs = _prepare_obfuscation()
+
+        _build_guide()
+        _run_pyarmor()
+        _prepare_assets()
+
+        log_and_print("\n--- Step 5/7: Packaging with PyInstaller (This may take a while) ---")
+
+        runtime_dir = _find_pyarmor_runtime()
+        if not runtime_dir:
+            log_and_print("ERROR: PyArmor runtime folder not found inside obfuscated dir!", "ERROR")
+            sys.exit(1)
+
+        cmd_pyinstaller = _prepare_pyinstaller_cmd(runtime_dir)
+        _add_hidden_imports(cmd_pyinstaller, auto_detected_libs)
+
+        cmd_pyinstaller.append(os.path.join(OBF_DIR, ENTRY_SCRIPT))
+        run_command(cmd_pyinstaller)
 
         log_and_print("\n--- Step 6/7: Post-Build Cleanup & DLL Injection ---")
 

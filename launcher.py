@@ -13,6 +13,9 @@ import logging
 import logging.handlers
 import importlib
 
+# --- BUG FIX: Increase recursion limit to prevent crashes on bulk operations ---
+sys.setrecursionlimit(5000)
+
 # Constants
 DATABASE_FILENAME = "database_documenti.db"
 LICENSE_FILE_KEY = "pyarmor.rkey"
