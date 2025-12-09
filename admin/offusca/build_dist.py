@@ -271,7 +271,7 @@ def _prepare_pyinstaller_cmd(runtime_dir):
         sys.executable, "-m", "PyInstaller",
         "--name", APP_NAME,
         "--onedir",
-        "--console",
+        "--noconsole",
         "--clean",
         "--noconfirm",
         "--icon", os.path.join(OBF_DIR, "desktop_app", "icons", "icon.ico"),
@@ -297,7 +297,8 @@ def _add_collect_all(cmd):
         "PyQt6.QtWebChannel", "PyQt6-WebEngine",
         "passlib", "bcrypt", "jose", "cryptography", "PyQt6",
         "geoip2", "user_agents", "apscheduler",
-        "sentry_sdk"
+        "sentry_sdk",
+        "charset_normalizer"
     ]
     for pkg in packages:
         cmd.extend(["--collect-all", pkg])
@@ -324,6 +325,7 @@ def _add_hidden_imports(cmd, auto_detected_libs):
         "email.mime.text", "email.mime.multipart", "email.mime.application",
         "email.mime.base", "email.mime.image", "email.header", "email.utils",
         "email.encoders", "encodings",
+        "charset_normalizer", "charset_normalizer.md",
         "pydantic_settings", "httpx",
         "google.cloud.aiplatform", "google.cloud.aiplatform_v1",
         "google.api_core", "google.auth", "google.protobuf", "grpc",

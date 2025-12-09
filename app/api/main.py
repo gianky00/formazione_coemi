@@ -407,11 +407,12 @@ def _decode_csv_content(content: bytes) -> str:
         try:
             return content.decode('cp1252')
         except UnicodeDecodeError:
-            matches = charset_normalizer.from_bytes(content).best()
-            encoding = matches.encoding if matches else 'latin-1'
             try:
+                matches = charset_normalizer.from_bytes(content).best()
+                encoding = matches.encoding if matches else 'latin-1'
                 return content.decode(encoding)
-            except (UnicodeDecodeError, LookupError):
+            except (UnicodeDecodeError, LookupError, ImportError, AttributeError):
+                # Fallback to Latin-1 if detection fails or library is missing in frozen app
                 return content.decode('latin-1', errors='replace')
 
 def _link_orphaned_certificates_after_import(db):

@@ -139,8 +139,7 @@ async def lifespan(app: FastAPI):
         # Schedule the daily alert job
         scheduler.add_job(check_and_send_alerts, 'cron', hour=8, minute=0)
 
-        # Schedule DB Sync (Every 5 minutes) to save RAM data back to disk (if locked)
-        scheduler.add_job(db_security.sync_db, 'interval', minutes=5)
+        # DB Sync (Auto-save) is managed by db_security internal timer to avoid double-write conflicts
 
         scheduler.start()
     except Exception as e:
