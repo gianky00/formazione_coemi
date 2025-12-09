@@ -167,4 +167,4 @@ class StatsView(QWidget):
 
     def showEvent(self, event):
         super().showEvent(event)
-        self.refresh_data()
+        QTimer.singleShot(0, self.refresh_data)

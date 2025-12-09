@@ -1,7 +1,7 @@
 import sys
 import os
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
-from PyQt6.QtCore import QUrl, pyqtSlot, QObject, pyqtSignal
+from PyQt6.QtCore import QUrl, pyqtSlot, QObject, pyqtSignal, QTimer
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEnginePage
 from PyQt6.QtWebChannel import QWebChannel
@@ -28,6 +28,7 @@ class CustomWebEnginePage(QWebEnginePage):
 class ModernGuideView(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._loaded = False
 
         # Main Layout
         main_layout = QVBoxLayout(self)
@@ -41,8 +42,6 @@ class ModernGuideView(QWidget):
         self.custom_page = CustomWebEnginePage(self.webview)
         self.webview.setPage(self.custom_page)
 
-        self.webview.show() # Explicitly show
-
         # QWebChannel Setup for Bridge
         self.channel = QWebChannel()
         self.bridge = GuideBridge()
@@ -51,10 +50,16 @@ class ModernGuideView(QWidget):
 
         main_layout.addWidget(self.webview)
 
-        # Pre-load immediately
-        self.load_guide()
+        # DEFERRED LOADING: Do NOT load content in __init__
+        # self.load_guide()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not self._loaded:
+            QTimer.singleShot(0, self.load_guide)
 
     def load_guide(self):
+        self._loaded = True
         # Determine the path to the index.html
         if hasattr(sys, '_MEIPASS'):
             # Frozen environment

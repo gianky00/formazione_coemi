@@ -855,6 +855,9 @@ class ConfigView(QWidget):
 
     def showEvent(self, event):
         super().showEvent(event)
+        QTimer.singleShot(0, self._deferred_load)
+
+    def _deferred_load(self):
         if self.api_client and self.api_client.user_info:
             is_admin = self.api_client.user_info.get("is_admin", False)
 
