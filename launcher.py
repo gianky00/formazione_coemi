@@ -598,7 +598,7 @@ class StartupWorker(QThread):
             self.progress_update.emit("Connessione...", 60)
             t0 = time.time()
             ready = False
-            timeout = 15  # Reduced timeout
+            timeout = 60  # Increased timeout for stability
             
             while time.time() - t0 < timeout:
                 if check_port("127.0.0.1", self.server_port):

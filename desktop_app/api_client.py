@@ -70,7 +70,8 @@ class APIClient:
 
         try:
             # Note: For public endpoints, _get_headers might be empty, which is fine.
-            response = requests.get(url, params=params, headers=self._get_headers(), timeout=10)
+            # S112: Increased timeout to 30s for better stability on slow networks
+            response = requests.get(url, params=params, headers=self._get_headers(), timeout=30)
             response.raise_for_status()
             return response.json()
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
@@ -82,7 +83,7 @@ class APIClient:
         data = {"username": username, "password": password}
         try:
             # Using data=data sends as application/x-www-form-urlencoded which OAuth2PasswordRequestForm expects
-            response = requests.post(url, data=data, timeout=10)
+            response = requests.post(url, data=data, timeout=30)
             response.raise_for_status()
             return response.json()
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
@@ -176,9 +177,10 @@ class APIClient:
 
         url = f"{self.base_url}/dipendenti/import-csv"
         # Streaming upload is automatic with open() file object in requests
+        # Increased timeout to 300s (5 min) for large files
         with open(file_path, 'rb') as f:
             files = {'file': (os.path.basename(file_path), f, 'text/csv')}
-            response = requests.post(url, files=files, headers=self._get_headers(), timeout=60)
+            response = requests.post(url, files=files, headers=self._get_headers(), timeout=300)
         response.raise_for_status()
         return response.json()
 
@@ -231,7 +233,7 @@ class APIClient:
         """Moves the database file via the API."""
         url = f"{self.base_url}/config/move-database"
         payload = {"new_path": new_path}
-        response = requests.post(url, json=payload, headers=self._get_headers(), timeout=60)
+        response = requests.post(url, json=payload, headers=self._get_headers(), timeout=120)
         response.raise_for_status()
         return response.json()
 
@@ -301,6 +303,6 @@ class APIClient:
     def toggle_db_security(self, locked: bool):
         url = f"{self.base_url}/config/db-security/toggle"
         payload = {"locked": locked}
-        response = requests.post(url, json=payload, headers=self._get_headers(), timeout=60) # Encryption might take time
+        response = requests.post(url, json=payload, headers=self._get_headers(), timeout=120) # Encryption might take time
         response.raise_for_status()
         return response.json()
