@@ -4,6 +4,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+_CACHED_MACHINE_ID = None
+
 def _get_windows_disk_serial():
     """
     Retrieves the serial number of the primary physical disk on Windows.
@@ -66,7 +68,12 @@ def get_machine_id():
     Gets the most reliable and consistent hardware ID for the current OS.
     - On Windows, it prioritizes the disk serial number.
     - Falls back to the MAC address if the disk serial cannot be retrieved.
+    - Caches the result to avoid repeated WMI calls.
     """
+    global _CACHED_MACHINE_ID
+    if _CACHED_MACHINE_ID:
+        return _CACHED_MACHINE_ID
+
     machine_id = None
     if os.name == 'nt':
         logger.info("Windows OS detected. Attempting to get disk serial number.")
@@ -77,4 +84,5 @@ def get_machine_id():
         machine_id = _get_mac_address()
 
     logger.info(f"Final determined Machine ID: {machine_id}")
+    _CACHED_MACHINE_ID = machine_id
     return machine_id
