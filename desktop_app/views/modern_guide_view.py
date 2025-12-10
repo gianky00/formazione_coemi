@@ -5,6 +5,7 @@ from PyQt6.QtCore import QUrl, pyqtSlot, QObject, pyqtSignal
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEnginePage
 from PyQt6.QtWebChannel import QWebChannel
+from app.core.path_resolver import get_asset_path
 
 class GuideBridge(QObject):
     """
@@ -55,17 +56,16 @@ class ModernGuideView(QWidget):
         self.load_guide()
 
     def load_guide(self):
-        # Determine the path to the index.html
-        if hasattr(sys, '_MEIPASS'):
-            # Frozen environment
-            base_dir = os.path.join(sys._MEIPASS, 'guide')
+        # Determine the path to the index.html using universal path resolver
+        # Works for Dev mode, PyInstaller, and Nuitka
+        if getattr(sys, 'frozen', False):
+            # Frozen: guide is bundled as 'guide' (Nuitka/PyInstaller)
+            index_path = get_asset_path("guide/index.html")
         else:
-            # Development environment
-            base_dir = os.path.abspath(os.path.join(os.getcwd(), 'guide_frontend', 'dist'))
+            # Development: use guide_frontend/dist
+            index_path = get_asset_path("guide_frontend/dist/index.html")
 
-        index_path = os.path.join(base_dir, 'index.html')
-
-        if not os.path.exists(index_path):
+        if not index_path.exists():
             # Fallback explanation
             html_content = f"""
             <html>
@@ -82,4 +82,4 @@ class ModernGuideView(QWidget):
             """
             self.webview.setHtml(html_content)
         else:
-            self.webview.setUrl(QUrl.fromLocalFile(index_path))
+            self.webview.setUrl(QUrl.fromLocalFile(str(index_path)))
