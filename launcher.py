@@ -308,7 +308,8 @@ def start_server(port):
         },
     }
     
-    uvicorn.run(app, host="127.0.0.1", port=port, log_config=log_config, log_level="error")
+    # Explicitly disable reload to prevent crashes in frozen app when settings.json changes
+    uvicorn.run(app, host="127.0.0.1", port=port, log_config=log_config, log_level="error", reload=False)
 
 def check_port(host, port):
     try:

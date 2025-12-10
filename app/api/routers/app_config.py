@@ -28,6 +28,11 @@ class MutableSettingsSchema(BaseModel):
     ALERT_THRESHOLD_DAYS: Optional[int] = Field(None, ge=1)
     ALERT_THRESHOLD_DAYS_VISITE: Optional[int] = Field(None, ge=1)
 
+    # Extra fields sent by frontend that we must ignore to avoid 400 Bad Request
+    # The frontend "ConfigView" mistakenly sends user profile data to this endpoint
+    account_name: Optional[str] = None
+    gender: Optional[str] = None
+
 @router.get("/config/updater", response_model=AppConfigSchema)
 async def get_updater_config():
     """
@@ -90,16 +95,26 @@ async def update_mutable_config(
         # Get a dictionary of the fields that are actually present in the request
         update_data = new_settings.model_dump(exclude_unset=True)
 
-        if not update_data:
+        # Filter out ignored fields (account_name, gender) so they don't get saved to settings.json
+        # These fields are currently not handled here (should be in /users/),
+        # but we must accept them to prevent 400 errors.
+        filtered_data = {k: v for k, v in update_data.items() if k not in ["account_name", "gender"]}
+
+        if not filtered_data:
+            # If the request ONLY contained ignored fields, we just return success (noop)
+            # instead of raising 400, to satisfy the frontend.
+            if "account_name" in update_data or "gender" in update_data:
+                 return None
+
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Request body cannot be empty."
             )
 
-        logging.info(f"User '{current_user.username}' updating settings with: {update_data.keys()}")
+        logging.info(f"User '{current_user.username}' updating settings with: {filtered_data.keys()}")
 
         # Save the updated settings
-        settings.save_mutable_settings(update_data)
+        settings.save_mutable_settings(filtered_data)
 
         return None # Return 204 No Content on success
 

@@ -27,8 +27,11 @@ def move_database(
     Moves the database file to a new user-specified path.
     """
     new_path = Path(payload.new_path)
-    if not new_path.is_dir():
-        raise HTTPException(status_code=400, detail="Il percorso specificato non è una cartella valida.")
+    # Allow directory OR .db file path
+    is_valid = new_path.is_dir() or (new_path.parent.is_dir() and new_path.suffix.lower() == '.db')
+
+    if not is_valid:
+        raise HTTPException(status_code=400, detail="Il percorso specificato non è valido. Seleziona una cartella o un file .db.")
 
     try:
         db_security.move_database(new_path)
