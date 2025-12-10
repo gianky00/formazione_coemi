@@ -18,7 +18,6 @@ sys.setrecursionlimit(10000)
 
 # Constants
 DATABASE_FILENAME = "database_documenti.db"
-LICENSE_FILE_KEY = "pyarmor.rkey"
 LICENSE_FILE_CONFIG = "config.dat"
 
 # --- CONFIGURAZIONE TEMPFILE (CRITICO PER FROZEN) ---
@@ -220,67 +219,6 @@ init_sentry()
 # Override global exception hook
 sys.excepthook = sentry_exception_hook
 
-# --- PHASE 2: POSTHOG ANALYTICS ---
-import posthog
-
-def init_posthog():
-    """Initializes PostHog Analytics (Async)."""
-    try:
-        # Check explicit disable flag (GDPR)
-        # analytics_enabled = True # Removed unused variable
-
-        # Configure PostHog Module-Global
-        posthog.project_api_key = "phc_jCIZrEiPMQ1fE8ympKiJGc84GUvbqqo7T2sQDlGyUd8"
-        # Backwards compatibility / library quirk fallback
-        posthog.api_key = posthog.project_api_key
-        posthog.host = "https://eu.i.posthog.com"
-
-        # Track App Start
-        # Run in thread to not block UI
-        def track_start():
-            try:
-                # Identification (Anonymous Machine ID or User ID if logged in - here we use machine ID for basic tracking)
-                from desktop_app.services.hardware_id_service import get_machine_id
-                distinct_id = get_machine_id()
-
-                # Re-assert config in thread just in case
-                if not posthog.api_key:
-                    posthog.project_api_key = "phc_jCIZrEiPMQ1fE8ympKiJGc84GUvbqqo7T2sQDlGyUd8"
-                    posthog.api_key = posthog.project_api_key
-                    posthog.host = "https://eu.i.posthog.com"
-
-                posthog.capture(
-                    'app_started',
-                    distinct_id=distinct_id,
-                    properties={
-                        'version': __version__,
-                        'os': platform.system(),
-                        'os_release': platform.release(),
-                        'environment': "production" if getattr(sys, 'frozen', False) else "development"
-                    }
-                )
-            except Exception as e:
-                logging.warning(f"PostHog track failed: {e}")
-
-        threading.Thread(target=track_start, daemon=True).start()
-
-        # Register Exit Handler
-        import atexit
-        def track_exit():
-            try:
-                from desktop_app.services.hardware_id_service import get_machine_id
-                posthog.capture('app_closed', distinct_id=get_machine_id())
-                posthog.flush() # Ensure sent
-            except Exception: pass
-
-        atexit.register(track_exit)
-
-    except Exception as e:
-        logging.error(f"Failed to init PostHog: {e}")
-
-init_posthog()
-
-
 # --- CRITICAL: IMPORT WEBENGINE & SET ATTRIBUTE BEFORE QAPPLICATION ---
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtCore import Qt, QCoreApplication, QTimer, QThread, pyqtSignal
@@ -373,22 +311,19 @@ def verify_license_files():
 
     # 1. Check User Data Directory (Preferred)
     user_lic_dir = get_license_dir()
-    if os.path.exists(os.path.join(user_lic_dir, LICENSE_FILE_KEY)) and \
-       os.path.exists(os.path.join(user_lic_dir, LICENSE_FILE_CONFIG)):
+    if os.path.exists(os.path.join(user_lic_dir, LICENSE_FILE_CONFIG)):
         sys.path.insert(0, user_lic_dir)
         return True
 
     # 2. Check Install Directory (Legacy)
     install_dir = get_app_install_dir()
     legacy_lic_dir = os.path.join(install_dir, "Licenza")
-    if os.path.exists(os.path.join(legacy_lic_dir, LICENSE_FILE_KEY)) and \
-       os.path.exists(os.path.join(legacy_lic_dir, LICENSE_FILE_CONFIG)):
+    if os.path.exists(os.path.join(legacy_lic_dir, LICENSE_FILE_CONFIG)):
         sys.path.insert(0, legacy_lic_dir)
         return True
 
     # 3. Check Root (Legacy)
-    if os.path.exists(os.path.join(install_dir, LICENSE_FILE_KEY)) and \
-       os.path.exists(os.path.join(install_dir, LICENSE_FILE_CONFIG)):
+    if os.path.exists(os.path.join(install_dir, LICENSE_FILE_CONFIG)):
         sys.path.insert(0, install_dir)
         return True
 
@@ -407,13 +342,29 @@ def check_license_gatekeeper(splash):
     files_ok = verify_license_files()
 
     # 2. Validity Check (Simulated by import)
+    # With Nuitka, we must explicitly verify the Hardware ID here in Python
+    # because we are no longer relying on PyArmor's runtime checks.
     valid_license = False
     if files_ok:
         try:
-            # Try importing a protected module
-            importlib.import_module('app.core.config')
-            valid_license = True
-        except Exception:
+            from desktop_app.services.license_manager import LicenseManager
+            from desktop_app.services.hardware_id_service import get_machine_id
+
+            lic_data = LicenseManager.get_license_data()
+            if lic_data:
+                registered_hwid = lic_data.get("Hardware ID")
+                current_hwid = get_machine_id()
+
+                # Normalize for comparison
+                if registered_hwid and current_hwid and registered_hwid.strip() == current_hwid.strip():
+                    valid_license = True
+                else:
+                    logging.error(f"HWID Mismatch: License={registered_hwid}, Machine={current_hwid}")
+                    valid_license = False
+            else:
+                valid_license = False
+        except Exception as e:
+            logging.error(f"License check exception: {e}")
             valid_license = False
 
     if valid_license:
