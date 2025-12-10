@@ -54,6 +54,13 @@ def run_command(cmd, cwd=None):
 
 def build_nuitka():
     try:
+        # 0. Pre-check for Nuitka
+        try:
+            import nuitka
+        except ImportError:
+            log_and_print("CRITICAL: Nuitka not found! Please run 'pip install nuitka' or 'pip install -r requirements.txt'.", "ERROR")
+            sys.exit(1)
+
         log_and_print("Starting Nuitka Build Process...")
 
         # 1. Clean previous build

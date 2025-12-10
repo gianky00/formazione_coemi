@@ -1,5 +1,8 @@
 pyarmor
 pyinstaller
+nuitka
+zstandard
+ordered-set
 fastapi==0.121.2
 uvicorn==0.38.0
 sqlalchemy==2.0.44
