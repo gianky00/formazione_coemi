@@ -332,8 +332,11 @@ def verify_license_files():
 def check_license_gatekeeper(splash):
     """
     Step 0: Strict License Check.
-    If license is missing or invalid, attempt headless update.
-    If update fails, BLOCK startup.
+    If license is missing or invalid:
+    1. Show auto-recovery message on splash.
+    2. Attempt headless update in background.
+    3. If success -> Restart/Proceed.
+    4. If failure -> Show Blocking Recovery Mode Dialog (Manual Retry).
     """
     splash.update_status("Controllo Licenza...", 5)
     QApplication.processEvents()
@@ -341,15 +344,15 @@ def check_license_gatekeeper(splash):
     # 1. Physical Check
     files_ok = verify_license_files()
 
-    # 2. Validity Check (Simulated by import)
-    # With Nuitka, we must explicitly verify the Hardware ID here in Python
-    # because we are no longer relying on PyArmor's runtime checks.
+    # 2. Validity Check (Hardware ID)
     valid_license = False
+
+    # Lazy imports
+    from desktop_app.services.license_manager import LicenseManager
+    from desktop_app.services.hardware_id_service import get_machine_id
+
     if files_ok:
         try:
-            from desktop_app.services.license_manager import LicenseManager
-            from desktop_app.services.hardware_id_service import get_machine_id
-
             lic_data = LicenseManager.get_license_data()
             if lic_data:
                 registered_hwid = lic_data.get("Hardware ID")
@@ -370,42 +373,74 @@ def check_license_gatekeeper(splash):
     if valid_license:
         return # Proceed
 
-    # --- LICENSE INVALID/MISSING: RECOVERY MODE ---
-    splash.update_status("Licenza mancante. Tentativo aggiornamento...", 5)
+    # --- LICENSE INVALID/MISSING: AUTO-RECOVERY ATTEMPT ---
+    splash.update_status("Rilevata incongruenza licenza. Ripristino automatico...", 5)
     QApplication.processEvents()
 
+    from app.core.config import settings
+    from desktop_app.services.license_updater_service import LicenseUpdaterService
+
+    update_config = {
+        "repo_owner": settings.LICENSE_REPO_OWNER,
+        "repo_name": settings.LICENSE_REPO_NAME,
+        "github_token": settings.LICENSE_GITHUB_TOKEN
+    }
+
+    hw_id = get_machine_id()
+    updater = LicenseUpdaterService(config=update_config)
+
+    # Attempt automatic update
     try:
-        from app.core.config import settings
-        from desktop_app.services.license_updater_service import LicenseUpdaterService
-        from desktop_app.services.hardware_id_service import get_machine_id
-
-        # Prepare Config for Headless Update
-        update_config = {
-            "repo_owner": settings.LICENSE_REPO_OWNER,
-            "repo_name": settings.LICENSE_REPO_NAME,
-            "github_token": settings.LICENSE_GITHUB_TOKEN
-        }
-
-        updater = LicenseUpdaterService(config=update_config)
-        hw_id = get_machine_id()
-
         success, msg = updater.update_license(hw_id)
-
         if success:
-            splash.update_status("Licenza aggiornata! Riavvio...", 100)
-            QApplication.processEvents()
-            time.sleep(1)
-            # Restart Application
-            python = sys.executable
-            os.execl(python, python, *sys.argv)
-        else:
-            QMessageBox.critical(None, "Errore Licenza",
-                f"Impossibile avviare l'applicazione.\n\nStato Licenza: {msg}\n\nContattare il supporto.")
-            sys.exit(1)
+            # Re-check validity after update
+            try:
+                lic_data = LicenseManager.get_license_data()
+                if lic_data and lic_data.get("Hardware ID", "").strip() == hw_id.strip():
+                    splash.update_status("Licenza ripristinata! Avvio...", 100)
+                    QApplication.processEvents()
+                    time.sleep(1)
+                    return # Proceed (files are updated in place)
+            except Exception:
+                pass # Fall through to failure
+    except Exception:
+        pass # Fall through to failure
 
-    except Exception as e:
-        QMessageBox.critical(None, "Errore Critico", f"Fallito recupero licenza:\n{e}")
-        sys.exit(1)
+    # --- FALLBACK: BLOCKING RECOVERY MODE ---
+    # Hide Splash or use it as parent? Better to hide/close splash and show dialog.
+    # But Splash is our main window so far. We can show QMessageBox over it.
+
+    while True:
+        msg_box = QMessageBox()
+        msg_box.setIcon(QMessageBox.Icon.Warning)
+        msg_box.setWindowTitle("Recovery Mode - Licenza")
+        msg_box.setText("Impossibile ripristinare la licenza automaticamente.")
+        msg_box.setInformativeText(f"Hardware ID: {hw_id}\n\nAssicurati di essere connesso a Internet.")
+
+        retry_btn = msg_box.addButton("Riprova Aggiornamento", QMessageBox.ButtonRole.ActionRole)
+        exit_btn = msg_box.addButton("Esci", QMessageBox.ButtonRole.RejectRole)
+
+        msg_box.exec()
+
+        if msg_box.clickedButton() == retry_btn:
+            splash.update_status("Nuovo tentativo di aggiornamento...", 50)
+            QApplication.processEvents()
+            try:
+                success, msg = updater.update_license(hw_id)
+                if success:
+                    # Re-verify
+                    lic_data = LicenseManager.get_license_data()
+                    if lic_data and lic_data.get("Hardware ID", "").strip() == hw_id.strip():
+                        QMessageBox.information(None, "Successo", "Licenza aggiornata con successo.")
+                        return # Proceed
+                    else:
+                        QMessageBox.warning(None, "Errore", "Licenza scaricata ma non valida per questo PC.")
+                else:
+                    QMessageBox.warning(None, "Errore Aggiornamento", f"Fallito: {msg}")
+            except Exception as e:
+                QMessageBox.critical(None, "Errore Critico", str(e))
+        else:
+            sys.exit(1)
 
 # --- PHASE 2: DATABASE INTEGRITY & RECOVERY ---
 
