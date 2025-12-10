@@ -275,6 +275,8 @@ def _prepare_pyinstaller_cmd(runtime_dir):
         "--clean",
         "--noconfirm",
         "--icon", os.path.join(OBF_DIR, "desktop_app", "icons", "icon.ico"),
+        # Enable debugging for frozen app to diagnose hard crashes
+        "--debug", "all",
         "--distpath", DIST_DIR,
         "--workpath", os.path.join(DIST_DIR, "build"),
         f"--paths={OBF_DIR}",

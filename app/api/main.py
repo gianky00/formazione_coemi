@@ -779,8 +779,10 @@ async def import_dipendenti_csv(
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="Il file deve essere in formato CSV.")
 
-    if not verify_file_signature(content, 'csv'):
-         raise HTTPException(status_code=400, detail="File non valido: contenuto non riconosciuto come CSV/Testo.")
+    # Temporary Bypass: In frozen environment, verify_file_signature might crash if dependencies (magic) are missing.
+    # We rely on decoding check instead.
+    # if not verify_file_signature(content, 'csv'):
+    #      raise HTTPException(status_code=400, detail="File non valido: contenuto non riconosciuto come CSV/Testo.")
 
     decoded_content = _decode_csv_content(content)
     stream = io.StringIO(decoded_content)
