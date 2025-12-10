@@ -154,6 +154,38 @@ The AI Service (`extract_entities_with_ai`) returns:
 ```
 *Note: Dates in AI response are normalized to `DD/MM/YYYY` by the Frontend/API before persistence.*
 
+## License & Configuration Files
+*See [System Design Report](SYSTEM_DESIGN_REPORT.md) for full context.*
+
+### `config.dat` (License Payload)
+Encrypted with Fernet (AES-128).
+```json
+{
+    "Hardware ID": "String (Disk Serial or MAC)",
+    "Scadenza Licenza": "DD/MM/YYYY",
+    "Generato il": "DD/MM/YYYY",
+    "Cliente": "String (Customer Name)"
+}
+```
+
+### `manifest.json` (Update Integrity)
+Plaintext JSON.
+```json
+{
+    "pyarmor.rkey": "SHA256_HASH_STRING",
+    "config.dat": "SHA256_HASH_STRING"
+}
+```
+
+### `secure_time.dat` (Anti-Tamper)
+Encrypted with Fernet.
+```json
+{
+    "last_online_check": "ISO8601 Timestamp",
+    "last_execution": "ISO8601 Timestamp"
+}
+```
+
 ## 🤖 AI Metadata (RAG Context)
 ```json
 {

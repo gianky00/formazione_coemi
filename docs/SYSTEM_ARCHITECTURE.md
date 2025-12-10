@@ -13,6 +13,17 @@ The system follows a **Decoupled Client-Server Architecture** with a **Dual-API*
     *   **Google Gemini API**: For document analysis and Chat/RAG generation.
     *   **SMTP Server**: For email notifications.
     *   **Edge-TTS**: For high-quality text-to-speech synthesis (Voice Assistant).
+    *   **GitHub (Private Repo)**: Acts as CDN for License Auto-Updates.
+
+## Security & Licensing Subsystem
+*For a detailed deep-dive, see the [System Design Report](SYSTEM_DESIGN_REPORT.md).*
+
+The system employs a "Zero-Trust Local" architecture to protect IP and ensure integrity.
+*   **License Engineering**: Hybrid Node-Locking (PyArmor) + Encrypted Configuration (Fernet).
+*   **Anti-Tamper**:
+    *   **Time**: NTP-based validation with Anti-Rollback and Offline Buffer (3 days).
+    *   **Integrity**: SHA256 Manifest verification for all license files.
+*   **Auto-Update**: Atomic, pull-based pipeline for license renewal via GitHub.
 
 ```mermaid
 graph TD

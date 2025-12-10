@@ -28,7 +28,35 @@
     *   Moves file to: `DOCUMENTI DIPENDENTI / {Name} ({Matricola}) / {Category} / {Status} / {File}.pdf`.
     *   *Status Folder*: `ATTIVO` (Future/No expiry) vs `STORICO` (Past).
 
-## 2. Certificate Lifecycle & Status Logic
+## 2. License Auto-Update Flow
+**Goal**: Automatically renew licenses from a remote source without user intervention.
+*See [System Design Report](SYSTEM_DESIGN_REPORT.md) for cryptographic details.*
+
+1.  **Trigger**: Startup Gatekeeper detects `EXPIRED`, `MISSING`, or `TAMPERED` state.
+2.  **Config Fetch**: Application retrieves `HardwareID` and GitHub Credentials.
+3.  **Manifest Check**:
+    *   Downloads `manifest.json` from GitHub (`/licenses/{HWID}/`).
+    *   Compares SHA256 hashes with local files.
+4.  **Atomic Update**:
+    *   Downloads new `pyarmor.rkey` and `config.dat` to `TempDir`.
+    *   Verifies SHA256 of downloaded files.
+    *   **Atomic Move**: Replaces files in `%LOCALAPPDATA%/Intelleo/Licenza/`.
+5.  **Restart**: Application restarts to load the new license.
+
+## 3. Secure Boot & Time Validation
+**Goal**: Prevent tampering (e.g., system clock rollback) and ensure environment integrity.
+
+1.  **Gatekeeper**: `launcher.py` starts before UI.
+2.  **Time Check** (`time_service.py`):
+    *   **Online**: Queries `pool.ntp.org`. if `|Sys - NTP| > 5 min` -> **BLOCK**.
+    *   **Offline**: Checks `secure_time.dat` (Encrypted).
+        *   If `SysTime < LastExecution` -> **BLOCK (Rollback Detected)**.
+        *   If `SysTime > LastOnline + 3 Days` -> **BLOCK (Buffer Expired)**.
+3.  **Discovery**:
+    *   Scans for License in User Data -> Install Dir.
+    *   Scans for Database. If missing -> **Recovery Dialog**.
+
+## 4. Certificate Lifecycle & Status Logic
 **Goal**: Dynamically calculate the status of a certificate for the UI and Alerts.
 *Logic Location*: `app.services.certificate_logic.get_certificate_status`
 
@@ -42,7 +70,7 @@
 *   **Thresholds**: 30 days (VISITA MEDICA), 60 days (Others).
 *   **Orphans**: Cannot be "rinnovato". If expired, they remain "scaduto".
 
-## 3. Notification System Logic
+## 5. Notification System Logic
 **Goal**: Alert admins about expiring or overdue certificates via Email.
 
 1.  **Trigger**: Daily Schedule (APScheduler, 08:00) or Manual (`POST /send-manual-alert`).
@@ -58,7 +86,7 @@
         *   Port **587/25**: `SMTP` + `STARTTLS`.
     *   Sends to `EMAIL_RECIPIENTS_TO`.
 
-## 4. Orphan Re-linking Flow
+## 6. Orphan Re-linking Flow
 **Goal**: Assign unlinked certificates to employees after a CSV import.
 
 1.  **Action**: Admin uploads CSV via `POST /dipendenti/import-csv`.
@@ -69,7 +97,7 @@
     *   If a match is found in the updated registry -> Links `dipendente_id`.
 5.  **Result**: Certificates become "Assigned" and visible in the main Dashboard.
 
-## 5. Database Security & Resilience
+## 7. Database Security & Resilience
 **Goal**: Ensure encryption-at-rest and robust recovery from locks/crashes.
 
 1.  **Architecture**: **Strict In-Memory**.
@@ -87,7 +115,7 @@
     *   **Atomic Write**: `serialize` -> `encrypt` -> `write to temp` -> `replace`.
     *   **Cleanup**: `atexit` handlers ensure lock release on shutdown.
 
-## 6. Lyra RAG & Voice Pipeline
+## 8. Lyra RAG & Voice Pipeline
 **Goal**: Provide context-aware answers and vocal interaction.
 
 1.  **Input**: User types in Chat Widget.
