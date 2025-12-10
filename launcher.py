@@ -177,16 +177,21 @@ def sentry_exception_hook(exctype, value, traceback):
         print(f"[CRITICAL] Emergency cleanup failed: {e}")
         sentry_sdk.capture_exception(e) # Capture cleanup failure too
 
-    # 4. Exit
-    # S5747: Remove bare raise, only re-raise SystemExit explicitly if caught (not here)
-    # The original code re-raised SystemExit using bare raise which S5747 flagged.
-    # The check issubclass(exctype, SystemExit) is correct but inside this hook it is complex.
-    # This hook is executed *after* exception is raised.
-    # We should just exit.
-    if issubclass(exctype, SystemExit):
-        sys.exit(value.code if hasattr(value, 'code') else 1)
+    # 4. Nuclear Zombie Kill
+    # Using os._exit ensures that all threads (including Uvicorn) are killed immediately.
+    # We also attempt to kill our own PID to be absolutely sure.
+    pid = os.getpid()
+    if os.name == 'nt':
+        try:
+            # Force kill self and children
+            subprocess.Popen(f"taskkill /F /PID {pid} /T", shell=True)
+        except Exception:
+            pass
 
-    sys.exit(1)
+    if issubclass(exctype, SystemExit):
+        os._exit(value.code if hasattr(value, 'code') else 1)
+
+    os._exit(1)
 
 # Initialize Sentry immediately
 init_sentry()

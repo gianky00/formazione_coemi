@@ -371,35 +371,45 @@ class AnagraficaView(QWidget):
     def refresh_data(self):
         """Loads the list of employees with robust error handling."""
         try:
+            print("[ANAGRAFICA] Refresh data started.", flush=True)
             if not self.api_client:
+                print("[ANAGRAFICA] Error: API client missing.", flush=True)
                 return
                 
             data = self.api_client.get_dipendenti_list()
+            print(f"[ANAGRAFICA] Fetched {len(data) if isinstance(data, list) else 0} employees.", flush=True)
             
             if not isinstance(data, list):
+                print("[ANAGRAFICA] Warning: API returned non-list data.", flush=True)
                 data = []
             
             # Safe sorting with None handling
             def sort_key(x):
+                if not isinstance(x, dict): return ""
                 cognome = x.get('cognome') or ''
                 nome = x.get('nome') or ''
                 return f"{cognome} {nome}".lower()
             
             self.all_employees = sorted(data, key=sort_key)
+            print("[ANAGRAFICA] Sorting complete. Filtering list...", flush=True)
             self.filter_list("")
+            print("[ANAGRAFICA] Refresh data complete.", flush=True)
         except Exception as e:
+            print(f"[ANAGRAFICA] CRITICAL ERROR: {e}", flush=True)
             if sentry_sdk:
                 sentry_sdk.capture_exception(e)
             self.all_employees = []
             self.list_widget.clear()
-            QMessageBox.critical(self, "Errore", f"Errore caricamento dipendenti: {e}")
+            QMessageBox.critical(self, "Errore Critico", f"Errore caricamento dipendenti (Vedi log):\n{e}")
 
     def filter_list(self, text):
         search = self.search_bar.text().lower()
         self.list_widget.clear()
 
-        for emp in self.all_employees:
-            try:
+        try:
+            for emp in self.all_employees:
+                if not isinstance(emp, dict): continue
+
                 cognome = emp.get('cognome') or ''
                 nome = emp.get('nome') or ''
                 matricola = emp.get('matricola') or ''
@@ -409,15 +419,20 @@ class AnagraficaView(QWidget):
                 if not full_name:
                     full_name = "N/A"
                 
+                # Sanitize to prevent null bytes or weird encoding issues
+                full_name = full_name.replace('\0', '')
+                matricola = str(matricola).replace('\0', '')
+
                 # Search in name or matricola
                 if search in full_name.lower() or (matricola and search in matricola.lower()):
                     item = QListWidgetItem(full_name)
                     item.setData(Qt.ItemDataRole.UserRole, emp_id)
                     item.setToolTip(f"Matricola: {matricola or 'N/A'}")
                     self.list_widget.addItem(item)
-            except Exception:
-                # Skip malformed employee entries
-                continue
+        except Exception as e:
+            print(f"[ANAGRAFICA] Error filtering list: {e}", flush=True)
+            # Don't crash, just stop list population
+            pass
 
     def on_employee_selected(self, item):
         if item is None:
