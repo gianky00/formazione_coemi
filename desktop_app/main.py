@@ -547,42 +547,51 @@ class ApplicationController:
     def import_dipendenti_csv(self, path):
         """
         Triggers CSV import logic with background thread for safety.
+        Wraps entire logic in try/except to catch early crashes.
         """
         import sentry_sdk
-        from desktop_app.workers.csv_import_worker import CSVImportWorker
-        
-        if self.dashboard and getattr(self.dashboard, 'is_read_only', False):
-            CustomMessageDialog.show_warning(self.master_window, STR_SOLA_LETTURA, "Impossibile importare CSV in modalità Sola Lettura.")
-            return
+        try:
+            from desktop_app.workers.csv_import_worker import CSVImportWorker
 
-        if not self.dashboard:
-             self.pending_action = {"action": "import_csv", "path": path}
-             return
+            if self.dashboard and getattr(self.dashboard, 'is_read_only', False):
+                CustomMessageDialog.show_warning(self.master_window, STR_SOLA_LETTURA, "Impossibile importare CSV in modalità Sola Lettura.")
+                return
 
-        # Create and start worker with master_window as parent
-        self._csv_import_worker = CSVImportWorker(self.api_client, path, parent=self.master_window)
-        
-        def on_success(response):
-            try:
-                message = response.get("message", "Importazione riuscita.")
-                self.show_notification("Importazione Completata", message, icon_name="users.svg")
-            except Exception as e:
-                sentry_sdk.capture_exception(e)
-            finally:
-                self._cleanup_csv_worker()
-        
-        def on_error(error_msg):
-            try:
-                CustomMessageDialog.show_error(self.master_window, "Errore Importazione", f"Impossibile importare il file:\n{error_msg}")
-            except Exception as e:
-                sentry_sdk.capture_exception(e)
-            finally:
-                self._cleanup_csv_worker()
-        
-        self._csv_import_worker.finished_success.connect(on_success)
-        self._csv_import_worker.finished_error.connect(on_error)
-        self._csv_import_worker.finished.connect(self._cleanup_csv_worker)
-        self._csv_import_worker.start()
+            if not self.dashboard:
+                 self.pending_action = {"action": "import_csv", "path": path}
+                 return
+
+            # Create and start worker with master_window as parent
+            self._csv_import_worker = CSVImportWorker(self.api_client, path, parent=self.master_window)
+
+            def on_success(response):
+                try:
+                    message = response.get("message", "Importazione riuscita.")
+                    self.show_notification("Importazione Completata", message, icon_name="users.svg")
+                except Exception as e:
+                    sentry_sdk.capture_exception(e)
+                finally:
+                    self._cleanup_csv_worker()
+
+            def on_error(error_msg):
+                try:
+                    CustomMessageDialog.show_error(self.master_window, "Errore Importazione", f"Impossibile importare il file:\n{error_msg}")
+                except Exception as e:
+                    sentry_sdk.capture_exception(e)
+                finally:
+                    self._cleanup_csv_worker()
+
+            self._csv_import_worker.finished_success.connect(on_success)
+            self._csv_import_worker.finished_error.connect(on_error)
+            self._csv_import_worker.finished.connect(self._cleanup_csv_worker)
+            self._csv_import_worker.start()
+
+        except Exception as e:
+            # Global catch for any instantiation/import/logic error before thread start
+            sentry_sdk.capture_exception(e)
+            err_trace = tb.format_exc()
+            CustomMessageDialog.show_error(self.master_window, "Errore Critico Importazione",
+                                          f"Si è verificato un errore imprevisto durante l'avvio dell'importazione:\n\n{str(e)}\n\n{err_trace}")
     
     def _cleanup_csv_worker(self):
         """Safely cleanup CSV worker."""
