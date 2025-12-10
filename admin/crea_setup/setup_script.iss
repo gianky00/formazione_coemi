@@ -7,11 +7,12 @@
 
 ; Default values if not defined via command line
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0"
+  #define MyAppVersion "2.0.0"
 #endif
 #ifndef BuildDir
   ; Fallback relativo se non passato da riga di comando
-  #define BuildDir "..\offusca\dist\Intelleo"
+  ; UPDATED: Nuitka build path (was PyInstaller: ..\offusca\dist\Intelleo)
+  #define BuildDir "..\..\dist\nuitka\Intelleo.dist"
 #endif
 
 [Setup]
@@ -23,12 +24,14 @@ AppPublisher={#MyAppPublisher}
 ; Installa in C:\Program Files\Intelleo
 DefaultDirName={autopf}\{#MyAppName}
 PrivilegesRequiredOverridesAllowed=dialog
+ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
+MinVersion=10.0
 DisableProgramGroupPage=yes
 
 ; === OUTPUT DIRECTORY ===
-; Salva l'installer in formazione_coemi\admin\crea_setup\dist\Intelleo
-OutputDir=dist\Intelleo
+; Salva l'installer in formazione_coemi\dist\installer
+OutputDir=..\..\dist\installer
 OutputBaseFilename=Intelleo_Setup_v{#MyAppVersion}
 
 Compression=lzma2/ultra64
@@ -42,6 +45,7 @@ WizardImageFile=..\..\desktop_app\assets\installer_wizard.bmp
 WizardSmallImageFile=..\..\desktop_app\assets\installer_small.bmp
 ; Icona del setup
 SetupIconFile=..\..\desktop_app\icons\icon.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
 
 [Languages]
 Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"
@@ -88,8 +92,9 @@ Root: HKCR; Subkey: "SystemFileAssociations\.csv\shell\IntelleoImport"; ValueTyp
 Root: HKCR; Subkey: "SystemFileAssociations\.csv\shell\IntelleoImport\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" --import-csv ""%1"""; Flags: uninsdeletekey; Tasks: contextcsv
 
 [Files]
-; === ESEGUIBILE E DIPENDENZE PYTHON ===
-Source: "{#BuildDir}\*"; DestDir: "{app}"; Excludes: "Intelleo_Setup_*.exe,Licenza,docs"; Flags: ignoreversion recursesubdirs createallsubdirs
+; === NUITKA BUILD OUTPUT ===
+; Source: dist/nuitka/Intelleo.dist/* (or custom BuildDir)
+Source: "{#BuildDir}\*"; DestDir: "{app}"; Excludes: "Intelleo_Setup_*.exe,Licenza,docs,*.log,*.tmp,__pycache__"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; === LICENZA ===
 Source: "{#BuildDir}\Licenza\*"; DestDir: "{app}\Licenza"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
@@ -324,6 +329,13 @@ begin
   begin
     AppDataDir := ExpandConstant('{localappdata}\Intelleo');
     if not DirExists(AppDataDir) then ForceDirectories(AppDataDir);
+    
+    // Show post-install message
+    MsgBox('Installazione completata!' + #13#10 + #13#10 +
+           'Al primo avvio, Intelleo potrebbe richiedere la licenza.' + #13#10 +
+           'Seguire le istruzioni a schermo.' + #13#10 + #13#10 +
+           'Versione: {#MyAppVersion} (Nuitka Build)', 
+           mbInformation, MB_OK);
 
     EnvPath := AppDataDir + '\.env';
 
