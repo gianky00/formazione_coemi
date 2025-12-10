@@ -62,6 +62,7 @@ def setup_global_logging():
         # 5. Silence ALL noisy libraries to reduce spam
         noisy_loggers = [
             "urllib3", "requests", "httpx", "asyncio", "multipart",
+            "python_multipart", "python_multipart.multipart", # Specifically silence this one
             "watchfiles", "uqi", "faker", "httpcore",
             # Uvicorn - silence completely
             "uvicorn", "uvicorn.access", "uvicorn.error",

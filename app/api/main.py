@@ -762,19 +762,25 @@ async def import_dipendenti_csv(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_user)
 ):
+    print(f"[TRACE] Starting import_dipendenti_csv for {file.filename}", flush=True)
     MAX_CSV_SIZE = settings.MAX_CSV_SIZE
 
     # Read content with size check
     content_bytes = bytearray()
-    while True:
-        chunk = await file.read(1024 * 1024)
-        if not chunk:
-            break
-        content_bytes.extend(chunk)
-        if len(content_bytes) > MAX_CSV_SIZE:
-            raise HTTPException(status_code=413, detail=f"Il file CSV supera il limite massimo di {MAX_CSV_SIZE // (1024*1024)}MB.")
+    try:
+        while True:
+            chunk = await file.read(1024 * 1024)
+            if not chunk:
+                break
+            content_bytes.extend(chunk)
+            if len(content_bytes) > MAX_CSV_SIZE:
+                raise HTTPException(status_code=413, detail=f"Il file CSV supera il limite massimo di {MAX_CSV_SIZE // (1024*1024)}MB.")
+    except Exception as e:
+        print(f"[TRACE] Error reading file: {e}", flush=True)
+        raise HTTPException(status_code=500, detail=f"Errore lettura file: {e}")
 
     content = bytes(content_bytes)
+    print(f"[TRACE] File read complete. Size: {len(content)} bytes", flush=True)
 
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="Il file deve essere in formato CSV.")
@@ -784,7 +790,9 @@ async def import_dipendenti_csv(
     # if not verify_file_signature(content, 'csv'):
     #      raise HTTPException(status_code=400, detail="File non valido: contenuto non riconosciuto come CSV/Testo.")
 
+    print(f"[TRACE] Decoding content...", flush=True)
     decoded_content = _decode_csv_content(content)
+    print(f"[TRACE] Content decoded.", flush=True)
     stream = io.StringIO(decoded_content)
     reader = csv.DictReader(stream, delimiter=';')
 
