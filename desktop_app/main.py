@@ -19,6 +19,7 @@ from .services.voice_service import VoiceService
 from .ipc_bridge import IPCBridge
 import os
 from app.core.db_security import db_security
+from desktop_app.utils import safe_print, safe_print_exc
 
 # --- CONSTANTS ---
 STR_SOLA_LETTURA = "Sola Lettura"
@@ -763,25 +764,45 @@ def restart_app():
 
 def exception_hook(exctype, value, traceback):
     """
-    Global exception handler to ensure database cleanup on crash.
+    Global exception handler to ensure database cleanup on crash
+    and notify the user via a UI popup (even if console is missing).
     """
     # 1. Capture to Sentry (if initialized here)
     if sentry_sdk.is_initialized():
         sentry_sdk.capture_exception(value)
 
-    # 2. Print Traceback
-    print(f"[CRITICAL] Unhandled exception: {exctype}, {value}")
-    import traceback as tb
-    tb.print_tb(traceback)
+    # 2. Print Traceback Safely (for terminal users)
+    safe_print(f"[CRITICAL] Unhandled exception: {exctype}, {value}")
+    safe_print_exc()
 
-    # 3. DB Cleanup
+    # 3. Show UI Popup (The key fix for frozen apps)
     try:
-        print("[CRITICAL] Attempting emergency DB cleanup...")
+        app_instance = QApplication.instance()
+        if app_instance:
+            error_details = "".join(tb.format_exception(exctype, value, traceback))
+
+            # Use standard QMessageBox instead of CustomMessageDialog to minimize dependency risks during crash
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Icon.Critical)
+            msg.setWindowTitle("Errore Fatale")
+            msg.setText("Si è verificato un errore imprevisto che ha causato l'arresto dell'applicazione.")
+            msg.setInformativeText("L'applicazione verrà chiusa per prevenire perdite di dati.")
+            msg.setDetailedText(error_details)
+            msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+            msg.exec()
+    except Exception:
+        # If UI fails, we can't do much else
+        pass
+
+    # 4. DB Cleanup
+    try:
+        safe_print("[CRITICAL] Attempting emergency DB cleanup...")
         db_security.cleanup()
     except Exception as e:
-        print(f"[CRITICAL] Emergency cleanup failed: {e}")
+        safe_print(f"[CRITICAL] Emergency cleanup failed: {e}")
         if sentry_sdk.is_initialized():
              sentry_sdk.capture_exception(e)
+
     sys.exit(1)
 
 if __name__ == "__main__":
