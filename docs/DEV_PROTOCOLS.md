@@ -1,74 +1,67 @@
-# Development Protocols & Standards
+# Protocolli di Sviluppo (Dev Protocols)
 
-## 1. Coding Standards
+Standard mandatori per contribuire al repository `intelleo`.
 
-*   **Style Guide**: Strict adherence to **PEP 8**.
-*   **Formatting**: Must respect `.editorconfig`.
-*   **Naming Conventions**:
-    *   Variables/Functions: `snake_case`
-    *   Classes: `PascalCase`
-    *   Constants: `UPPER_CASE`
-*   **Type Hinting**: Mandatory for all function signatures. Use `typing.Optional`, `typing.List`, etc.
+## 1. Principi Architetturali
 
-## 2. Error Handling Strategy
+### 1.1 Zero-Trust Local
+*   **Assunto**: L'utente ha accesso fisico alla macchina e può tentare di leggere/modificare file.
+*   **Regola**: MAI salvare dati sensibili (password, token, PII) in chiaro su disco.
+*   **Implementazione**: Usa sempre `DBSecurityManager` per il DB e `Fernet` per i file di configurazione.
 
-The application implements a **Full-Stack Error Handling** pattern.
+### 1.2 In-Memory First
+*   Il database deve esistere su disco SOLO come blob cifrato.
+*   A runtime, deve vivere SOLO in RAM (`sqlite3.deserialize`).
 
-### Backend Layer
-*   **Service Layer**: Raise specific Python exceptions (e.g., `ValueError`, `ConnectionAbortedError`).
-*   **API Layer**: Catch service exceptions and re-raise `fastapi.HTTPException`.
-    *   *400*: Bad Request (Validation failure).
-    *   *404*: Not Found.
-    *   *409*: Conflict (Duplicate resources).
-    *   *422*: Validation Error (Pydantic).
-    *   *500*: Internal Server Error (with detailed message).
+### 1.3 Separazione di Responsabilità
+*   **Backend**: Logica pura, Stato, Sicurezza. Non deve sapere nulla della GUI.
+*   **Frontend**: Presentazione. Non deve accedere al DB direttamente (solo via API).
 
-### Frontend Layer
-*   **API Client**: Catches HTTP errors.
-*   **UI**: Checks response status. If error, displays `QMessageBox.critical` with the `detail` message from the API.
+## 2. Standard di Codice
 
-## 3. Testing Protocols
+### 2.1 Lingua
+*   **Codice (Variabili, Funzioni, Commenti)**: INGLESE (`def get_certificate_status():`).
+*   **Interfaccia Utente (Label, Messaggi, Errori)**: ITALIANO (`"Errore di connessione"`).
+*   **Terminologia Business**:
+    *   `Dipendente` (DB/Code) -> **DIPENDENTE** (UI).
+    *   `Certificato` (DB/Code) -> **DOCUMENTO** (UI).
+    *   `Corso` (DB/Code) -> **TIPO DOCUMENTO** (UI).
 
-*   **Framework**: `pytest`.
-*   **Execution**: `python -m pytest`.
-*   **Structure**: Parallel directory structure (`tests/app/x` tests `app/x`).
+### 2.2 Style Guide
+*   **Python**: PEP 8.
+    *   Max Line Length: 120 char.
+    *   Imports: Raggruppati (Stdlib, Third-party, Local).
+*   **Naming**:
+    *   Classi: `PascalCase` (`LicenseManager`).
+    *   Funzioni/Variabili: `snake_case` (`calculate_expiry`).
+    *   Costanti: `UPPER_CASE` (`DEFAULT_TIMEOUT`).
 
-### Mocking Requirements
-**CRITICAL**: The test environment does not have access to external secrets or file assets.
+## 3. Workflow Git
 
-1.  **Google Gemini AI**:
-    *   **Target**: `app.services.ai_extraction.GeminiClient`
-    *   **Action**: Must be patched in `tests/conftest.py` or individual tests.
-    *   **Reason**: Prevents `ValueError: GEMINI_API_KEY not configured`.
+### 3.1 Branching
+*   `main`: Produzione stabile.
+*   `feat/nome-feature`: Sviluppo nuove funzionalità.
+*   `fix/descrizione-bug`: Correzioni.
 
-2.  **PDF Assets (FPDF)**:
-    *   **Target**: `fpdf.FPDF.image`
-    *   **Action**: Mock this method.
-    *   **Reason**: Prevents `FileNotFoundError` for `desktop_app/assets/logo.png`.
+### 3.2 Commit Messages
+Formato: `type: Subject`
+*   `feat`: Nuova funzionalità.
+*   `fix`: Correzione bug.
+*   `docs`: Documentazione.
+*   `refactor`: Modifiche al codice senza cambio comportamento.
+*   `test`: Aggiunta/Modifica test.
 
-3.  **Database**:
-    *   Use `db_session` fixture to provide an isolated, in-memory SQLite session.
+*Esempio*: `feat: Add robust CSV encoding detection logic`
 
-## 4. Environment & Configuration
+## 4. Gestione Errori
 
-*   **Management**: A custom `SettingsManager` in `app/core/config.py` separates immutable from mutable settings.
-*   **Source**: Mutable settings are stored in `settings.json` in the user's local application data directory.
-*   **Constraint**: Unrecognized settings are ignored.
+*   **Catch-All**: Vietato `except Exception:` nudo senza logging o re-raise, tranne nel `boot_loader` (Pokemon Exception Handling per stabilità).
+*   **UI Feedback**: Ogni errore API deve essere mostrato all'utente via `Toast` o `Dialog` in italiano amichevole (es. "Impossibile contattare il server" non "ConnectionRefusedError").
 
-## 5. Git & Contribution
+## 5. Asset & Multimedia
+*   **Audio**: Evitare file `.mp3` o `.wav` statici pesanti. Usare `SoundManager` per sintesi procedurale (WAV in-memory) o TTS dinamico.
+*   **Grafica 3D**: Usare engine vettoriali (`numpy`/`QPainter`) invece di asset 3D pre-renderizzati o video pesanti.
 
-*   **Commits**: Atomic, descriptive messages.
-*   **Branches**: Feature branches required. No direct commits to main.
-*   **Documentation**: Update `docs/` if architectural changes occur.
-
-## 🤖 AI Metadata (RAG Context)
-```json
-{
-  "type": "development_standards",
-  "domain": "coding_guidelines",
-  "languages": ["Python", "JavaScript (React)"],
-  "standards": ["PEP 8", "Conventional Commits"],
-  "testing_frameworks": ["pytest"],
-  "error_handling": "Full-Stack Propagation"
-}
-```
+## 6. Analisi Statica & Security
+*   **SonarCloud**: Il codice deve passare i gate di qualità (0 Vulnerabilità, Coverage > 80%).
+*   **Secrets**: Nessun segreto hardcoded (usa variabili d'ambiente o offuscamento XOR per chiavi statiche).

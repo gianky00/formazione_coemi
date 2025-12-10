@@ -1,125 +1,110 @@
-# Critical System Flows
+# Flussi Critici di Sistema (System Critical Flows)
 
-## 1. Certificate Ingestion & Creation
-**Goal**: Convert a raw PDF into a persisted, normalized database record.
+Questo documento descrive i flussi logici più complessi e sensibili dell'applicazione. È la fonte di verità per comprendere "come funziona" il sistema sotto il cofano.
 
-1.  **User Action**: Drag & Drop PDF in `ImportView`.
-2.  **API Call**: `POST /upload-pdf/` with file bytes.
-3.  **AI Processing** (`app.services.ai_extraction.extract_entities_with_ai`):
-    *   **Model**: Google Gemini 2.5 Pro (Hardcoded).
-    *   **Resilience**: Uses `tenacity` for exponential backoff on `ResourceExhausted` (429) errors.
-    *   **Logic**: Single-pass extraction + classification.
-    *   **Absolute Rules**:
-        *   "NOMINA..." -> **NOMINA** (Not PREPOSTO).
-        *   "Giudizio di idoneità..." -> **VISITA MEDICA**.
-        *   "UNILAV..." -> **UNILAV** (Expiry: "Data Fine").
-        *   "Patente..." -> **PATENTE** (Expiry: "4b").
-        *   "Carta d'Identità..." -> **CARTA DI IDENTITA** (Expiry: "Scadenza").
-        *   "ATEX..." -> **ATEX**.
-        *   "HLO" (Course) vs "TESSERA HLO" (Card).
-    *   **Output**: JSON with normalized fields.
-4.  **Date Normalization**: API converts `DD-MM-YYYY` -> `DD/MM/YYYY`.
-5.  **Persistence**: `POST /certificati/`.
-    *   **Identity Resolution**: `matcher.find_employee_by_name`.
-        *   *Match*: Links to `Dipendente` (checks Name + DOB).
-        *   *No Match*: Sets `dipendente_id=NULL`, saves `nome_dipendente_raw`.
-    *   **Validation Status**: `AUTOMATIC`.
-6.  **File Organization** (Frontend `ImportView`):
-    *   Moves file to: `DOCUMENTI DIPENDENTI / {Name} ({Matricola}) / {Category} / {Status} / {File}.pdf`.
-    *   *Status Folder*: `ATTIVO` (Future/No expiry) vs `STORICO` (Past).
+## 1. Pipeline di Ingestione Dati (AI & PDF)
+**Obiettivo**: Convertire PDF grezzi in record database normalizzati.
 
-## 2. Certificate Lifecycle & Status Logic
-**Goal**: Dynamically calculate the status of a certificate for the UI and Alerts.
-*Logic Location*: `app.services.certificate_logic.get_certificate_status`
+1.  **User Action**: Drag & Drop nella `ImportView`.
+2.  **API Call**: `POST /upload-pdf/` (Multipart).
+3.  **AI Analysis** (`app.services.ai_extraction.extract_entities_with_ai`):
+    *   **Prompt**: Rigoroso ("Single Pass"), regole di business iniettate (es. "NOMINA" vs "PREPOSTO").
+    *   **Model**: Google Gemini 2.5 Pro.
+    *   **Resilience**: `tenacity` gestisce retries su errori 429 (Quota Exceeded) e 503.
+    *   **Output**: JSON grezzo.
+4.  **Backend Normalization**:
+    *   **Date**: Converte formati vari (`DD-MM-YYYY`, `YYYY/MM/DD`) in standard `DD/MM/YYYY`.
+    *   **Nomi**: Converte in Title Case.
+5.  **Persistence** (`POST /certificati/`):
+    *   Salva il file PDF in `DOCUMENTI DIPENDENTI / {Nome} / {Categoria} / {Status}`.
+    *   Crea record in tabella `certificati` con `stato_validazione = AUTOMATIC`.
 
-| Status | Condition |
-| :--- | :--- |
-| **attivo** | `data_scadenza` > Today + Threshold |
-| **in_scadenza** | Today <= `data_scadenza` <= Today + Threshold |
-| **scaduto** | `data_scadenza` < Today |
-| **rinnovato** | Expired, BUT a newer certificate exists for same Employee + Category. |
+## 2. Risoluzione Identità e Linking (Orphan Logic)
+**Obiettivo**: Associare un certificato a un dipendente univoco gestendo omonimie e dati mancanti.
 
-*   **Thresholds**: 30 days (VISITA MEDICA), 60 days (Others).
-*   **Orphans**: Cannot be "rinnovato". If expired, they remain "scaduto".
+1.  **Input**: Nome Dipendente (da AI) + Data Nascita (Opzionale da AI).
+2.  **Matching** (`app.services.matcher.find_employee_by_name`):
+    *   **Step 1 (Exact)**: Cerca corrispondenza esatta `Nome Cognome` su tabella `Dipendente`.
+    *   **Step 2 (Fuzzy/Swap)**: Cerca `Cognome Nome`.
+    *   **Step 3 (Omonimia)**: Se trovi >1 match:
+        *   Se `data_nascita` presente nel PDF: Filtra per data.
+        *   Se `data_nascita` assente: **RETURN NULL** (Ambiguità irrisolvibile).
+3.  **Outcome**:
+    *   **Match Univoco**: `certificato.dipendente_id` impostato.
+    *   **No Match / Ambiguo**: `certificato.dipendente_id` = NULL. Salva `nome_dipendente_raw`.
+    *   **Stato**: Il certificato appare in "Convalida Dati" (o "Errori Analisi" se orphan).
 
-## 3. Notification System Logic
-**Goal**: Alert admins about expiring or overdue certificates via Email.
+## 3. CSV Import & "Smart Linking"
+**Obiettivo**: Importare massivamente dipendenti e "curare" i certificati orfani retroattivamente.
 
-1.  **Trigger**: Daily Schedule (APScheduler, 08:00) or Manual (`POST /send-manual-alert`).
-2.  **Data Collection**:
-    *   Queries all certificates.
-    *   Filters using the Status Logic (above).
-3.  **Report Generation**:
-    *   `generate_pdf_report_in_memory` (FPDF).
-    *   Generates tables for: "In Avvicinamento (Corsi)", "In Avvicinamento (Visite)", "Scaduti non rinnovati".
-4.  **Transmission**:
-    *   Protocol Auto-detection:
-        *   Port **465**: `SMTP_SSL`.
-        *   Port **587/25**: `SMTP` + `STARTTLS`.
-    *   Sends to `EMAIL_RECIPIENTS_TO`.
+1.  **Upload CSV**: `POST /dipendenti/import-csv`.
+2.  **Encoding Detection**: Tenta `utf-8` -> `cp1252` -> `latin1` (Robustezza per Excel).
+3.  **Upsert Logic**:
+    *   Itera righe. Cerca per `matricola`.
+    *   Se esiste: UPDATE campi.
+    *   Se nuovo: INSERT.
+4.  **Orphan Healing Trigger**:
+    *   Al termine dell'import, avvia scansione asincrona.
+    *   Query: `SELECT * FROM certificati WHERE dipendente_id IS NULL`.
+    *   Per ogni orfano: Rilancia `find_employee_by_name` usando i nuovi dati anagrafici.
+    *   Se Match: Update `dipendente_id` e sposta file nella cartella corretta.
 
-## 4. Orphan Re-linking Flow
-**Goal**: Assign unlinked certificates to employees after a CSV import.
+## 4. Macchina a Stati del Certificato (Status Engine)
+**Obiettivo**: Calcolare dinamicamente lo stato "Business" di un certificato.
+*File*: `app/services/certificate_logic.py`.
 
-1.  **Action**: Admin uploads CSV via `POST /dipendenti/import-csv`.
-2.  **Upsert**: Updates `Dipendente` table (Key: `matricola`).
-3.  **Scan**: Finds all `Certificato` where `dipendente_id IS NULL`.
-4.  **Match**:
-    *   Uses stored `nome_dipendente_raw`.
-    *   If a match is found in the updated registry -> Links `dipendente_id`.
-5.  **Result**: Certificates become "Assigned" and visible in the main Dashboard.
+| Stato Calcolato | Logica Temporale | Condizioni Extra |
+| :--- | :--- | :--- |
+| **SCADUTO** | `data_scadenza < Oggi` | Nessun certificato più recente esiste per (Dipendente, Categoria). |
+| **RINNOVATO** | `data_scadenza < Oggi` | Esiste un certificato con `data_rilascio` successiva per lo stesso (Dipendente, Categoria). |
+| **IN SCADENZA** | `Oggi <= data_scadenza <= Oggi + Threshold` | Thresholds: 30gg (Visite), 60gg (Corsi). |
+| **ATTIVO** | `data_scadenza > Oggi + Threshold` | - |
 
-## 5. Database Security & Resilience
-**Goal**: Ensure encryption-at-rest and robust recovery from locks/crashes.
+*   **Nota**: I certificati orfani non possono mai essere "RINNOVATI" (manca il link al dipendente per il confronto).
 
-1.  **Architecture**: **Strict In-Memory**.
-    *   Disk File: `database_documenti.db` (Always Encrypted with Fernet).
-    *   Runtime: Decrypted into RAM (`sqlite3.deserialize`).
-    *   **No plain-text data is ever written to disk** (unless explicitly unlocked by admin).
+## 5. License Auto-Update Flow
+**Obiettivo**: Aggiornare le licenze da remoto senza intervento utente.
+*Vedi [System Design Report](SYSTEM_DESIGN_REPORT.md) per dettagli crypto.*
 
-2.  **Startup Resilience**:
-    *   **Lock Check**: Attempts to acquire OS-level lock.
-        *   *If Locked*: Starts in **Read-Only Mode**. UI warns user.
-    *   **Corruption Check**: If decryption fails, starts in **Recovery Mode**.
-    *   **Backend**: Does NOT crash on DB errors; allows UI to load and guide user.
+1.  **Trigger**: `launcher.py` rileva licenza Scaduta/Mancante/Tampered.
+2.  **Config Fetch**: Recupera `HardwareID` e Token GitHub (via API backend o Config Recovery).
+3.  **Manifest Check**: Scarica `manifest.json` da Repo GitHub (`/licenses/{HWID}/`).
+4.  **Diff Check**: Confronta SHA256 dei file locali (`pyarmor.rkey`, `config.dat`) con il manifest.
+5.  **Atomic Update**:
+    *   Scarica file in `TempDir`.
+    *   Verifica Checksum.
+    *   `shutil.move` sovrascrive file in `%LOCALAPPDATA%`.
+6.  **Restart**: Riavvio forzato applicazione.
 
-3.  **Persistence**:
-    *   **Atomic Write**: `serialize` -> `encrypt` -> `write to temp` -> `replace`.
-    *   **Cleanup**: `atexit` handlers ensure lock release on shutdown.
+## 6. Secure Boot & Time Validation
+**Obiettivo**: Prevenire manomissioni dell'orologio e garantire integrità.
 
-## 6. Lyra RAG & Voice Pipeline
-**Goal**: Provide context-aware answers and vocal interaction.
+1.  **Gatekeeper**: `launcher.py` parte prima della GUI.
+2.  **Time Check** (`time_service.py`):
+    *   **Online**: Query NTP (`pool.ntp.org`). Tolleranza 5 min.
+    *   **Offline**: Check `secure_time.dat`.
+        *   Anti-Rollback (`SysTime < LastExec`).
+        *   Buffer (`SysTime > LastOnline + 3gg`).
+3.  **Environment Check**:
+    *   Verifica esistenza Database.
+    *   Verifica integrità file critici.
+    *   Se errori -> Modalità Recovery (Dialog "Sfoglia/Crea DB").
 
-1.  **Input**: User types in Chat Widget.
-2.  **Context Retrieval (RAG)**:
-    *   System searches `docs/` (Architecture, Flows, Models).
-    *   System queries `Database` (Employee stats, Certificate counts).
-3.  **Persona Injection**:
-    *   Injects `LYRA_PROFILE.md` context (Tone: Professional, Empathetic, Sicilian).
-4.  **Generation**: Gemini 2.5 Pro generates text response.
-5.  **Voice Synthesis (Edge-TTS)**:
-    *   If "Voice" enabled: Text -> `edge-tts` -> MP3.
-    *   Audio played immediately in client.
+## 7. Notification System Logic
+**Obiettivo**: Inviare report PDF via email.
 
-## 🤖 AI Metadata (RAG Context)
-```json
-{
-  "type": "process_documentation",
-  "domain": "business_logic",
-  "workflows": [
-    "Certificate Ingestion",
-    "Status Calculation",
-    "Notification Dispatch",
-    "Identity Resolution",
-    "Database Security",
-    "Lyra Interaction"
-  ],
-  "key_mechanisms": [
-    "Gemini AI Extraction",
-    "Tenacity Retry",
-    "In-Memory Database",
-    "Edge-TTS",
-    "RAG"
-  ]
-}
-```
+1.  **Trigger**: Schedule (08:00) o Manuale.
+2.  **Generazione PDF**:
+    *   `fpdf2` crea PDF in RAM (ByteStream).
+    *   Tabelle: "In Scadenza (Corsi)", "In Scadenza (Visite)", "Scaduti".
+3.  **Invio SMTP**:
+    *   Tenta SSL (465). Fallback TLS (587). Fallback Plain (25).
+    *   Allega PDF.
+
+## 8. Lyra RAG & Voice Pipeline
+**Obiettivo**: Chatbot contestuale con voce.
+
+1.  **Query**: Utente scrive in chat.
+2.  **RAG**: Backend recupera contesto da DB (Statistiche) e Docs Markdown (`docs/*.md`).
+3.  **Generation**: Gemini genera risposta impersonando "Lyra" (Profilo in `LYRA_PROFILE.md`).
+4.  **TTS (Opzionale)**: Invia testo a `edge-tts`. Riceve MP3. Frontend riproduce audio.

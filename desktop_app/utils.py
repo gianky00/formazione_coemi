@@ -5,6 +5,7 @@ import re
 from PyQt6.QtGui import QIcon, QPixmap
 from PyQt6.QtCore import QByteArray, QObject, pyqtSignal
 from desktop_app.services.license_manager import LicenseManager
+from app.core.path_resolver import get_asset_path as _get_asset_path
 
 class GlobalLoading(QObject):
     _instance = None
@@ -42,14 +43,12 @@ def get_device_id():
 
 def get_asset_path(relative_path):
     """
-    Resolve path to assets, handling both dev environment and frozen app.
+    Resolve path to assets, handling dev, PyInstaller, and Nuitka environments.
+    
+    Uses the universal path resolver from app.core.path_resolver.
+    Returns string path for backward compatibility.
     """
-    if hasattr(sys, '_MEIPASS'):
-        base_path = sys._MEIPASS
-    else:
-        base_path = os.getcwd()
-
-    return os.path.join(base_path, relative_path)
+    return str(_get_asset_path(relative_path))
 
 def load_colored_icon(icon_name, color_hex):
     """

@@ -1,89 +1,80 @@
-# Comprehensive Testing Guide
+# Guida ai Test e QA
 
-This document outlines the testing protocols for the Intelleo codebase, covering Unit Tests, Frontend Verification, and Distribution checks.
+Questo documento descrive le strategie di testing, l'architettura della suite di test e le procedure per garantire la qualità del codice ("Green Suite Policy").
 
-## 1. Automated Unit & Integration Tests (`pytest`)
+## 1. Filosofia di Testing
+Il progetto adotta una politica **"Strict Green Suite"**: non sono ammessi test falliti o skippati senza una issue tracciata.
 
-The project maintains a comprehensive test suite using `pytest`. These tests cover the API, Database Logic, AI Service (mocked), and Desktop Utilities.
+*   **Parallel Structure**: Ogni file sorgente `app/x.py` ha un corrispondente `tests/app/test_x.py`.
+*   **Headless First**: I test UI devono girare in ambienti CI/CD senza display fisico (xvfb o mock).
+*   **Isolation**: Ogni test deve pulire il proprio stato (Mock DB in-memory, Temp dirs).
 
-### Prerequisites
-*   Virtual Environment activated.
-*   Dependencies installed (`pip install -r requirements.txt`).
+## 2. Esecuzione Test
 
-### Running the Tests
-Execute the following command from the repository root:
-
+### Suite Completa
+Dalla root del progetto:
 ```bash
 python -m pytest
 ```
 
-### Test Structure
-*   `tests/app/`: Backend tests (API endpoints, DB models, Services).
-*   `tests/desktop_app/`: Frontend logic tests (View Models, Utils, Import Logic).
-    *   *Note*: UI components (`QWidget`) are tested in headless mode using `mock_qt.py` to simulate the PyQt6 environment without a display.
-
-### Critical Considerations
-*   **Mocking**: External services (Google Gemini, SMTP) are **always mocked**. Do not require real API keys to run tests.
-*   **Database**: Tests use an isolated in-memory SQLite database (`:memory:`), separate from the development `database_documenti.db`.
-
-## 2. Frontend User Guide Verification (React)
-
-The "Modern Software Guide" (`guide_frontend/`) is a standard React + Vite application.
-
-### Verification Steps
-1.  Navigate to the directory:
-    ```bash
-    cd guide_frontend
-    ```
-2.  Install dependencies:
-    ```bash
-    npm install
-    ```
-3.  Run the development server to verify UI rendering:
-    ```bash
-    npm run dev
-    ```
-4.  Build verification:
-    ```bash
-    npm run build
-    ```
-    Ensure the `dist/` folder is generated without errors.
-
-## 3. Distribution & License Verification (Manual)
-
-After building the application (see `BUILD_INSTRUCTIONS.md`), perform these manual checks on the generated executable.
-
-### Location
-`dist/Intelleo/Intelleo.exe`
-
-### Test 1: Hardware ID (HWID)
-Verify the application can read the machine's fingerprint.
+### Esecuzione Mirata
 ```bash
-Intelleo.exe --hwid
+python -m pytest tests/app/api/test_auth_flow.py
 ```
-*Expected*: Prints an alphanumeric string. MUST NOT print "N/A" or crash.
 
-### Test 2: License Validation
-1.  Generate a license using `admin_license_gui.py`.
-2.  Place the `Licenza` folder (containing `pyarmor.rkey` and `config.dat`) in the application directory.
-3.  Launch `Intelleo.exe`.
-*Expected*: App launches, skips the "License Expired" warning, and shows the Dashboard.
-*Failure*: If app closes immediately or shows errors, check `debug_hwid.log` (if enabled) or run via console.
-
-### Test 3: API/Backend Startup
-Launch the app and check the log files or console output.
-*Expected*: "FastAPI startup complete", "Database loaded in memory".
-
-## 🤖 AI Metadata (RAG Context)
-```json
-{
-  "type": "testing_guide",
-  "domain": "qa_protocols",
-  "tools": ["pytest", "mock_qt", "npm"],
-  "test_types": [
-    "Unit Tests (Backend)",
-    "Headless UI Tests (Frontend)",
-    "Manual Integration Tests (Distribution)"
-  ]
-}
+### Coverage Report
+```bash
+python -m pytest --cov=app --cov=desktop_app --cov-report=html
 ```
+Il report sarà generato in `htmlcov/index.html`.
+
+---
+
+## 3. Strategia di Mocking (Headless Qt)
+
+Poiché `PyQt6` richiede un server grafico (X11/Wayland) per istanziare i widget, e questo non è sempre disponibile in CI o è lento, utilizziamo una strategia di **Mocking Totale** per i test unitari della logica UI.
+
+### Il Modulo `tests/desktop_app/mock_qt.py`
+Questo modulo agisce come un "Virtual Qt". Sostituisce `PyQt6` in `sys.modules` prima che venga importato dal codice di produzione.
+
+**Come Funziona:**
+1.  **Intercettazione**: Il test importa `mock_qt`.
+2.  **Patching**: `mock_qt` inietta oggetti Fake (`MagicMock` potenziati) in `sys.modules['PyQt6.QtWidgets']`, ecc.
+3.  **Simulazione**:
+    *   `DummyQWidget`: Simula metodi come `show()`, `hide()`, `setLayout()`.
+    *   `DummyQSettings`: Simula persistenza in un `dict` in-memory.
+    *   `DummyQTimer`: Permette di eseguire il callback `timeout` manualmente per testare la logica temporale senza attese reali (`sleep`).
+
+**Esempio di Test Headless:**
+```python
+import sys
+from tests.desktop_app import mock_qt
+# ORA possiamo importare le View, che useranno il Mock Qt
+from desktop_app.views.login_view import LoginView
+
+def test_login_logic():
+    view = LoginView()
+    view.username_input.setText("admin") # Metodo simulato da Mock
+    view.login_button.click()            # Triggera lo slot connesso
+
+    assert view.status_label.text() == "Login..."
+```
+
+---
+
+## 4. Test di Integrazione (Backend)
+
+I test del backend (`tests/app/`) utilizzano `TestClient` di FastAPI e un database SQLite in-memory isolato per ogni funzione di test via `fixture`.
+
+### Database Fixture (`tests/conftest.py`)
+*   **`db_session`**: Crea un DB `sqlite:///:memory:` nuovo per ogni test.
+*   **`client`**: Client HTTP pre-autenticato (ove necessario).
+*   **`override_settings`**: Inietta configurazioni di test (es. hashing password lento disabilitato per velocità).
+
+## 5. Test Critici da Mantenere
+
+Alcuni test coprono flussi vitali e non devono mai essere rimossi o indeboliti:
+1.  **`test_db_security.py`**: Verifica che il DB sia cifrato su disco e il Lock funzioni.
+2.  **`test_license_manager.py`**: Verifica che una licenza scaduta blocchi l'avvio.
+3.  **`test_scadenzario_logic.py`**: Verifica che il Gantt calcoli le posizioni temporali corrette (evita regressioni visive).
+4.  **`test_ai_extraction.py`**: Verifica che il prompt di Gemini contenga le regole di business aggiornate.

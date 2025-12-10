@@ -245,30 +245,37 @@ QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
 from PyQt6.QtWidgets import QApplication, QMessageBox, QFileDialog
 # QSplashScreen, QPixmap removed as unused directly here (imported in main inside try block)
 
-# --- CONFIGURAZIONE AMBIENTE ---
+# --- CONFIGURAZIONE AMBIENTE (Nuitka-Compatible) ---
+from app.core.path_resolver import get_base_path, get_license_path
+
 if getattr(sys, 'frozen', False):
-    EXE_DIR = os.path.dirname(sys.executable)
-    dll_dir = os.path.join(EXE_DIR, "dll")
-    if os.name == 'nt' and os.path.exists(dll_dir):
-        os.environ["PATH"] = dll_dir + os.pathsep + os.environ.get("PATH", "")
+    # Use universal path resolver for both PyInstaller and Nuitka
+    BASE_DIR = get_base_path()
+    
+    # DLL Directory Setup
+    dll_dir = BASE_DIR / "dll"
+    if os.name == 'nt' and dll_dir.exists():
+        os.environ["PATH"] = str(dll_dir) + os.pathsep + os.environ.get("PATH", "")
         try:
             if hasattr(os, 'add_dll_directory'):
-                os.add_dll_directory(dll_dir)
+                os.add_dll_directory(str(dll_dir))
         except Exception:
             pass
 
-    lic_dir = os.path.join(EXE_DIR, "Licenza")
-    if os.path.exists(lic_dir):
-        sys.path.insert(0, lic_dir)
+    # License Directory Setup
+    lic_dir = get_license_path()
+    if lic_dir.exists():
+        sys.path.insert(0, str(lic_dir))
 
-    db_path = os.path.join(EXE_DIR, DATABASE_FILENAME)
-    if os.name == 'nt': db_path = db_path.replace('\\', '\\\\')
-    os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
+    # Database URL (legacy env var, actual path resolved by db_security)
+    db_path = BASE_DIR / DATABASE_FILENAME
+    db_path_str = str(db_path)
+    if os.name == 'nt':
+        db_path_str = db_path_str.replace('\\', '\\\\')
+    os.environ["DATABASE_URL"] = f"sqlite:///{db_path_str}"
     
-    if hasattr(sys, '_MEIPASS'):
-        os.chdir(sys._MEIPASS)
-    else:
-        os.chdir(EXE_DIR)
+    # Set working directory to base path (works for both PyInstaller and Nuitka)
+    os.chdir(str(BASE_DIR))
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 

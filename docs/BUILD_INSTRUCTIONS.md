@@ -1,61 +1,152 @@
-# Istruzioni per la Build e la Gestione Licenze
+# Istruzioni di Build, Distribuzione e Gestione Licenze
 
-Questo documento spiega come creare la distribuzione dell'applicazione Intelleo protetta con PyArmor e come gestire le licenze.
+Questo documento tecnico descrive la procedura "Master" per compilare, proteggere e distribuire l'applicazione Intelleo.
 
-## Prerequisiti
+## 1. Ambiente di Build (Requisiti)
 
-1.  **Python 3.12+** installato e aggiunto al PATH.
-2.  **Inno Setup 6** installato (standard path: `C:\Program Files (x86)\Inno Setup 6`).
-3.  **Virtual Environment** attivato con le dipendenze installate:
+*   **OS**: Windows 10/11 (Architettura x64).
+*   **Python**: 3.12+ (Aggiunto al PATH).
+*   **Node.js**: 18+ (Per buildare `guide_frontend`).
+*   **Inno Setup**: v6.2+ (Installato in `C:\Program Files (x86)\Inno Setup 6`).
+*   **PyArmor**: v8.5+ (Licenza Pro/Basic richiesta per offuscamento avanzato).
+*   **Dipendenze**:
     ```bash
     pip install -r requirements.txt
+    cd guide_frontend && npm install
     ```
-4.  **Licenza PyArmor**: È necessario disporre di una licenza **PyArmor 8/9 Basic** (o superiore) attiva e registrata sulla macchina di build.
 
-## 1. Creare la Distribuzione (Master Build)
+## 2. Master Build Script (`admin/offusca/build_nuitka.py`)
 
-È stato creato uno script automatizzato che gestisce l'intero ciclo di rilascio: build del frontend React, offuscamento Python, packaging PyInstaller e creazione installer Inno Setup.
+L'intero processo è orchestrato dallo script `build_nuitka.py`. Sostituisce completamente il vecchio script PyInstaller (`build_dist.py`).
 
-Esegui il comando dalla root del progetto:
-
+### Esecuzione
+Dalla root del progetto:
 ```bash
-python admin/offusca/build_dist.py
+python admin/offusca/build_nuitka.py [--clean] [--fast] [--skip-checks]
 ```
 
-**Fasi dello Script:**
-1.  **React Build**: Compila `guide_frontend` in `guide_frontend/dist/`.
-2.  **Offuscamento**: Esegue `pyarmor gen` su `app` e `desktop_app`.
-3.  **Packaging**: Esegue `PyInstaller` per creare la cartella di distribuzione.
-4.  **DLL Injection**: Copia le DLL di sistema (es. `vcruntime140.dll`) nella cartella `dll/` della distribuzione per massimizzare la portabilità.
-5.  **Installer**: Compila il setup finale (es. `Intelleo_Setup.exe`) usando `ISCC.exe`.
+**Opzioni**:
+- `--clean`: Rimuove build precedenti prima di compilare
+- `--fast`: Build veloce senza LTO (per sviluppo/test)
+- `--skip-checks`: Salta verifica ambiente (non raccomandato)
 
-**Output:**
-*   **Cartella Portable**: `dist/Intelleo/`
-*   **Installer**: `dist/Intelleo_Setup.exe`
+### Pipeline di Build (Fasi)
+1.  **Verifica Ambiente**: Check Python 3.12+, Nuitka, MSVC compiler, npm.
+2.  **Build React Frontend**: Compila `guide_frontend/` se necessario (`npm run build`).
+3.  **Compilazione Nuitka**:
+    *   **Analisi Python** (~5-10 min prima volta): Analizza import e dipendenze.
+    *   **Generazione Codice C** (~2-5 min): Converte Python in C.
+    *   **Compilazione C** (~20-30 min prima volta, ~8 min con ccache): Compila con MSVC.
+    *   **Linking** (~2-5 min): Crea eseguibile finale.
+4.  **Post-Processing**: Crea README.txt, verifica output, copia asset extra.
+5.  **Report**: Genera statistiche build (tempo, dimensione, file count).
 
-## 2. Gestione delle Licenze
+**⏱️ Tempi Totali**:
+- Prima compilazione: **35-50 minuti**
+- Successive (con ccache): **8-15 minuti**
 
-### Generazione Licenze (Lato Amministratore)
-Per generare nuove licenze per i clienti, utilizza l'interfaccia grafica dedicata situata nella root:
+💡 **Tip**: Installa `ccache` per velocizzare rebuild: `choco install ccache`
 
-```bash
-python admin_license_gui.py
+### Output
+```
+dist/nuitka/
+└── Intelleo.dist/
+    ├── Intelleo.exe          # Eseguibile principale (nativo C)
+    ├── guide/                # React SPA
+    │   └── index.html
+    ├── desktop_app/
+    │   ├── assets/
+    │   └── icons/
+    ├── Qt6Core.dll           # Dipendenze Qt
+    ├── python312.dll         # Runtime Python
+    └── [altre DLL]
 ```
 
-1.  **Hardware ID**: (Opzionale) Incolla l'ID hardware del cliente per vincolare la licenza.
-2.  **Scadenza**: Imposta la data di scadenza.
-3.  Clicca su **Genera Licenza**.
+### Installer Creation
+Dopo il build Nuitka, crea l'installer:
+```bash
+cd admin/crea_setup
+"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" setup_script.iss
+```
+Output: `dist/installer/Intelleo_Setup_v2.0.0.exe`
 
-Il file `pyarmor.rkey` e il file cifrato `config.dat` verranno salvati in una sottocartella `Licenza/` all'interno della cartella cliente. Invia l'intera cartella `Licenza` al cliente.
+---
 
-### Installazione Licenza (Lato Cliente)
-Il cliente deve copiare la cartella `Licenza` (contenente `pyarmor.rkey` e `config.dat`) all'interno della directory di installazione (es. `C:\Users\Nome\AppData\Local\Programs\Intelleo`).
+## 3. Gestione e Generazione Licenze
 
-*Nota: L'installer crea automaticamente questa struttura.*
+Il sistema di licenze richiede la generazione di 3 file coordinati.
 
-### Recupero Hardware ID (Lato Cliente)
-1.  Lanciare l'applicazione. Se la licenza è scaduta o mancante, un messaggio mostrerà l'Hardware ID.
-2.  Da riga di comando:
+### Tool di Generazione
+Eseguire:
+```bash
+python admin/crea_licenze/admin_license_gui.py
+```
+
+### Workflow Operativo
+1.  **Input Dati**:
+    *   **Hardware ID**: Seriale Disco del cliente (o MAC).
+    *   **Scadenza**: Data (YYYY-MM-DD).
+    *   **Nome Cliente**: Per organizzazione file.
+2.  **Generazione**:
+    *   Lo script chiama PyArmor CLI per generare `pyarmor.rkey` (Node-Locked).
+    *   Lo script cifra i metadati in `config.dat` (Fernet).
+    *   Lo script calcola SHA256 e crea `manifest.json`.
+3.  **Output**:
+    Viene creata una cartella `Licenza` contenente:
+    *   `pyarmor.rkey` (Runtime Key)
+    *   `config.dat` (UI Data)
+    *   `manifest.json` (Integrity Check)
+
+### Distribuzione (Auto-Update)
+Per abilitare l'aggiornamento automatico della licenza:
+1.  Accedere al **Repository GitHub Privato** delle licenze.
+2.  Navigare in `licenses/`.
+3.  Creare una cartella con il nome esatto dell'**Hardware ID** del cliente.
+4.  Caricare i 3 file (`pyarmor.rkey`, `config.dat`, `manifest.json`) in quella cartella.
+5.  Al prossimo avvio (o errore licenza), l'app scaricherà automaticamente i nuovi file.
+
+---
+
+## 4. Troubleshooting Build
+
+### Errore "Module 'X' not found" in Runtime
+*   **Causa**: Nuitka non ha rilevato un import dinamico.
+*   **Soluzione**: Aggiungi al comando Nuitka in `build_nuitka.py`:
+    ```python
+    "--include-module=X",
+    ```
+
+### Errore "DLL Load Failed"
+*   **Causa**: Mancano le librerie ridistribuibili VC++ sul target.
+*   **Soluzione**: L'utente deve installare Visual C++ Redistributable da Microsoft, oppure includere `vc_redist.x64.exe` nell'installer.
+
+### Build si blocca su "Compiling X.c" per >10 minuti
+*   **Causa**: File C grande o RAM insufficiente.
+*   **Soluzione**:
+    - Verifica RAM disponibile (>8 GB raccomandati)
+    - Chiudi altri programmi
+    - Aspetta (alcuni file richiedono 5-10 min)
+    - Se persiste, usa `--fast` per disabilitare LTO
+
+### ccache non attivo (ogni build compila tutto)
+*   **Causa**: ccache non installato o non nel PATH.
+*   **Soluzione**:
     ```bash
-    Intelleo.exe --hwid
+    # Windows (Chocolatey)
+    choco install ccache
+    
+    # Verifica
+    ccache --version
+    ccache -s  # Mostra statistiche cache
     ```
+
+### Errore "MSVC not found"
+*   **Causa**: Visual Studio Build Tools non installato.
+*   **Soluzione**: Installa "Build Tools for Visual Studio 2022" con workload "Desktop development with C++".
+
+### Prima compilazione molto lenta (>50 min)
+*   **Causa**: Normale per ~1200 moduli C da compilare.
+*   **Soluzione**: 
+    - Usa `--fast` per test rapidi
+    - Installa `ccache` per build successive più veloci
+    - Non interrompere il processo

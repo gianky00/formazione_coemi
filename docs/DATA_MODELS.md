@@ -1,158 +1,150 @@
-# Data Models & Schema Definitions
+# Modelli Dati e Schema Database
 
-## Database Schema (SQLAlchemy)
+Questo documento definisce in dettaglio lo schema del database SQLite (cifrato) e i modelli Pydantic utilizzati per la validazione API.
 
-Defined in `app/db/models.py`. The database is stored in `database_documenti.db` (SQLite), which is encrypted at rest and loaded into memory at runtime.
+## 1. Schema Database (SQLAlchemy)
 
-### `User` (Table: `users`)
-Represents an authorized user of the application.
+File sorgente: `app/db/models.py`.
 
-| Column | Type | Constraints | Description |
+### `users` (Utenti Sistema)
+Gestisce l'autenticazione e i permessi.
+*   **Constraints**: `username` UNIQUE.
+
+| Colonna | Tipo | Nullable | Descrizione |
 | :--- | :--- | :--- | :--- |
-| `id` | Integer | PK, Index | Internal ID |
-| `username` | String | Unique, Index | Login Username |
-| `hashed_password` | String | | Bcrypt hash |
-| `account_name` | String | | Display Name (e.g., "Mario Rossi") |
-| `is_admin` | Boolean | | Admin privileges |
-| `last_login` | DateTime | | Timestamp of current/last login |
-| `previous_login` | DateTime | | Timestamp of the login before the current one |
-| `created_at` | DateTime | | Creation timestamp |
+| `id` | `Integer` | NO | Primary Key (Auto-increment). |
+| `username` | `String` | NO | Identificativo univoco login. |
+| `hashed_password` | `String` | NO | Hash Bcrypt. |
+| `account_name` | `String` | YES | Nome visualizzato (es. "Mario Rossi"). |
+| `is_admin` | `Boolean` | NO | Default `False`. Flag privilegi elevati. |
+| `last_login` | `DateTime` | YES | Ultimo accesso. |
+| `previous_login` | `DateTime` | YES | Penultimo accesso (per UI). |
+| `created_at` | `DateTime` | NO | Data creazione record. |
 
-### `AuditLog` (Table: `audit_logs`)
-Records security-critical actions for compliance and auditing.
+### `audit_logs` (Audit Trail)
+Registro immutabile delle azioni di sicurezza.
 
-| Column | Type | Constraints | Description |
+| Colonna | Tipo | Nullable | Descrizione |
 | :--- | :--- | :--- | :--- |
-| `id` | Integer | PK, Index | Internal ID |
-| `user_id` | Integer | FK(`users.id`) | Actor ID (Nullable for System events) |
-| `username` | String | Index | Snapshot of username |
-| `action` | String | Index | Event Type (e.g., "LOGIN_FAILED") |
-| `category` | String | Index | Scope (e.g., "AUTH", "CERTIFICATE") |
-| `details` | String | | Human-readable description |
-| `timestamp` | DateTime | Index | Event time (UTC) |
-| `ip_address` | String | Index | Client IP |
-| `severity` | String | | "LOW", "MEDIUM", "CRITICAL" |
-| `device_id` | String | | Client Hardware ID / Fingerprint |
-| `changes` | String | | JSON diff of modified data |
+| `id` | `Integer` | NO | Primary Key. |
+| `user_id` | `Integer` | YES | FK su `users.id` (NULL se System Action). |
+| `username` | `String` | NO | Snapshot username (per storicità se user eliminato). |
+| `action` | `String` | NO | Enum (es. `LOGIN`, `UPDATE_CERT`). |
+| `category` | `String` | NO | Categoria (es. `AUTH`, `SECURITY`). |
+| `details` | `String` | YES | Descrizione human-readable. |
+| `timestamp` | `DateTime` | NO | UTC Timestamp. |
+| `ip_address` | `String` | YES | IP Client. |
+| `severity` | `String` | NO | `LOW`, `MEDIUM`, `CRITICAL`. |
+| `device_id` | `String` | YES | ID Hardware Client. |
+| `changes` | `JSON` | YES | Diff modifiche (`{key: {old: v, new: v}}`). |
 
-### `Dipendente` (Table: `dipendenti`)
-Represents an employee in the organization.
+### `dipendenti` (Anagrafica)
+Registro centrale del personale.
 
-| Column | Type | Constraints | Description |
+| Colonna | Tipo | Nullable | Descrizione |
 | :--- | :--- | :--- | :--- |
-| `id` | Integer | PK, Index | Internal ID |
-| `matricola` | String | Unique, Index | Employee Badge/ID |
-| `nome` | String | Index | First Name |
-| `cognome` | String | Index | Last Name |
-| `data_nascita` | Date | | Date of Birth |
-| `email` | String | Unique, Index | Optional contact email |
-| `categoria_reparto` | String | | Optional department |
+| `id` | `Integer` | NO | Primary Key. |
+| `matricola` | `String` | NO | UNIQUE. Badge ID. |
+| `nome` | `String` | NO | Nome proprio. |
+| `cognome` | `String` | NO | Cognome. |
+| `data_nascita` | `Date` | YES | Usata per risoluzione omonimie. |
+| `email` | `String` | YES | Contatto. |
+| `categoria_reparto` | `String` | YES | Dipartimento. |
 
-### `Corso` (Table: `corsi`)
-Represents a master course definition.
+### `corsi` (Catalogo Formativo)
+Definizione dei tipi di documento.
+*   **Constraints**: UNIQUE(`nome_corso`, `categoria_corso`).
 
-| Column | Type | Constraints | Description |
+| Colonna | Tipo | Nullable | Descrizione |
 | :--- | :--- | :--- | :--- |
-| `id` | Integer | PK, Index | Internal ID |
-| `nome_corso` | String | Index | Specific course name |
-| `validita_mesi` | Integer | | Validity period in months (0 = custom) |
-| `categoria_corso` | String | Index | Broad category (e.g., "ANTINCENDIO") |
+| `id` | `Integer` | NO | Primary Key. |
+| `nome_corso` | `String` | NO | Nome specifico (es. "Antincendio Rischio Alto"). |
+| `validita_mesi` | `Integer` | NO | Durata validità (0 = Custom/Estratta). |
+| `categoria_corso` | `String` | NO | Macro-categoria (es. `ANTINCENDIO`, `NOMINA`). |
 
-**Constraint**: Unique (`nome_corso`, `categoria_corso`).
+### `certificati` (Documenti)
+Istanza di un corso completato da un dipendente.
+*   **Constraints**: UNIQUE(`dipendente_id`, `corso_id`, `data_rilascio`).
 
-#### Reference Data: Course Validity Defaults
-Defined in `app/db/seeding.py` and enforced by AI Logic.
-
-| Category | Validity (Months) | Behavior |
-| :--- | :--- | :--- |
-| **ANTINCENDIO** | 60 | Fixed 5 years |
-| **PRIMO SOCCORSO** | 36 | Fixed 3 years |
-| **PREPOSTO** | 24 | Fixed 2 years |
-| **BLSD** | 12 | Fixed 1 year |
-| **ATEX** | 60 | Default 5 years |
-| **VISITA MEDICA** | 0 | Extracts "Da rivedere entro..." |
-| **UNILAV** | 0 | Extracts "Data Fine" |
-| **PATENTE** | 0 | Extracts "4b" |
-| **CARTA DI IDENTITA** | 0 | Extracts "Scadenza" |
-| **NOMINA** | 0 | No expiration (Active) |
-| **MODULO RECESSO...** | 0 | No expiration |
-| **HLO** | 0 | No expiration |
-| **TESSERA HLO** | 0 | Scadenza extracted |
-| **(Others)** | 60 | Default 5 years |
-
-### `Certificato` (Table: `certificati`)
-Represents an issued certificate instance.
-
-| Column | Type | Constraints | Description |
+| Colonna | Tipo | Nullable | Descrizione |
 | :--- | :--- | :--- | :--- |
-| `id` | Integer | PK, Index | Internal ID |
-| `dipendente_id` | Integer | FK(`dipendenti.id`), Nullable | Linked Employee (Null if orphan) |
-| `corso_id` | Integer | FK(`corsi.id`) | Linked Course |
-| `data_rilascio` | Date | | Issue Date |
-| `data_scadenza_calcolata` | Date | Nullable | Calculated Expiration Date |
-| `file_path` | String | | Path to stored PDF |
-| `stato_validazione` | Enum | `AUTOMATIC` or `MANUAL` | Workflow status |
-| `nome_dipendente_raw` | String | Nullable | Raw extracted name (for orphans) |
-| `data_nascita_raw` | String | Nullable | Raw extracted DOB (for orphans) |
+| `id` | `Integer` | NO | Primary Key. |
+| `dipendente_id` | `Integer` | YES | FK `dipendenti.id`. NULL se Orfano. |
+| `corso_id` | `Integer` | NO | FK `corsi.id`. |
+| `data_rilascio` | `Date` | NO | Data emissione. |
+| `data_scadenza_calcolata`| `Date` | YES | Data scadenza effettiva. |
+| `file_path` | `String` | NO | Path relativo del PDF. |
+| `stato_validazione` | `Enum` | NO | `AUTOMATIC` (AI), `MANUAL` (User). |
+| `nome_dipendente_raw` | `String` | YES | Nome estratto da AI (Fallback per orfani). |
+| `data_nascita_raw` | `String` | YES | Data nascita estratta da AI (Fallback). |
 
-## Pydantic Schemas (DTOs)
+---
 
-Defined in `app/schemas/schemas.py`. Used for API validation.
+## 2. API Schemas (Pydantic)
 
-### `CertificatoSchema` (Response)
+File sorgente: `app/schemas/schemas.py`.
+
+### `CertificatoSchema` (Response Model)
+Utilizzato per visualizzare i dati in tabella.
 ```python
-{
-    "id": int,
-    "nome": str,               # Full name (computed)
-    "data_nascita": str,       # DD/MM/YYYY or null
-    "matricola": str,          # Null if orphan
-    "corso": str,
-    "categoria": str,
-    "data_rilascio": str,      # DD/MM/YYYY
-    "data_scadenza": str,      # DD/MM/YYYY or null
-    "stato_certificato": str,  # "attivo", "in_scadenza", "scaduto", "rinnovato"
-    "assegnazione_fallita_ragione": str # Optional error message
-}
+class CertificatoSchema(BaseModel):
+    id: int
+    nome: str               # Computed: Dipendente.nome + cognome OR nome_dipendente_raw
+    matricola: str | None   # Computed
+    data_nascita: str | None # DD/MM/YYYY
+    corso: str              # Corso.nome_corso
+    categoria: str          # Corso.categoria_corso
+    data_rilascio: str      # DD/MM/YYYY
+    data_scadenza: str | None
+    stato_certificato: str  # "attivo" | "in_scadenza" | "scaduto" | "rinnovato"
+    assegnazione_fallita_ragione: str | None # Error msg se orfano
 ```
 
-### `CertificatoCreazioneSchema` (Request)
+### `AuditLogSchema` (Response Model)
 ```python
-{
-    "nome": str,               # Required, min_length=1
-    "data_nascita": str,       # Optional
-    "corso": str,              # Required
-    "categoria": str,          # Required
-    "data_rilascio": str,      # Required (DD/MM/YYYY)
-    "data_scadenza": str       # Optional (DD/MM/YYYY)
-}
+class AuditLogSchema(BaseModel):
+    timestamp: datetime
+    username: str
+    action: str
+    category: str
+    details: str
+    severity: str
+    changes: str | None     # JSON String
 ```
 
-### `CertificatoAggiornamentoSchema` (Request)
-Used for `PUT` operations. All fields are optional.
-```python
-{
-    "nome": str,
-    "corso": str,
-    "categoria": str,
-    "data_rilascio": str,
-    "data_scadenza": str
-}
-```
+---
 
-## JSON Interfaces (AI Response)
-The AI Service (`extract_entities_with_ai`) returns:
+## 3. License & Configuration Files
+*Dettagli completi in [System Design Report](SYSTEM_DESIGN_REPORT.md).*
 
+### `config.dat` (License Payload)
+Encrypted with Fernet (AES-128).
 ```json
 {
-    "nome": "Mario Rossi",
-    "data_nascita": "01-01-1980",
-    "corso": "Corso Antincendio",
-    "categoria": "ANTINCENDIO",
-    "data_rilascio": "10-01-2023",
-    "data_scadenza": "10-01-2028"  // Or null
+    "Hardware ID": "String (Disk Serial or MAC)",
+    "Scadenza Licenza": "DD/MM/YYYY",
+    "Generato il": "DD/MM/YYYY",
+    "Cliente": "String (Customer Name)"
 }
 ```
-*Note: Dates in AI response are normalized to `DD/MM/YYYY` by the Frontend/API before persistence.*
+
+### `manifest.json` (Update Integrity)
+Plaintext JSON.
+```json
+{
+    "pyarmor.rkey": "SHA256_HASH_STRING",
+    "config.dat": "SHA256_HASH_STRING"
+}
+```
+
+### `secure_time.dat` (Anti-Tamper)
+Encrypted with Fernet.
+```json
+{
+    "last_online_check": "ISO8601 Timestamp",
+    "last_execution": "ISO8601 Timestamp"
+}
+```
 
 ## 🤖 AI Metadata (RAG Context)
 ```json

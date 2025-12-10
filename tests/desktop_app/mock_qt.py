@@ -9,7 +9,8 @@ class DummySignal:
     def __init__(self):
         self._slots = []
 
-    def connect(self, slot):
+    def connect(self, slot, connection_type=None):
+        """Connect slot, optionally with connection type (ignored in mock)."""
         self._slots.append(slot)
 
     def emit(self, *args, **kwargs):
@@ -88,6 +89,13 @@ class DummyEnum:
     WindowMinimized = 1 # NOSONAR
     NoFrame = 0 # NOSONAR
     RichText = 1 # NOSONAR
+    
+    class ConnectionType:
+        AutoConnection = 0 # NOSONAR
+        DirectConnection = 1 # NOSONAR
+        QueuedConnection = 2 # NOSONAR
+        BlockingQueuedConnection = 3 # NOSONAR
+        UniqueConnection = 128 # NOSONAR
 
     class Orientation:
         Horizontal = 1 # NOSONAR

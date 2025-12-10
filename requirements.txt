@@ -1,5 +1,9 @@
+# Build Tools
 pyarmor
-pyinstaller
+nuitka>=2.0.0
+zstandard>=0.22.0  # Compressione payload Nuitka
+ordered-set>=4.1.0  # Ottimizzazione dipendenze Nuitka
+
 fastapi==0.121.2
 uvicorn==0.38.0
 sqlalchemy==2.0.44
