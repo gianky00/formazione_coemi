@@ -18,32 +18,26 @@ sys.setrecursionlimit(5000)
 
 # Constants
 DATABASE_FILENAME = "database_documenti.db"
-LICENSE_FILE_KEY = "pyarmor.rkey"
 LICENSE_FILE_CONFIG = "config.dat"
 
 # --- PHASE 2: LOGGING CONFIGURATION ---
-# Must be configured BEFORE any other imports to capture everything
 def setup_global_logging():
     try:
         from desktop_app.services.path_service import get_user_data_dir
 
-        # 1. Determine Log Path
         log_dir = os.path.join(get_user_data_dir(), "logs")
         os.makedirs(log_dir, exist_ok=True)
         log_file = os.path.join(log_dir, "intelleo.log")
 
-        # 2. Configure Root Logger
         root_logger = logging.getLogger()
-        root_logger.setLevel(logging.DEBUG)  # Capture everything at root level
+        root_logger.setLevel(logging.DEBUG)
 
-        # Remove existing handlers (e.g. from previous runs or other libs)
         for handler in root_logger.handlers[:]:
             root_logger.removeHandler(handler)
 
-        # 3. Rotating File Handler (DEBUG level - capture all for diagnostics)
         file_handler = logging.handlers.RotatingFileHandler(
             log_file,
-            maxBytes=5 * 1024 * 1024,  # 5MB
+            maxBytes=5 * 1024 * 1024,
             backupCount=3,
             encoding='utf-8'
         )
@@ -52,26 +46,20 @@ def setup_global_logging():
         file_handler.setLevel(logging.DEBUG)
         root_logger.addHandler(file_handler)
 
-        # 4. Console Handler - WARNING level only to reduce spam
         console_handler = logging.StreamHandler(sys.stdout)
         console_formatter = logging.Formatter('%(levelname)s: %(message)s')
         console_handler.setFormatter(console_formatter)
-        console_handler.setLevel(logging.WARNING)  # Only warnings and errors to console
+        console_handler.setLevel(logging.WARNING)
         root_logger.addHandler(console_handler)
 
-        # 5. Silence ALL noisy libraries to reduce spam
         noisy_loggers = [
             "urllib3", "requests", "httpx", "asyncio", "multipart",
             "watchfiles", "uqi", "faker", "httpcore",
-            # Uvicorn - silence completely
             "uvicorn", "uvicorn.access", "uvicorn.error",
-            # APScheduler - silence completely  
             "apscheduler", "apscheduler.scheduler", "apscheduler.executors",
             "apscheduler.executors.default",
-            # App components that are verbose
             "app.core.db_security", "app.core.lock_manager",
             "app.api.routers.system",
-            # Desktop app services
             "desktop_app.services", "desktop_app.services.hardware_id_service",
             "desktop_app.services.update_checker", "desktop_app.services.voice_service",
         ]
@@ -91,8 +79,6 @@ from app import __version__
 import base64
 
 def _decode_sentry_dsn():
-    """Decode obfuscated Sentry DSN to bypass static code analysis."""
-    # Obfuscated DSN parts (base64 encoded)
     _k = "aHR0cHM6Ly9mMjUyZDU5OGFhZjdlNzBmZTk0ZDUzMzQ3NGI3NjYzOQ=="
     _h = "bzQ1MTA0OTA0OTI2MDAzMjAuaW5nZXN0LmRlLnNlbnRyeS5pbw=="
     _p = "NDUxMDQ5MDUyNjc0NDY1Ng=="
@@ -102,7 +88,6 @@ def _decode_sentry_dsn():
         return None
 
 def init_sentry():
-    """Initializes Sentry SDK for error tracking with thread hooks."""
     if sentry_sdk.is_initialized():
         return
         
@@ -116,18 +101,16 @@ def init_sentry():
         dsn=dsn,
         environment=environment,
         release=f"intelleo@{__version__}",
-        traces_sample_rate=0.3,  # Performance: 30% sampling
+        traces_sample_rate=0.3,
         send_default_pii=False,
         attach_stacktrace=True,
-        max_breadcrumbs=50,  # Limit memory usage
+        max_breadcrumbs=50,
         debug=False,
     )
     
-    # Install threading exception hook for all threads
     import threading
     
     def thread_excepthook(args):
-        """Global hook for thread exceptions."""
         logging.critical(f"Thread exception in {args.thread.name}: {args.exc_type.__name__}: {args.exc_value}")
         sentry_sdk.capture_exception(args.exc_value)
     
@@ -135,115 +118,34 @@ def init_sentry():
         threading.excepthook = thread_excepthook
 
 def sentry_exception_hook(exctype, value, traceback):
-    """
-    Global exception handler that captures errors to Sentry
-    AND ensures database security cleanup.
-    """
-    # 0. Log Locally
     logging.critical("Unhandled exception", exc_info=(exctype, value, traceback))
-
-    # 1. Capture to Sentry
     sentry_sdk.capture_exception(value)
-
-    # 2. Print Traceback (for local logging/debugging)
     print(f"[CRITICAL] Unhandled exception: {exctype}, {value}")
     tb.print_tb(traceback)
 
-    # 3. Database Cleanup (CRITICAL)
     try:
         from app.core.db_security import db_security
         print("[CRITICAL] Attempting emergency DB cleanup...")
         db_security.cleanup()
     except Exception as e:
         print(f"[CRITICAL] Emergency cleanup failed: {e}")
-        sentry_sdk.capture_exception(e) # Capture cleanup failure too
+        sentry_sdk.capture_exception(e)
 
-    # 4. Exit
-    # S5747: Remove bare raise, only re-raise SystemExit explicitly if caught (not here)
-    # The original code re-raised SystemExit using bare raise which S5747 flagged.
-    # The check issubclass(exctype, SystemExit) is correct but inside this hook it is complex.
-    # This hook is executed *after* exception is raised.
-    # We should just exit.
     if issubclass(exctype, SystemExit):
         sys.exit(value.code if hasattr(value, 'code') else 1)
 
     sys.exit(1)
 
-# Initialize Sentry immediately
 init_sentry()
-# Override global exception hook
 sys.excepthook = sentry_exception_hook
-
-# --- PHASE 2: POSTHOG ANALYTICS ---
-import posthog
-
-def init_posthog():
-    """Initializes PostHog Analytics (Async)."""
-    try:
-        # Check explicit disable flag (GDPR)
-        # analytics_enabled = True # Removed unused variable
-
-        # Configure PostHog Module-Global
-        posthog.project_api_key = "phc_jCIZrEiPMQ1fE8ympKiJGc84GUvbqqo7T2sQDlGyUd8"
-        # Backwards compatibility / library quirk fallback
-        posthog.api_key = posthog.project_api_key
-        posthog.host = "https://eu.i.posthog.com"
-
-        # Track App Start
-        # Run in thread to not block UI
-        def track_start():
-            try:
-                # Identification (Anonymous Machine ID or User ID if logged in - here we use machine ID for basic tracking)
-                from desktop_app.services.hardware_id_service import get_machine_id
-                distinct_id = get_machine_id()
-
-                # Re-assert config in thread just in case
-                if not posthog.api_key:
-                    posthog.project_api_key = "phc_jCIZrEiPMQ1fE8ympKiJGc84GUvbqqo7T2sQDlGyUd8"
-                    posthog.api_key = posthog.project_api_key
-                    posthog.host = "https://eu.i.posthog.com"
-
-                posthog.capture(
-                    'app_started',
-                    distinct_id=distinct_id,
-                    properties={
-                        'version': __version__,
-                        'os': platform.system(),
-                        'os_release': platform.release(),
-                        'environment': "production" if getattr(sys, 'frozen', False) else "development"
-                    }
-                )
-            except Exception as e:
-                logging.warning(f"PostHog track failed: {e}")
-
-        threading.Thread(target=track_start, daemon=True).start()
-
-        # Register Exit Handler
-        import atexit
-        def track_exit():
-            try:
-                from desktop_app.services.hardware_id_service import get_machine_id
-                posthog.capture('app_closed', distinct_id=get_machine_id())
-                posthog.flush() # Ensure sent
-            except Exception: pass
-
-        atexit.register(track_exit)
-
-    except Exception as e:
-        logging.error(f"Failed to init PostHog: {e}")
-
-init_posthog()
-
 
 # --- CRITICAL: IMPORT WEBENGINE & SET ATTRIBUTE BEFORE QAPPLICATION ---
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtCore import Qt, QCoreApplication, QTimer, QThread, pyqtSignal
-# QObject removed from import as it was unused
 
 QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
 
 from PyQt6.QtWidgets import QApplication, QMessageBox, QFileDialog
-# QSplashScreen, QPixmap removed as unused directly here (imported in main inside try block)
 
 # --- CONFIGURAZIONE AMBIENTE ---
 if getattr(sys, 'frozen', False):
@@ -265,10 +167,9 @@ if getattr(sys, 'frozen', False):
     if os.name == 'nt': db_path = db_path.replace('\\', '\\\\')
     os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
     
-    if hasattr(sys, '_MEIPASS'):
-        os.chdir(sys._MEIPASS)
-    else:
-        os.chdir(EXE_DIR)
+    # Nuitka compatibility
+    # sys._MEIPASS is not used in Nuitka standalone, we use EXE_DIR
+    os.chdir(EXE_DIR)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -286,8 +187,6 @@ def find_free_port(start_port=8000, max_port=8010):
 def start_server(port):
     from app.main import app
     
-    # Custom log config to suppress uvicorn's default console output
-    # All output goes to our configured file handler only
     log_config = {
         "version": 1,
         "disable_existing_loggers": False,
@@ -308,7 +207,6 @@ def start_server(port):
         },
     }
     
-    # Explicitly disable reload to prevent crashes in frozen app when settings.json changes
     uvicorn.run(app, host="127.0.0.1", port=port, log_config=log_config, log_level="error", reload=False)
 
 def check_port(host, port):
@@ -320,121 +218,83 @@ def check_port(host, port):
         return result
     except Exception: return False
 
-# --- PHASE 0: LICENSE GATEKEEPER ---
-def verify_license_files():
-    """Checks for the physical presence of license files."""
-    from desktop_app.services.path_service import get_license_dir, get_app_install_dir
+# --- PHASE 0: LICENSE GATEKEEPER (PYTHON NATIVE) ---
 
-    # 1. Check User Data Directory (Preferred)
-    user_lic_dir = get_license_dir()
-    if os.path.exists(os.path.join(user_lic_dir, LICENSE_FILE_KEY)) and \
-       os.path.exists(os.path.join(user_lic_dir, LICENSE_FILE_CONFIG)):
-        sys.path.insert(0, user_lic_dir)
-        return True
+def verify_license_logic():
+    """
+    Validates the license explicitly in Python using decryption.
+    """
+    from desktop_app.services.license_manager import LicenseManager
+    from desktop_app.services.hardware_id_service import get_machine_id
+    from desktop_app.constants import LABEL_HARDWARE_ID
 
-    # 2. Check Install Directory (Legacy)
-    install_dir = get_app_install_dir()
-    legacy_lic_dir = os.path.join(install_dir, "Licenza")
-    if os.path.exists(os.path.join(legacy_lic_dir, LICENSE_FILE_KEY)) and \
-       os.path.exists(os.path.join(legacy_lic_dir, LICENSE_FILE_CONFIG)):
-        sys.path.insert(0, legacy_lic_dir)
-        return True
+    # 1. Read & Decrypt
+    license_data = LicenseManager.get_license_data()
+    if not license_data:
+        logging.warning("License file missing or corrupt.")
+        return False
 
-    # 3. Check Root (Legacy)
-    if os.path.exists(os.path.join(install_dir, LICENSE_FILE_KEY)) and \
-       os.path.exists(os.path.join(install_dir, LICENSE_FILE_CONFIG)):
-        sys.path.insert(0, install_dir)
-        return True
+    # 2. Verify Content (Hardware ID)
+    stored_hw_id = license_data.get(LABEL_HARDWARE_ID)
+    current_hw_id = get_machine_id()
 
-    return False
+    if not stored_hw_id or stored_hw_id != current_hw_id:
+        logging.warning(f"Hardware ID mismatch. Stored: {stored_hw_id}, Current: {current_hw_id}")
+        return False
+
+    # 3. Expiry Check (Optional - we might allow expired to open but show warning,
+    # but for strict gatekeeper, we could block.
+    # Current logic: Gatekeeper ensures valid signature/machine binding.
+    # Expiry is handled by UI warnings in LoginView.)
+
+    logging.info("License verified successfully.")
+    return True
 
 def check_license_gatekeeper(splash):
     """
     Step 0: Strict License Check.
-    If license is missing or invalid, attempt headless update.
-    If update fails, BLOCK startup.
+    If license is missing or invalid (HWID mismatch), launch Recovery Mode.
     """
     splash.update_status("Controllo Licenza...", 5)
     QApplication.processEvents()
 
-    # 1. Physical Check
-    files_ok = verify_license_files()
-
-    # 2. Validity Check (Simulated by import)
-    valid_license = False
-    if files_ok:
-        try:
-            # Try importing a protected module
-            importlib.import_module('app.core.config')
-            valid_license = True
-        except Exception:
-            valid_license = False
-
-    if valid_license:
+    if verify_license_logic():
         return # Proceed
 
     # --- LICENSE INVALID/MISSING: RECOVERY MODE ---
-    splash.update_status("Licenza mancante. Tentativo aggiornamento...", 5)
-    QApplication.processEvents()
+    splash.hide() # Hide splash to show blocking dialog
 
-    try:
-        from app.core.config import settings
-        from desktop_app.services.license_updater_service import LicenseUpdaterService
-        from desktop_app.services.hardware_id_service import get_machine_id
+    # Launch Recovery Dialog
+    from desktop_app.views.recovery_dialog import RecoveryDialog
 
-        # Prepare Config for Headless Update
-        update_config = {
-            "repo_owner": settings.LICENSE_REPO_OWNER,
-            "repo_name": settings.LICENSE_REPO_NAME,
-            "github_token": settings.LICENSE_GITHUB_TOKEN
-        }
-
-        updater = LicenseUpdaterService(config=update_config)
-        hw_id = get_machine_id()
-
-        success, msg = updater.update_license(hw_id)
-
-        if success:
-            splash.update_status("Licenza aggiornata! Riavvio...", 100)
-            QApplication.processEvents()
-            time.sleep(1)
-            # Restart Application
-            python = sys.executable
-            os.execl(python, python, *sys.argv)
-        else:
-            QMessageBox.critical(None, "Errore Licenza",
-                f"Impossibile avviare l'applicazione.\n\nStato Licenza: {msg}\n\nContattare il supporto.")
-            sys.exit(1)
-
-    except Exception as e:
-        QMessageBox.critical(None, "Errore Critico", f"Fallito recupero licenza:\n{e}")
+    dialog = RecoveryDialog()
+    if dialog.exec() == QDialog.DialogCode.Accepted:
+        # Restart Application on success
+        python = sys.executable
+        os.execl(python, python, *sys.argv)
+    else:
+        # User cancelled or failed
         sys.exit(1)
 
 # --- PHASE 2: DATABASE INTEGRITY & RECOVERY ---
 
 def initialize_new_database(path_obj):
-    """
-    Creates a new SQLite database with DELETE mode (compatible with in-memory loading), Schema, and Admin User.
-    """
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
     from app.db.models import Base
     from app.db.seeding import seed_database
     from app.core.config import settings
 
-    # 1. Initialize SQLite file with DELETE Mode (Not WAL, to avoid multi-file issues during single-file load)
     conn = sqlite3.connect(str(path_obj))
     conn.execute("PRAGMA journal_mode=DELETE;")
     conn.execute("PRAGMA synchronous=FULL;")
     conn.commit()
     conn.close()
 
-    # 2. Apply Schema (SQLAlchemy)
     db_url = f"sqlite:///{path_obj}"
     engine = create_engine(db_url)
     Base.metadata.create_all(bind=engine)
 
-    # 3. Seed Admin
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     db = SessionLocal()
     try:
@@ -442,11 +302,9 @@ def initialize_new_database(path_obj):
     finally:
         db.close()
 
-    # 4. Update Settings
     settings.save_mutable_settings({"DATABASE_PATH": str(path_obj)})
 
 def _check_db_integrity(target):
-    # S3776: Refactored logic to reduce complexity
     exists = target.exists()
     is_valid = False
     if exists:
@@ -491,7 +349,6 @@ def _handle_create_action(parent):
         QMessageBox.critical(parent, "Errore Creazione", f"Impossibile creare il database:\n{e}")
 
 def _handle_recovery_action(parent, msg, target):
-    # S3776: Refactored logic to reduce complexity
     browse_btn = msg.addButton("Sfoglia / Ripristina...", QMessageBox.ButtonRole.ActionRole)
     create_btn = msg.addButton("Crea Nuovo Database", QMessageBox.ButtonRole.ActionRole)
     msg.addButton("Esci", QMessageBox.ButtonRole.RejectRole)
@@ -511,9 +368,6 @@ def _handle_recovery_action(parent, msg, target):
         sys.exit(1)
 
 def check_and_recover_database(controller):
-    """
-    Checks database integrity and prompts user for recovery actions if needed.
-    """
     from app.core.config import settings, get_user_data_dir
     from pathlib import Path
 
@@ -532,7 +386,6 @@ def check_and_recover_database(controller):
     if exists and is_valid:
         return True
 
-    # 3. Prompt User
     parent = controller.login_view if hasattr(controller, 'login_view') and controller.login_view else None
 
     msg = QMessageBox(parent)
@@ -551,12 +404,7 @@ def check_and_recover_database(controller):
     return False
 
 def post_launch_integrity_check(controller):
-    """
-    Step 3 (Delayed): Integrity Check and Recovery Dialog.
-    Executes AFTER the UI (Login) is visible.
-    """
     try:
-        # Refactored loop logic into check_and_recover_database
         while True:
             if check_and_recover_database(controller):
                 break
@@ -566,7 +414,6 @@ def post_launch_integrity_check(controller):
         sys.exit(1)
 
 def restart_app():
-    """Restarts the current application."""
     python = sys.executable
     os.execl(python, python, *sys.argv)
 
@@ -581,7 +428,6 @@ class StartupWorker(QThread):
 
     def run(self):
         try:
-            # 1. Quick integrity check (non-blocking)
             self.progress_update.emit("Inizializzazione...", 20)
             try:
                 from desktop_app.services.integrity_service import verify_critical_components
@@ -591,15 +437,13 @@ class StartupWorker(QThread):
             except ImportError:
                 pass
 
-            # 2. Start Server IMMEDIATELY
             self.progress_update.emit("Avvio servizi...", 40)
             threading.Thread(target=start_server, args=(self.server_port,), daemon=True).start()
 
-            # 3. Wait for Server (with faster polling)
             self.progress_update.emit("Connessione...", 60)
             t0 = time.time()
             ready = False
-            timeout = 60  # Increased timeout for stability
+            timeout = 60
             
             while time.time() - t0 < timeout:
                 if check_port("127.0.0.1", self.server_port):
@@ -608,12 +452,11 @@ class StartupWorker(QThread):
                 elapsed = time.time() - t0
                 prog = 60 + int((elapsed / timeout) * 30)
                 self.progress_update.emit("Connessione...", min(90, prog))
-                time.sleep(0.05)  # Faster polling
+                time.sleep(0.05)
 
             if not ready:
                 raise TimeoutError("Timeout connessione al server.")
 
-            # 4. Quick Health Check
             self.progress_update.emit("Verifica...", 95)
             try:
                 health_url = f"http://localhost:{self.server_port}/api/v1/health"
@@ -623,7 +466,6 @@ class StartupWorker(QThread):
             except requests.exceptions.RequestException as e:
                 raise ConnectionError(f"Health Check Failed: {e}")
 
-            # 5. Done
             self.progress_update.emit("Pronto!", 100)
             self.startup_complete.emit(True, "OK")
 
@@ -635,7 +477,7 @@ def main():
     parser.add_argument("--analyze", help="Path")
     parser.add_argument("--import-csv", help="Path")
     parser.add_argument("--view", help="View")
-    args, _ = parser.parse_known_args() # 'unknown' unused, replaced with _
+    args, _ = parser.parse_known_args()
 
     server_port = find_free_port()
     if not server_port:
@@ -646,7 +488,6 @@ def main():
 
     qt_app = QApplication.instance() or QApplication(sys.argv)
 
-    # Show Splash
     try:
         from desktop_app.views.splash_screen import CustomSplashScreen
         splash = CustomSplashScreen()
@@ -655,14 +496,10 @@ def main():
         QMessageBox.critical(None, "Errore", f"Splash Error: {e}")
         sys.exit(1)
 
-    # --- EXECUTE STRICT STARTUP SEQUENCE ---
-
-    # Step 0: License Gatekeeper
+    # --- STRICT LICENSE CHECK (RECOVERY MODE) ---
     check_license_gatekeeper(splash)
 
-    # Step 1 (Removed Pre-Launch Check): Proceed to App Launch
-
-    # Step 2: Start Backend & App
+    # Proceed if valid
     worker = StartupWorker(server_port)
 
     def on_progress(msg, val):
@@ -691,15 +528,10 @@ def main():
             else:
                 splash.close()
 
-            # --- STEP 3: POST-LAUNCH DB INTEGRITY CHECK ---
-            # Now that UI (Login) is potentially visible, check DB.
-            # If missing/corrupt, the dialog will show OVER the Login View.
-            # And user can resolve it.
             post_launch_integrity_check(controller)
 
         except Exception as e:
             splash.show_error(f"Errore caricamento interfaccia: {e}")
-            # Log full traceback locally as logging is now configured
             logging.critical("UI Load Error", exc_info=True)
             sys.exit(1)
 

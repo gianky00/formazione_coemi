@@ -6,7 +6,7 @@ import shutil
 import tempfile
 from typing import Optional, Dict, Any
 from desktop_app.services.path_service import get_license_dir
-from desktop_app.constants import FILE_MANIFEST, FILE_PYARMOR_KEY, FILE_CONFIG_DAT
+from desktop_app.constants import FILE_MANIFEST, FILE_CONFIG_DAT
 
 class LicenseUpdaterService:
     """
@@ -77,8 +77,8 @@ class LicenseUpdaterService:
             json.dump(remote_manifest, f)
 
         # Scarica gli altri file
-        # S1192: Use constants
-        files_to_download = [FILE_PYARMOR_KEY, FILE_CONFIG_DAT]
+        # Removed PyArmor key
+        files_to_download = [FILE_CONFIG_DAT]
         for filename in files_to_download:
             file_api_url = f"{api_url}/{filename}"
             meta_res = requests.get(file_api_url, headers=headers, timeout=15)
@@ -95,11 +95,8 @@ class LicenseUpdaterService:
                 f.write(content_res.content)
 
         # Verifica i checksum
-        rkey_path = os.path.join(temp_dir, FILE_PYARMOR_KEY)
         config_path = os.path.join(temp_dir, FILE_CONFIG_DAT)
 
-        if remote_manifest[FILE_PYARMOR_KEY] != self._calculate_sha256(rkey_path):
-            raise ValueError(f"Checksum per '{FILE_PYARMOR_KEY}' non valido.")
         if remote_manifest[FILE_CONFIG_DAT] != self._calculate_sha256(config_path):
             raise ValueError(f"Checksum per '{FILE_CONFIG_DAT}' non valido.")
 
@@ -130,7 +127,7 @@ class LicenseUpdaterService:
                 target_license_dir = get_license_dir()
                 os.makedirs(target_license_dir, exist_ok=True)
 
-                shutil.move(os.path.join(temp_dir, FILE_PYARMOR_KEY), os.path.join(target_license_dir, FILE_PYARMOR_KEY))
+                # Removed PyArmor key move
                 shutil.move(os.path.join(temp_dir, FILE_CONFIG_DAT), os.path.join(target_license_dir, FILE_CONFIG_DAT))
                 shutil.move(os.path.join(temp_dir, FILE_MANIFEST), os.path.join(target_license_dir, FILE_MANIFEST))
 
