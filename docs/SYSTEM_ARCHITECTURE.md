@@ -75,6 +75,9 @@ graph TD
     *   **Web Engine**: `PyQt6-WebEngine` (Chromium embedding), `PyQt6-WebChannel` (JS Bridge).
     *   **Network**: `requests` (API Client sincrono), `urllib3`.
     *   **System**: `wmi` (Hardware ID Windows), `pywin32` (OS Integration).
+    *   **Multimedia**:
+        *   `Neural3D`: Engine particellare vettoriale custom (`numpy`) per visualizzazioni 3D.
+        *   `SoundManager`: Sintetizzatore audio real-time (WAV generator) e bridge `edge-tts`.
 
 ### Guide Frontend (`guide_frontend/`)
 *   **Stack Tecnologico**: `React 18`, `Vite` (Build Tool), `Tailwind CSS 3` (Styling), `Framer Motion` (Animations), `Lucide React` (Icons).

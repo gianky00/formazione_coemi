@@ -80,9 +80,10 @@ Strumenti per lo sviluppo, il deployment e la manutenzione.
     *   Esegue PyArmor (Offuscamento).
     *   Compila con PyInstaller (Frozen Executable).
     *   Compila Installer Inno Setup (`setup_script.iss`).
-*   **`admin/crea_licenze/admin_license_gui.py`**: Generatore Licenze Admin.
+*   **`admin/crea_licenze/admin_license_gui.py`**: Generatore Licenze Admin (GUI Tkinter).
     *   Genera `pyarmor.rkey` e `config.dat` cifrato.
-*   **`admin/riepilogo_Bug_Sonar.py`**: Analisi statica custom.
+*   **`admin/call_list_IA.py`**: Utility CLI per testare connettività Gemini e listare modelli disponibili.
+*   **`admin/riepilogo_Bug_Sonar.py`**: Analisi statica custom per reportistica bug.
 
 ---
 

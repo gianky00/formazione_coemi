@@ -58,6 +58,10 @@ Formato: `type: Subject`
 *   **Catch-All**: Vietato `except Exception:` nudo senza logging o re-raise, tranne nel `boot_loader` (Pokemon Exception Handling per stabilità).
 *   **UI Feedback**: Ogni errore API deve essere mostrato all'utente via `Toast` o `Dialog` in italiano amichevole (es. "Impossibile contattare il server" non "ConnectionRefusedError").
 
-## 5. Analisi Statica & Security
+## 5. Asset & Multimedia
+*   **Audio**: Evitare file `.mp3` o `.wav` statici pesanti. Usare `SoundManager` per sintesi procedurale (WAV in-memory) o TTS dinamico.
+*   **Grafica 3D**: Usare engine vettoriali (`numpy`/`QPainter`) invece di asset 3D pre-renderizzati o video pesanti.
+
+## 6. Analisi Statica & Security
 *   **SonarCloud**: Il codice deve passare i gate di qualità (0 Vulnerabilità, Coverage > 80%).
 *   **Secrets**: Nessun segreto hardcoded (usa variabili d'ambiente o offuscamento XOR per chiavi statiche).
