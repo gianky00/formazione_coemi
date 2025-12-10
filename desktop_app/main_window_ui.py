@@ -22,21 +22,33 @@ class SystemCheckWorker(QObject):
     def __init__(self, api_client):
         super().__init__()
         self.api_client = api_client
+        self._is_running = True
 
     def run(self):
         try:
             status = self.api_client.get_lock_status()
             # Ensure status is always a dict before emitting
-            if status and isinstance(status, dict):
-                self.result_ready.emit(status)
-            else:
-                self.result_ready.emit({})
+            if self._is_running:
+                if status and isinstance(status, dict):
+                    self.result_ready.emit(status)
+                else:
+                    self.result_ready.emit({})
         except Exception as e:
             # Log network issues during status check but don't crash
             import logging
             logging.getLogger(__name__).debug(f"System check failed (non-critical): {e}")
         finally:
-            self.finished.emit()
+            # Safely emit finished signal only if worker is still valid
+            if self._is_running:
+                try:
+                    self.finished.emit()
+                except RuntimeError:
+                    # Object already deleted, ignore
+                    pass
+    
+    def stop(self):
+        """Mark worker as stopped to prevent signal emission after deletion."""
+        self._is_running = False
 
 class BellButton(QPushButton):
     def __init__(self, parent=None):
@@ -709,6 +721,7 @@ class MainDashboardWidget(QWidget):
 
     def _init_system_checks(self):
         self.check_thread = None
+        self.check_worker = None
         self.system_check_timer = QTimer(self)
         self.system_check_timer.setInterval(10000)
         self.system_check_timer.timeout.connect(self._start_system_check_thread)
@@ -717,8 +730,6 @@ class MainDashboardWidget(QWidget):
         self._last_license_check = 0
         self._start_system_check_thread()
 
-    def _cleanup_check_thread(self):
-        self.check_thread = None
 
     def _start_system_check_thread(self):
         # Prevent starting a new thread if one exists
@@ -726,17 +737,34 @@ class MainDashboardWidget(QWidget):
             return
 
         # Create a new thread for each check to ensure clean state
-        # Alternatively, keep one worker alive. But creating simple worker is fine.
         self.check_thread = QThread()
         self.check_worker = SystemCheckWorker(self.api_client)
         self.check_worker.moveToThread(self.check_thread)
+        
+        # Connect signals with appropriate connection types
         self.check_thread.started.connect(self.check_worker.run)
-        self.check_worker.result_ready.connect(self._on_system_check_result)
-        self.check_worker.finished.connect(self.check_thread.quit)
-        self.check_worker.finished.connect(self.check_worker.deleteLater)
-        self.check_thread.finished.connect(self.check_thread.deleteLater)
-        self.check_thread.finished.connect(self._cleanup_check_thread)
+        self.check_worker.result_ready.connect(self._on_system_check_result, Qt.ConnectionType.QueuedConnection)
+        self.check_worker.finished.connect(self.check_thread.quit, Qt.ConnectionType.QueuedConnection)
+        
+        # Use QueuedConnection for deleteLater to prevent premature deletion
+        self.check_thread.finished.connect(self._cleanup_check_resources, Qt.ConnectionType.QueuedConnection)
+        
         self.check_thread.start()
+    
+    def _cleanup_check_resources(self):
+        """Safely cleanup worker and thread after completion."""
+        try:
+            if self.check_worker:
+                self.check_worker.stop()
+                self.check_worker.deleteLater()
+                self.check_worker = None
+            if self.check_thread:
+                self.check_thread.deleteLater()
+                self.check_thread = None
+        except RuntimeError:
+            # Objects already deleted
+            self.check_worker = None
+            self.check_thread = None
 
     def _on_system_check_result(self, status):
         try:
