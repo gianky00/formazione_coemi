@@ -188,6 +188,17 @@ def sentry_exception_hook(exctype, value, traceback):
         except Exception:
             pass
 
+    # 4. Nuclear Zombie Kill
+    # Using os._exit ensures that all threads (including Uvicorn) are killed immediately.
+    # We also attempt to kill our own PID to be absolutely sure.
+    pid = os.getpid()
+    if os.name == 'nt':
+        try:
+            # Force kill self and children
+            subprocess.Popen(f"taskkill /F /PID {pid} /T", shell=True)
+        except Exception:
+            pass
+
     if issubclass(exctype, SystemExit):
         os._exit(value.code if hasattr(value, 'code') else 1)
 

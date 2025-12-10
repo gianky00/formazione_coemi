@@ -300,7 +300,8 @@ def _add_collect_all(cmd):
         "passlib", "bcrypt", "jose", "cryptography", "PyQt6",
         "geoip2", "user_agents", "apscheduler",
         "sentry_sdk",
-        "charset_normalizer"
+        "charset_normalizer",
+        "python_multipart"
     ]
     for pkg in packages:
         cmd.extend(["--collect-all", pkg])
@@ -326,6 +327,8 @@ def _add_hidden_imports(cmd, auto_detected_libs):
         "PyQt6.QtWebEngineWidgets", "PyQt6.QtWebEngineCore", "PyQt6.QtWebChannel",
         "email.mime.text", "email.mime.multipart", "email.mime.application",
         "email.mime.base", "email.mime.image", "email.header", "email.utils",
+        "email.message", "email.parser", "email.feedparser", "email.iterators",
+        "email.generator", "email.policy", "email.contentmanager",
         "email.encoders", "encodings",
         "charset_normalizer", "charset_normalizer.md",
         "pydantic_settings", "httpx",
