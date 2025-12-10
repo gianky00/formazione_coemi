@@ -576,7 +576,11 @@ class ApplicationController:
             try:
                 CustomMessageDialog.show_error(self.master_window, "Errore Importazione", f"Impossibile importare il file:\n{error_msg}")
             except Exception as e:
-                sentry_sdk.capture_exception(e)
+                safe_print(f"CustomDialog failed: {e}")
+                if sentry_sdk:
+                    sentry_sdk.capture_exception(e)
+                # Fallback to standard QMessageBox if custom dialog fails
+                QMessageBox.critical(self.master_window, "Errore Importazione", f"Impossibile importare il file:\n{error_msg}")
             finally:
                 self._cleanup_csv_worker()
         
