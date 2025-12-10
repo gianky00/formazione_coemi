@@ -401,6 +401,9 @@ class AnagraficaView(QWidget):
             self.all_employees = []
             self.list_widget.clear()
             QMessageBox.critical(self, "Errore Critico", f"Errore caricamento dipendenti (Vedi log):\n{e}")
+        except BaseException as e: # Catch EVERYTHING (SystemExit, KeyboardInterrupt, GeneratorExit)
+             print(f"[ANAGRAFICA] FATAL ERROR: {e}", flush=True)
+             QMessageBox.critical(self, "Errore Fatale", f"Errore imprevisto:\n{e}")
 
     def filter_list(self, text):
         search = self.search_bar.text().lower()

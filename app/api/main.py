@@ -850,7 +850,11 @@ async def import_dipendenti_csv(
 
 @router.get("/dipendenti", response_model=List[DipendenteSchema], dependencies=[Depends(deps.verify_license)])
 def get_dipendenti(db: Session = Depends(get_db)):
-    return db.query(Dipendente).all()
+    try:
+        return db.query(Dipendente).all()
+    except Exception as e:
+        print(f"[CRITICAL ERROR GET /dipendenti] {e}", flush=True)
+        raise HTTPException(status_code=500, detail=f"Errore recupero dipendenti: {str(e)}")
 
 @router.get("/dipendenti/{dipendente_id}", response_model=DipendenteDetailSchema, dependencies=[Depends(deps.verify_license)])
 def get_dipendente_detail(dipendente_id: int, db: Session = Depends(get_db)):

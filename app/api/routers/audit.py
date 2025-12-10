@@ -9,7 +9,6 @@ from app.api import deps
 from app.db.models import AuditLog, User as UserModel
 from app.schemas.schemas import AuditLogSchema
 from app.utils.audit import log_security_action
-import pandas as pd
 import csv
 import io
 

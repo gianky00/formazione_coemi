@@ -339,7 +339,8 @@ def _add_hidden_imports(cmd, auto_detected_libs):
         "jose", "jose.backends.cryptography_backend",
         "cryptography", "cryptography.hazmat.backends.openssl",
         "pandas", "tenacity", "fpdf", "ua_parser",
-        "sentry_sdk"
+        "sentry_sdk",
+        "openpyxl", "chardet", "xlsxwriter", "odf"
     ]
 
     all_hidden_imports = list(set(manual_hidden_imports + auto_detected_libs))

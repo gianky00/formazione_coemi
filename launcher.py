@@ -117,41 +117,47 @@ def _decode_sentry_dsn():
 
 def init_sentry():
     """Initializes Sentry SDK for error tracking with thread hooks."""
-    if sentry_sdk.is_initialized():
-        return
-        
-    environment = "production" if getattr(sys, 'frozen', False) else "development"
+    try:
+        if sentry_sdk.is_initialized():
+            return
 
-    # Disable Sentry in Frozen app temporarily to rule out interference
-    if getattr(sys, 'frozen', False):
-        return
+        environment = "production" if getattr(sys, 'frozen', False) else "development"
 
-    dsn = os.environ.get("SENTRY_DSN") or _decode_sentry_dsn()
-    
-    if not dsn:
-        return
+        # Disable Sentry in Frozen app temporarily to rule out interference
+        if getattr(sys, 'frozen', False):
+            return
 
-    sentry_sdk.init(
-        dsn=dsn,
-        environment=environment,
-        release=f"intelleo@{__version__}",
-        traces_sample_rate=0.3,  # Performance: 30% sampling
-        send_default_pii=False,
-        attach_stacktrace=True,
-        max_breadcrumbs=50,  # Limit memory usage
-        debug=False,
-    )
-    
-    # Install threading exception hook for all threads
-    import threading
-    
-    def thread_excepthook(args):
-        """Global hook for thread exceptions."""
-        logging.critical(f"Thread exception in {args.thread.name}: {args.exc_type.__name__}: {args.exc_value}")
-        sentry_sdk.capture_exception(args.exc_value)
-    
-    if hasattr(threading, 'excepthook'):
-        threading.excepthook = thread_excepthook
+        dsn = os.environ.get("SENTRY_DSN") or _decode_sentry_dsn()
+
+        if not dsn:
+            return
+
+        sentry_sdk.init(
+            dsn=dsn,
+            environment=environment,
+            release=f"intelleo@{__version__}",
+            traces_sample_rate=0.3,  # Performance: 30% sampling
+            send_default_pii=False,
+            attach_stacktrace=True,
+            max_breadcrumbs=50,  # Limit memory usage
+            debug=False,
+        )
+
+        # Install threading exception hook for all threads
+        import threading
+
+        def thread_excepthook(args):
+            """Global hook for thread exceptions."""
+            try:
+                logging.critical(f"Thread exception in {args.thread.name}: {args.exc_type.__name__}: {args.exc_value}")
+                sentry_sdk.capture_exception(args.exc_value)
+            except Exception:
+                pass
+
+        if hasattr(threading, 'excepthook'):
+            threading.excepthook = thread_excepthook
+    except Exception as e:
+        print(f"[WARNING] Sentry init failed (ignored): {e}")
 
 def sentry_exception_hook(exctype, value, traceback):
     """
@@ -277,6 +283,8 @@ def init_posthog():
 
     except Exception as e:
         logging.error(f"Failed to init PostHog: {e}")
+    except BaseException:
+        pass # Absolute safety net
 
 init_posthog()
 
