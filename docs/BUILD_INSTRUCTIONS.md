@@ -15,33 +15,60 @@ Questo documento tecnico descrive la procedura "Master" per compilare, protegger
     cd guide_frontend && npm install
     ```
 
-## 2. Master Build Script (`admin/offusca/build_dist.py`)
+## 2. Master Build Script (`admin/offusca/build_nuitka.py`)
 
-L'intero processo è orchestrato dallo script `build_dist.py`. Non eseguire i passaggi manualmente a meno che non sia necessario per il debug.
+L'intero processo è orchestrato dallo script `build_nuitka.py`. Sostituisce completamente il vecchio script PyInstaller (`build_dist.py`).
 
 ### Esecuzione
 Dalla root del progetto:
 ```bash
-python admin/offusca/build_dist.py
+python admin/offusca/build_nuitka.py [--clean] [--fast] [--skip-checks]
 ```
 
+**Opzioni**:
+- `--clean`: Rimuove build precedenti prima di compilare
+- `--fast`: Build veloce senza LTO (per sviluppo/test)
+- `--skip-checks`: Salta verifica ambiente (non raccomandato)
+
 ### Pipeline di Build (Fasi)
-1.  **Frontend Compilation**: Esegue `npm run build` in `guide_frontend`. Genera gli asset statici in `guide_frontend/dist/`.
-2.  **Environment Check**: Verifica la presenza di compilatori C++ (MSVC) e Inno Setup.
-3.  **Obfuscation (PyArmor)**:
-    *   Protegge i package `app` e `desktop_app`.
-    *   Genera runtime in `dist/obf/`.
-    *   Applica regole: `restrict mode 2`, `mix-str`, `assert-call`.
-4.  **Packaging (PyInstaller)**:
-    *   Legge `Intelleo.spec` (o configurazione interna).
-    *   Analizza import nascosti (Hidden Imports).
-    *   Genera `dist/Intelleo/` (Directory).
-5.  **DLL Injection**:
-    *   Identifica le dipendenze di sistema critiche (`vcruntime140.dll`, `msvcp140.dll`).
-    *   Le copia nella cartella `dll/` del pacchetto per garantire l'esecuzione su macchine "pulite".
-6.  **Installer Creation (Inno Setup)**:
-    *   Compila `admin/crea_setup/setup_script.iss`.
-    *   Output finale: `dist/Intelleo_Setup_{version}.exe`.
+1.  **Verifica Ambiente**: Check Python 3.12+, Nuitka, MSVC compiler, npm.
+2.  **Build React Frontend**: Compila `guide_frontend/` se necessario (`npm run build`).
+3.  **Compilazione Nuitka**:
+    *   **Analisi Python** (~5-10 min prima volta): Analizza import e dipendenze.
+    *   **Generazione Codice C** (~2-5 min): Converte Python in C.
+    *   **Compilazione C** (~20-30 min prima volta, ~8 min con ccache): Compila con MSVC.
+    *   **Linking** (~2-5 min): Crea eseguibile finale.
+4.  **Post-Processing**: Crea README.txt, verifica output, copia asset extra.
+5.  **Report**: Genera statistiche build (tempo, dimensione, file count).
+
+**⏱️ Tempi Totali**:
+- Prima compilazione: **35-50 minuti**
+- Successive (con ccache): **8-15 minuti**
+
+💡 **Tip**: Installa `ccache` per velocizzare rebuild: `choco install ccache`
+
+### Output
+```
+dist/nuitka/
+└── Intelleo.dist/
+    ├── Intelleo.exe          # Eseguibile principale (nativo C)
+    ├── guide/                # React SPA
+    │   └── index.html
+    ├── desktop_app/
+    │   ├── assets/
+    │   └── icons/
+    ├── Qt6Core.dll           # Dipendenze Qt
+    ├── python312.dll         # Runtime Python
+    └── [altre DLL]
+```
+
+### Installer Creation
+Dopo il build Nuitka, crea l'installer:
+```bash
+cd admin/crea_setup
+"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" setup_script.iss
+```
+Output: `dist/installer/Intelleo_Setup_v2.0.0.exe`
 
 ---
 
@@ -82,13 +109,44 @@ Per abilitare l'aggiornamento automatico della licenza:
 
 ## 4. Troubleshooting Build
 
-### Errore "Module Not Found" in Runtime
-*   **Causa**: PyInstaller non ha rilevato un import dinamico.
-*   **Soluzione**: Aggiungi il modulo a `hiddenimports` in `build_dist.py`.
+### Errore "Module 'X' not found" in Runtime
+*   **Causa**: Nuitka non ha rilevato un import dinamico.
+*   **Soluzione**: Aggiungi al comando Nuitka in `build_nuitka.py`:
+    ```python
+    "--include-module=X",
+    ```
 
 ### Errore "DLL Load Failed"
 *   **Causa**: Mancano le librerie ridistribuibili VC++ sul target.
-*   **Soluzione**: Verificare che la fase "DLL Injection" abbia copiato le DLL corrette in `dist/Intelleo/dll/`.
+*   **Soluzione**: L'utente deve installare Visual C++ Redistributable da Microsoft, oppure includere `vc_redist.x64.exe` nell'installer.
 
-### PyArmor "License Invalid" durante la Build
-*   Assicurarsi che il file `pyarmor-regcode-xxxx.txt` sia stato registrato sulla macchina di build (`pyarmor reg pyarmor-regcode...`).
+### Build si blocca su "Compiling X.c" per >10 minuti
+*   **Causa**: File C grande o RAM insufficiente.
+*   **Soluzione**:
+    - Verifica RAM disponibile (>8 GB raccomandati)
+    - Chiudi altri programmi
+    - Aspetta (alcuni file richiedono 5-10 min)
+    - Se persiste, usa `--fast` per disabilitare LTO
+
+### ccache non attivo (ogni build compila tutto)
+*   **Causa**: ccache non installato o non nel PATH.
+*   **Soluzione**:
+    ```bash
+    # Windows (Chocolatey)
+    choco install ccache
+    
+    # Verifica
+    ccache --version
+    ccache -s  # Mostra statistiche cache
+    ```
+
+### Errore "MSVC not found"
+*   **Causa**: Visual Studio Build Tools non installato.
+*   **Soluzione**: Installa "Build Tools for Visual Studio 2022" con workload "Desktop development with C++".
+
+### Prima compilazione molto lenta (>50 min)
+*   **Causa**: Normale per ~1200 moduli C da compilare.
+*   **Soluzione**: 
+    - Usa `--fast` per test rapidi
+    - Installa `ccache` per build successive più veloci
+    - Non interrompere il processo

@@ -83,18 +83,36 @@ graph TD
 *   **Stack Tecnologico**: `React 18`, `Vite` (Build Tool), `Tailwind CSS 3` (Styling), `Framer Motion` (Animations), `Lucide React` (Icons).
 *   **Build Artifact**: File statici (`index.html`, `assets/*.js`, `assets/*.css`) in `guide_frontend/dist/`.
 
+### Build Artifact (Nuitka)
+*   **Build Tool**: Nuitka (Python-to-C compiler)
+*   **Output**: Cartella `dist/nuitka/Intelleo.dist/` con eseguibile nativo + dipendenze
+*   **Vantaggi rispetto a PyInstaller**:
+    - **Avvio istantaneo**: <2s vs ~6s (nessuna estrazione bytecode)
+    - **Codice C nativo**: Compilato, non interpretato
+    - **Protezione IP**: Reverse engineering 10x più difficile
+    - **Nessuna estrazione temporanea**: No `_MEIPASS`, no file temporanei
+    - **Stabilità**: Eliminati crash da race condition e DLL conflicts
+*   **Path Resolution**: Usa `app.core.path_resolver` per path universali (dev/Nuitka compatibili)
+
 ## 3. Flussi di Interazione Critici
 
 ### 3.1 Boot Sequence (Reliability & Security)
 1.  **Boot Loader**: `boot_loader.py` avvia `launcher.py` in un blocco `try/except` "Pokemon" (Catch-All) per catturare errori di importazione DLL (comuni su Windows).
-2.  **License Gatekeeper**: `launcher.py` verifica la validità della licenza e l'integrità del sistema (`integrity_service`).
+2.  **Path Resolution**: `launcher.py` usa `app.core.path_resolver` per determinare:
+    *   `get_base_path()`: Root applicazione (compatibile dev/Nuitka)
+    *   `get_license_path()`: Cerca licenza in ordine di priorità:
+        1. `%LOCALAPPDATA%/Intelleo/Licenza` (user data)
+        2. `{AppDir}/Licenza` (legacy/install dir)
+        3. `{AppDir}/` (fallback)
+    > **Nota Nuitka**: `{AppDir}` = `os.path.dirname(sys.executable)`, NON `sys._MEIPASS`
+3.  **License Gatekeeper**: Verifica validità licenza e integrità sistema (`integrity_service`).
     *   *Se Fail*: Tenta Auto-Update (Headless). Se fallisce ancora -> Exit.
-3.  **Port Discovery**: Scansiona porte 8000-8010 per trovare una porta libera.
-4.  **Backend Spawn**: Avvia il backend su thread separato (`uvicorn.run`).
-5.  **Health Check**: Polling su `/api/v1/health`.
+4.  **Port Discovery**: Scansiona porte 8000-8010 per trovare una porta libera.
+5.  **Backend Spawn**: Avvia il backend su thread separato (`uvicorn.run`).
+6.  **Health Check**: Polling su `/api/v1/health`.
     *   *Se DB Lock*: Backend parte in "Recovery Mode". Launcher avvia UI ma notifica "Read Only".
     *   *Se DB Missing*: Backend OK, Launcher mostra "Database Recovery Dialog".
-6.  **UI Launch**: Avvia `QApplication` e `LoginView`.
+7.  **UI Launch**: Avvia `QApplication` e `LoginView`.
 
 ### 3.2 AI Data Ingestion Pipeline
 1.  **Upload**: Utente trascina PDF -> Frontend invia bytes a `POST /upload-pdf/`.

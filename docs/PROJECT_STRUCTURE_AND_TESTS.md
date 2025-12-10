@@ -76,10 +76,12 @@ Manuale utente moderno, Mobile-Responsive.
 ## 4. Admin & Build Scripts (`admin/`)
 Strumenti per lo sviluppo, il deployment e la manutenzione.
 
-*   **`admin/offusca/build_dist.py`**: **Master Build Script**.
-    *   Esegue PyArmor (Offuscamento).
-    *   Compila con PyInstaller (Frozen Executable).
-    *   Compila Installer Inno Setup (`setup_script.iss`).
+*   **`admin/offusca/build_nuitka.py`**: **Master Build Script (Nuitka)**.
+    *   Compila Python a C nativo con Nuitka.
+    *   Output: `dist/nuitka/Intelleo.dist/Intelleo.exe`.
+    *   Opzioni: `--clean`, `--fast`, `--skip-checks`.
+*   **`admin/offusca/build_dist.py`**: **(Legacy - PyInstaller)**.
+    *   Deprecato. Usare `build_nuitka.py` per nuove build.
 *   **`admin/crea_licenze/admin_license_gui.py`**: Generatore Licenze Admin (GUI Tkinter).
     *   Genera `pyarmor.rkey` e `config.dat` cifrato.
 *   **`admin/call_list_IA.py`**: Utility CLI per testare connettività Gemini e listare modelli disponibili.

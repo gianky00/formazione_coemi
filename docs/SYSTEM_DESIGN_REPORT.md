@@ -161,8 +161,19 @@ In caso di fallimento (File mancante o Header corrotto), il sistema entra in **R
 
 ### 4.3 Environment Detection
 
-*   **Frozen Detection**: Usa `getattr(sys, 'frozen', False)` per distinguere tra Dev (Python script) e Prod (PyInstaller .exe).
-*   **Asset Resolution**:
-    *   Se Frozen: Usa `sys._MEIPASS` per risorse interne.
-    *   Se Dev: Usa `os.path.dirname(__file__)`.
+*   **Frozen Detection**: Usa `getattr(sys, 'frozen', False)` per distinguere tra Dev (Python script) e Prod (eseguibile compilato).
+*   **Path Resolution** (via `app.core.path_resolver`):
+    *   `get_base_path()`: Determina root app in modo universale
+    *   Se Frozen + Nuitka: Usa `os.path.dirname(sys.executable)`
+    *   Se Frozen + PyInstaller (legacy): Usa `sys._MEIPASS`
+    *   Se Dev: Usa `Path(__file__).resolve().parent.parent.parent`
 *   **DLL Injection**: Inietta dinamicamente la cartella `dll/` nel `PATH` e via `os.add_dll_directory` per garantire il caricamento delle dipendenze C++ (Qt, MSVC) su Windows.
+
+### 4.4 String Obfuscation (Security)
+
+Con la migrazione a Nuitka (codice C nativo), le stringhe sensibili vengono offuscate per evitare estrazione con `strings`:
+
+*   **Modulo**: `app/core/string_obfuscation.py`
+*   **Algoritmo**: XOR con chiave statica + Base64 encoding
+*   **Applicato a**: Chiavi Fernet, API keys, token
+*   **Validazione**: `strings Intelleo.exe | grep "8kHs"` deve essere vuoto

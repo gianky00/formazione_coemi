@@ -6,8 +6,9 @@ Questo documento guida il processo operativo per distribuire il software ai clie
 
 ### Passo 1: Build dell'Eseguibile
 Se non hai già una build recente:
-1.  Esegui `python admin/offusca/build_dist.py`.
-2.  Preleva l'installer da `dist/Intelleo_Setup_X.X.exe`.
+1.  Esegui `python admin/offusca/build_nuitka.py --clean`.
+2.  Compila installer: `"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" admin/crea_setup/setup_script.iss`
+3.  Preleva l'installer da `dist/installer/Intelleo_Setup_vX.X.exe`.
 
 ### Passo 2: Installazione
 Invia l'installer al cliente.
