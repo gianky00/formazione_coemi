@@ -168,6 +168,17 @@ def sentry_exception_hook(exctype, value, traceback):
     print(f"[CRITICAL] Unhandled exception: {exctype}, {value}")
     tb.print_tb(traceback)
 
+    # 2a. Force Write to Crash Log (Frozen App Survival)
+    try:
+        from desktop_app.services.path_service import get_user_data_dir
+        log_path = os.path.join(get_user_data_dir(), "CRASH_LOG.txt")
+        with open(log_path, "a") as f:
+            f.write(f"\n--- CRASH DETECTED AT {time.ctime()} ---\n")
+            f.write(f"Exception: {exctype.__name__}: {value}\n")
+            tb.print_tb(traceback, file=f)
+    except Exception:
+        pass
+
     # 3. Database Cleanup (CRITICAL)
     try:
         from app.core.db_security import db_security

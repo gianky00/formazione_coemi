@@ -2,7 +2,7 @@ import csv
 import io
 import os
 import shutil
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query, Request
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import IntegrityError
 from app.db.session import get_db
@@ -758,13 +758,25 @@ def delete_certificato(
 
 @router.post("/dipendenti/import-csv", dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)])
 async def import_dipendenti_csv(
-    file: UploadFile = File(...),
+    request: Request,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_user)
 ):
     # FALLBACK: Catch ALL errors at the top level for this handler
     try:
-        print(f"[TRACE] Starting import_dipendenti_csv for {file.filename}", flush=True)
+        print("[TRACE] Starting import_dipendenti_csv (manual parsing)", flush=True)
+
+        # Manually parse form to avoid automatic injection crash
+        try:
+            form = await request.form()
+            file = form.get("file")
+            if not file:
+                raise HTTPException(status_code=400, detail="File mancante nella richiesta.")
+        except Exception as e:
+            print(f"[TRACE] Error parsing multipart form: {e}", flush=True)
+            raise HTTPException(status_code=400, detail=f"Errore parsing file: {e}")
+
+        print(f"[TRACE] File received: {file.filename}", flush=True)
         MAX_CSV_SIZE = settings.MAX_CSV_SIZE
 
         # Read content with size check
@@ -786,11 +798,6 @@ async def import_dipendenti_csv(
 
         if not file.filename.endswith('.csv'):
             raise HTTPException(status_code=400, detail="Il file deve essere in formato CSV.")
-
-        # Temporary Bypass: In frozen environment, verify_file_signature might crash if dependencies (magic) are missing.
-        # We rely on decoding check instead.
-        # if not verify_file_signature(content, 'csv'):
-        #      raise HTTPException(status_code=400, detail="File non valido: contenuto non riconosciuto come CSV/Testo.")
 
         print(f"[TRACE] Decoding content...", flush=True)
         decoded_content = _decode_csv_content(content)
