@@ -14,12 +14,26 @@ import logging.handlers
 import importlib
 
 # --- BUG FIX: Increase recursion limit to prevent crashes on bulk operations ---
-sys.setrecursionlimit(5000)
+sys.setrecursionlimit(10000)
 
 # Constants
 DATABASE_FILENAME = "database_documenti.db"
 LICENSE_FILE_KEY = "pyarmor.rkey"
 LICENSE_FILE_CONFIG = "config.dat"
+
+# --- CONFIGURAZIONE TEMPFILE (CRITICO PER FROZEN) ---
+# Ensure tempfile writes to a known writable directory
+import tempfile
+def setup_temp_dir():
+    try:
+        from desktop_app.services.path_service import get_user_data_dir
+        temp_dir = os.path.join(get_user_data_dir(), "Temp")
+        os.makedirs(temp_dir, exist_ok=True)
+        tempfile.tempdir = temp_dir
+    except Exception as e:
+        print(f"[WARNING] Failed to set temp dir: {e}")
+
+setup_temp_dir()
 
 # --- PHASE 2: LOGGING CONFIGURATION ---
 # Must be configured BEFORE any other imports to capture everything
@@ -62,7 +76,6 @@ def setup_global_logging():
         # 5. Silence ALL noisy libraries to reduce spam
         noisy_loggers = [
             "urllib3", "requests", "httpx", "asyncio", "multipart",
-            "python_multipart", "python_multipart.multipart", # Specifically silence this one
             "watchfiles", "uqi", "faker", "httpcore",
             # Uvicorn - silence completely
             "uvicorn", "uvicorn.access", "uvicorn.error",
@@ -108,6 +121,11 @@ def init_sentry():
         return
         
     environment = "production" if getattr(sys, 'frozen', False) else "development"
+
+    # Disable Sentry in Frozen app temporarily to rule out interference
+    if getattr(sys, 'frozen', False):
+        return
+
     dsn = os.environ.get("SENTRY_DSN") or _decode_sentry_dsn()
     
     if not dsn:

@@ -762,77 +762,84 @@ async def import_dipendenti_csv(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_user)
 ):
-    print(f"[TRACE] Starting import_dipendenti_csv for {file.filename}", flush=True)
-    MAX_CSV_SIZE = settings.MAX_CSV_SIZE
-
-    # Read content with size check
-    content_bytes = bytearray()
+    # FALLBACK: Catch ALL errors at the top level for this handler
     try:
-        while True:
-            chunk = await file.read(1024 * 1024)
-            if not chunk:
-                break
-            content_bytes.extend(chunk)
-            if len(content_bytes) > MAX_CSV_SIZE:
-                raise HTTPException(status_code=413, detail=f"Il file CSV supera il limite massimo di {MAX_CSV_SIZE // (1024*1024)}MB.")
+        print(f"[TRACE] Starting import_dipendenti_csv for {file.filename}", flush=True)
+        MAX_CSV_SIZE = settings.MAX_CSV_SIZE
+
+        # Read content with size check
+        content_bytes = bytearray()
+        try:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                content_bytes.extend(chunk)
+                if len(content_bytes) > MAX_CSV_SIZE:
+                    raise HTTPException(status_code=413, detail=f"Il file CSV supera il limite massimo di {MAX_CSV_SIZE // (1024*1024)}MB.")
+        except Exception as e:
+            print(f"[TRACE] Error reading file: {e}", flush=True)
+            raise HTTPException(status_code=500, detail=f"Errore lettura file: {e}")
+
+        content = bytes(content_bytes)
+        print(f"[TRACE] File read complete. Size: {len(content)} bytes", flush=True)
+
+        if not file.filename.endswith('.csv'):
+            raise HTTPException(status_code=400, detail="Il file deve essere in formato CSV.")
+
+        # Temporary Bypass: In frozen environment, verify_file_signature might crash if dependencies (magic) are missing.
+        # We rely on decoding check instead.
+        # if not verify_file_signature(content, 'csv'):
+        #      raise HTTPException(status_code=400, detail="File non valido: contenuto non riconosciuto come CSV/Testo.")
+
+        print(f"[TRACE] Decoding content...", flush=True)
+        decoded_content = _decode_csv_content(content)
+        print(f"[TRACE] Content decoded.", flush=True)
+        stream = io.StringIO(decoded_content)
+        reader = csv.DictReader(stream, delimiter=';')
+
+        warnings = []
+
+        # Batch processing configuration
+        BATCH_SIZE = 50
+        rows_processed = 0
+
+        try:
+            for row in reader:
+                _process_csv_row(row, db, warnings)
+                rows_processed += 1
+
+                # Commit every BATCH_SIZE rows to prevent memory overload
+                if rows_processed % BATCH_SIZE == 0:
+                    db.commit()
+
+            # Final commit for remaining rows
+            db.commit()
+
+        except IntegrityError as e:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=f"Errore di integrità del database: {str(e)}")
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Errore durante l'importazione: {str(e)}")
+
+        # Re-link orphaned certificates
+        linked_count = _link_orphaned_certificates_after_import(db)
+
+        if linked_count > 0:
+            db.commit()
+
+        log_security_action(db, current_user, "DIPENDENTE_CREATE", f"Importato CSV: {file.filename}. Orfani collegati: {linked_count}", category="DATA")
+
+        return {
+            "message": f"Importazione completata con successo. {linked_count} certificati orfani collegati.",
+            "warnings": warnings
+        }
     except Exception as e:
-        print(f"[TRACE] Error reading file: {e}", flush=True)
-        raise HTTPException(status_code=500, detail=f"Errore lettura file: {e}")
-
-    content = bytes(content_bytes)
-    print(f"[TRACE] File read complete. Size: {len(content)} bytes", flush=True)
-
-    if not file.filename.endswith('.csv'):
-        raise HTTPException(status_code=400, detail="Il file deve essere in formato CSV.")
-
-    # Temporary Bypass: In frozen environment, verify_file_signature might crash if dependencies (magic) are missing.
-    # We rely on decoding check instead.
-    # if not verify_file_signature(content, 'csv'):
-    #      raise HTTPException(status_code=400, detail="File non valido: contenuto non riconosciuto come CSV/Testo.")
-
-    print(f"[TRACE] Decoding content...", flush=True)
-    decoded_content = _decode_csv_content(content)
-    print(f"[TRACE] Content decoded.", flush=True)
-    stream = io.StringIO(decoded_content)
-    reader = csv.DictReader(stream, delimiter=';')
-
-    warnings = []
-
-    # Batch processing configuration
-    BATCH_SIZE = 50
-    rows_processed = 0
-
-    try:
-        for row in reader:
-            _process_csv_row(row, db, warnings)
-            rows_processed += 1
-
-            # Commit every BATCH_SIZE rows to prevent memory overload
-            if rows_processed % BATCH_SIZE == 0:
-                db.commit()
-
-        # Final commit for remaining rows
-        db.commit()
-
-    except IntegrityError as e:
-        db.rollback()
-        raise HTTPException(status_code=400, detail=f"Errore di integrità del database: {str(e)}")
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Errore durante l'importazione: {str(e)}")
-
-    # Re-link orphaned certificates
-    linked_count = _link_orphaned_certificates_after_import(db)
-
-    if linked_count > 0:
-        db.commit()
-
-    log_security_action(db, current_user, "DIPENDENTE_CREATE", f"Importato CSV: {file.filename}. Orfani collegati: {linked_count}", category="DATA")
-
-    return {
-        "message": f"Importazione completata con successo. {linked_count} certificati orfani collegati.",
-        "warnings": warnings
-    }
+        print(f"[CRITICAL IMPORT ERROR] {e}", flush=True)
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=f"Errore Critico Importazione: {e}")
 
 @router.get("/dipendenti", response_model=List[DipendenteSchema], dependencies=[Depends(deps.verify_license)])
 def get_dipendenti(db: Session = Depends(get_db)):
