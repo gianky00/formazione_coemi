@@ -1,68 +1,16 @@
-2025-12-10 22:33:45,507 - INFO - === 🔍 VERIFICA AMBIENTE ===
-2025-12-10 22:33:45,511 - INFO - SUCCESS: Python 3.12.10
-2025-12-10 22:33:48,180 - INFO - SUCCESS: Nuitka 2.8.9
-2025-12-10 22:33:50,783 - INFO - SUCCESS: MSVC: ...\Tools\MSVC\14.50.35717\bin\Hostx64\x64\cl.exe (cl 14.5).
-2025-12-10 22:33:50,784 - INFO - SUCCESS: npm (skip: frontend già buildato)
-2025-12-10 22:33:50,784 - INFO - SUCCESS: Frontend buildato (guide_frontend\dist\index.html)
-2025-12-10 22:33:50,784 - INFO - SUCCESS: Entry point: launcher.py
-2025-12-10 22:33:50,784 - INFO - SUCCESS: Icon: desktop_app\icons\icon.ico
-2025-12-10 22:33:50,784 - INFO - === ⚛️  BUILD REACT FRONTEND ===
-2025-12-10 22:33:50,785 - INFO - SUCCESS: Frontend già buildato (dist/index.html esiste)
-2025-12-10 22:33:50,785 - INFO - === 🚀 COMPILAZIONE NUITKA ===
-2025-12-10 22:33:51,068 - INFO - [NUITKA] Nuitka-Options: Used command line options:
-2025-12-10 22:33:51,068 - INFO - [NUITKA] Nuitka-Options:   --standalone --assume-yes-for-downloads --plugin-enable=pyqt6 --include-data-dir=C:\Users\gianc\Desktop\SCRIPT\formazione_coemi\guide_frontend\dist=guide --include-data-dir=C:\Users\gianc\Desktop\SCRIPT\formazione_coemi\desktop_app\assets=desktop_app/assets --include-data-dir=C:\Users\gianc\Desktop\SCRIPT\formazione_coemi\desktop_app\icons=desktop_app/icons --include-data-files=C:\Users\gianc\Desktop\SCRIPT\formazione_coemi\docs\LYRA_PROFILE.md=docs/LYRA_PROFILE.md --include-package=app --include-package=desktop_app --include-module=uvicorn --include-module=uvicorn.logging --include-module=uvicorn.loops --include-module=uvicorn.loops.auto --include-module=uvicorn.protocols --include-module=uvicorn.protocols.http --include-module=uvicorn.protocols.http.auto --include-module=uvicorn.lifespan --include-module=uvicorn.lifespan.on --include-module=fastapi --include-module=starlette --include-module=pydantic --include-module=pydantic_settings --include-module=sqlalchemy --include-module=sqlalchemy.sql.default_comparator --include-module=sqlalchemy.dialects.sqlite --include-module=google.generativeai --include-module=google.api_core --include-module=google.auth --include-module=google.protobuf --include-module=grpc --include-module=httpx --include-module=bcrypt --include-module=cryptography --include-module=cryptography.fernet --include-module=cryptography.hazmat.backends.openssl --include-module=passlib --include-module=passlib.handlers.bcrypt --include-module=jose --include-module=jose.backends.cryptography_backend --include-module=tenacity --include-module=fpdf --include-module=apscheduler --include-module=pandas --include-module=numpy --include-module=PyQt6.QtSvg --include-module=PyQt6.QtNetwork --include-module=PyQt6.QtPrintSupport --include-module=PyQt6.QtWebEngineWidgets --include-module=PyQt6.QtWebEngineCore --include-module=PyQt6.QtWebChannel --include-module=multipart --include-module=python_multipart --include-module=email.mime.text --include-module=email.mime.multipart --include-module=email.mime.application --include-module=sentry_sdk --include-module=posthog --include-module=charset_normalizer --include-module=charset_normalizer.md --include-module=geoip2 --include-module=user_agents --include-module=ua_parser --include-module=win32com.client --include-module=pythoncom --include-module=win32api --include-module=pywintypes --lto=yes --jobs=16 --windows-console-mode=disable --output-dir=C:\Users\gianc\Desktop\SCRIPT\formazione_coemi\dist\nuitka --output-filename=Intelleo.exe --windows-icon-from-ico=C:\Users\gianc\Desktop\SCRIPT\formazione_coemi\desktop_app\icons\icon.ico ~\Desktop\SCRIPT\formazione_coemi\launcher.py
-2025-12-10 22:33:51,789 - INFO - [NUITKA] Nuitka-Plugins:pyqt6: Support for PyQt6 is not perfect, e.g. Qt threading does not work, so prefer PySide6 if you can.
-2025-12-10 22:33:51,969 - INFO - [NUITKA] Nuitka: Starting Python compilation with:
-2025-12-10 22:33:51,969 - INFO - [NUITKA] Nuitka:   Version '2.8.9' on Python 3.12 (flavor 'CPython Official') commercial grade 'not installed'.
-2025-12-10 22:46:42,237 - INFO - [NUITKA] Nuitka: Completed Python level compilation and optimization.
-2025-12-10 22:46:42,237 - INFO - [NUITKA] Nuitka: Generating source code for C backend compiler.
-2025-12-10 22:50:27,289 - INFO - [NUITKA] Nuitka: Running data composer tool for optimal constant value handling.
-2025-12-10 22:50:50,389 - INFO - [NUITKA] Nuitka: Running C compilation via Scons.
-2025-12-10 22:50:53,110 - INFO - [NUITKA] Nuitka-Scons: Backend C compiler: cl (cl 14.5).
-2025-12-10 23:06:41,373 - INFO - [NUITKA] Nuitka-Scons: Backend C linking with 2515 files (no progress information available for this stage).
-2025-12-10 23:38:44,625 - INFO - [NUITKA] Nuitka-Scons: Running 'link @C:\\Users\\gianc\\AppData\\Local\\Temp\\tmpv0x41rdn.lnk' took 1921.57 seconds
-2025-12-10 23:38:55,241 - INFO - [NUITKA] Nuitka-Scons: Compiled 2515 C files using clcache with 0 cache hits and 2515 cache misses.
-2025-12-10 23:38:56,974 - INFO - [NUITKA] Nuitka-Postprocessing: Adding 1 icon(s) from icon file 'C:\Users\gianc\Desktop\SCRIPT\formazione_coemi\desktop_app\icons\icon.ico'.
-2025-12-10 23:39:19,707 - INFO - [NUITKA] Nuitka-Plugins:pyqt6: Including Qt plugins 'iconengines,imageformats,platforms,styles,tls' below 'PyQt6\Qt6\plugins'.
-2025-12-10 23:39:19,787 - INFO - [NUITKA] Nuitka-Plugins:pyqt6: Including QtWebEngine executable.
-2025-12-10 23:39:21,102 - INFO - [NUITKA] Nuitka: Downloading 'https://dependencywalker.com/depends22_x64.zip'.
-2025-12-10 23:39:23,634 - INFO - [NUITKA] Nuitka: Extracting to 'C:\Users\gianc\AppData\Local\Nuitka\Nuitka\Cache\DOWNLO~1\depends\x86_64\depends.exe'
-2025-12-10 23:40:29,609 - INFO - [NUITKA] Nuitka-Options: Included data file 'docs\LYRA_PROFILE.md' due to specified data file 'C:\Users\gianc\Desktop\SCRIPT\formazione_coemi\docs\LYRA_PROFILE.md=docs/LYRA_PROFILE.md' on command line.
-2025-12-10 23:40:29,609 - INFO - [NUITKA] Nuitka-Options: Included data file 'guide\index.html' due to specified data dir 'C:\Users\gianc\Desktop\SCRIPT\formazione_coemi\guide_frontend\dist' on command line.
-2025-12-10 23:40:29,609 - INFO - [NUITKA] Nuitka-Options: Included data file 'guide\vite.svg' due to specified data dir 'C:\Users\gianc\Desktop\SCRIPT\formazione_coemi\guide_frontend\dist' on command line.
-2025-12-10 23:40:29,610 - INFO - [NUITKA] Nuitka-Options: Included data file 'guide\assets\index-BnP4EtOD.js' due to specified data dir 'C:\Users\gianc\Desktop\SCRIPT\formazione_coemi\guide_frontend\dist' on command line.
-2025-12-10 23:40:29,610 - INFO - [NUITKA] Nuitka-Options: Included data file 'guide\assets\index-Xt6MfNMQ.css' due to specified data dir 'C:\Users\gianc\Desktop\SCRIPT\formazione_coemi\guide_frontend\dist' on command line.
-2025-12-10 23:40:29,610 - INFO - [NUITKA] Nuitka-Options: Included data file 'guide\assets\progress_bar.png' due to specified data dir 'C:\Users\gianc\Desktop\SCRIPT\formazione_coemi\guide_frontend\dist' on command line.
-2025-12-10 23:40:29,610 - INFO - [NUITKA] Nuitka-Options: Included 11 data files due to specified data dir 'C:\Users\gianc\Desktop\SCRIPT\formazione_coemi\desktop_app\assets' on command line.
-2025-12-10 23:40:29,610 - INFO - [NUITKA] Nuitka-Options: Included 24 data files due to specified data dir 'C:\Users\gianc\Desktop\SCRIPT\formazione_coemi\desktop_app\icons' on command line.
-2025-12-10 23:40:29,610 - INFO - [NUITKA] Nuitka-Plugins:pyqt6: Included data file 'qt6.conf' due to QtWebEngine needs Qt configuration file.
-2025-12-10 23:40:29,610 - INFO - [NUITKA] Nuitka-Plugins:pyqt6: Included data file 'icudtl.dat' due to Qt resources.
-2025-12-10 23:40:29,611 - INFO - [NUITKA] Nuitka-Plugins:pyqt6: Included data file 'qtwebengine_devtools_resources.pak' due to Qt resources.
-2025-12-10 23:40:29,611 - INFO - [NUITKA] Nuitka-Plugins:pyqt6: Included data file 'qtwebengine_resources.pak' due to Qt resources.
-2025-12-10 23:40:29,611 - INFO - [NUITKA] Nuitka-Plugins:pyqt6: Included data file 'qtwebengine_resources_100p.pak' due to Qt resources.
-2025-12-10 23:40:29,611 - INFO - [NUITKA] Nuitka-Plugins:pyqt6: Included data file 'qtwebengine_resources_200p.pak' due to Qt resources.
-2025-12-10 23:40:29,611 - INFO - [NUITKA] Nuitka-Plugins:pyqt6: Included data file 'v8_context_snapshot.bin' due to Qt resources.
-2025-12-10 23:40:29,611 - INFO - [NUITKA] Nuitka-Plugins:pyqt6: Included 266 data files due to Qt translation.
-2025-12-10 23:40:29,611 - INFO - [NUITKA] Nuitka-Plugins:data-files: Included data file 'certifi\cacert.pem' due to package data for 'certifi'.
-2025-12-10 23:40:29,611 - INFO - [NUITKA] Nuitka-Plugins:data-files: Included data file 'grpc\_cython\_credentials\roots.pem' due to package data for 'grpc'.
-2025-12-10 23:40:29,611 - INFO - [NUITKA] Nuitka-Plugins:data-files: Included data file 'jaraco\text\Lorem ipsum.txt' due to package data for 'jaraco.text'.
-2025-12-10 23:40:29,611 - INFO - [NUITKA] Nuitka-Plugins:data-files: Included data file 'pandas\io\formats\templates\html.tpl' due to package data directory 'templates' for 'pandas.io.formats'.
-2025-12-10 23:40:29,611 - INFO - [NUITKA] Nuitka-Plugins:data-files: Included data file 'pandas\io\formats\templates\html_style.tpl' due to package data directory 'templates' for 'pandas.io.formats'.
-2025-12-10 23:40:29,611 - INFO - [NUITKA] Nuitka-Plugins:data-files: Included data file 'pandas\io\formats\templates\html_table.tpl' due to package data directory 'templates' for 'pandas.io.formats'.
-2025-12-10 23:40:29,612 - INFO - [NUITKA] Nuitka-Plugins:data-files: Included data file 'pandas\io\formats\templates\latex.tpl' due to package data directory 'templates' for 'pandas.io.formats'.
-2025-12-10 23:40:29,612 - INFO - [NUITKA] Nuitka-Plugins:data-files: Included data file 'pandas\io\formats\templates\latex_longtable.tpl' due to package data directory 'templates' for 'pandas.io.formats'.
-2025-12-10 23:40:29,612 - INFO - [NUITKA] Nuitka-Plugins:data-files: Included data file 'pandas\io\formats\templates\latex_table.tpl' due to package data directory 'templates' for 'pandas.io.formats'.
-2025-12-10 23:40:29,612 - INFO - [NUITKA] Nuitka-Plugins:data-files: Included data file 'pandas\io\formats\templates\string.tpl' due to package data directory 'templates' for 'pandas.io.formats'.
-2025-12-10 23:40:29,612 - INFO - [NUITKA] Nuitka-Plugins:data-files: Included 604 data files due to package data directory 'zoneinfo' for 'pytz'.
-2025-12-10 23:40:29,612 - INFO - [NUITKA] Nuitka-Plugins:data-files: Included 604 data files due to package data directory '.' for 'tzdata.zoneinfo'.
-2025-12-10 23:40:29,613 - INFO - [NUITKA] Nuitka: Keeping build directory 'C:\Users\gianc\Desktop\SCRIPT\formazione_coemi\dist\nuitka\launcher.build'.
-2025-12-10 23:40:29,613 - INFO - [NUITKA] Nuitka: Successfully created '~\Desktop\SCRIPT\formazione_coemi\dist\nuitka\launcher.dist\Intelleo.exe'.
-2025-12-10 23:41:16,381 - INFO - SUCCESS: Compilazione completata in 67.4 minuti
-2025-12-10 23:41:16,397 - INFO - SUCCESS: Eseguibile (path alternativo): C:\Users\gianc\Desktop\SCRIPT\formazione_coemi\dist\nuitka\launcher.dist\Intelleo.exe (225.7 MB)
-2025-12-10 23:41:16,399 - INFO - === 🔧 POST-PROCESSING ===
-2025-12-10 23:41:16,805 - INFO - SUCCESS: Eseguibile trovato: dist\nuitka\launcher.dist\Intelleo.exe
-2025-12-10 23:41:16,807 - INFO - SUCCESS: README creato: README.txt
-2025-12-10 23:41:16,808 - INFO - Directory Licenza creata: Licenza
-2025-12-10 23:41:16,808 - INFO - SUCCESS: Post-processing completato
-2025-12-10 23:41:16,809 - INFO - === 📊 REPORT BUILD ===
-2025-12-10 23:41:16,810 - INFO - SUCCESS: Build completato con successo! 🎉
+2025-12-10 23:55:10,294 - INFO - === 🔍 VERIFICA AMBIENTE ===
+2025-12-10 23:55:10,294 - INFO - SUCCESS: Python 3.12.10
+2025-12-10 23:55:14,163 - INFO - SUCCESS: Nuitka 2.8.9
+2025-12-10 23:55:16,434 - INFO - SUCCESS: MSVC: ...\Tools\MSVC\14.50.35717\bin\Hostx64\x64\cl.exe (cl 14.5).
+2025-12-10 23:55:16,434 - INFO - SUCCESS: npm (skip: frontend già buildato)
+2025-12-10 23:55:16,434 - INFO - SUCCESS: Frontend buildato (guide_frontend\dist\index.html)
+2025-12-10 23:55:16,434 - INFO - SUCCESS: Entry point: launcher.py
+2025-12-10 23:55:16,435 - INFO - SUCCESS: Icon: desktop_app\icons\icon.ico
+2025-12-10 23:55:16,435 - INFO - === ⚛️  BUILD REACT FRONTEND ===
+2025-12-10 23:55:16,435 - INFO - SUCCESS: Frontend già buildato (dist/index.html esiste)
+2025-12-10 23:55:16,435 - INFO - === 🚀 COMPILAZIONE NUITKA ===
+2025-12-10 23:55:16,751 - INFO - [NUITKA] Nuitka-Options: Used command line options:
+2025-12-10 23:55:16,751 - INFO - [NUITKA] Nuitka-Options:   --standalone --assume-yes-for-downloads --plugin-enable=pyqt6 --include-data-dir=C:\Users\gianc\Desktop\SCRIPT\formazione_coemi\guide_frontend\dist=guide --include-data-dir=C:\Users\gianc\Desktop\SCRIPT\formazione_coemi\desktop_app\assets=desktop_app/assets --include-data-dir=C:\Users\gianc\Desktop\SCRIPT\formazione_coemi\desktop_app\icons=desktop_app/icons --include-data-files=C:\Users\gianc\Desktop\SCRIPT\formazione_coemi\docs\LYRA_PROFILE.md=docs/LYRA_PROFILE.md --include-package=app --include-package=desktop_app --include-module=uvicorn --include-module=uvicorn.logging --include-module=uvicorn.loops --include-module=uvicorn.loops.auto --include-module=uvicorn.protocols --include-module=uvicorn.protocols.http --include-module=uvicorn.protocols.http.auto --include-module=uvicorn.lifespan --include-module=uvicorn.lifespan.on --include-module=fastapi --include-module=starlette --include-module=pydantic --include-module=pydantic_settings --include-module=sqlalchemy --include-module=sqlalchemy.sql.default_comparator --include-module=sqlalchemy.dialects.sqlite --include-module=google.generativeai --include-module=google.api_core --include-module=google.auth --include-module=google.protobuf --include-module=grpc --include-module=httpx --include-module=bcrypt --include-module=cryptography --include-module=cryptography.fernet --include-module=cryptography.hazmat.backends.openssl --include-module=passlib --include-module=passlib.handlers.bcrypt --include-module=jose --include-module=jose.backends.cryptography_backend --include-module=tenacity --include-module=fpdf --include-module=apscheduler --include-module=pandas --include-module=numpy --include-module=PyQt6.QtSvg --include-module=PyQt6.QtNetwork --include-module=PyQt6.QtPrintSupport --include-module=PyQt6.QtWebEngineWidgets --include-module=PyQt6.QtWebEngineCore --include-module=PyQt6.QtWebChannel --include-module=multipart --include-module=python_multipart --include-module=email.mime.text --include-module=email.mime.multipart --include-module=email.mime.application --include-package=sentry_sdk.integrations --include-module=sentry_sdk --include-module=posthog --include-module=charset_normalizer --include-module=charset_normalizer.md --include-module=geoip2 --include-module=user_agents --include-module=ua_parser --include-module=win32com.client --include-module=pythoncom --include-module=win32api --include-module=pywintypes --lto=yes --jobs=16 --windows-console-mode=disable --output-dir=C:\Users\gianc\Desktop\SCRIPT\formazione_coemi\dist\nuitka --output-filename=Intelleo.exe --windows-icon-from-ico=C:\Users\gianc\Desktop\SCRIPT\formazione_coemi\desktop_app\icons\icon.ico ~\Desktop\SCRIPT\formazione_coemi\launcher.py
+2025-12-10 23:55:17,524 - INFO - [NUITKA] Nuitka-Plugins:pyqt6: Support for PyQt6 is not perfect, e.g. Qt threading does not work, so prefer PySide6 if you can.
+2025-12-10 23:55:17,781 - INFO - [NUITKA] Nuitka: Starting Python compilation with:
+2025-12-10 23:55:17,781 - INFO - [NUITKA] Nuitka:   Version '2.8.9' on Python 3.12 (flavor 'CPython Official') commercial grade 'not installed'.
