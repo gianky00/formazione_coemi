@@ -1,26 +1,26 @@
-# Contributing
+# Contribuire a Intelleo
 
-We welcome contributions to this project! Please follow these guidelines to ensure a smooth development process.
+Grazie per l'interesse nel contribuire a Intelleo! Poiché questo è un software proprietario e critico per la sicurezza, seguiamo protocolli rigidi.
 
-## Code Style
+## 1. Come Iniziare
 
--   All Python code must follow the [PEP 8](https://www.python.org/dev/peps/pep-0008/) style guide.
--   Use `snake_case` for variables, functions, and methods.
--   Use `PascalCase` for classes.
--   All code must be formatted using a tool that respects the `.editorconfig` file.
+1.  Leggi **[Dev Protocols](DEV_PROTOCOLS.md)**. È la bibbia dello stile di codice e della sicurezza.
+2.  Leggi **[System Architecture](SYSTEM_ARCHITECTURE.md)** per capire dove mettere le mani.
+3.  Assicurati che i test passino (`pytest`) prima di committare.
 
-## Testing
+## 2. Segnalazione Bug
 
--   All new features must be accompanied by tests.
--   All tests must pass before a pull request will be merged.
--   To run the tests, execute the following command from the root directory:
+Usa il tracker delle Issue. Includi:
+*   Versione App (vedi `/health` o Splash Screen).
+*   Log (`%LOCALAPPDATA%/Intelleo/logs/intelleo.log`).
+*   Step di riproduzione.
 
-    ```bash
-    python -m pytest
-    ```
+## 3. Pull Requests
 
-## Pull Requests
+1.  Forka il repo (se esterno) o crea un branch `feat/` (se interno).
+2.  Aggiungi test per la nuova funzionalità.
+3.  Aggiorna la documentazione in `docs/` se cambi logica core.
+4.  Attendi la Code Review.
 
--   All pull requests must be reviewed and approved by at least one other contributor before being merged.
--   Pull requests should be small and focused on a single feature or bug fix.
--   Please provide a clear and descriptive title and description for your pull request.
+## 4. Note Legali
+Ogni contributo al codice diventa proprietà esclusiva dell'azienda titolare del progetto Intelleo.

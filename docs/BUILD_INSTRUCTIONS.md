@@ -1,61 +1,94 @@
-# Istruzioni per la Build e la Gestione Licenze
+# Istruzioni di Build, Distribuzione e Gestione Licenze
 
-Questo documento spiega come creare la distribuzione dell'applicazione Intelleo protetta con PyArmor e come gestire le licenze.
+Questo documento tecnico descrive la procedura "Master" per compilare, proteggere e distribuire l'applicazione Intelleo.
 
-## Prerequisiti
+## 1. Ambiente di Build (Requisiti)
 
-1.  **Python 3.12+** installato e aggiunto al PATH.
-2.  **Inno Setup 6** installato (standard path: `C:\Program Files (x86)\Inno Setup 6`).
-3.  **Virtual Environment** attivato con le dipendenze installate:
+*   **OS**: Windows 10/11 (Architettura x64).
+*   **Python**: 3.12+ (Aggiunto al PATH).
+*   **Node.js**: 18+ (Per buildare `guide_frontend`).
+*   **Inno Setup**: v6.2+ (Installato in `C:\Program Files (x86)\Inno Setup 6`).
+*   **PyArmor**: v8.5+ (Licenza Pro/Basic richiesta per offuscamento avanzato).
+*   **Dipendenze**:
     ```bash
     pip install -r requirements.txt
+    cd guide_frontend && npm install
     ```
-4.  **Licenza PyArmor**: È necessario disporre di una licenza **PyArmor 8/9 Basic** (o superiore) attiva e registrata sulla macchina di build.
 
-## 1. Creare la Distribuzione (Master Build)
+## 2. Master Build Script (`admin/offusca/build_dist.py`)
 
-È stato creato uno script automatizzato che gestisce l'intero ciclo di rilascio: build del frontend React, offuscamento Python, packaging PyInstaller e creazione installer Inno Setup.
+L'intero processo è orchestrato dallo script `build_dist.py`. Non eseguire i passaggi manualmente a meno che non sia necessario per il debug.
 
-Esegui il comando dalla root del progetto:
-
+### Esecuzione
+Dalla root del progetto:
 ```bash
 python admin/offusca/build_dist.py
 ```
 
-**Fasi dello Script:**
-1.  **React Build**: Compila `guide_frontend` in `guide_frontend/dist/`.
-2.  **Offuscamento**: Esegue `pyarmor gen` su `app` e `desktop_app`.
-3.  **Packaging**: Esegue `PyInstaller` per creare la cartella di distribuzione.
-4.  **DLL Injection**: Copia le DLL di sistema (es. `vcruntime140.dll`) nella cartella `dll/` della distribuzione per massimizzare la portabilità.
-5.  **Installer**: Compila il setup finale (es. `Intelleo_Setup.exe`) usando `ISCC.exe`.
+### Pipeline di Build (Fasi)
+1.  **Frontend Compilation**: Esegue `npm run build` in `guide_frontend`. Genera gli asset statici in `guide_frontend/dist/`.
+2.  **Environment Check**: Verifica la presenza di compilatori C++ (MSVC) e Inno Setup.
+3.  **Obfuscation (PyArmor)**:
+    *   Protegge i package `app` e `desktop_app`.
+    *   Genera runtime in `dist/obf/`.
+    *   Applica regole: `restrict mode 2`, `mix-str`, `assert-call`.
+4.  **Packaging (PyInstaller)**:
+    *   Legge `Intelleo.spec` (o configurazione interna).
+    *   Analizza import nascosti (Hidden Imports).
+    *   Genera `dist/Intelleo/` (Directory).
+5.  **DLL Injection**:
+    *   Identifica le dipendenze di sistema critiche (`vcruntime140.dll`, `msvcp140.dll`).
+    *   Le copia nella cartella `dll/` del pacchetto per garantire l'esecuzione su macchine "pulite".
+6.  **Installer Creation (Inno Setup)**:
+    *   Compila `admin/crea_setup/setup_script.iss`.
+    *   Output finale: `dist/Intelleo_Setup_{version}.exe`.
 
-**Output:**
-*   **Cartella Portable**: `dist/Intelleo/`
-*   **Installer**: `dist/Intelleo_Setup.exe`
+---
 
-## 2. Gestione delle Licenze
+## 3. Gestione e Generazione Licenze
 
-### Generazione Licenze (Lato Amministratore)
-Per generare nuove licenze per i clienti, utilizza l'interfaccia grafica dedicata situata nella root:
+Il sistema di licenze richiede la generazione di 3 file coordinati.
 
+### Tool di Generazione
+Eseguire:
 ```bash
-python admin_license_gui.py
+python admin/crea_licenze/admin_license_gui.py
 ```
 
-1.  **Hardware ID**: (Opzionale) Incolla l'ID hardware del cliente per vincolare la licenza.
-2.  **Scadenza**: Imposta la data di scadenza.
-3.  Clicca su **Genera Licenza**.
+### Workflow Operativo
+1.  **Input Dati**:
+    *   **Hardware ID**: Seriale Disco del cliente (o MAC).
+    *   **Scadenza**: Data (YYYY-MM-DD).
+    *   **Nome Cliente**: Per organizzazione file.
+2.  **Generazione**:
+    *   Lo script chiama PyArmor CLI per generare `pyarmor.rkey` (Node-Locked).
+    *   Lo script cifra i metadati in `config.dat` (Fernet).
+    *   Lo script calcola SHA256 e crea `manifest.json`.
+3.  **Output**:
+    Viene creata una cartella `Licenza` contenente:
+    *   `pyarmor.rkey` (Runtime Key)
+    *   `config.dat` (UI Data)
+    *   `manifest.json` (Integrity Check)
 
-Il file `pyarmor.rkey` e il file cifrato `config.dat` verranno salvati in una sottocartella `Licenza/` all'interno della cartella cliente. Invia l'intera cartella `Licenza` al cliente.
+### Distribuzione (Auto-Update)
+Per abilitare l'aggiornamento automatico della licenza:
+1.  Accedere al **Repository GitHub Privato** delle licenze.
+2.  Navigare in `licenses/`.
+3.  Creare una cartella con il nome esatto dell'**Hardware ID** del cliente.
+4.  Caricare i 3 file (`pyarmor.rkey`, `config.dat`, `manifest.json`) in quella cartella.
+5.  Al prossimo avvio (o errore licenza), l'app scaricherà automaticamente i nuovi file.
 
-### Installazione Licenza (Lato Cliente)
-Il cliente deve copiare la cartella `Licenza` (contenente `pyarmor.rkey` e `config.dat`) all'interno della directory di installazione (es. `C:\Users\Nome\AppData\Local\Programs\Intelleo`).
+---
 
-*Nota: L'installer crea automaticamente questa struttura.*
+## 4. Troubleshooting Build
 
-### Recupero Hardware ID (Lato Cliente)
-1.  Lanciare l'applicazione. Se la licenza è scaduta o mancante, un messaggio mostrerà l'Hardware ID.
-2.  Da riga di comando:
-    ```bash
-    Intelleo.exe --hwid
-    ```
+### Errore "Module Not Found" in Runtime
+*   **Causa**: PyInstaller non ha rilevato un import dinamico.
+*   **Soluzione**: Aggiungi il modulo a `hiddenimports` in `build_dist.py`.
+
+### Errore "DLL Load Failed"
+*   **Causa**: Mancano le librerie ridistribuibili VC++ sul target.
+*   **Soluzione**: Verificare che la fase "DLL Injection" abbia copiato le DLL corrette in `dist/Intelleo/dll/`.
+
+### PyArmor "License Invalid" durante la Build
+*   Assicurarsi che il file `pyarmor-regcode-xxxx.txt` sia stato registrato sulla macchina di build (`pyarmor reg pyarmor-regcode...`).

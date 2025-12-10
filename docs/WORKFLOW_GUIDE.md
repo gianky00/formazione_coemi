@@ -1,46 +1,57 @@
-# Guida al Workflow di Licenza e Distribuzione
+# Workflow di Distribuzione e Licenze
 
-## Risposta alla tua domanda: "Prima offuscare o prima la licenza?"
+Questo documento guida il processo operativo per distribuire il software ai clienti e gestire il ciclo di vita delle licenze.
 
-**Devi PRIMA offuscare (compilare) il codice.**
+## 1. Prima Distribuzione (New Customer)
 
-### Perché?
-La licenza che generi (`pyarmor.rkey`) deve essere compatibile con il "Runtime" (il motore di sicurezza) che viene creato durante la fase di offuscamento.
+### Passo 1: Build dell'Eseguibile
+Se non hai già una build recente:
+1.  Esegui `python admin/offusca/build_dist.py`.
+2.  Preleva l'installer da `dist/Intelleo_Setup_X.X.exe`.
+
+### Passo 2: Installazione
+Invia l'installer al cliente.
+*   Il cliente installa il software.
+*   Al primo avvio, l'app mostrerà un errore di licenza e fornirà l'**Hardware ID** (Disk Serial).
+
+### Passo 3: Generazione Licenza
+1.  Ricevi l'Hardware ID dal cliente.
+2.  Esegui `python admin/crea_licenze/admin_license_gui.py`.
+3.  Inserisci Hardware ID e Scadenza.
+4.  Genera. Otterrai una cartella `Licenza` con 3 file (`pyarmor.rkey`, `config.dat`, `manifest.json`).
+
+### Passo 4: Attivazione
+*   **Metodo Manuale**: Invia la cartella `Licenza` (zippata) al cliente. Lui deve estrarla nella cartella di installazione o in `%LOCALAPPDATA%/Intelleo/Licenza`.
+*   **Metodo Auto-Update** (Consigliato per rinnovi): Vedi sezione 2.
 
 ---
 
-## Workflow Consigliato
+## 2. Rinnovo Licenza (Auto-Update)
 
-Ecco la sequenza corretta per distribuire il software protetto:
+Per rinnovare una licenza scaduta senza disturbare il cliente con file zip:
 
-### 1. Build (Offuscamento e Packaging)
-Esegui sul tuo PC di sviluppo:
-```bash
-python build_dist.py
-```
-Questo crea l'eseguibile protetto in `dist/package/Intelleo.exe`.
+1.  Genera la nuova licenza (Passo 3 sopra) con la nuova data di scadenza.
+2.  Accedi al **Repo GitHub Privato** ("License CDN").
+3.  Vai in `licenses/{HARDWARE_ID_CLIENTE}/`.
+    *   *Se non esiste, crea la cartella.*
+4.  Carica/Sovrascrivi i 3 file generati.
+5.  **Fatto**.
+    *   Al prossimo avvio, l'app del cliente rileverà che la licenza locale è scaduta.
+    *   Contatterà GitHub, vedrà il nuovo `manifest.json`.
+    *   Scaricherà e applicherà i file trasparentemente.
 
-### 2. Distribuzione Iniziale
-Invia `Intelleo.exe` e il file `get_client_info.bat` al cliente.
-**Nota:** Senza licenza, l'app non funzionerà ancora.
+---
 
-### 3. Ottenere l'ID Hardware del Cliente
-Il metodo standard è usare lo script batch, che recupera il **Seriale del Disco** e il **MAC Address**.
+## 3. Gestione Emergenze
 
-1.  Chiedi al cliente di eseguire `get_client_info.bat`.
-2.  Il cliente ti invierà il testo copiato (es. Seriale Disco: `50026B78...`).
+### Licenza "Tampered" o Corrotta
+Se il cliente vede un errore di integrità:
+1.  Chiedi di cancellare la cartella `%LOCALAPPDATA%/Intelleo/Licenza`.
+2.  L'app tenterà di riscaricare tutto da GitHub al riavvio.
 
-### 4. Generare la Licenza
-Una volta che hai il seriale (es. `50026B7882000000`), sul tuo PC esegui:
-```bash
-python admin_license_gui.py
-```
-*   Incolla il seriale nel campo "Hardware ID".
-    *   *Nota:* Se vuoi legarlo anche al MAC address, puoi incollare entrambi o una combinazione, ma di solito il Seriale Disco è sufficiente e più stabile.
-*   Imposta la scadenza.
-*   Clicca "Genera Licenza".
-
-### 5. Attivazione
-Invia il file generato `dist/pyarmor.rkey` al cliente.
-Il cliente deve metterlo nella stessa cartella di `Intelleo.exe`.
-Al prossimo avvio, l'app funzionerà.
+### Cambio PC
+Se il cliente cambia PC, l'Hardware ID cambierà.
+1.  Ottenere il nuovo Hardware ID.
+2.  Generare nuova licenza.
+3.  Creare nuova cartella su GitHub.
+4.  Il cliente dovrà ricevere la prima licenza manualmente (o via GitHub se l'app riesce a connettersi in recovery mode).
