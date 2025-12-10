@@ -19,7 +19,7 @@ from .services.voice_service import VoiceService
 from .ipc_bridge import IPCBridge
 import os
 from app.core.db_security import db_security
-from desktop_app.utils import safe_print, safe_print_exc
+from desktop_app.logging_utils import safe_print, safe_print_exc
 
 # --- CONSTANTS ---
 STR_SOLA_LETTURA = "Sola Lettura"
