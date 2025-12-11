@@ -17,7 +17,8 @@ winget install OpenJS.NodeJS
 python tools/build_guide.py
 
 .\Scripts\activate
-python admin/offusca/build_dist.py
+python admin/offusca/build_nuitka.py
+python admin/offusca/build_nuitka.py --fast --clean
 
 cd /d "C:\Users\gianc\Desktop\SCRIPT\formazione_coemi"
 git init

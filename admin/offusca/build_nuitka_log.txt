@@ -1,21 +1,44 @@
-2025-12-11 06:53:53,735 - INFO - === 🔍 VERIFICA AMBIENTE ===
-2025-12-11 06:53:53,735 - INFO - SUCCESS: Python 3.12.10
-2025-12-11 06:53:56,468 - INFO - SUCCESS: Nuitka 2.8.9
-2025-12-11 06:53:59,289 - INFO - SUCCESS: MSVC: ...\Tools\MSVC\14.50.35717\bin\Hostx64\x64\cl.exe (cl 14.5).
-2025-12-11 06:53:59,290 - INFO - SUCCESS: npm (skip: frontend già buildato)
-2025-12-11 06:53:59,290 - INFO - SUCCESS: Frontend buildato (guide_frontend\dist\index.html)
-2025-12-11 06:53:59,290 - INFO - SUCCESS: Entry point: launcher.py
-2025-12-11 06:53:59,291 - INFO - SUCCESS: Icon: desktop_app\icons\icon.ico
-2025-12-11 06:53:59,291 - INFO - === ⚛️  BUILD REACT FRONTEND ===
-2025-12-11 06:53:59,292 - INFO - SUCCESS: Frontend già buildato (dist/index.html esiste)
-2025-12-11 06:53:59,292 - INFO - === 🚀 COMPILAZIONE NUITKA ===
-2025-12-11 06:53:59,629 - INFO - [NUITKA] Nuitka-Options: Used command line options:
-2025-12-11 06:53:59,629 - INFO - [NUITKA] Nuitka-Options:   --standalone --assume-yes-for-downloads --plugin-enable=pyqt6 --include-data-dir=C:\Users\Coemi\Desktop\SCRIPT\formazione_coemi\guide_frontend\dist=guide --include-data-dir=C:\Users\Coemi\Desktop\SCRIPT\formazione_coemi\desktop_app\assets=desktop_app/assets --include-data-dir=C:\Users\Coemi\Desktop\SCRIPT\formazione_coemi\desktop_app\icons=desktop_app/icons --include-data-files=C:\Users\Coemi\Desktop\SCRIPT\formazione_coemi\docs\LYRA_PROFILE.md=docs/LYRA_PROFILE.md --include-package=app --include-package=desktop_app --include-module=uvicorn --include-module=uvicorn.logging --include-module=uvicorn.loops --include-module=uvicorn.loops.auto --include-module=uvicorn.protocols --include-module=uvicorn.protocols.http --include-module=uvicorn.protocols.http.auto --include-module=uvicorn.lifespan --include-module=uvicorn.lifespan.on --include-module=fastapi --include-module=starlette --include-module=pydantic --include-module=pydantic_settings --include-module=sqlalchemy --include-module=sqlalchemy.sql.default_comparator --include-module=sqlalchemy.dialects.sqlite --include-module=google.generativeai --include-module=google.api_core --include-module=google.auth --include-module=google.protobuf --include-module=grpc --include-module=httpx --include-module=bcrypt --include-module=cryptography --include-module=cryptography.fernet --include-module=cryptography.hazmat.backends.openssl --include-module=passlib --include-module=passlib.handlers.bcrypt --include-module=jose --include-module=jose.backends.cryptography_backend --include-module=tenacity --include-module=fpdf --include-module=apscheduler --include-module=pandas --include-module=numpy --include-module=PyQt6.QtSvg --include-module=PyQt6.QtNetwork --include-module=PyQt6.QtPrintSupport --include-module=PyQt6.QtWebEngineWidgets --include-module=PyQt6.QtWebEngineCore --include-module=PyQt6.QtWebChannel --include-module=multipart --include-module=python_multipart --include-module=email.mime.text --include-module=email.mime.multipart --include-module=email.mime.application --include-package=sentry_sdk.integrations --include-module=sentry_sdk --include-module=posthog --include-module=charset_normalizer --include-module=charset_normalizer.md --include-module=geoip2 --include-module=user_agents --include-module=ua_parser --include-module=win32com.client --include-module=pythoncom --include-module=win32api --include-module=pywintypes --lto=yes --jobs=8 --windows-console-mode=disable --output-dir=C:\Users\Coemi\Desktop\SCRIPT\formazione_coemi\dist\nuitka --output-filename=Intelleo.exe --windows-icon-from-ico=C:\Users\Coemi\Desktop\SCRIPT\formazione_coemi\desktop_app\icons\icon.ico ~\Desktop\SCRIPT\formazione_coemi\launcher.py
-2025-12-11 06:54:00,305 - INFO - [NUITKA] Nuitka-Plugins:pyqt6: Support for PyQt6 is not perfect, e.g. Qt threading does not work, so prefer PySide6 if you can.
-2025-12-11 06:54:00,489 - INFO - [NUITKA] Nuitka: Starting Python compilation with:
-2025-12-11 06:54:00,490 - INFO - [NUITKA] Nuitka:   Version '2.8.9' on Python 3.12 (flavor 'CPython Official') commercial grade 'not installed'.
-2025-12-11 07:07:30,548 - INFO - [NUITKA] Nuitka: Completed Python level compilation and optimization.
-2025-12-11 07:07:30,548 - INFO - [NUITKA] Nuitka: Generating source code for C backend compiler.
-2025-12-11 07:14:17,542 - INFO - [NUITKA] Nuitka: Running data composer tool for optimal constant value handling.
-2025-12-11 07:14:20,085 - INFO - [NUITKA] Nuitka: Running C compilation via Scons.
-2025-12-11 07:14:22,589 - INFO - [NUITKA] Nuitka-Scons: Backend C compiler: cl (cl 14.5).
+2025-12-11 08:33:44,030 - INFO - === 🔍 VERIFICA AMBIENTE ===
+2025-12-11 08:33:44,030 - INFO - SUCCESS: Python 3.12.10
+2025-12-11 08:33:46,995 - INFO - SUCCESS: Nuitka 2.8.9
+2025-12-11 08:33:49,680 - INFO - SUCCESS: MSVC: ...\Tools\MSVC\14.50.35717\bin\Hostx64\x64\cl.exe (cl 14.5).
+2025-12-11 08:33:49,681 - INFO - SUCCESS: npm (skip: frontend già buildato)
+2025-12-11 08:33:49,681 - INFO - SUCCESS: Frontend buildato (guide_frontend\dist\index.html)
+2025-12-11 08:33:49,681 - INFO - SUCCESS: Entry point: launcher.py
+2025-12-11 08:33:49,682 - INFO - SUCCESS: Icon: desktop_app\icons\icon.ico
+2025-12-11 08:33:49,682 - INFO - === 🧹 PULIZIA ===
+2025-12-11 08:33:49,683 - INFO - Rimuovo dist\nuitka
+2025-12-11 08:33:52,844 - INFO - SUCCESS: Directory pulita
+2025-12-11 08:33:52,844 - INFO - === ⚛️  BUILD REACT FRONTEND ===
+2025-12-11 08:33:52,845 - INFO - SUCCESS: Frontend già buildato (dist/index.html esiste)
+2025-12-11 08:33:52,845 - INFO - === 🚀 COMPILAZIONE NUITKA ===
+2025-12-11 08:33:52,845 - WARNING - WARNING: Modalità FAST: LTO disabilitato (build più veloce ma meno ottimizzato)
+2025-12-11 08:33:53,360 - INFO - [NUITKA] Nuitka-Options: Used command line options:
+2025-12-11 08:33:53,360 - INFO - [NUITKA] Nuitka-Options:   --standalone --assume-yes-for-downloads --plugin-enable=pyqt6 --include-data-dir=C:\Users\Coemi\Desktop\SCRIPT\formazione_coemi\guide_frontend\dist=guide --include-data-dir=C:\Users\Coemi\Desktop\SCRIPT\formazione_coemi\desktop_app\assets=desktop_app/assets --include-data-dir=C:\Users\Coemi\Desktop\SCRIPT\formazione_coemi\desktop_app\icons=desktop_app/icons --include-data-files=C:\Users\Coemi\Desktop\SCRIPT\formazione_coemi\docs\LYRA_PROFILE.md=docs/LYRA_PROFILE.md --include-package=app --include-package=desktop_app --include-module=uvicorn --include-module=uvicorn.logging --include-module=uvicorn.loops --include-module=uvicorn.loops.auto --include-module=uvicorn.protocols --include-module=uvicorn.protocols.http --include-module=uvicorn.protocols.http.auto --include-module=uvicorn.lifespan --include-module=uvicorn.lifespan.on --include-module=fastapi --include-module=starlette --include-module=pydantic --include-module=pydantic_settings --include-module=sqlalchemy --include-module=sqlalchemy.sql.default_comparator --include-module=sqlalchemy.dialects.sqlite --include-module=google.generativeai --include-module=google.api_core --include-module=google.auth --include-module=google.protobuf --include-module=grpc --include-module=httpx --include-module=bcrypt --include-module=cryptography --include-module=cryptography.fernet --include-module=cryptography.hazmat.backends.openssl --include-module=passlib --include-module=passlib.handlers.bcrypt --include-module=jose --include-module=jose.backends.cryptography_backend --include-module=tenacity --include-module=fpdf --include-module=apscheduler --include-module=pandas --include-module=numpy --include-module=PyQt6.QtSvg --include-module=PyQt6.QtNetwork --include-module=PyQt6.QtPrintSupport --include-module=PyQt6.QtWebEngineWidgets --include-module=PyQt6.QtWebEngineCore --include-module=PyQt6.QtWebChannel --include-module=multipart --include-module=python_multipart --include-module=email.mime.text --include-module=email.mime.multipart --include-module=email.mime.application --include-package=sentry_sdk.integrations --include-module=sentry_sdk --include-module=posthog --include-module=charset_normalizer --include-module=charset_normalizer.md --include-module=geoip2 --include-module=user_agents --include-module=ua_parser --include-module=win32com.client --include-module=pythoncom --include-module=win32api --include-module=pywintypes --lto=no --jobs=8 --windows-console-mode=disable --output-dir=C:\Users\Coemi\Desktop\SCRIPT\formazione_coemi\dist\nuitka --output-filename=Intelleo.exe --windows-icon-from-ico=C:\Users\Coemi\Desktop\SCRIPT\formazione_coemi\desktop_app\icons\icon.ico ~\Desktop\SCRIPT\formazione_coemi\launcher.py
+2025-12-11 08:33:54,656 - INFO - [NUITKA] Nuitka-Plugins:pyqt6: Support for PyQt6 is not perfect, e.g. Qt threading does not work, so prefer PySide6 if you can.
+2025-12-11 08:33:54,948 - INFO - [NUITKA] Nuitka: Starting Python compilation with:
+2025-12-11 08:33:54,948 - INFO - [NUITKA] Nuitka:   Version '2.8.9' on Python 3.12 (flavor 'CPython Official') commercial grade 'not installed'.
+2025-12-11 08:47:01,957 - INFO - [NUITKA] Nuitka: Completed Python level compilation and optimization.
+2025-12-11 08:47:01,957 - INFO - [NUITKA] Nuitka: Generating source code for C backend compiler.
+2025-12-11 08:52:59,838 - INFO - [NUITKA] Nuitka: Running data composer tool for optimal constant value handling.
+2025-12-11 08:53:03,698 - INFO - [NUITKA] Nuitka: Running C compilation via Scons.
+2025-12-11 08:53:06,901 - INFO - [NUITKA] Nuitka-Scons: Backend C compiler: cl (cl 14.5).
+2025-12-11 10:18:27,896 - INFO - [NUITKA] Unexpected output from this command:
+2025-12-11 10:18:28,104 - INFO - [NUITKA] <clcache> /Fomodule.sqlalchemy.orm.persistence.obj /c "module.sqlalchemy.orm.persistence.c" /std:c11 /nologo /wd5105 /wd4391 /Ox /GF /Gy /MD /EHsc /J /Gd /bigobj /D_NUITKA_STANDALONE_MODE /D_NUITKA_EXE_MODE /D_WIN32_WINNT=0x0601 /D__NUITKA_NO_ASSERT__ /D_NUITKA_WINMAIN_ENTRY_POINT /D_NUITKA_DISABLE_CONSOLE_WINDOW /D_NUITKA_CONSTANTS_FROM_RESOURCE /D_NUITKA_FROZEN=155 /D_NUITKA_PLUGIN_MULTIPROCESSING_ENABLED=1 /IC:\Users\Coemi\Desktop\SCRIPT\FORMAZ~1\Lib\SITE-P~1\nuitka\build\inline_copy\zlib /IC:\PROGRA~1\PYTHON~1\include /I. /IC:\Users\Coemi\Desktop\SCRIPT\FORMAZ~1\Lib\SITE-P~1\nuitka\build\include /IC:\Users\Coemi\Desktop\SCRIPT\FORMAZ~1\Lib\SITE-P~1\nuitka\build\static_src /IC:\Users\Coemi\Desktop\SCRIPT\FORMAZ~1\Lib\SITE-P~1\nuitka\build\inline_copy\libbacktrace
+2025-12-11 10:18:28,241 - INFO - [NUITKA] C:\Users\Coemi\Desktop\SCRIPT\formazione_coemi\dist\nuitka\launcher.build\module.sqlalchemy.orm.persistence.c(23400) : fatal error C1002: Il compilatore ha esaurito lo spazio dell'heap durante il passaggio 2
+2025-12-11 10:18:28,392 - INFO - [NUITKA] 
+2025-12-11 10:18:28,512 - INFO - [NUITKA] C:\Users\Coemi\Desktop\SCRIPT\formazione_coemi\Lib\site-packages\nuitka\build\include\nuitka\helper\iterators.h(264) : fatal error C1002: Il compilatore ha esaurito lo spazio dell'heap durante il passaggio 2
+2025-12-11 10:18:28,616 - INFO - [NUITKA] 
+2025-12-11 10:18:28,761 - INFO - [NUITKA] scons: *** [module.sqlalchemy.orm.persistence.obj] Error 2
+2025-12-11 10:18:30,300 - INFO - [NUITKA] Unexpected output from this command:
+2025-12-11 10:18:30,365 - INFO - [NUITKA] <clcache> /Fomodule.sqlalchemy.dialects.oracle.dictionary.obj /c "module.sqlalchemy.dialects.oracle.dictionary.c" /std:c11 /nologo /wd5105 /wd4391 /Ox /GF /Gy /MD /EHsc /J /Gd /bigobj /D_NUITKA_STANDALONE_MODE /D_NUITKA_EXE_MODE /D_WIN32_WINNT=0x0601 /D__NUITKA_NO_ASSERT__ /D_NUITKA_WINMAIN_ENTRY_POINT /D_NUITKA_DISABLE_CONSOLE_WINDOW /D_NUITKA_CONSTANTS_FROM_RESOURCE /D_NUITKA_FROZEN=155 /D_NUITKA_PLUGIN_MULTIPROCESSING_ENABLED=1 /IC:\Users\Coemi\Desktop\SCRIPT\FORMAZ~1\Lib\SITE-P~1\nuitka\build\inline_copy\zlib /IC:\PROGRA~1\PYTHON~1\include /I. /IC:\Users\Coemi\Desktop\SCRIPT\FORMAZ~1\Lib\SITE-P~1\nuitka\build\include /IC:\Users\Coemi\Desktop\SCRIPT\FORMAZ~1\Lib\SITE-P~1\nuitka\build\static_src /IC:\Users\Coemi\Desktop\SCRIPT\FORMAZ~1\Lib\SITE-P~1\nuitka\build\inline_copy\libbacktrace
+2025-12-11 10:18:30,407 - INFO - [NUITKA] C:\Users\Coemi\Desktop\SCRIPT\formazione_coemi\dist\nuitka\launcher.build\module.sqlalchemy.dialects.oracle.dictionary.c(1178) : fatal error C1002: Il compilatore ha esaurito lo spazio dell'heap durante il passaggio 2
+2025-12-11 10:18:30,429 - INFO - [NUITKA] 
+2025-12-11 10:18:30,455 - INFO - [NUITKA] scons: *** [module.sqlalchemy.dialects.oracle.dictionary.obj] Error 1
+2025-12-11 10:18:51,990 - INFO - [NUITKA] FATAL: Failed unexpectedly in Scons C backend compilation.
+2025-12-11 10:18:51,997 - INFO - [NUITKA] Nuitka:WARNING:     Complex topic! More information can be found at https://nuitka.net/info/scons-backend-failure.html
+2025-12-11 10:19:25,088 - INFO - [NUITKA] Nuitka-Reports: Compilation crash report written to file 'nuitka-crash-report.xml'.
+2025-12-11 10:19:48,557 - ERROR - ERROR: Compilazione fallita dopo 105.9 minuti
+2025-12-11 10:19:48,557 - ERROR - ERROR: Exit code: 1
+2025-12-11 10:19:48,561 - INFO - === 📊 REPORT BUILD ===
+2025-12-11 10:19:48,562 - ERROR - ERROR: Build fallito. Controlla gli errori sopra.
