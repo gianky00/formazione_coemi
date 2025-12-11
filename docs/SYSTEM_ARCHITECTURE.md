@@ -1,164 +1,113 @@
-# Architettura di Sistema e Grafico delle Dipendenze
+# Architettura di Sistema
 
-Questo documento definisce l'architettura tecnica ad alto livello di **Intelleo**, descrivendo i componenti, le interazioni e i flussi dati critici.
+Questo documento descrive l'architettura tecnica di **Intelleo**, un'applicazione desktop ibrida che combina un backend Python moderno (FastAPI) con un frontend nativo (PyQt6) e componenti web embedded (React), distribuita come eseguibile monolitico nativo tramite **Nuitka**.
 
-## 1. Architettura High-Level
+---
 
-Il sistema adotta un'architettura **Client-Server Decoppiata Local-Hosted**, dove Frontend e Backend sono processi distinti che comunicano via HTTP su `localhost`, ma sono distribuiti come un unico pacchetto monolitico.
+## 1. Panoramica Architetturale
 
-### Componenti Principali
-*   **Backend Server (Processo A)**: Applicazione Python/FastAPI "Headless".
-    *   **Ruolo**: Gestisce persistenza dati (SQLite In-Memory), logica di business, integrazione AI (Gemini), Scheduling e Sicurezza.
-    *   **Porta**: Dinamica (range 8000-8010).
-*   **Desktop Client (Processo B)**: Applicazione Python/PyQt6.
-    *   **Ruolo**: Interfaccia utente, gestione stato sessione, rendering grafici (Gantt), Bridge React.
-*   **Mobile/Guide UI (Embedded)**: Single Page Application (SPA) React + Vite.
-    *   **Ruolo**: Manuale utente interattivo e moduli responsive.
-    *   **Integrazione**: Renderizzata via `QWebEngineView` e comunicante tramite `QWebChannel`.
+Il sistema adotta un pattern **Local-Hosted Client-Server**. Sebbene l'utente percepisca un'unica applicazione desktop, internamente esistono due processi logici distinti che comunicano via HTTP su `localhost`.
+
+### Componenti Core
+
+1.  **Launcher & Controller (PyQt6)**:
+    *   Gestisce il ciclo di vita dell'applicazione.
+    *   Fornisce l'interfaccia grafica nativa (Finestre, Tray, Dialoghi OS).
+    *   Orchestra l'avvio del backend e la gestione delle licenze.
+2.  **Backend "Headless" (FastAPI)**:
+    *   Esegue la logica di business, l'accesso al database (crittografato in RAM) e l'integrazione AI.
+    *   Non ha interfaccia grafica propria.
+    *   Espone API RESTful consumate dal Client PyQt.
+3.  **Frontend Web (React/Vite)**:
+    *   Utilizzato per il Manuale Utente e moduli complessi.
+    *   Embedded tramite `QWebEngineView`.
+    *   Comunica con il desktop tramite `QWebChannel` (Bridge JS-Python).
 
 ```mermaid
 graph TD
-    subgraph "Host Locale (Windows PC)"
-        Launcher[Launcher.py (Process Controller)]
+    subgraph "Processo Principale (Intelleo.exe)"
+        Launcher[Launcher.py]
 
-        Launcher -->|Spawns| Backend[Backend Process (FastAPI)]
-        Launcher -->|Spawns| Frontend[Frontend Process (PyQt6)]
-
-        Frontend -->|HTTP REST + JWT| Backend
-
-        subgraph "Backend Space"
-            API[API Routers]
-            Services[Service Layer]
-            DB[(In-Memory Encrypted SQLite)]
-            AI_Client[Gemini Client]
-
-            Backend --> API
-            API --> Services
-            Services --> DB
-            Services --> AI_Client
+        subgraph "Thread 1: GUI Loop"
+            QtApp[PyQt6 Application]
+            Views[Viste Native]
+            WebEngine[QWebEngineView]
         end
 
-        subgraph "Frontend Space"
-            Views[PyQt Views]
-            React[React App (QWebEngine)]
-            Bridge[QWebChannel JS Bridge]
-
-            Views -->|Embeds| React
-            React <-->|JSON RPC| Bridge <--> Views
+        subgraph "Thread 2: Backend Server"
+            Uvicorn[Uvicorn Server]
+            FastAPI[FastAPI App]
+            DB[(SQLite In-Memory)]
         end
+
+        Launcher -->|Avvia| QtApp
+        Launcher -->|Spawns| Uvicorn
+
+        Views <-->|HTTP REST| FastAPI
+        WebEngine <-->|QWebChannel| Views
+        FastAPI <-->|SQLAlchemy| DB
     end
-
-    Cloud[Google Gemini API]
-    Github[GitHub License Repo]
-    SMTP[SMTP Mail Server]
-
-    AI_Client -->|HTTPS| Cloud
-    Services -->|HTTPS| Github
-    Services -->|SMTP/S| SMTP
 ```
 
-## 2. Dettaglio Componenti e Dipendenze
+---
 
-### Backend (`app/`)
-*   **Entry Point**: `app.main:app`. Utilizza `lifespan` context manager per inizializzare `DBSecurityManager` (Load DB) e `APScheduler` (Start Jobs).
-*   **Stack Tecnologico**:
-    *   **Web Framework**: `fastapi`, `uvicorn` (Server ASGI).
-    *   **ORM**: `sqlalchemy` (con `StaticPool` per SQLite in-memory).
-    *   **AI**: `google-generativeai` (Gemini SDK), `tenacity` (Retry logic).
-    *   **Sicurezza**: `cryptography` (Fernet Encryption), `python-jose` (JWT), `bcrypt` (Hashing).
-    *   **Utilities**: `fpdf2` (PDF Gen), `apscheduler` (Cron jobs), `geoip2` (Location).
+## 2. Sequenza di Avvio (Boot Sequence)
 
-### Frontend Desktop (`desktop_app/`)
-*   **Entry Point**: `boot_loader.py` -> `launcher.py` -> `desktop_app.main`.
-*   **Stack Tecnologico**:
-    *   **GUI**: `PyQt6` (Core, Widgets, Gui).
-    *   **Web Engine**: `PyQt6-WebEngine` (Chromium embedding), `PyQt6-WebChannel` (JS Bridge).
-    *   **Network**: `requests` (API Client sincrono), `urllib3`.
-    *   **System**: `wmi` (Hardware ID Windows), `pywin32` (OS Integration).
-    *   **Multimedia**:
-        *   `Neural3D`: Engine particellare vettoriale custom (`numpy`) per visualizzazioni 3D.
-        *   `SoundManager`: Sintetizzatore audio real-time (WAV generator) e bridge `edge-tts`.
+Il processo di avvio (`launcher.py`) è critico e segue una sequenza rigorosa a 4 fasi per garantire sicurezza e stabilità.
 
-### Guide Frontend (`guide_frontend/`)
-*   **Stack Tecnologico**: `React 18`, `Vite` (Build Tool), `Tailwind CSS 3` (Styling), `Framer Motion` (Animations), `Lucide React` (Icons).
-*   **Build Artifact**: File statici (`index.html`, `assets/*.js`, `assets/*.css`) in `guide_frontend/dist/`.
+### Fase 0: License Gatekeeper
+Prima di caricare qualsiasi componente UI o Backend:
+1.  **Verifica Fisica**: Cerca i file `pyarmor.rkey` e `config.dat` in `%LOCALAPPDATA%/Intelleo/Licenza`.
+2.  **Verifica Logica**: Tenta di importare un modulo protetto (`app.core.config`).
+3.  **Recovery**: Se la licenza è invalida, tenta un aggiornamento "Headless" scaricando i file dal repository GitHub privato. Se fallisce, l'app termina.
 
-### Build Artifact (Nuitka)
-*   **Build Tool**: Nuitka (Python-to-C compiler)
-*   **Output**: Cartella `dist/nuitka/Intelleo.dist/` con eseguibile nativo + dipendenze
-*   **Vantaggi rispetto a PyInstaller**:
-    - **Avvio istantaneo**: <2s vs ~6s (nessuna estrazione bytecode)
-    - **Codice C nativo**: Compilato, non interpretato
-    - **Protezione IP**: Reverse engineering 10x più difficile
-    - **Nessuna estrazione temporanea**: No `_MEIPASS`, no file temporanei
-    - **Stabilità**: Eliminati crash da race condition e DLL conflicts
-*   **Path Resolution**: Usa `app.core.path_resolver` per path universali (dev/Nuitka compatibili)
+### Fase 1: Inizializzazione Ambiente
+1.  **Logging**: Configura `logging` per catturare errori su file (`%LOCALAPPDATA%/Intelleo/logs/intelleo.log`) e Sentry.
+2.  **Path Resolution**: Usa `app.core.path_resolver` per determinare i percorsi, gestendo le differenze tra modalità Sviluppo e Build Nuitka.
+3.  **Port Discovery**: Scansiona le porte 8000-8010 per trovarne una libera.
 
-## 3. Flussi di Interazione Critici
+### Fase 2: Backend Spawn & UI Launch
+1.  **Backend Thread**: Avvia `uvicorn.run()` su un `threading.Thread` separato (Daemon).
+2.  **Splash Screen**: Mostra la schermata di caricamento.
+3.  **Health Check**: Esegue polling su `/api/v1/health` finché il server non risponde (max 60s).
 
-### 3.1 Boot Sequence (Reliability & Security)
-1.  **Boot Loader**: `boot_loader.py` avvia `launcher.py` in un blocco `try/except` "Pokemon" (Catch-All) per catturare errori di importazione DLL (comuni su Windows).
-2.  **Path Resolution**: `launcher.py` usa `app.core.path_resolver` per determinare:
-    *   `get_base_path()`: Root applicazione (compatibile dev/Nuitka)
-    *   `get_license_path()`: Cerca licenza in ordine di priorità:
-        1. `%LOCALAPPDATA%/Intelleo/Licenza` (user data)
-        2. `{AppDir}/Licenza` (legacy/install dir)
-        3. `{AppDir}/` (fallback)
-    > **Nota Nuitka**: `{AppDir}` = `os.path.dirname(sys.executable)`, NON `sys._MEIPASS`
-3.  **License Gatekeeper**: Verifica validità licenza e integrità sistema (`integrity_service`).
-    *   *Se Fail*: Tenta Auto-Update (Headless). Se fallisce ancora -> Exit.
-4.  **Port Discovery**: Scansiona porte 8000-8010 per trovare una porta libera.
-5.  **Backend Spawn**: Avvia il backend su thread separato (`uvicorn.run`).
-6.  **Health Check**: Polling su `/api/v1/health`.
-    *   *Se DB Lock*: Backend parte in "Recovery Mode". Launcher avvia UI ma notifica "Read Only".
-    *   *Se DB Missing*: Backend OK, Launcher mostra "Database Recovery Dialog".
-7.  **UI Launch**: Avvia `QApplication` e `LoginView`.
+### Fase 3: Database Integrity Check (Post-Launch)
+Una volta che l'UI è pronta (Login View):
+1.  Il Launcher verifica l'integrità del database cifrato.
+2.  **Recovery Dialog**: Se il DB è mancante o corrotto, mostra un dialogo *sopra* la schermata di login permettendo all'utente di:
+    *   Creare un nuovo DB.
+    *   Ripristinare un backup (`.bak`).
+    *   Selezionare un altro file.
 
-### 3.2 AI Data Ingestion Pipeline
-1.  **Upload**: Utente trascina PDF -> Frontend invia bytes a `POST /upload-pdf/`.
-2.  **Processing (Backend)**:
-    *   `ai_extraction.py` costruisce prompt con regole di business (es. "NOMINA" vs "PREPOSTO").
-    *   Invia a Gemini 2.5 Pro.
-    *   Riceve JSON.
-3.  **Normalization**: Backend normalizza date (`DD/MM/YYYY`) e nomi (`Title Case`).
-4.  **Presentation**: Frontend riceve JSON e popola `ImportView`.
+---
 
-### 3.3 React-PyQt Bridge (Modern Guide)
-1.  **Init**: `ModernGuideView` (PyQt) carica `index.html` da `dist/`.
-2.  **Registration**: Backend registra oggetto `GuideBridge` su `QWebChannel`.
-3.  **Frontend Hook**: React usa `useEffect` per inizializzare `new QWebChannel(qt.webChannelTransport)`.
-4.  **Communication**:
-    *   React chiama `bridge.close_guide()` -> PyQt esegue slot `close_guide()`.
-    *   PyQt può iniettare JS via `runJavaScript()`.
+## 3. Gestione Dati e Sicurezza
 
-## 4. Sottosistema di Sicurezza & Licenze
-*Per dettagli completi, vedere [System Design Report](SYSTEM_DESIGN_REPORT.md).*
+### In-Memory Database Architecture
+Vedere `app/core/db_security.py`.
+*   **Storage**: Il file su disco è cifrato AES-128 (via SQLCipher o layer custom).
+*   **Runtime**: All'avvio, il DB viene decifrato e caricato in una connessione `sqlite3` in-memory (`:memory:`).
+*   **Persistenza**: Al salvataggio, la memoria viene serializzata, cifrata e sovrascritta su disco.
+*   **Concorrenza**: Gestita da `LockManager` basato su file `.lock` con ID processo.
 
-Il sistema impiega un'architettura **"Zero-Trust Local"**:
-*   **Storage**: DB sempre cifrato su disco (AES-128). Decifrato solo in RAM.
-*   **Licensing**: Bind Hardware (Disk Serial) + Configurazione Cifrata.
-*   **Anti-Tamper**: Validazione temporale NTP + SHA256 Manifest Check.
-*   **Updates**: Aggiornamento atomico delle licenze via GitHub CDN privato.
+### Comunicazione Inter-Processo (IPC)
+*   **Frontend -> Backend**: Chiamate HTTP sincrone tramite `requests` (`desktop_app.api_client.APIClient`). Autenticazione via JWT Bearer Token.
+*   **Backend -> Frontend**: Il backend non può chiamare direttamente il frontend. Usa segnali (polling o WebSocket, attualmente polling).
+*   **React -> Desktop**: Canale bidirezionale `QWebChannel`.
+    *   JS: `channel.objects.bridge.method()`
+    *   Python: `@pyqtSlot` esposto su `GuideBridge`.
 
-## 🤖 AI Metadata (RAG Context)
-```json
-{
-  "type": "architecture_documentation",
-  "domain": "system_design",
-  "key_components": [
-    "FastAPI Backend",
-    "PyQt6 Desktop Client",
-    "React Mobile UI",
-    "In-Memory Database",
-    "Gemini AI",
-    "QWebChannel Bridge"
-  ],
-  "architecture_style": "Decoupled Local Client-Server",
-  "critical_paths": [
-    "Boot Sequence",
-    "AI Ingestion",
-    "React Bridge",
-    "License Gatekeeper"
-  ]
-}
-```
+---
+
+## 4. Build System (Nuitka)
+
+L'applicazione è compilata in codice macchina nativo usando **Nuitka**.
+
+*   **Entry Point**: `launcher.py`.
+*   **Output**: Cartella `dist/nuitka/Intelleo.dist`.
+*   **Gestione Dipendenze**:
+    *   DLL di sistema spostate in `dll/` e aggiunte al PATH a runtime.
+    *   Risorse statiche (`assets/`, `icons/`) incluse nel pacchetto.
+*   **Protezione**:
+    *   Il codice Python non è estraibile (è compilato in C).
+    *   Costanti sensibili sono offuscate.

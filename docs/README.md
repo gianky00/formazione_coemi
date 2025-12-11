@@ -1,76 +1,38 @@
-# Intelleo - Predict. Validate. Automate.
+# Intelleo Documentation
 
-**Intelleo** è una piattaforma avanzata per la gestione della sicurezza sul lavoro, progettata per automatizzare l'analisi, la validazione e il monitoraggio delle scadenze dei certificati formativi.
+Benvenuto nella documentazione tecnica di **Intelleo**, il sistema avanzato per la gestione della sicurezza sul lavoro e la conformità documentale.
 
-![Intelleo Dashboard](desktop_app/assets/logo.png)
+Questa cartella contiene la documentazione ufficiale per sviluppatori, sistemisti e agenti AI.
 
-## 🚀 Caratteristiche Principali
+## 📚 Indice della Documentazione
 
-*   **Analisi AI Single-Pass**: Estrazione automatica di entità da PDF tramite Google Gemini 2.5 Pro.
-*   **Sicurezza Zero-Trust**: Database cifrato in memoria, Node-Locking hardware, Anti-Tamper temporale.
-*   **Workflow Ibrido**: Validazione manuale assistita (Human-in-the-loop) e importazione massiva CSV.
-*   **Assistente Lyra**: Chatbot RAG con sintesi vocale per interrogare i dati in linguaggio naturale.
-*   **Auto-Update Licenze**: Aggiornamento trasparente delle chiavi di licenza via GitHub CDN.
+### 1. Architettura e Design
+*   **[SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md)**: Panoramica del sistema, sequenza di avvio, gestione processi.
+*   **[SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md)**: Sicurezza "Zero-Trust Local", Crittografia DB, Licensing e Audit.
+*   **[PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)**: Mappa completa del codice sorgente (Backend/Frontend).
 
-## 📚 Documentazione Tecnica
+### 2. Backend Services
+*   **[AI_ENGINE.md](AI_ENGINE.md)**: Funzionamento del motore di estrazione Gemini (Prompt, Retry, Parsing).
+*   **[CERTIFICATE_LOGIC.md](CERTIFICATE_LOGIC.md)**: Regole di business per validità, scadenze e stati.
+*   **[NOTIFICATION_SYSTEM.md](NOTIFICATION_SYSTEM.md)**: Generazione report PDF e invio email.
+*   **[DATA_MODELS.md](DATA_MODELS.md)**: Schema Database e API Objects.
+*   **[API_REFERENCE.md](API_REFERENCE.md)**: Endpoint REST API.
 
-La documentazione è strutturata per domini di competenza. **Inizia da qui:**
+### 3. Frontend & Desktop
+*   **[DESKTOP_CLIENT.md](DESKTOP_CLIENT.md)**: Architettura PyQt6, ViewModels, Worker.
+*   **[FRONTEND_BRIDGE.md](FRONTEND_BRIDGE.md)**: Integrazione React e QWebChannel.
 
-### Architettura & Design
-*   **[System Architecture](docs/SYSTEM_ARCHITECTURE.md)**: Panoramica componenti, Boot sequence e Bridge React.
-*   **[System Design Report](docs/SYSTEM_DESIGN_REPORT.md)**: **(Deep Dive)** Crittografia, Licenze, Update Pipeline.
-*   **[Project Structure](docs/PROJECT_STRUCTURE_AND_TESTS.md)**: Mappa file e Test Coverage.
+### 4. Guide Operative
+*   **[BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md)**: Come compilare il progetto con Nuitka e creare l'installer.
+*   **[OPERATIONAL_GUIDE.md](OPERATIONAL_GUIDE.md)**: Manuale per il rilascio, generazione licenze e gestione clienti.
+*   **[TEST_GUIDE.md](TEST_GUIDE.md)**: Strategie di testing e QA ("Green Suite").
+*   **[CONTRIBUTING.md](CONTRIBUTING.md)**: Standard di codice, Git workflow e policy.
 
-### Sviluppo & Dati
-*   **[Data Models](docs/DATA_MODELS.md)**: Schema Database e Pydantic.
-*   **[API Reference](docs/API_REFERENCE.md)**: Lista endpoint Backend.
-*   **[Critical Flows](docs/CRITICAL_FLOWS.md)**: Logiche di business (Import, Linking, Stati).
-*   **[Frontend Architecture](docs/FRONTEND_ARCHITECTURE.md)**: Dettagli React/Vite.
-
-### Operations & Build
-*   **[Build Instructions](docs/BUILD_INSTRUCTIONS.md)**: Come compilare, offuscare e creare l'installer.
-*   **[Test Guide](docs/TEST_GUIDE.md)**: Strategie di test e Mocking Qt.
-*   **[Dev Protocols](docs/DEV_PROTOCOLS.md)**: Standard di codice e sicurezza.
-
----
-
-## 🛠️ Setup Ambiente di Sviluppo
-
-### Prerequisiti
-*   Python 3.12+
-*   Node.js 18+
-*   Chiavi API (Gemini, PostHog, Sentry) nel file `.env` (non committato).
-
-### Installazione
-```bash
-# 1. Clone & Venv
-git clone <repo>
-python -m venv .venv
-.\.venv\Scripts\activate
-
-# 2. Dipendenze Python
-pip install -r requirements.txt
-
-# 3. Dipendenze Frontend
-cd guide_frontend
-npm install
-npm run build
-cd ..
-```
-
-### Avvio (Dev Mode)
-```bash
-# Lancia l'intera applicazione (Backend + Frontend)
-python launcher.py
-```
-
-### Test
-```bash
-python -m pytest
-```
+### 5. Meta & AI
+*   **[AGENTS.md](AGENTS.md)**: Istruzioni per AI Agents (Persona "Jules").
+*   **[LYRA_PROFILE.md](LYRA_PROFILE.md)**: Profilo dell'assistente virtuale Lyra.
 
 ---
 
-## ⚖️ Licenza
-Software Proprietario protetto da Copyright.
-L'uso non autorizzato, la decompilazione o l'elusione dei sistemi di protezione (PyArmor) sono violazioni dei termini di servizio.
+## 📂 Archivio Storico
+La cartella `MIGRAZIONE FINALIZZATA CON NIUTKA/` contiene i report storici delle fasi di sviluppo e note di migrazione. Consultare solo per archeologia del software.
