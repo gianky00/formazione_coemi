@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QFrame, QMessageBox, 
                              QDialog, QLineEdit, QDialogButtonBox, QGraphicsOpacityEffect)
 from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPropertyAnimation, QPoint, QPointF, QEasingCurve, QTimer, QObject, QThread, QThreadPool, QRect
 from PyQt6.QtGui import QPixmap, QColor, QFont, QPainter, QLinearGradient, QPen, QBrush
+from PyQt6 import sip
 from desktop_app.utils import get_asset_path
 import random
 from desktop_app.components.animated_widgets import AnimatedButton, AnimatedInput
@@ -753,12 +754,15 @@ class LoginView(QWidget):
         self.login_worker = None
 
     def _on_login_error(self, error_msg):
+        if sip.isdeleted(self) or sip.isdeleted(self.login_btn):
+            return
+
         try:
             self.login_btn.set_loading(False)
             self.shake_window()
             CustomMessageDialog.show_error(self, "Errore di Accesso", error_msg)
         except RuntimeError:
-            pass # UI Deleted
+            pass
 
     def _prepare_welcome_message(self, user_info):
         """Prepares user context and welcome speech."""
@@ -846,16 +850,20 @@ class LoginView(QWidget):
 
     def on_login_success(self, response):
         import sentry_sdk
+        if sip.isdeleted(self):
+            return
+
         try:
-            # Robustness Check: Ensure UI is still alive
-            if not self.login_btn or not self.container:
+            # Double check container for C++ validity
+            if sip.isdeleted(self.container) or sip.isdeleted(self.login_btn):
                 return
 
             self.api_client.set_token(response)
             user_info = self.api_client.user_info
 
             if not self._check_password_requirement(user_info):
-                self.login_btn.set_loading(False)
+                if not sip.isdeleted(self.login_btn):
+                    self.login_btn.set_loading(False)
                 return
 
             self._check_read_only(user_info)
@@ -864,22 +872,19 @@ class LoginView(QWidget):
             self._animate_success_exit()
 
         except RuntimeError:
-            # The C++ object has been deleted (window closed during login).
-            # We ignore this safely.
             return
         except Exception as e:
             if sentry_sdk.is_initialized():
                 sentry_sdk.capture_exception(e)
-            try:
-                self._on_login_error(str(e))
-                self.login_btn.set_loading(False)
-            except RuntimeError:
-                pass # UI already gone
+            self._on_login_error(str(e))
 
     def _animate_success_exit(self):
         """
         Triggers the 'Spectacular' Cinematic 3D Warp Transition.
         """
+        if sip.isdeleted(self.container):
+            return
+
         # Fade Out UI
         self.opacity_effect = QGraphicsOpacityEffect(self.container)
         self.container.setGraphicsEffect(self.opacity_effect)
