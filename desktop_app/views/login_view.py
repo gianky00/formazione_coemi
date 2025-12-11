@@ -753,9 +753,12 @@ class LoginView(QWidget):
         self.login_worker = None
 
     def _on_login_error(self, error_msg):
-        self.login_btn.set_loading(False)
-        self.shake_window()
-        CustomMessageDialog.show_error(self, "Errore di Accesso", error_msg)
+        try:
+            self.login_btn.set_loading(False)
+            self.shake_window()
+            CustomMessageDialog.show_error(self, "Errore di Accesso", error_msg)
+        except RuntimeError:
+            pass # UI Deleted
 
     def _prepare_welcome_message(self, user_info):
         """Prepares user context and welcome speech."""
@@ -844,6 +847,10 @@ class LoginView(QWidget):
     def on_login_success(self, response):
         import sentry_sdk
         try:
+            # Robustness Check: Ensure UI is still alive
+            if not self.login_btn or not self.container:
+                return
+
             self.api_client.set_token(response)
             user_info = self.api_client.user_info
 
@@ -856,11 +863,18 @@ class LoginView(QWidget):
             self._prepare_welcome_message(user_info)
             self._animate_success_exit()
 
+        except RuntimeError:
+            # The C++ object has been deleted (window closed during login).
+            # We ignore this safely.
+            return
         except Exception as e:
             if sentry_sdk.is_initialized():
                 sentry_sdk.capture_exception(e)
-            self._on_login_error(str(e))
-            self.login_btn.set_loading(False)
+            try:
+                self._on_login_error(str(e))
+                self.login_btn.set_loading(False)
+            except RuntimeError:
+                pass # UI already gone
 
     def _animate_success_exit(self):
         """
