@@ -19,7 +19,17 @@ Gestisce l'autenticazione e i permessi.
 | `is_admin` | `Boolean` | NO | Default `False`. Flag privilegi elevati. |
 | `last_login` | `DateTime` | YES | Ultimo accesso. |
 | `previous_login` | `DateTime` | YES | Penultimo accesso (per UI). |
+| `gender` | `String` | YES | Genere ('M', 'F') per UI customization. |
 | `created_at` | `DateTime` | NO | Data creazione record. |
+
+### `blacklisted_tokens` (Sicurezza Sessione)
+Tabella per la gestione del Logout (JWT invalidation).
+
+| Colonna | Tipo | Nullable | Descrizione |
+| :--- | :--- | :--- | :--- |
+| `id` | `Integer` | NO | Primary Key. |
+| `token` | `String` | NO | Token JWT invalidato. UNIQUE. |
+| `blacklisted_on` | `DateTime` | NO | Timestamp logout. |
 
 ### `audit_logs` (Audit Trail)
 Registro immutabile delle azioni di sicurezza.
@@ -50,6 +60,7 @@ Registro centrale del personale.
 | `data_nascita` | `Date` | YES | Usata per risoluzione omonimie. |
 | `email` | `String` | YES | Contatto. |
 | `categoria_reparto` | `String` | YES | Dipartimento. |
+| `data_assunzione` | `Date` | YES | Data assunzione. |
 
 ### `corsi` (Catalogo Formativo)
 Definizione dei tipi di documento.
@@ -110,40 +121,6 @@ class AuditLogSchema(BaseModel):
     details: str
     severity: str
     changes: str | None     # JSON String
-```
-
----
-
-## 3. License & Configuration Files
-*Dettagli completi in [System Design Report](SYSTEM_DESIGN_REPORT.md).*
-
-### `config.dat` (License Payload)
-Encrypted with Fernet (AES-128).
-```json
-{
-    "Hardware ID": "String (Disk Serial or MAC)",
-    "Scadenza Licenza": "DD/MM/YYYY",
-    "Generato il": "DD/MM/YYYY",
-    "Cliente": "String (Customer Name)"
-}
-```
-
-### `manifest.json` (Update Integrity)
-Plaintext JSON.
-```json
-{
-    "pyarmor.rkey": "SHA256_HASH_STRING",
-    "config.dat": "SHA256_HASH_STRING"
-}
-```
-
-### `secure_time.dat` (Anti-Tamper)
-Encrypted with Fernet.
-```json
-{
-    "last_online_check": "ISO8601 Timestamp",
-    "last_execution": "ISO8601 Timestamp"
-}
 ```
 
 ## 🤖 AI Metadata (RAG Context)
