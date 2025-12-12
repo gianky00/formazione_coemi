@@ -13,6 +13,8 @@ from desktop_app.utils import get_asset_path
 import random
 from desktop_app.components.animated_widgets import AnimatedButton, AnimatedInput
 from desktop_app.components.custom_dialog import CustomMessageDialog
+from desktop_app.mixins.safe_widget_mixin import SafeWidgetMixin
+from desktop_app.core.widget_guard import is_widget_alive, guard_widget_access
 from desktop_app.services.license_manager import LicenseManager
 from desktop_app.services.sound_manager import SoundManager
 from desktop_app.services.license_updater_service import LicenseUpdaterService
@@ -105,7 +107,7 @@ class LicenseUpdateWorker(QThread):
         success, message = updater.update_license(hw_id)
         self.update_finished.emit(success, message)
 
-class LoginView(QWidget):
+class LoginView(SafeWidgetMixin, QWidget):
     login_success = pyqtSignal(dict) # Emits user_info dict
 
     def __init__(self, api_client, license_ok=True, license_error=""):
@@ -435,6 +437,12 @@ class LoginView(QWidget):
         container_layout.addWidget(self.left_panel, 40)
         container_layout.addWidget(self.right_panel, 60)
 
+        # --- CRASH ZERO: Registra widget critici per accesso sicuro ---
+        self.register_child("container", self.container)
+        self.register_child("login_btn", self.login_btn)
+        self.register_child("username_input", self.username_input)
+        self.register_child("password_input", self.password_input)
+
         # REMOVED setup_entrance_animation (staggered fades) to fix QPainter crashes
         # We use showEvent for a stable Slide Up animation
 
@@ -752,10 +760,17 @@ class LoginView(QWidget):
     def _cleanup_login_worker(self):
         self.login_worker = None
 
+    @guard_widget_access
     def _on_login_error(self, error_msg):
-        self.login_btn.set_loading(False)
-        self.shake_window()
-        CustomMessageDialog.show_error(self, "Errore di Accesso", error_msg)
+        login_btn = self.get_child("login_btn")
+        if login_btn and hasattr(login_btn, 'set_loading'):
+            try:
+                login_btn.set_loading(False)
+            except RuntimeError:
+                pass
+        if is_widget_alive(self):
+            self.shake_window()
+            CustomMessageDialog.show_error(self, "Errore di Accesso", error_msg)
 
     def _prepare_welcome_message(self, user_info):
         """Prepares user context and welcome speech."""
@@ -862,28 +877,37 @@ class LoginView(QWidget):
             self._on_login_error(str(e))
             self.login_btn.set_loading(False)
 
+    @guard_widget_access
     def _animate_success_exit(self):
-        """
-        Triggers the 'Spectacular' Cinematic 3D Warp Transition.
-        """
-        # Fade Out UI
-        self.opacity_effect = QGraphicsOpacityEffect(self.container)
-        self.container.setGraphicsEffect(self.opacity_effect)
-        
-        self.anim_fade = QPropertyAnimation(self.opacity_effect, b"opacity")
-        self.anim_fade.setDuration(200)
-        self.anim_fade.setStartValue(1.0)
-        self.anim_fade.setEndValue(0.0)
-        self.anim_fade.setEasingCurve(QEasingCurve.Type.InOutQuad)
-        self.anim_fade.start()
+        """CRASH ZERO: Animazione protetta."""
+        container = self.get_child("container")
+        if not container:
+            self._finish_login_transition()
+            return
+        try:
+            self.opacity_effect = QGraphicsOpacityEffect(container)
+            container.setGraphicsEffect(self.opacity_effect)
+            self.anim_fade = QPropertyAnimation(self.opacity_effect, b"opacity")
+            self.anim_fade.setDuration(200)
+            self.anim_fade.setStartValue(1.0)
+            self.anim_fade.setEndValue(0.0)
+            self.anim_fade.setEasingCurve(QEasingCurve.Type.InOutQuad)
+            self.anim_fade.start()
+            if hasattr(self, 'neural_engine') and self.neural_engine:
+                self.neural_engine.start_warp()
+            QTimer.singleShot(1200, self._finish_login_transition)
+        except RuntimeError:
+            self._finish_login_transition()
 
-        # Trigger Neural Warp
-        self.neural_engine.start_warp()
-
-        # Schedule Completion
-        QTimer.singleShot(1200, self._finish_login_transition)
-
+    @guard_widget_access
     def _finish_login_transition(self):
-        self._stop_3d_rendering = True
-        self._anim_timer.stop()
-        self.login_success.emit(self.api_client.user_info)
+        if self.is_destroying():
+            return
+        try:
+            self._stop_3d_rendering = True
+            if hasattr(self, '_anim_timer') and is_widget_alive(self):
+                self._anim_timer.stop()
+            if is_widget_alive(self) and hasattr(self, 'api_client'):
+                self.login_success.emit(self.api_client.user_info)
+        except RuntimeError:
+            pass
