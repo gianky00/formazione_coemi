@@ -7,6 +7,7 @@ CRASH ZERO:
 - FASE 2: Animation Management (animation_manager)
 - FASE 3: Signal/Slot Hardening (signal_guard)
 - FASE 4: Error Boundaries & Self-Healing (error_boundary)
+- FASE 5: State Machine for UI Transitions (state_machine)
 """
 
 from .widget_guard import (
@@ -49,6 +50,15 @@ from .error_boundary import (
     UIStateRecovery,
 )
 
+from .state_machine import (
+    AppState,
+    AppTransition,
+    AppStateMachine,
+    TransitionConfig,
+    VALID_TRANSITIONS,
+    get_state_machine,
+)
+
 __all__ = [
     # FASE 1: Widget Guard
     'is_widget_alive',
@@ -86,4 +96,11 @@ __all__ = [
     'error_boundary',
     'suppress_errors',
     'UIStateRecovery',
+    # FASE 5: State Machine
+    'AppState',
+    'AppTransition',
+    'AppStateMachine',
+    'TransitionConfig',
+    'VALID_TRANSITIONS',
+    'get_state_machine',
 ]

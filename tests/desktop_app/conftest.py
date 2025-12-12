@@ -7,6 +7,7 @@ pytest-qt fornisce automaticamente qapp e qtbot quando è installato.
 
 import sys
 import os
+import pytest
 from unittest.mock import MagicMock
 
 # --- MOCK EXTERNAL SERVICES (prevent network calls) ---
@@ -33,3 +34,15 @@ sys.modules["wandb"] = MagicMock()
 
 # --- PATH SETUP ---
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
+
+# --- CRASH ZERO FASE 5: Reset State Machine Singleton between tests ---
+@pytest.fixture(autouse=True)
+def reset_state_machine():
+    """Reset the state machine singleton before each test."""
+    yield
+    try:
+        from desktop_app.core.state_machine import AppStateMachine
+        AppStateMachine.reset_instance()
+    except ImportError:
+        pass

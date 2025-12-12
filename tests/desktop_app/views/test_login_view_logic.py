@@ -7,16 +7,19 @@ class TestLoginViewLogic:
     @pytest.fixture
     def login_view(self):
         with patch.dict(sys.modules, mock_modules):
-            from desktop_app.views.login_view import LoginView
+            # Patch is_widget_alive to always return True for tests
+            with patch("desktop_app.core.widget_guard.is_widget_alive", return_value=True), \
+                 patch("desktop_app.views.login_view.is_widget_alive", return_value=True):
+                from desktop_app.views.login_view import LoginView
 
-            with patch("desktop_app.services.license_manager.LicenseManager.get_license_data", return_value={}):
-                client = MagicMock()
-                view = LoginView(client)
-                view.username_input = MagicMock()
-                view.password_input = MagicMock()
-                view.login_btn = MagicMock()
-                view.threadpool = MagicMock()
-                yield view
+                with patch("desktop_app.services.license_manager.LicenseManager.get_license_data", return_value={}):
+                    client = MagicMock()
+                    view = LoginView(client)
+                    view.username_input = MagicMock()
+                    view.password_input = MagicMock()
+                    view.login_btn = MagicMock()
+                    view.threadpool = MagicMock()
+                    yield view
 
     def test_handle_login_success(self, login_view):
         login_view.username_input.text.return_value = "user"
