@@ -24,6 +24,15 @@ from app.core.db_security import db_security
 # CRASH ZERO FASE 5: State Machine
 from .core.state_machine import get_state_machine, AppState, AppTransition
 
+# CRASH ZERO FASE 6: Enhanced Sentry Integration
+from app.utils.sentry_integration import (
+    add_state_breadcrumb,
+    add_ui_breadcrumb,
+    set_user_context,
+    clear_user_context,
+    capture_state_transition_error
+)
+
 logger = logging.getLogger(__name__)
 
 # --- CONSTANTS ---
@@ -445,6 +454,9 @@ class ApplicationController:
         """Reagisce ai cambi di stato della state machine."""
         logger.info(f"App state: {old_state.name} -> {new_state.name}")
         
+        # CRASH ZERO FASE 6: Add Sentry breadcrumb for state transition
+        add_state_breadcrumb(old_state.name, new_state.name)
+        
         handlers = {
             AppState.LOGIN: self._enter_login,
             AppState.AUTHENTICATING: self._enter_authenticating,
@@ -461,6 +473,13 @@ class ApplicationController:
     def _on_transition_failed(self, transition: AppTransition, error: str):
         """Gestisce transizioni fallite."""
         logger.warning(f"Transition {transition.name} failed: {error}")
+        # CRASH ZERO FASE 6: Log failed transitions to Sentry
+        sentry_sdk.add_breadcrumb(
+            category="state_machine",
+            message=f"Transition failed: {transition.name}",
+            level="warning",
+            data={"error": error}
+        )
     
     def _enter_login(self):
         """Entra nello stato LOGIN."""
@@ -674,6 +693,12 @@ class ApplicationController:
             self._state_machine.trigger_login_submit()  # LOGIN -> AUTHENTICATING
             self._state_machine.trigger_login_success()  # AUTHENTICATING -> TRANSITIONING
             
+            # CRASH ZERO FASE 6: Set Sentry user context
+            user_id = str(user_info.get('id', 'unknown'))
+            username = user_info.get('username', 'anonymous')
+            set_user_context(user_id, username)
+            add_ui_breadcrumb("login_success", "LoginView", {"username": username})
+            
             # Create Dashboard if not exists
             self._ensure_dashboard_created()
 
@@ -826,6 +851,10 @@ class ApplicationController:
 
         # CRASH ZERO FASE 5: Trigger state transition
         self._state_machine.trigger_logout()
+        
+        # CRASH ZERO FASE 6: Clear Sentry user context
+        add_ui_breadcrumb("logout", "ApplicationController")
+        clear_user_context()
 
         self.api_client.logout()
         self.master_window.show_login()

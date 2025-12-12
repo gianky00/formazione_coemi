@@ -415,10 +415,9 @@ def get_nuitka_command(fast_mode: bool = False) -> list:
         "--include-module=email.mime.multipart",
         "--include-module=email.mime.application",
         
-        # Sentry & Analytics
+        # Sentry (PostHog removed in FASE 6)
         "--include-package=sentry_sdk.integrations",  # Include TUTTE le integrazioni (argv, logging, threading...)
         "--include-module=sentry_sdk",
-        "--include-module=posthog",
         
         # Charset
         "--include-module=charset_normalizer",

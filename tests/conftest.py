@@ -6,21 +6,16 @@ from unittest.mock import MagicMock
 import asyncio
 
 # --- GLOBAL KILL SWITCH (MUST BE BEFORE ANY APP IMPORTS) ---
-# Prevent external services (Sentry, PostHog, WMI) from starting background threads or making network calls.
+# Prevent external services (Sentry, WMI) from starting background threads or making network calls.
 # This prevents "Access Violation" and "I/O operation on closed file" crashes during teardown.
+# Note: PostHog was removed in FASE 6 (CRASH ZERO)
 
 # 1. Mock 'wmi' to prevent OS calls (Hardware ID)
 mock_wmi = MagicMock()
 mock_wmi.WMI.return_value = MagicMock()
 sys.modules["wmi"] = mock_wmi
 
-# 2. Mock 'posthog' to prevent analytics threads
-mock_ph = MagicMock()
-mock_ph.capture.return_value = None
-mock_ph.flush.return_value = None
-sys.modules["posthog"] = mock_ph
-
-# 3. Mock 'sentry_sdk' and its integrations to prevent error tracking threads
+# 2. Mock 'sentry_sdk' and its integrations to prevent error tracking threads
 mock_sentry = MagicMock()
 mock_sentry.init.return_value = None
 mock_sentry.is_initialized.return_value = False

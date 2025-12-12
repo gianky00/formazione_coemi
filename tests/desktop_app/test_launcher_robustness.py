@@ -15,9 +15,8 @@ mock_path_service = MagicMock()
 mock_path_service.get_user_data_dir.return_value = '/tmp/mock_user_data'
 sys.modules['desktop_app.services.path_service'] = mock_path_service
 
-# Patch Sentry and PostHog
+# Patch Sentry (PostHog removed in FASE 6)
 sys.modules['sentry_sdk'] = MagicMock()
-sys.modules['posthog'] = MagicMock()
 
 # Patch PyQt BEFORE import
 from tests.desktop_app.mock_qt import DummyQObject, DummySignal

@@ -3,6 +3,13 @@ Conftest per i test desktop_app - CRASH ZERO
 
 Questo file gestisce i fixtures Qt senza dipendere dal backend FastAPI.
 pytest-qt fornisce automaticamente qapp e qtbot quando è installato.
+
+IMPORTANT: Some tests use mocked PyQt6 (via mock_qt.py) which pollutes
+sys.modules. Tests that need REAL Qt (core/, mixins/) should be run
+BEFORE tests that mock Qt, or in a separate pytest invocation:
+
+  pytest tests/desktop_app/core/ tests/desktop_app/mixins/ -v
+  pytest tests/desktop_app/ --ignore=tests/desktop_app/core --ignore=tests/desktop_app/mixins -v
 """
 
 import sys
@@ -15,10 +22,7 @@ mock_wmi = MagicMock()
 mock_wmi.WMI.return_value = MagicMock()
 sys.modules["wmi"] = mock_wmi
 
-mock_ph = MagicMock()
-mock_ph.capture.return_value = None
-mock_ph.flush.return_value = None
-sys.modules["posthog"] = mock_ph
+# Note: PostHog was removed in FASE 6 (CRASH ZERO), no mock needed
 
 mock_sentry = MagicMock()
 mock_sentry.init.return_value = None
@@ -36,13 +40,24 @@ sys.modules["wandb"] = MagicMock()
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 
-# --- CRASH ZERO FASE 5: Reset State Machine Singleton between tests ---
+# --- CRASH ZERO: Reset singletons between tests ---
 @pytest.fixture(autouse=True)
-def reset_state_machine():
-    """Reset the state machine singleton before each test."""
+def reset_singletons():
+    """Reset singletons after each test."""
     yield
+    
+    # Cleanup after test
     try:
         from desktop_app.core.state_machine import AppStateMachine
         AppStateMachine.reset_instance()
+    except ImportError:
+        pass
+    
+    try:
+        from desktop_app.core.animation_manager import AnimationManager
+        # Reset animation manager state
+        am = AnimationManager.instance()
+        am._animations.clear()
+        am._owner_map.clear()
     except ImportError:
         pass

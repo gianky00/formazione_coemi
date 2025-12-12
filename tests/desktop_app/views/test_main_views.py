@@ -1,8 +1,11 @@
 import sys
 import pytest
 from unittest.mock import patch, MagicMock
+from tests.desktop_app.mock_qt import mock_modules
 
-def test_database_view_init():
+
+def test_database_view_init(qapp):
+    """Test DatabaseView initialization using real Qt."""
     from desktop_app.views.database_view import DatabaseView
 
     # Mock internal dependencies
@@ -10,11 +13,12 @@ def test_database_view_init():
          patch("desktop_app.views.database_view.APIClient"):
 
         view = DatabaseView()
-        # Verify it's our DummyQWidget
+        # Verify it was created
         assert view is not None
         MockVM.assert_called()
 
-def test_validation_view_init():
+def test_validation_view_init(qapp):
+    """Test ValidationView initialization using real Qt."""
     from desktop_app.views.validation_view import ValidationView
 
     # ValidationView uses requests directly AND APIClient
@@ -34,7 +38,8 @@ def test_validation_view_init():
         # Should start a worker
         assert MockThreadPool.return_value.start.called
 
-def test_scadenzario_view_init():
+def test_scadenzario_view_init(qapp):
+    """Test ScadenzarioView initialization using real Qt."""
     from desktop_app.views.scadenzario_view import ScadenzarioView
 
     with patch("desktop_app.views.scadenzario_view.APIClient"), \
@@ -53,12 +58,14 @@ def test_scadenzario_view_init():
         # ScadenzarioView calls load_data in init -> starts worker
         assert MockThreadPool.return_value.start.called
 
-def test_import_view_init():
+def test_import_view_init(qapp):
+    """Test ImportView initialization using real Qt."""
     from desktop_app.views.import_view import ImportView
     view = ImportView()
     assert view is not None
 
-def test_config_view_init():
+def test_config_view_init(qapp):
+    """Test ConfigView initialization using real Qt."""
     from desktop_app.views.config_view import ConfigView
     from desktop_app.api_client import APIClient
 
@@ -75,7 +82,8 @@ def test_config_view_init():
         # Basic assertion to ensure the view initialized
         assert view.api_client == mock_api_client
 
-def test_edit_dialog_init():
+def test_edit_dialog_init(qapp):
+    """Test EditCertificatoDialog initialization using real Qt."""
     from desktop_app.views.edit_dialog import EditCertificatoDialog
     data = {
         "nome": "Rossi Mario", "corso": "C1", "categoria": "CAT1",
