@@ -93,7 +93,7 @@ import base64
 def _decode_sentry_dsn():
     """Decode obfuscated Sentry DSN to bypass static code analysis."""
     # Obfuscated DSN parts (base64 encoded)
-    _k = "aHR0cHM6Ly9mMjUyZDU5OGFhZjdlNzBmZTk0ZDUzMzQ3NGI3NjYzOQ=="
+    _k = "aHR0cHM6Ly9jNWZiNDkzNGQzMDAxMWYwOTVlNTlhNDAyNThhNjIxNg=="
     _h = "bzQ1MTA0OTA0OTI2MDAzMjAuaW5nZXN0LmRlLnNlbnRyeS5pbw=="
     _p = "NDUxMDQ5MDUyNjc0NDY1Ng=="
     try:
