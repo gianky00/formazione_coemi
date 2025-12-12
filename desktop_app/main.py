@@ -898,7 +898,7 @@ if __name__ == "__main__":
     # --- SENTRY INTEGRATION FOR DEV ---
     if not sentry_sdk.is_initialized():
         environment = "production" if getattr(sys, 'frozen', False) else "development"
-        SENTRY_DSN = os.environ.get("SENTRY_DSN", "https://c5fb4934d30011f095e59a40258a6216@o4510490492600320.ingest.de.sentry.io/4510490526744656")
+        SENTRY_DSN = os.environ.get("SENTRY_DSN", "https://f252d598aaf7e70fe94d533474b76639@o4510490492600320.ingest.de.sentry.io/4510490526744656")
 
         sentry_sdk.init(
             dsn=SENTRY_DSN,
