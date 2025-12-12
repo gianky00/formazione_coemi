@@ -7,11 +7,29 @@ NOTE: These tests should be run with --forked flag to avoid segfaults during cle
     pytest tests/desktop_app/simulation/test_login_scenarios.py -v --forked
 """
 
+import sys
+import importlib
 import pytest
 from unittest.mock import MagicMock, patch
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QLineEdit, QPushButton, QWidget
-from PyQt6.QtTest import QTest
+
+# Force reload of PyQt6 to get REAL modules, not mocks
+def _get_real_qt():
+    mock_keys = [k for k in list(sys.modules.keys()) 
+                 if k.startswith('PyQt6') and ('Dummy' in str(sys.modules.get(k)) or 'MagicMock' in str(type(sys.modules.get(k))))]
+    for k in mock_keys:
+        del sys.modules[k]
+    QtCore = importlib.import_module('PyQt6.QtCore')
+    QtTest = importlib.import_module('PyQt6.QtTest')
+    QtWidgets = importlib.import_module('PyQt6.QtWidgets')
+    return QtCore, QtTest, QtWidgets
+
+_QtCore, _QtTest, _QtWidgets = _get_real_qt()
+Qt = _QtCore.Qt
+QTest = _QtTest.QTest
+QLineEdit = _QtWidgets.QLineEdit
+QPushButton = _QtWidgets.QPushButton
+QWidget = _QtWidgets.QWidget
+
 from .user_actions import UserSimulator
 
 

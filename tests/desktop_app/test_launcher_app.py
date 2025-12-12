@@ -3,14 +3,15 @@ import os
 import pytest
 from unittest.mock import MagicMock, patch, ANY
 
+# Force mock mode (must be before mock_qt import)
+
 # --- 1. SETUP MOCKS GLOBALI ---
-# Importante: Mockiamo i moduli grafici PRIMA di importare qualsiasi altra cosa
-from tests.desktop_app import mock_qt
-sys.modules["PyQt6"] = mock_qt.mock_modules["PyQt6"]
-sys.modules["PyQt6.QtWidgets"] = mock_qt.mock_modules["PyQt6.QtWidgets"]
-sys.modules["PyQt6.QtCore"] = mock_qt.mock_modules["PyQt6.QtCore"]
-sys.modules["PyQt6.QtGui"] = mock_qt.mock_modules["PyQt6.QtGui"]
-sys.modules["PyQt6.QtWebEngineWidgets"] = mock_qt.mock_modules["PyQt6.QtWebEngineWidgets"]
+# Use mock_qt_modules() which returns {} if real PyQt6 is available
+from tests.desktop_app.mock_qt import mock_qt_modules
+sys.modules.update(mock_qt_modules())
+
+# Mark tests to run in forked subprocess
+pytestmark = pytest.mark.forked
 
 # Mock Uvicorn
 sys.modules["uvicorn"] = MagicMock()

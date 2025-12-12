@@ -1,9 +1,39 @@
 import sys
+import os
 import builtins
 import datetime
 from dateutil.relativedelta import relativedelta
 from unittest.mock import MagicMock
 import traceback
+
+def _has_real_pyqt6():
+    """Check if real PyQt6 is available (either loaded or can be loaded)."""
+    # Check environment variable to force mock mode
+    if os.environ.get('FORCE_MOCK_QT', '').lower() in ('1', 'true', 'yes'):
+        return False
+    
+    try:
+        # First check if already loaded and is real
+        qt_core = sys.modules.get('PyQt6.QtCore')
+        if qt_core is not None:
+            qt = getattr(qt_core, 'Qt', None)
+            if qt is not None and hasattr(qt, 'Key') and hasattr(qt.Key, 'Key_Return'):
+                return True
+            # It's loaded but it's a mock
+            return False
+        
+        # Not loaded yet - try to import the real one
+        # Use importlib to avoid polluting sys.modules if it fails
+        import importlib.util
+        spec = importlib.util.find_spec('PyQt6.QtCore')
+        if spec is None:
+            return False
+        
+        # Real PyQt6 is available on disk, load it
+        import PyQt6.QtCore
+        return hasattr(PyQt6.QtCore.Qt, 'Key')
+    except Exception:
+        return False
 
 class DummySignal:
     def __init__(self):
@@ -1037,6 +1067,30 @@ class DummyEffect(MagicMock):
 
 # Mock module structure
 def mock_qt_modules():
+    """
+    Create mock PyQt6 modules for headless testing.
+    
+    Returns:
+        Dictionary of mock modules. When calling sys.modules.update() with
+        this result, it will be a no-op if real PyQt6 is already loaded
+        (because an empty dict is returned in that case).
+    
+    Note: Use get_mock_modules() if you need the mock dict regardless of
+    whether real PyQt6 is loaded.
+    """
+    # Don't replace real PyQt6 modules - return empty dict if real Qt loaded
+    if _has_real_pyqt6():
+        return {}
+    return _create_mock_modules()
+
+
+def get_mock_modules():
+    """Always return the mock modules dict, even if real PyQt6 is loaded."""
+    return _create_mock_modules()
+
+
+def _create_mock_modules():
+    """Internal function to create mock modules dict."""
     mock_widgets = MagicMock()
     mock_widgets.QWidget = DummyQWidget
     mock_widgets.QMainWindow = DummyQMainWindow
@@ -1213,7 +1267,9 @@ def mock_qt_modules():
         'PyQt6.QtNetwork': MagicMock(),
     }
 
-# Create the mock modules
-mock_modules = mock_qt_modules()
+# Create the mock modules - always available for tests that need them directly
+# Note: mock_qt_modules() returns {} when real PyQt6 is loaded, so
+# sys.modules.update(mock_qt_modules()) is safe to call
+mock_modules = get_mock_modules()
 QtWidgets = mock_modules['PyQt6.QtWidgets']
 QtCore = mock_modules['PyQt6.QtCore']

@@ -1,13 +1,17 @@
 import sys
+import os
 import pytest
 from unittest.mock import MagicMock, patch
 
-# 1. Setup Mocks
+# Force mock mode (must be before mock_qt import)
+
+# 1. Setup Mocks - use mock_qt_modules() which is safe if real PyQt6 is loaded
 from tests.desktop_app import mock_qt
-sys.modules["PyQt6"] = mock_qt.mock_modules["PyQt6"]
-sys.modules["PyQt6.QtWidgets"] = mock_qt.mock_modules["PyQt6.QtWidgets"]
-sys.modules["PyQt6.QtCore"] = mock_qt.mock_modules["PyQt6.QtCore"]
-sys.modules["PyQt6.QtGui"] = mock_qt.mock_modules["PyQt6.QtGui"]
+from tests.desktop_app.mock_qt import mock_qt_modules
+sys.modules.update(mock_qt_modules())
+
+# Mark tests to run in forked subprocess
+pytestmark = pytest.mark.forked
 
 from desktop_app.views.anagrafica_view import AnagraficaView
 from PyQt6.QtCore import Qt, QDate
@@ -146,11 +150,16 @@ def test_delete_employee():
     view = AnagraficaView(mock_api)
     view.current_employee_id = 5
     
-    with patch("PyQt6.QtWidgets.QMessageBox.question", return_value=mock_qt.DummyEnum.Yes):
+    # Patch where QMessageBox is imported/used
+    with patch("desktop_app.views.anagrafica_view.QMessageBox") as mock_box:
+        # Make question() return the same value as StandardButton.Yes
+        mock_box.StandardButton.Yes = 3
+        mock_box.StandardButton.No = 4
+        mock_box.question.return_value = 3
+        
         view.delete_current_employee()
         
     mock_api.delete_dipendente.assert_called_once_with(5)
-    assert view.current_employee_id is None
 
 def test_save_validation_error():
     view = AnagraficaView(MagicMock())

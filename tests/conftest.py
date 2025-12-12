@@ -5,6 +5,18 @@ from pathlib import Path
 from unittest.mock import MagicMock
 import asyncio
 
+# --- PRELOAD REAL PyQt6 (MUST BE FIRST) ---
+# This prevents mock_qt.py from polluting sys.modules during test collection.
+# If this fails, tests that need real Qt will fail anyway.
+try:
+    import PyQt6.QtCore
+    import PyQt6.QtWidgets
+    import PyQt6.QtGui
+    import PyQt6.QtTest
+    _REAL_PYQT6_PRELOADED = True
+except ImportError:
+    _REAL_PYQT6_PRELOADED = False
+
 # --- GLOBAL KILL SWITCH (MUST BE BEFORE ANY APP IMPORTS) ---
 # Prevent external services (Sentry, WMI) from starting background threads or making network calls.
 # This prevents "Access Violation" and "I/O operation on closed file" crashes during teardown.

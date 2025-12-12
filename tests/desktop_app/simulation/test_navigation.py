@@ -7,11 +7,30 @@ NOTE: These tests are simplified to avoid hangs with complex widget initializati
 Run with: pytest tests/desktop_app/simulation/test_navigation.py -v --forked
 """
 
+import sys
+import importlib
 import pytest
 from unittest.mock import MagicMock, patch
-from PyQt6.QtWidgets import QPushButton, QWidget, QStackedWidget, QVBoxLayout
-from PyQt6.QtCore import Qt
-from PyQt6.QtTest import QTest
+
+# Force reload of PyQt6 to get REAL modules, not mocks
+def _get_real_qt():
+    mock_keys = [k for k in list(sys.modules.keys()) 
+                 if k.startswith('PyQt6') and ('Dummy' in str(sys.modules.get(k)) or 'MagicMock' in str(type(sys.modules.get(k))))]
+    for k in mock_keys:
+        del sys.modules[k]
+    QtCore = importlib.import_module('PyQt6.QtCore')
+    QtTest = importlib.import_module('PyQt6.QtTest')
+    QtWidgets = importlib.import_module('PyQt6.QtWidgets')
+    return QtCore, QtTest, QtWidgets
+
+_QtCore, _QtTest, _QtWidgets = _get_real_qt()
+Qt = _QtCore.Qt
+QTest = _QtTest.QTest
+QPushButton = _QtWidgets.QPushButton
+QWidget = _QtWidgets.QWidget
+QStackedWidget = _QtWidgets.QStackedWidget
+QVBoxLayout = _QtWidgets.QVBoxLayout
+
 from .user_actions import UserSimulator
 
 

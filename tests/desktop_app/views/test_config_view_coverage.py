@@ -1,10 +1,17 @@
 import sys
+import os
 import unittest
 from unittest.mock import MagicMock, patch, mock_open
+import pytest
+
+# Force mock mode (must be before mock_qt import)
 
 # Inject mocks
 from tests.desktop_app.mock_qt import mock_qt_modules
 sys.modules.update(mock_qt_modules())
+
+# Mark tests to run in forked subprocess
+pytestmark = pytest.mark.forked
 
 from PyQt6.QtWidgets import QDialogButtonBox
 from desktop_app.views.config_view import ConfigView, UserDialog, ChangePasswordDialog

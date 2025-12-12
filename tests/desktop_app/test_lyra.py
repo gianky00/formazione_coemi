@@ -1,12 +1,18 @@
 
 import sys
+import os
 import pytest
 import unittest
 from unittest.mock import MagicMock, patch
 
+# Force mock mode (must be before mock_qt import)
+
 # --- MOCK QT FIRST ---
 from tests.desktop_app.mock_qt import mock_qt_modules
 sys.modules.update(mock_qt_modules())
+
+# Mark tests to run in forked subprocess
+pytestmark = pytest.mark.forked
 
 class TestLyraRefactor(unittest.TestCase):
 

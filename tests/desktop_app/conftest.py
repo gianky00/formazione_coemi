@@ -4,16 +4,24 @@ Conftest per i test desktop_app - CRASH ZERO
 Questo file gestisce i fixtures Qt senza dipendere dal backend FastAPI.
 pytest-qt fornisce automaticamente qapp e qtbot quando è installato.
 
-IMPORTANT: Some tests use mocked PyQt6 (via mock_qt.py) which pollutes
-sys.modules. Tests that need REAL Qt (core/, mixins/) should be run
-BEFORE tests that mock Qt, or in a separate pytest invocation:
-
-  pytest tests/desktop_app/core/ tests/desktop_app/mixins/ -v
-  pytest tests/desktop_app/ --ignore=tests/desktop_app/core --ignore=tests/desktop_app/mixins -v
+CRITICAL: This conftest.py MUST preload real PyQt6 BEFORE any test modules
+are imported. This prevents mock_qt.py from polluting sys.modules.
 """
 
 import sys
 import os
+
+# --- PRELOAD REAL PyQt6 FIRST ---
+# This MUST happen before any test imports to prevent mock pollution
+try:
+    import PyQt6.QtCore
+    import PyQt6.QtWidgets
+    import PyQt6.QtGui
+    import PyQt6.QtTest
+    _REAL_PYQT6_LOADED = True
+except ImportError:
+    _REAL_PYQT6_LOADED = False
+
 import pytest
 from unittest.mock import MagicMock
 
