@@ -1,3 +1,4 @@
+import logging
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QTableView, QHeaderView, QHBoxLayout,
     QComboBox, QLabel, QFileDialog, QListView, QFrame,
@@ -12,6 +13,7 @@ from ..components.animated_widgets import AnimatedButton, AnimatedInput, CardWid
 from ..components.cascade_delegate import CascadeDelegate
 from ..components.custom_dialog import CustomMessageDialog
 from ..components.toast import ToastManager
+from ..core.error_boundary import ErrorBoundary, ErrorContext, UIStateRecovery
 from app.services.document_locator import find_document
 from desktop_app.constants import STATUS_READ_ONLY
 import requests
@@ -19,6 +21,8 @@ import pandas as pd
 import html
 import subprocess
 import os
+
+logger = logging.getLogger(__name__)
 
 
 class StatusDelegate(CascadeDelegate):
@@ -83,6 +87,7 @@ class CertificatoTableModel(QAbstractTableModel):
 
 class DatabaseView(QWidget):
     database_changed = pyqtSignal()
+    fatal_error = pyqtSignal(str)  # CRASH ZERO FASE 4
 
     def __init__(self, api_client=None):
         super().__init__()
@@ -90,9 +95,39 @@ class DatabaseView(QWidget):
         self.view_model = DatabaseViewModel()
         self.api_client = api_client  # Will be set properly by MainDashboardWidget
 
+        # --- CRASH ZERO FASE 4: Error Boundary Setup ---
+        self.error_boundary = ErrorBoundary(
+            owner=self,
+            on_error=self._on_view_error,
+            on_fatal=self._on_view_fatal,
+            max_errors=3,
+            report_to_sentry=True
+        )
+        self._recovery = UIStateRecovery(self)
+
         self._init_ui()
         self._connect_signals()
         # Don't load data here - wait until api_client is properly set
+    
+    # --- CRASH ZERO FASE 4: Error Handlers ---
+    
+    def _on_view_error(self, ctx: ErrorContext):
+        """Gestisce errori recuperabili."""
+        logger.warning(f"DatabaseView error: {ctx.error}")
+        self._recovery.reset_all()
+        self.loading_bar.hide()
+        try:
+            from desktop_app.components.toast import Toast
+            Toast.warning(self, "Errore", str(ctx.error)[:100])
+        except Exception:
+            CustomMessageDialog.show_warning(self, "Errore", str(ctx.error)[:200])
+    
+    def _on_view_fatal(self, ctx: ErrorContext):
+        """Gestisce errori fatali."""
+        logger.error(f"DatabaseView fatal error: {ctx.error}")
+        self.fatal_error.emit(str(ctx.error))
+        self._recovery.reset_all()
+        self.loading_bar.hide()
 
     def _init_ui(self):
         self.layout = QVBoxLayout(self)

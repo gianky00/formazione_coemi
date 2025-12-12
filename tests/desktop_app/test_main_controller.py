@@ -1,12 +1,16 @@
 import sys
+import os
 from unittest.mock import MagicMock, patch
+import pytest
 
-# 1. Setup Mocks
-from tests.desktop_app import mock_qt
-sys.modules["PyQt6"] = mock_qt.mock_modules["PyQt6"]
-sys.modules["PyQt6.QtWidgets"] = mock_qt.mock_modules["PyQt6.QtWidgets"]
-sys.modules["PyQt6.QtCore"] = mock_qt.mock_modules["PyQt6.QtCore"]
-sys.modules["PyQt6.QtGui"] = mock_qt.mock_modules["PyQt6.QtGui"]
+# Force mock mode (must be before mock_qt import)
+
+# 1. Setup Mocks - use full mock_qt_modules for consistency
+from tests.desktop_app.mock_qt import mock_qt_modules
+sys.modules.update(mock_qt_modules())
+
+# Mark tests to run in forked subprocess
+pytestmark = pytest.mark.forked
 
 # Mock components that are imported by main.py
 mock_login_view = MagicMock()
@@ -115,7 +119,8 @@ def test_close_event():
     
     event = MagicMock()
     
-    with patch("PyQt6.QtWidgets.QApplication.quit") as mock_quit:
+    # Patch QApplication.quit where it's imported in main.py
+    with patch("desktop_app.main.QApplication.quit") as mock_quit:
         window.closeEvent(event)
         
         # Check cleanup

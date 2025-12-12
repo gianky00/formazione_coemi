@@ -17,6 +17,10 @@ class HolographicScanner(QWidget):
         self.timer.start(16)
 
     def animate(self):
+        # Skip animation if not visible
+        if not self.isVisible():
+            return
+            
         # Move Scan Line
         self.scan_line_y += 2
         if self.scan_line_y > 100:

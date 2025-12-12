@@ -1,12 +1,19 @@
 import sys
+import os
 import unittest
 import importlib
 import types
 from unittest.mock import MagicMock, patch
+import pytest
+
+# Force mock mode (must be before mock_qt import)
 
 # Inject mocks - MUST BE DONE BEFORE IMPORTING APP MODULES to ensure they bind to mocks
 from tests.desktop_app.mock_qt import mock_qt_modules
 sys.modules.update(mock_qt_modules())
+
+# Mark tests to run in forked subprocess
+pytestmark = pytest.mark.forked
 
 # Force reload of modules that might have been imported by other tests with real PyQt
 # We import the module objects directly to avoid package attribute errors

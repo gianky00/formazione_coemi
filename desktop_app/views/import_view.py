@@ -1,4 +1,4 @@
-
+import logging
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QTextEdit, QFileDialog, QLabel, QFrame, QSizePolicy, QHBoxLayout, QProgressBar
 from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt, QVariantAnimation, QSize
 from PyQt6.QtGui import QIcon, QColor
@@ -12,10 +12,13 @@ from ..api_client import APIClient
 from ..components.animated_widgets import LoadingOverlay
 from ..components.visuals import HolographicScanner
 from ..workers.file_scanner_worker import FileScannerWorker
+from ..core.error_boundary import ErrorBoundary, ErrorContext, UIStateRecovery
 from desktop_app.constants import DATE_FORMAT_FILE, DIR_ANALYSIS_ERRORS
 
 import time
 from collections import deque
+
+logger = logging.getLogger(__name__)
 
 class PdfWorker(QObject):
     finished = pyqtSignal(int, int) # archived_count, verify_count
@@ -235,7 +238,10 @@ class PdfWorker(QObject):
             if success:
                 target_dir = os.path.join(self.output_folder, DIR_ANALYSIS_ERRORS, error_category, emp_folder, cat_fs, status)
                 os.makedirs(target_dir, exist_ok=True)
-                shutil.move(source_path, os.path.join(target_dir, new_name))
+                try:
+                    shutil.move(source_path, os.path.join(target_dir, new_name))
+                except Exception as e:
+                    self.log_message.emit(f"Impossibile spostare {os.path.basename(source_path)}: {e}", "red")
                 return
 
         # Case 2: No Data (or Fallback)
@@ -443,6 +449,7 @@ class DropZone(QFrame):
 class ImportView(QWidget):
     import_completed = pyqtSignal(int, int) # archived, verify
     notification_requested = pyqtSignal(str, str)
+    fatal_error = pyqtSignal(str)  # CRASH ZERO FASE 4
 
     def __init__(self):
         super().__init__()
@@ -454,6 +461,16 @@ class ImportView(QWidget):
         self.scanner_thread = None
         self._pending_file_paths = None
         self.is_read_only = False
+        
+        # --- CRASH ZERO FASE 4: Error Boundary Setup ---
+        self.error_boundary = ErrorBoundary(
+            owner=self,
+            on_error=self._on_view_error,
+            on_fatal=self._on_view_fatal,
+            max_errors=3,
+            report_to_sentry=True
+        )
+        self._recovery = UIStateRecovery(self)
         
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(20, 20, 20, 20)
@@ -505,6 +522,37 @@ class ImportView(QWidget):
         self.results_display.setObjectName("card")
         self.results_display.setStyleSheet("font-family: 'Consolas', 'Menlo', monospace; background-color: #FFFFFF; color: #4B5563; border-radius: 12px; font-size: 13px; padding: 10px; border: 1px solid #E5E7EB;")
         self.layout.addWidget(self.results_display, 1)
+
+    # --- CRASH ZERO FASE 4: Error Handlers ---
+    
+    def _on_view_error(self, ctx: ErrorContext):
+        """Gestisce errori recuperabili."""
+        logger.warning(f"ImportView error: {ctx.error}")
+        self._recovery.reset_all()
+        self._reset_import_state()
+        try:
+            from desktop_app.components.toast import Toast
+            Toast.warning(self, "Errore", str(ctx.error)[:100])
+        except Exception:
+            self.results_display.append(f"<span style='color:orange'>ERRORE: {ctx.error}</span>")
+    
+    def _on_view_fatal(self, ctx: ErrorContext):
+        """Gestisce errori fatali."""
+        logger.error(f"ImportView fatal error: {ctx.error}")
+        self.fatal_error.emit(str(ctx.error))
+        self._reset_import_state()
+    
+    def _reset_import_state(self):
+        """Resetta UI a stato sicuro dopo un errore."""
+        try:
+            self.progress_frame.setVisible(False)
+            self.drop_zone.setEnabled(True)
+            self.status_label.setText("Pronto.")
+            self.etr_label.setText("")
+            if hasattr(self, 'scanner') and self.scanner:
+                self.scanner.setVisible(False)
+        except RuntimeError:
+            pass
 
     def set_read_only(self, is_read_only: bool):
         self.is_read_only = is_read_only
@@ -647,23 +695,34 @@ class ImportView(QWidget):
             self.stop_button.setEnabled(False)
 
     def append_log_message(self, message, color):
-        color_map = {
-            "red": "#DC2626",
-            "orange": "#F97316",
-            "default": "#4B5563"
-        }
-        self.results_display.setTextColor(QColor(color_map.get(color, color_map["default"])))
-        self.results_display.append(message)
-        self.results_display.setTextColor(QColor(color_map["default"])) # Reset
+        try:
+            color_map = {
+                "red": "#DC2626",
+                "orange": "#F97316",
+                "green": "#10B981",
+                "default": "#4B5563"
+            }
+            self.results_display.setTextColor(QColor(color_map.get(color, color_map["default"])))
+            self.results_display.append(message)
+            self.results_display.setTextColor(QColor(color_map["default"])) # Reset
+        except RuntimeError:
+            # Widget was deleted during callback
+            pass
 
     def on_processing_finished(self, archived_count, verify_count):
-        self.status_label.setText("Elaborazione completata.")
-        self.etr_label.setText("")
-        self.stop_button.setVisible(False)
-        self.scanner.setVisible(False) # Hide Hologram
-        self.import_completed.emit(archived_count, verify_count)
-        # self.notification_requested.emit("Analisi Completata", ...) # Replaced by Toast
-        ToastManager.success("Analisi Completata", f"L'elaborazione è terminata. {archived_count} archiviati, {verify_count} da verificare.", self.window())
+        try:
+            self.status_label.setText("Elaborazione completata.")
+            self.etr_label.setText("")
+            self.stop_button.setVisible(False)
+            self.scanner.setVisible(False) # Hide Hologram
+            self.import_completed.emit(archived_count, verify_count)
+            # self.notification_requested.emit("Analisi Completata", ...) # Replaced by Toast
+            # Get window safely - it might be None or invalid
+            parent_window = self.window() if self.isVisible() else None
+            ToastManager.success("Analisi Completata", f"L'elaborazione è terminata. {archived_count} archiviati, {verify_count} da verificare.", parent_window)
+        except RuntimeError:
+            # Widget was deleted during callback
+            pass
 
     def cleanup(self):
         """

@@ -1,11 +1,15 @@
 import sys
 import os
+import logging
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PyQt6.QtCore import QUrl, pyqtSlot, QObject, pyqtSignal
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEnginePage
 from PyQt6.QtWebChannel import QWebChannel
 from app.core.path_resolver import get_asset_path
+from desktop_app.core.error_boundary import ErrorBoundary, ErrorContext, UIStateRecovery
+
+logger = logging.getLogger(__name__)
 
 class GuideBridge(QObject):
     """
@@ -27,8 +31,20 @@ class CustomWebEnginePage(QWebEnginePage):
         super().javaScriptConsoleMessage(level, message, line_number, source_id)
 
 class ModernGuideView(QWidget):
+    fatal_error = pyqtSignal(str)  # CRASH ZERO FASE 4
+
     def __init__(self, parent=None):
         super().__init__(parent)
+
+        # --- CRASH ZERO FASE 4: Error Boundary Setup ---
+        self.error_boundary = ErrorBoundary(
+            owner=self,
+            on_error=self._on_view_error,
+            on_fatal=self._on_view_fatal,
+            max_errors=3,
+            report_to_sentry=True
+        )
+        self._recovery = UIStateRecovery(self)
 
         # Main Layout
         main_layout = QVBoxLayout(self)
@@ -54,6 +70,19 @@ class ModernGuideView(QWidget):
 
         # Pre-load immediately
         self.load_guide()
+
+    # --- CRASH ZERO FASE 4: Error Handlers ---
+    
+    def _on_view_error(self, ctx: ErrorContext):
+        """Gestisce errori recuperabili."""
+        logger.warning(f"ModernGuideView error: {ctx.error}")
+        self._recovery.reset_all()
+    
+    def _on_view_fatal(self, ctx: ErrorContext):
+        """Gestisce errori fatali."""
+        logger.error(f"ModernGuideView fatal error: {ctx.error}")
+        self.fatal_error.emit(str(ctx.error))
+        self._recovery.reset_all()
 
     def load_guide(self):
         # Determine the path to the index.html using universal path resolver

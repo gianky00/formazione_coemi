@@ -1,8 +1,9 @@
+import logging
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGraphicsView, QGraphicsScene,
-                             QSplitter, QTreeWidget, QTreeWidgetItem, QGraphicsRectItem,
-                             QGraphicsTextItem, QGraphicsLineItem, QPushButton, QHBoxLayout,
-                             QScrollBar, QTreeWidgetItemIterator, QFileDialog, QComboBox,
-                             QProgressBar, QFrame)
+                            QSplitter, QTreeWidget, QTreeWidgetItem, QGraphicsRectItem,
+                            QGraphicsTextItem, QGraphicsLineItem, QPushButton, QHBoxLayout,
+                            QScrollBar, QTreeWidgetItemIterator, QFileDialog, QComboBox,
+                            QProgressBar, QFrame)
 from PyQt6.QtCore import Qt, QDate, QRectF, QVariantAnimation, QEasingCurve, pyqtSignal, QThreadPool, QLocale
 from PyQt6.QtGui import QColor, QBrush, QPen, QFont, QLinearGradient, QPainterPath, QPainter, QPageLayout, QPageSize, QImage
 from PyQt6.QtPrintSupport import QPrinter
@@ -11,11 +12,14 @@ from ..api_client import APIClient
 from ..components.animated_widgets import AnimatedButton, LoadingOverlay
 from ..components.custom_dialog import CustomMessageDialog
 from ..components.toast import ToastManager
+from ..core.error_boundary import ErrorBoundary, ErrorContext, UIStateRecovery
 from ..workers.data_worker import FetchCertificatesWorker
 from ..workers.worker import Worker
 from collections import defaultdict
 from .gantt_item import GanttBarItem
 from desktop_app.constants import DATE_FORMAT_DISPLAY, STATUS_EXPIRING_SOON, STATUS_EXPIRED, STATUS_ACTIVE
+
+logger = logging.getLogger(__name__)
 
 class ResizingGraphicsView(QGraphicsView):
     resized = pyqtSignal()
@@ -25,9 +29,22 @@ class ResizingGraphicsView(QGraphicsView):
         self.resized.emit()
 
 class ScadenzarioView(QWidget):
+    fatal_error = pyqtSignal(str)  # CRASH ZERO FASE 4
+
     def __init__(self, api_client=None):
         super().__init__()
         self.api_client = api_client  # Will be set properly by MainDashboardWidget
+        
+        # --- CRASH ZERO FASE 4: Error Boundary Setup ---
+        self.error_boundary = ErrorBoundary(
+            owner=self,
+            on_error=self._on_view_error,
+            on_fatal=self._on_view_fatal,
+            max_errors=3,
+            report_to_sentry=True
+        )
+        self._recovery = UIStateRecovery(self)
+        
         self.layout = QVBoxLayout(self)
         self.layout.setSpacing(10)
 
@@ -190,6 +207,26 @@ class ScadenzarioView(QWidget):
         self.loading_overlay = LoadingOverlay(self)
 
         self.load_data()
+
+    # --- CRASH ZERO FASE 4: Error Handlers ---
+    
+    def _on_view_error(self, ctx: ErrorContext):
+        """Gestisce errori recuperabili."""
+        logger.warning(f"ScadenzarioView error: {ctx.error}")
+        self._recovery.reset_all()
+        if hasattr(self, 'loading_overlay') and self.loading_overlay:
+            self.loading_overlay.hide()
+        try:
+            from desktop_app.components.toast import Toast
+            Toast.warning(self, "Errore", str(ctx.error)[:100])
+        except Exception:
+            CustomMessageDialog.show_warning(self, "Errore", str(ctx.error)[:200])
+    
+    def _on_view_fatal(self, ctx: ErrorContext):
+        """Gestisce errori fatali."""
+        logger.error(f"ScadenzarioView fatal error: {ctx.error}")
+        self.fatal_error.emit(str(ctx.error))
+        self._recovery.reset_all()
 
     def update_zoom_from_combo(self, index):
         zoom_map = {0: 3.0, 1: 6.0, 2: 12.0}

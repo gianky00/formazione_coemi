@@ -5,6 +5,7 @@ from datetime import datetime
 import json
 import os
 from desktop_app.services.path_service import get_user_data_dir
+from desktop_app.core.widget_guard import is_widget_alive
 
 class ToastNotification(QWidget):
     closed = pyqtSignal()
@@ -200,14 +201,20 @@ class ToastManager(QObject):
 
     def _get_target_geometry(self, parent):
         """Helper to determine the target geometry for toast positioning."""
-        if parent and parent.isVisible() and not (parent.windowState() & Qt.WindowState.WindowMinimized):
-             # Parent is visible and valid
-             target_geometry = parent.geometry()
-             # If parent is not top-level, map to global
-             if not parent.isWindow():
-                 top_left = parent.mapToGlobal(QPoint(0, 0))
-                 target_geometry = QRect(top_left, parent.size())
-             return target_geometry
+        # Safety check: verify parent widget is still alive before accessing it
+        if parent and is_widget_alive(parent):
+            try:
+                if parent.isVisible() and not (parent.windowState() & Qt.WindowState.WindowMinimized):
+                    # Parent is visible and valid
+                    target_geometry = parent.geometry()
+                    # If parent is not top-level, map to global
+                    if not parent.isWindow():
+                        top_left = parent.mapToGlobal(QPoint(0, 0))
+                        target_geometry = QRect(top_left, parent.size())
+                    return target_geometry
+            except RuntimeError:
+                # Widget was deleted during access
+                pass
 
         # Bug 7: Multi-monitor fallback
         screen = QApplication.screenAt(QCursor.pos())
@@ -224,8 +231,11 @@ class ToastManager(QObject):
         # S3776: Refactored to reduce complexity
         self.add_to_history(type, title, message)
 
-        toast = ToastNotification(title, message, type, parent)
-        target_geometry = self._get_target_geometry(parent)
+        # Safety check: verify parent is valid before using it
+        safe_parent = parent if (parent and is_widget_alive(parent)) else None
+        
+        toast = ToastNotification(title, message, type, safe_parent)
+        target_geometry = self._get_target_geometry(safe_parent)
 
         if target_geometry:
             # Calculate TOP RIGHT of the target area (moved from bottom-right)
@@ -236,7 +246,7 @@ class ToastManager(QObject):
             # Calculate offset based on active toasts (stack downward)
             offset_y = 0
             for t in self.active_toasts:
-                if t.isVisible():
+                if is_widget_alive(t) and t.isVisible():
                     offset_y += t.height() + 10
 
             y = base_y + offset_y
@@ -260,10 +270,16 @@ class ToastManager(QObject):
             self.active_toasts.remove(toast)
             # Bug 6: Stacking Animation
             self.rearrange_toasts()
+        # Also remove any dead toasts from active list
+        self.active_toasts = [t for t in self.active_toasts if is_widget_alive(t)]
 
     def rearrange_toasts(self):
         cumulative_offset = 0
         for toast in self.active_toasts:
+            # Safety check: verify toast is still alive
+            if not is_widget_alive(toast):
+                continue
+                
             target_geometry = toast.property("target_geometry")
             if not target_geometry: continue
 
@@ -272,17 +288,21 @@ class ToastManager(QObject):
             new_y = base_y + cumulative_offset
 
             # Animate move
-            if toast.y() != new_y:
-                anim = QPropertyAnimation(toast, b"pos")
-                anim.setDuration(200)
-                anim.setStartValue(toast.pos())
-                anim.setEndValue(QPoint(toast.x(), new_y))
-                anim.setEasingCurve(QEasingCurve.Type.OutQuad)
-                anim.start()
-                # Keep reference to avoid GC? QPropertyAnimation parent is toast.
-                toast._pos_anim = anim
+            try:
+                if toast.y() != new_y:
+                    anim = QPropertyAnimation(toast, b"pos")
+                    anim.setDuration(200)
+                    anim.setStartValue(toast.pos())
+                    anim.setEndValue(QPoint(toast.x(), new_y))
+                    anim.setEasingCurve(QEasingCurve.Type.OutQuad)
+                    anim.start()
+                    # Keep reference to avoid GC? QPropertyAnimation parent is toast.
+                    toast._pos_anim = anim
 
-            cumulative_offset += toast.height() + 10
+                cumulative_offset += toast.height() + 10
+            except RuntimeError:
+                # Toast was deleted during animation setup
+                pass
 
     @staticmethod
     def success(title, message, parent=None):

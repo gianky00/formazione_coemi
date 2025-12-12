@@ -1,8 +1,12 @@
 import sys
+import os
 import unittest
 from unittest.mock import MagicMock, patch
 import math
 import numpy as np
+import pytest
+
+# Force mock mode (must be before mock_qt import)
 
 # Patch modules BEFORE importing the code under test
 from tests.desktop_app.mock_qt import mock_qt_modules
@@ -10,6 +14,9 @@ from tests.desktop_app.mock_qt import mock_qt_modules
 modules = mock_qt_modules()
 for name, mod in modules.items():
     sys.modules[name] = mod
+
+# Mark tests to run in forked subprocess
+pytestmark = pytest.mark.forked
 
 # Now import
 from desktop_app.components.neural_3d import NeuralNetwork3D

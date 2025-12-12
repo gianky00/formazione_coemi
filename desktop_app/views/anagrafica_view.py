@@ -1,3 +1,4 @@
+import logging
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QLineEdit,
     QPushButton, QListWidget, QListWidgetItem, QStackedWidget,
@@ -13,6 +14,9 @@ except ImportError:
     sentry_sdk = None
 from desktop_app.api_client import APIClient
 from desktop_app.constants import STYLE_QFRAME_CARD
+from desktop_app.core.error_boundary import ErrorBoundary, ErrorContext, UIStateRecovery
+
+logger = logging.getLogger(__name__)
 
 class KPIStatWidget(QFrame):
     def __init__(self, title, value, color="#3B82F6", parent=None):
@@ -42,6 +46,7 @@ class KPIStatWidget(QFrame):
 
 class AnagraficaView(QWidget):
     data_changed = pyqtSignal()
+    fatal_error = pyqtSignal(str)  # CRASH ZERO FASE 4
 
     def __init__(self, api_client: APIClient, parent=None):
         super().__init__(parent)
@@ -50,7 +55,30 @@ class AnagraficaView(QWidget):
         self.current_employee_id = None
         self.is_read_only = False # Should be set from main window usually
 
+        # --- CRASH ZERO FASE 4: Error Boundary Setup ---
+        self.error_boundary = ErrorBoundary(
+            owner=self,
+            on_error=self._on_view_error,
+            on_fatal=self._on_view_fatal,
+            max_errors=3,
+            report_to_sentry=True
+        )
+        self._recovery = UIStateRecovery(self)
+
         self.setup_ui()
+
+    # --- CRASH ZERO FASE 4: Error Handlers ---
+    
+    def _on_view_error(self, ctx: ErrorContext):
+        """Gestisce errori recuperabili."""
+        logger.warning(f"AnagraficaView error: {ctx.error}")
+        self._recovery.reset_all()
+    
+    def _on_view_fatal(self, ctx: ErrorContext):
+        """Gestisce errori fatali."""
+        logger.error(f"AnagraficaView fatal error: {ctx.error}")
+        self.fatal_error.emit(str(ctx.error))
+        self._recovery.reset_all()
 
     def showEvent(self, event):
         super().showEvent(event)

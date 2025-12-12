@@ -1,5 +1,6 @@
 import sys
 import requests
+import logging
 from PyQt6.QtWidgets import QApplication, QMainWindow, QMessageBox
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt, QTimer, QObject, pyqtSignal, QEvent
@@ -19,6 +20,20 @@ from .services.voice_service import VoiceService
 from .ipc_bridge import IPCBridge
 import os
 from app.core.db_security import db_security
+
+# CRASH ZERO FASE 5: State Machine
+from .core.state_machine import get_state_machine, AppState, AppTransition
+
+# CRASH ZERO FASE 6: Enhanced Sentry Integration
+from app.utils.sentry_integration import (
+    add_state_breadcrumb,
+    add_ui_breadcrumb,
+    set_user_context,
+    clear_user_context,
+    capture_state_transition_error
+)
+
+logger = logging.getLogger(__name__)
 
 # --- CONSTANTS ---
 STR_SOLA_LETTURA = "Sola Lettura"
@@ -429,12 +444,88 @@ class ApplicationController:
         # Connect IPC Bridge
         self.ipc_bridge = IPCBridge.instance()
         self.ipc_bridge.action_received.connect(self.handle_ipc_action)
+        
+        # CRASH ZERO FASE 5: Setup State Machine
+        self._state_machine = get_state_machine()
+        self._state_machine.state_changed.connect(self._on_state_changed)
+        self._state_machine.transition_failed.connect(self._on_transition_failed)
+    
+    def _on_state_changed(self, old_state: AppState, new_state: AppState):
+        """Reagisce ai cambi di stato della state machine."""
+        logger.info(f"App state: {old_state.name} -> {new_state.name}")
+        
+        # CRASH ZERO FASE 6: Add Sentry breadcrumb for state transition
+        add_state_breadcrumb(old_state.name, new_state.name)
+        
+        handlers = {
+            AppState.LOGIN: self._enter_login,
+            AppState.AUTHENTICATING: self._enter_authenticating,
+            AppState.TRANSITIONING: self._enter_transitioning,
+            AppState.MAIN: self._enter_main,
+            AppState.ERROR: self._enter_error,
+            AppState.SHUTTING_DOWN: self._enter_shutdown,
+        }
+        
+        handler = handlers.get(new_state)
+        if handler:
+            handler()
+    
+    def _on_transition_failed(self, transition: AppTransition, error: str):
+        """Gestisce transizioni fallite."""
+        logger.warning(f"Transition {transition.name} failed: {error}")
+        # CRASH ZERO FASE 6: Log failed transitions to Sentry
+        sentry_sdk.add_breadcrumb(
+            category="state_machine",
+            message=f"Transition failed: {transition.name}",
+            level="warning",
+            data={"error": error}
+        )
+    
+    def _enter_login(self):
+        """Entra nello stato LOGIN."""
+        self.master_window.show_login()
+    
+    def _enter_authenticating(self):
+        """Entra nello stato AUTHENTICATING."""
+        # Il LoginView gestisce internamente lo stato di loading
+        pass
+    
+    def _enter_transitioning(self):
+        """Entra nello stato TRANSITIONING."""
+        # La transizione animata è gestita da master_window.show_dashboard
+        # Trigger completion dopo un breve delay per l'animazione
+        QTimer.singleShot(300, self._state_machine.trigger_transition_complete)
+    
+    def _enter_main(self):
+        """Entra nello stato MAIN."""
+        # La dashboard è già mostrata dal login success handler
+        pass
+    
+    def _enter_error(self):
+        """Entra nello stato ERROR."""
+        CustomMessageDialog.show_error(
+            self.master_window,
+            "Errore Critico",
+            "Si è verificato un errore critico nell'applicazione."
+        )
+    
+    def _enter_shutdown(self):
+        """Entra nello stato SHUTTING_DOWN."""
+        logger.info("Application shutting down...")
+        self.master_window.close()
 
     def start(self):
         self.master_window.showMaximized()
         self.master_window.activateWindow()
         self.master_window.raise_()
         self.setup_jumplist()
+
+        # CRASH ZERO FASE 5: Start State Machine
+        self._state_machine.start()
+        # Trigger init complete -> SPLASH (but we don't have splash in this app flow)
+        # So we go directly: INIT -> SPLASH -> LOGIN
+        self._state_machine.trigger_init_complete()
+        self._state_machine.trigger_splash_done()
 
         # Check Backend Health to catch Startup Errors (e.g. DB Lock)
         self.check_backend_health()
@@ -597,6 +688,17 @@ class ApplicationController:
 
     def on_login_success(self, user_info):
         try:
+            # CRASH ZERO FASE 5: Trigger state transitions
+            # LOGIN -> AUTHENTICATING -> TRANSITIONING
+            self._state_machine.trigger_login_submit()  # LOGIN -> AUTHENTICATING
+            self._state_machine.trigger_login_success()  # AUTHENTICATING -> TRANSITIONING
+            
+            # CRASH ZERO FASE 6: Set Sentry user context
+            user_id = str(user_info.get('id', 'unknown'))
+            username = user_info.get('username', 'anonymous')
+            set_user_context(user_id, username)
+            add_ui_breadcrumb("login_success", "LoginView", {"username": username})
+            
             # Create Dashboard if not exists
             self._ensure_dashboard_created()
 
@@ -624,6 +726,7 @@ class ApplicationController:
                 self._handle_deferred_action(is_read_only)
         except Exception as e:
             sentry_sdk.capture_exception(e)
+            self._state_machine.trigger_error()
             CustomMessageDialog.show_error(self.master_window, "Errore Critico", f"Errore durante l'avvio della dashboard:\n{e}")
 
     def _ensure_dashboard_created(self):
@@ -725,12 +828,17 @@ class ApplicationController:
         self.pending_action = None
 
     def on_analysis_finished(self, archived, verify):
-        user_name = "Utente"
-        if self.api_client.user_info:
-            user_name = self.api_client.user_info.get("account_name") or self.api_client.user_info.get("username")
-        
-        msg = f"Ehi {user_name}, ho terminato. {archived} documenti archiviati, {verify} da verificare."
-        self.voice_service.speak(msg)
+        try:
+            user_name = "Utente"
+            if self.api_client.user_info:
+                user_name = self.api_client.user_info.get("account_name") or self.api_client.user_info.get("username")
+            
+            msg = f"Ehi {user_name}, ho terminato. {archived} documenti archiviati, {verify} da verificare."
+            if hasattr(self, 'voice_service') and self.voice_service:
+                self.voice_service.speak(msg)
+        except RuntimeError:
+            # Widget or service was deleted during callback
+            pass
 
     def reset_inactivity_timer(self):
         if hasattr(self, 'inactivity_timer') and self.inactivity_timer.isActive():
@@ -745,6 +853,13 @@ class ApplicationController:
             self.inactivity_timer.stop()
         if hasattr(self, 'inactivity_filter'):
             QApplication.instance().removeEventFilter(self.inactivity_filter)
+
+        # CRASH ZERO FASE 5: Trigger state transition
+        self._state_machine.trigger_logout()
+        
+        # CRASH ZERO FASE 6: Clear Sentry user context
+        add_ui_breadcrumb("logout", "ApplicationController")
+        clear_user_context()
 
         self.api_client.logout()
         self.master_window.show_login()

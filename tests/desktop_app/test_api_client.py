@@ -1,14 +1,17 @@
 import sys
+import os
 import pytest
 from unittest.mock import MagicMock, patch, mock_open
 import requests
 
-# Setup Mocks
-from tests.desktop_app import mock_qt
-sys.modules["PyQt6"] = mock_qt.mock_modules["PyQt6"]
-sys.modules["PyQt6.QtWidgets"] = mock_qt.mock_modules["PyQt6.QtWidgets"]
-sys.modules["PyQt6.QtCore"] = mock_qt.mock_modules["PyQt6.QtCore"]
-sys.modules["PyQt6.QtGui"] = mock_qt.mock_modules["PyQt6.QtGui"]
+# Force mock mode (must be before mock_qt import)
+
+# Setup Mocks - use mock_qt_modules() which is safe if real PyQt6 is loaded
+from tests.desktop_app.mock_qt import mock_qt_modules
+sys.modules.update(mock_qt_modules())
+
+# Mark tests to run in forked subprocess
+pytestmark = pytest.mark.forked
 
 from desktop_app.api_client import APIClient
 

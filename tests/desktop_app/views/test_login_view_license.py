@@ -1,13 +1,19 @@
 
 import sys
+import os
 import pytest
 import unittest
 import importlib
 from unittest.mock import MagicMock, patch
 
+# Force mock mode (must be before mock_qt import)
+
 # Mock modules
 from tests.desktop_app.mock_qt import mock_qt_modules
 sys.modules.update(mock_qt_modules())
+
+# Mark tests to run in forked subprocess
+pytestmark = pytest.mark.forked
 
 def reload_login_view():
     if 'desktop_app.views.login_view' in sys.modules:

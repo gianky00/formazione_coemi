@@ -1,12 +1,19 @@
 import sys
+import os
 import unittest
 from unittest.mock import MagicMock, patch
+import pytest
+
+# Force mock mode for these tests
 
 # Inject mocks
 from tests.desktop_app.mock_qt import mock_qt_modules
 sys.modules.update(mock_qt_modules())
 
 from desktop_app.components.update_dialog import UpdateAvailableDialog
+
+# Mark tests to run in forked subprocess for isolation
+pytestmark = pytest.mark.forked
 
 class TestUpdateDialog(unittest.TestCase):
     def test_init_and_labels(self):

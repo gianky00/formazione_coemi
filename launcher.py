@@ -174,66 +174,6 @@ init_sentry()
 # Override global exception hook
 sys.excepthook = sentry_exception_hook
 
-# --- PHASE 2: POSTHOG ANALYTICS ---
-import posthog
-
-def init_posthog():
-    """Initializes PostHog Analytics (Async)."""
-    try:
-        # Check explicit disable flag (GDPR)
-        # analytics_enabled = True # Removed unused variable
-
-        # Configure PostHog Module-Global
-        posthog.project_api_key = "phc_jCIZrEiPMQ1fE8ympKiJGc84GUvbqqo7T2sQDlGyUd8"
-        # Backwards compatibility / library quirk fallback
-        posthog.api_key = posthog.project_api_key
-        posthog.host = "https://eu.i.posthog.com"
-
-        # Track App Start
-        # Run in thread to not block UI
-        def track_start():
-            try:
-                # Identification (Anonymous Machine ID or User ID if logged in - here we use machine ID for basic tracking)
-                from desktop_app.services.hardware_id_service import get_machine_id
-                distinct_id = get_machine_id()
-
-                # Re-assert config in thread just in case
-                if not posthog.api_key:
-                    posthog.project_api_key = "phc_jCIZrEiPMQ1fE8ympKiJGc84GUvbqqo7T2sQDlGyUd8"
-                    posthog.api_key = posthog.project_api_key
-                    posthog.host = "https://eu.i.posthog.com"
-
-                posthog.capture(
-                    'app_started',
-                    distinct_id=distinct_id,
-                    properties={
-                        'version': __version__,
-                        'os': platform.system(),
-                        'os_release': platform.release(),
-                        'environment': "production" if getattr(sys, 'frozen', False) else "development"
-                    }
-                )
-            except Exception as e:
-                logging.warning(f"PostHog track failed: {e}")
-
-        threading.Thread(target=track_start, daemon=True).start()
-
-        # Register Exit Handler
-        import atexit
-        def track_exit():
-            try:
-                from desktop_app.services.hardware_id_service import get_machine_id
-                posthog.capture('app_closed', distinct_id=get_machine_id())
-                posthog.flush() # Ensure sent
-            except Exception: pass
-
-        atexit.register(track_exit)
-
-    except Exception as e:
-        logging.error(f"Failed to init PostHog: {e}")
-
-init_posthog()
-
 
 # --- CRITICAL: IMPORT WEBENGINE & SET ATTRIBUTE BEFORE QAPPLICATION ---
 from PyQt6.QtWebEngineWidgets import QWebEngineView

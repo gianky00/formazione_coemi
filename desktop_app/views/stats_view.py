@@ -1,8 +1,9 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
-                             QGridLayout, QScrollArea, QProgressBar, QToolTip)
+                            QGridLayout, QScrollArea, QProgressBar, QToolTip)
 from PyQt6.QtCore import Qt, QTimer, QPoint, QThread, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter, QBrush, QLinearGradient, QCursor
 from desktop_app.api_client import APIClient
+from desktop_app.core.error_boundary import ErrorBoundary, ErrorContext, UIStateRecovery
 import logging
 import sentry_sdk
 
@@ -180,11 +181,23 @@ class StatsWorker(QThread):
 
 
 class StatsView(QWidget):
+    fatal_error = pyqtSignal(str)  # CRASH ZERO FASE 4
+
     def __init__(self, api_client: APIClient = None, parent=None):
         super().__init__(parent)
         self.api_client = api_client
         self._worker = None
         self._is_destroyed = False
+        
+        # --- CRASH ZERO FASE 4: Error Boundary Setup ---
+        self.error_boundary = ErrorBoundary(
+            owner=self,
+            on_error=self._on_view_error,
+            on_fatal=self._on_view_fatal,
+            max_errors=3,
+            report_to_sentry=True
+        )
+        self._recovery = UIStateRecovery(self)
         
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(20, 20, 20, 20)
@@ -231,6 +244,19 @@ class StatsView(QWidget):
 
         scroll.setWidget(self.compliance_container)
         self.layout.addWidget(scroll)
+
+    # --- CRASH ZERO FASE 4: Error Handlers ---
+    
+    def _on_view_error(self, ctx: ErrorContext):
+        """Gestisce errori recuperabili."""
+        logger.warning(f"StatsView error: {ctx.error}")
+        self._recovery.reset_all()
+    
+    def _on_view_fatal(self, ctx: ErrorContext):
+        """Gestisce errori fatali."""
+        logger.error(f"StatsView fatal error: {ctx.error}")
+        self.fatal_error.emit(str(ctx.error))
+        self._recovery.reset_all()
 
     def refresh_data(self):
         if not self.api_client or self._is_destroyed:

@@ -1,22 +1,14 @@
 """
 Test per AnimationManager - CRASH ZERO FASE 2
+
+Nota: pytest-qt fornisce automaticamente le fixture qapp e qtbot.
 """
 
 import pytest
 from unittest.mock import MagicMock
-from PyQt6.QtWidgets import QWidget, QApplication
+from PyQt6.QtWidgets import QWidget
 from PyQt6.QtCore import QPropertyAnimation, QAbstractAnimation, QPoint
 from PyQt6.QtTest import QTest
-import sys
-
-
-@pytest.fixture(scope="session")
-def qapp():
-    """Fixture per QApplication."""
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv)
-    yield app
 
 
 @pytest.fixture

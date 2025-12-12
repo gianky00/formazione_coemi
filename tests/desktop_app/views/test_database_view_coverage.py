@@ -1,11 +1,18 @@
 import sys
+import os
 import unittest
 import pandas as pd
 from unittest.mock import MagicMock, patch
+import pytest
+
+# Force mock mode (must be before mock_qt import)
 
 # Inject mocks
 from tests.desktop_app.mock_qt import mock_qt_modules
 sys.modules.update(mock_qt_modules())
+
+# Mark tests to run in forked subprocess
+pytestmark = pytest.mark.forked
 
 from PyQt6.QtCore import Qt
 from desktop_app.views.database_view import DatabaseView, CertificatoTableModel

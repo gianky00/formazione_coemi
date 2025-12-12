@@ -26,29 +26,46 @@ class _AnimationEntry:
         return o if o and is_qobject_alive(o) else None
     def is_valid(self): return self.get_animation() is not None and self.get_owner() is not None
 
-class AnimationManager(QObject):
+class AnimationManager:
+    """
+    Singleton per gestione centralizzata delle animazioni.
+    
+    Nota: Non eredita da QObject per evitare crash quando inizializzato
+    prima che esista una QApplication.
+    """
     _instance = None
     _initialized = False
+    
     def __new__(cls):
-        if cls._instance is None: cls._instance = super().__new__(cls)
+        if cls._instance is None: 
+            cls._instance = super().__new__(cls)
         return cls._instance
+    
     def __init__(self):
-        if AnimationManager._initialized: return
-        super().__init__()
+        if AnimationManager._initialized: 
+            return
         self._mutex = QMutex()
         self._animations = {}
         self._owner_map = {}
-        self._cleanup_timer = QTimer(self)
-        self._cleanup_timer.setInterval(5000)
-        self._cleanup_timer.timeout.connect(self._periodic_cleanup)
-        self._cleanup_timer.start()
+        self._cleanup_timer = None
         AnimationManager._initialized = True
+    
+    def _ensure_cleanup_timer(self):
+        """Crea il timer di cleanup solo quando necessario (lazy init)."""
+        if self._cleanup_timer is None:
+            from PyQt6.QtWidgets import QApplication
+            if QApplication.instance() is not None:
+                self._cleanup_timer = QTimer()
+                self._cleanup_timer.setInterval(5000)
+                self._cleanup_timer.timeout.connect(self._periodic_cleanup)
+                self._cleanup_timer.start()
     @classmethod
     def instance(cls):
         if cls._instance is None: cls._instance = cls()
         return cls._instance
     def register(self, animation, owner, name="", timeout_ms=5000, on_timeout=None):
         if not is_qobject_alive(animation) or not is_qobject_alive(owner): return ""
+        self._ensure_cleanup_timer()  # Lazy init del timer
         aid = str(uuid.uuid4())[:8]
         oid = id(owner)
         entry = _AnimationEntry(aid, weakref.ref(animation), weakref.ref(owner), name, timeout_ms, on_timeout)
@@ -272,6 +289,24 @@ def animate_geometry(widget, target_geometry, duration_ms=300, easing=QEasingCur
         return ""
     return animate_property(widget, b"geometry", widget.geometry(), target_geometry, duration_ms, easing, on_finished, widget)
 
-animation_manager = AnimationManager.instance()
+class _AnimationManagerProxy:
+    """
+    Lazy proxy per AnimationManager.
+    
+    Crea l'istanza solo quando viene effettivamente usata,
+    garantendo che QApplication esista già.
+    """
+    _instance = None
+    
+    def __getattr__(self, name):
+        if _AnimationManagerProxy._instance is None:
+            _AnimationManagerProxy._instance = AnimationManager.instance()
+        return getattr(_AnimationManagerProxy._instance, name)
+    
+    def __repr__(self):
+        return f"<AnimationManagerProxy -> {_AnimationManagerProxy._instance}>"
+
+# Lazy singleton - non crea l'istanza fino al primo uso
+animation_manager = _AnimationManagerProxy()
 
 __all__ = ['AnimationManager', 'animation_manager', 'fade_out', 'fade_in', 'slide_out', 'slide_in', 'animate_property', 'shake_widget', 'animate_geometry']

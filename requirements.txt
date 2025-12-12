@@ -40,5 +40,4 @@ psutil
 pytest-qt
 platformdirs
 sentry-sdk[fastapi]
-posthog
 packaging
