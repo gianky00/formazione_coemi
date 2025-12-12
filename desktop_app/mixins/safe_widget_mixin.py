@@ -1,5 +1,7 @@
 """
 SafeWidgetMixin - Mixin per widget con protezione lifecycle automatica.
+
+CRASH ZERO FASE 1 + FASE 3: Widget Lifecycle + Signal/Slot Protection
 """
 
 from __future__ import annotations
@@ -13,6 +15,19 @@ from PyQt6.QtCore import QObject
 from desktop_app.core.widget_guard import WidgetRef, is_widget_alive
 
 logger = logging.getLogger(__name__)
+
+
+# Re-export signal guard utilities for convenience
+try:
+    from desktop_app.core.signal_guard import (
+        ConnectionTracker,
+        SafeSignalEmitter,
+        safe_emit,
+    )
+except ImportError:
+    ConnectionTracker = None
+    SafeSignalEmitter = None
+    safe_emit = None
 
 
 class SafeWidgetMixin:
