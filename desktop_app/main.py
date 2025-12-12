@@ -828,12 +828,17 @@ class ApplicationController:
         self.pending_action = None
 
     def on_analysis_finished(self, archived, verify):
-        user_name = "Utente"
-        if self.api_client.user_info:
-            user_name = self.api_client.user_info.get("account_name") or self.api_client.user_info.get("username")
-        
-        msg = f"Ehi {user_name}, ho terminato. {archived} documenti archiviati, {verify} da verificare."
-        self.voice_service.speak(msg)
+        try:
+            user_name = "Utente"
+            if self.api_client.user_info:
+                user_name = self.api_client.user_info.get("account_name") or self.api_client.user_info.get("username")
+            
+            msg = f"Ehi {user_name}, ho terminato. {archived} documenti archiviati, {verify} da verificare."
+            if hasattr(self, 'voice_service') and self.voice_service:
+                self.voice_service.speak(msg)
+        except RuntimeError:
+            # Widget or service was deleted during callback
+            pass
 
     def reset_inactivity_timer(self):
         if hasattr(self, 'inactivity_timer') and self.inactivity_timer.isActive():

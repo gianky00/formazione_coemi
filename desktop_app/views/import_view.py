@@ -238,7 +238,10 @@ class PdfWorker(QObject):
             if success:
                 target_dir = os.path.join(self.output_folder, DIR_ANALYSIS_ERRORS, error_category, emp_folder, cat_fs, status)
                 os.makedirs(target_dir, exist_ok=True)
-                shutil.move(source_path, os.path.join(target_dir, new_name))
+                try:
+                    shutil.move(source_path, os.path.join(target_dir, new_name))
+                except Exception as e:
+                    self.log_message.emit(f"Impossibile spostare {os.path.basename(source_path)}: {e}", "red")
                 return
 
         # Case 2: No Data (or Fallback)
@@ -692,23 +695,34 @@ class ImportView(QWidget):
             self.stop_button.setEnabled(False)
 
     def append_log_message(self, message, color):
-        color_map = {
-            "red": "#DC2626",
-            "orange": "#F97316",
-            "default": "#4B5563"
-        }
-        self.results_display.setTextColor(QColor(color_map.get(color, color_map["default"])))
-        self.results_display.append(message)
-        self.results_display.setTextColor(QColor(color_map["default"])) # Reset
+        try:
+            color_map = {
+                "red": "#DC2626",
+                "orange": "#F97316",
+                "green": "#10B981",
+                "default": "#4B5563"
+            }
+            self.results_display.setTextColor(QColor(color_map.get(color, color_map["default"])))
+            self.results_display.append(message)
+            self.results_display.setTextColor(QColor(color_map["default"])) # Reset
+        except RuntimeError:
+            # Widget was deleted during callback
+            pass
 
     def on_processing_finished(self, archived_count, verify_count):
-        self.status_label.setText("Elaborazione completata.")
-        self.etr_label.setText("")
-        self.stop_button.setVisible(False)
-        self.scanner.setVisible(False) # Hide Hologram
-        self.import_completed.emit(archived_count, verify_count)
-        # self.notification_requested.emit("Analisi Completata", ...) # Replaced by Toast
-        ToastManager.success("Analisi Completata", f"L'elaborazione è terminata. {archived_count} archiviati, {verify_count} da verificare.", self.window())
+        try:
+            self.status_label.setText("Elaborazione completata.")
+            self.etr_label.setText("")
+            self.stop_button.setVisible(False)
+            self.scanner.setVisible(False) # Hide Hologram
+            self.import_completed.emit(archived_count, verify_count)
+            # self.notification_requested.emit("Analisi Completata", ...) # Replaced by Toast
+            # Get window safely - it might be None or invalid
+            parent_window = self.window() if self.isVisible() else None
+            ToastManager.success("Analisi Completata", f"L'elaborazione è terminata. {archived_count} archiviati, {verify_count} da verificare.", parent_window)
+        except RuntimeError:
+            # Widget was deleted during callback
+            pass
 
     def cleanup(self):
         """
