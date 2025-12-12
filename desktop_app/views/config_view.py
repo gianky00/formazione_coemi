@@ -1,4 +1,5 @@
 import json
+import logging
 import traceback
 from datetime import datetime
 from PyQt6.QtWidgets import (
@@ -10,10 +11,13 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QDate, QTimer, QThread, pyqtSignal
 from PyQt6.QtGui import QColor
 from desktop_app.api_client import APIClient
+from desktop_app.core.error_boundary import ErrorBoundary, ErrorContext, UIStateRecovery
 from app.utils.security import obfuscate_string, reveal_string
 from desktop_app.components.custom_dialog import CustomMessageDialog
 from desktop_app.components.toast import ToastManager
 from desktop_app.constants import LABEL_OPTIMIZE_DB
+
+logger = logging.getLogger(__name__)
 
 class ChangePasswordDialog(QDialog):
     def __init__(self, parent=None):
@@ -688,8 +692,21 @@ class AuditLogWidget(QFrame):
             pass
 
 class ConfigView(QWidget):
+    fatal_error = pyqtSignal(str)  # CRASH ZERO FASE 4
+
     def __init__(self, api_client: APIClient):
         super().__init__()
+        
+        # --- CRASH ZERO FASE 4: Error Boundary Setup ---
+        self.error_boundary = ErrorBoundary(
+            owner=self,
+            on_error=self._on_view_error,
+            on_fatal=self._on_view_fatal,
+            max_errors=3,
+            report_to_sentry=True
+        )
+        self._recovery = UIStateRecovery(self)
+        
         try:
             self.layout = QVBoxLayout(self)
             self.layout.setContentsMargins(20, 20, 20, 20)
@@ -798,6 +815,24 @@ class ConfigView(QWidget):
             error_label = QLabel(f"Errore critico durante l'inizializzazione della vista Configurazione:\n{e}")
             error_label.setStyleSheet("color: red; font-weight: bold;")
             self.layout.addWidget(error_label)
+
+    # --- CRASH ZERO FASE 4: Error Handlers ---
+    
+    def _on_view_error(self, ctx: ErrorContext):
+        """Gestisce errori recuperabili."""
+        logger.warning(f"ConfigView error: {ctx.error}")
+        self._recovery.reset_all()
+        try:
+            from desktop_app.components.toast import Toast
+            Toast.warning(self, "Errore", str(ctx.error)[:100])
+        except Exception:
+            CustomMessageDialog.show_warning(self, "Errore", str(ctx.error)[:200])
+    
+    def _on_view_fatal(self, ctx: ErrorContext):
+        """Gestisce errori fatali."""
+        logger.error(f"ConfigView fatal error: {ctx.error}")
+        self.fatal_error.emit(str(ctx.error))
+        self._recovery.reset_all()
 
     def _connect_dirty_signals(self):
         # General

@@ -6,6 +6,7 @@ CRASH ZERO:
 - FASE 1: Widget Lifecycle Protection (widget_guard)
 - FASE 2: Animation Management (animation_manager)
 - FASE 3: Signal/Slot Hardening (signal_guard)
+- FASE 4: Error Boundaries & Self-Healing (error_boundary)
 """
 
 from .widget_guard import (
@@ -34,6 +35,20 @@ from .signal_guard import (
     disconnect_all_from_object,
 )
 
+from .error_boundary import (
+    ErrorBoundary,
+    ErrorContext,
+    ViewError,
+    RecoverableError,
+    TransientError,
+    FatalViewError,
+    StateCorruptionError,
+    ErrorSeverity,
+    error_boundary,
+    suppress_errors,
+    UIStateRecovery,
+)
+
 __all__ = [
     # FASE 1: Widget Guard
     'is_widget_alive',
@@ -59,4 +74,16 @@ __all__ = [
     'SafeWorkerMixin',
     'safe_emit',
     'disconnect_all_from_object',
+    # FASE 4: Error Boundary
+    'ErrorBoundary',
+    'ErrorContext',
+    'ViewError',
+    'RecoverableError',
+    'TransientError',
+    'FatalViewError',
+    'StateCorruptionError',
+    'ErrorSeverity',
+    'error_boundary',
+    'suppress_errors',
+    'UIStateRecovery',
 ]

@@ -3,6 +3,7 @@ import sys
 import socket
 import platform
 import math
+import logging
 from datetime import datetime
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QFrame, QMessageBox, QHBoxLayout,
                              QGraphicsDropShadowEffect, QApplication, QPushButton,
@@ -15,6 +16,7 @@ from desktop_app.components.animated_widgets import AnimatedButton, AnimatedInpu
 from desktop_app.components.custom_dialog import CustomMessageDialog
 from desktop_app.mixins.safe_widget_mixin import SafeWidgetMixin
 from desktop_app.core.widget_guard import is_widget_alive, guard_widget_access
+from desktop_app.core.error_boundary import ErrorBoundary, ErrorContext, UIStateRecovery
 from desktop_app.services.license_manager import LicenseManager
 from desktop_app.services.sound_manager import SoundManager
 from desktop_app.services.license_updater_service import LicenseUpdaterService
@@ -24,6 +26,8 @@ from desktop_app.components.neural_3d import NeuralNetwork3D
 from desktop_app.components.update_dialog import UpdateAvailableDialog
 from app import __version__
 from desktop_app.constants import STYLE_LICENSE_VALID, STYLE_LICENSE_EXPIRING, LABEL_LICENSE_EXPIRY, LABEL_HARDWARE_ID
+
+logger = logging.getLogger(__name__)
 
 class ForcePasswordChangeDialog(QDialog):
     def __init__(self, parent=None):
@@ -109,6 +113,7 @@ class LicenseUpdateWorker(QThread):
 
 class LoginView(SafeWidgetMixin, QWidget):
     login_success = pyqtSignal(dict) # Emits user_info dict
+    fatal_error = pyqtSignal(str)  # CRASH ZERO FASE 4: Segnale per errori fatali
 
     def __init__(self, api_client, license_ok=True, license_error=""):
         super().__init__()
@@ -121,6 +126,16 @@ class LoginView(SafeWidgetMixin, QWidget):
         self.update_worker = None
         self.update_url = None
         self.update_version = None
+
+        # --- CRASH ZERO FASE 4: Error Boundary Setup ---
+        self.error_boundary = ErrorBoundary(
+            owner=self,
+            on_error=self._on_view_error,
+            on_fatal=self._on_view_fatal,
+            max_errors=3,
+            report_to_sentry=True
+        )
+        self._recovery = UIStateRecovery(self)
 
         # --- Interactive Neural Background Setup ---
         self.setMouseTracking(True)
@@ -649,6 +664,52 @@ class LoginView(SafeWidgetMixin, QWidget):
 
         event.accept()
 
+    # --- CRASH ZERO FASE 4: Error Boundary Handlers ---
+    
+    def _on_view_error(self, ctx: ErrorContext):
+        """Gestisce errori recuperabili nella login view."""
+        logger.warning(f"LoginView error: {ctx.error}")
+        
+        # Reset UI a stato sicuro
+        self._recovery.reset_all()
+        self._reset_login_state()
+        
+        # Mostra feedback utente
+        try:
+            from desktop_app.components.toast import Toast
+            Toast.warning(self, "Errore", str(ctx.error)[:100])
+        except ImportError:
+            CustomMessageDialog.show_warning(self, "Errore", str(ctx.error)[:200])
+    
+    def _on_view_fatal(self, ctx: ErrorContext):
+        """Gestisce errori fatali - chiudi e segnala."""
+        logger.error(f"LoginView fatal error: {ctx.error}")
+        
+        # Notifica controller
+        self.fatal_error.emit(str(ctx.error))
+        
+        # Non chiudiamo la login view - è la vista principale
+        # Invece resettiamo tutto
+        self._reset_login_state()
+    
+    def _reset_login_state(self):
+        """Resetta UI a stato sicuro dopo un errore."""
+        try:
+            login_btn = self.get_child("login_btn")
+            if login_btn and hasattr(login_btn, 'set_loading'):
+                login_btn.set_loading(False)
+                login_btn.setEnabled(True)
+            
+            username_input = self.get_child("username_input")
+            if username_input:
+                username_input.setEnabled(True)
+            
+            password_input = self.get_child("password_input")
+            if password_input:
+                password_input.setEnabled(True)
+        except RuntimeError:
+            pass
+
     def reset_view(self):
         """Resets the UI state for a fresh login attempt."""
         self.username_input.setEnabled(True)
@@ -857,6 +918,7 @@ class LoginView(SafeWidgetMixin, QWidget):
         return True
 
     def on_login_success(self, response):
+        """CRASH ZERO FASE 4: Login success con protezione error boundary."""
         import sentry_sdk
         try:
             self.api_client.set_token(response)
@@ -875,7 +937,7 @@ class LoginView(SafeWidgetMixin, QWidget):
             if sentry_sdk.is_initialized():
                 sentry_sdk.capture_exception(e)
             self._on_login_error(str(e))
-            self.login_btn.set_loading(False)
+            self._reset_login_state()
 
     @guard_widget_access
     def _animate_success_exit(self):

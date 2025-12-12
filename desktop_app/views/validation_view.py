@@ -1,3 +1,4 @@
+import logging
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QStyledItemDelegate, QLineEdit, QLabel, QMenu, QProgressBar
 from PyQt6.QtCore import QAbstractTableModel, Qt, pyqtSignal, QUrl, QThreadPool
 from PyQt6.QtGui import QDesktopServices, QAction
@@ -9,9 +10,12 @@ from app.services.document_locator import find_document
 from ..workers.data_worker import FetchCertificatesWorker, DeleteCertificatesWorker, ValidateCertificatesWorker
 from ..components.animated_widgets import LoadingOverlay
 from ..components.custom_dialog import CustomMessageDialog
+from ..core.error_boundary import ErrorBoundary, ErrorContext, UIStateRecovery
 from desktop_app.constants import STATUS_READ_ONLY
 import subprocess
 import os
+
+logger = logging.getLogger(__name__)
 
 
 class SimpleTableModel(QAbstractTableModel):
@@ -46,11 +50,22 @@ class SimpleTableModel(QAbstractTableModel):
 
 class ValidationView(QWidget):
     validation_completed = pyqtSignal()
+    fatal_error = pyqtSignal(str)  # CRASH ZERO FASE 4
 
     def __init__(self, api_client=None):
         super().__init__()
         self.api_client = api_client if api_client else APIClient()
         self.threadpool = QThreadPool()
+
+        # --- CRASH ZERO FASE 4: Error Boundary Setup ---
+        self.error_boundary = ErrorBoundary(
+            owner=self,
+            on_error=self._on_view_error,
+            on_fatal=self._on_view_fatal,
+            max_errors=3,
+            report_to_sentry=True
+        )
+        self._recovery = UIStateRecovery(self)
 
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(20, 20, 20, 20)
@@ -115,6 +130,26 @@ class ValidationView(QWidget):
         if hasattr(self, 'model') and self.table_view.selectionModel():
             self.table_view.selectionModel().selectionChanged.connect(self.update_button_states)
         self.update_button_states()
+
+    # --- CRASH ZERO FASE 4: Error Handlers ---
+    
+    def _on_view_error(self, ctx: ErrorContext):
+        """Gestisce errori recuperabili."""
+        logger.warning(f"ValidationView error: {ctx.error}")
+        self._recovery.reset_all()
+        self.set_loading(False)
+        try:
+            from desktop_app.components.toast import Toast
+            Toast.warning(self, "Errore", str(ctx.error)[:100])
+        except Exception:
+            CustomMessageDialog.show_warning(self, "Errore", str(ctx.error)[:200])
+    
+    def _on_view_fatal(self, ctx: ErrorContext):
+        """Gestisce errori fatali."""
+        logger.error(f"ValidationView fatal error: {ctx.error}")
+        self.fatal_error.emit(str(ctx.error))
+        self._recovery.reset_all()
+        self.set_loading(False)
 
     def refresh_data(self):
         """Public slot to reload data from the API."""

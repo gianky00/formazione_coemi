@@ -1,4 +1,4 @@
-
+import logging
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QTextEdit, QFileDialog, QLabel, QFrame, QSizePolicy, QHBoxLayout, QProgressBar
 from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt, QVariantAnimation, QSize
 from PyQt6.QtGui import QIcon, QColor
@@ -12,10 +12,13 @@ from ..api_client import APIClient
 from ..components.animated_widgets import LoadingOverlay
 from ..components.visuals import HolographicScanner
 from ..workers.file_scanner_worker import FileScannerWorker
+from ..core.error_boundary import ErrorBoundary, ErrorContext, UIStateRecovery
 from desktop_app.constants import DATE_FORMAT_FILE, DIR_ANALYSIS_ERRORS
 
 import time
 from collections import deque
+
+logger = logging.getLogger(__name__)
 
 class PdfWorker(QObject):
     finished = pyqtSignal(int, int) # archived_count, verify_count
@@ -443,6 +446,7 @@ class DropZone(QFrame):
 class ImportView(QWidget):
     import_completed = pyqtSignal(int, int) # archived, verify
     notification_requested = pyqtSignal(str, str)
+    fatal_error = pyqtSignal(str)  # CRASH ZERO FASE 4
 
     def __init__(self):
         super().__init__()
@@ -454,6 +458,16 @@ class ImportView(QWidget):
         self.scanner_thread = None
         self._pending_file_paths = None
         self.is_read_only = False
+        
+        # --- CRASH ZERO FASE 4: Error Boundary Setup ---
+        self.error_boundary = ErrorBoundary(
+            owner=self,
+            on_error=self._on_view_error,
+            on_fatal=self._on_view_fatal,
+            max_errors=3,
+            report_to_sentry=True
+        )
+        self._recovery = UIStateRecovery(self)
         
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(20, 20, 20, 20)
@@ -505,6 +519,37 @@ class ImportView(QWidget):
         self.results_display.setObjectName("card")
         self.results_display.setStyleSheet("font-family: 'Consolas', 'Menlo', monospace; background-color: #FFFFFF; color: #4B5563; border-radius: 12px; font-size: 13px; padding: 10px; border: 1px solid #E5E7EB;")
         self.layout.addWidget(self.results_display, 1)
+
+    # --- CRASH ZERO FASE 4: Error Handlers ---
+    
+    def _on_view_error(self, ctx: ErrorContext):
+        """Gestisce errori recuperabili."""
+        logger.warning(f"ImportView error: {ctx.error}")
+        self._recovery.reset_all()
+        self._reset_import_state()
+        try:
+            from desktop_app.components.toast import Toast
+            Toast.warning(self, "Errore", str(ctx.error)[:100])
+        except Exception:
+            self.results_display.append(f"<span style='color:orange'>ERRORE: {ctx.error}</span>")
+    
+    def _on_view_fatal(self, ctx: ErrorContext):
+        """Gestisce errori fatali."""
+        logger.error(f"ImportView fatal error: {ctx.error}")
+        self.fatal_error.emit(str(ctx.error))
+        self._reset_import_state()
+    
+    def _reset_import_state(self):
+        """Resetta UI a stato sicuro dopo un errore."""
+        try:
+            self.progress_frame.setVisible(False)
+            self.drop_zone.setEnabled(True)
+            self.status_label.setText("Pronto.")
+            self.etr_label.setText("")
+            if hasattr(self, 'scanner') and self.scanner:
+                self.scanner.setVisible(False)
+        except RuntimeError:
+            pass
 
     def set_read_only(self, is_read_only: bool):
         self.is_read_only = is_read_only
