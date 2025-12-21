@@ -1,7 +1,10 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, Menu
 from desktop_app.utils import TaskRunner
-import requests # Import requests for manual calls if needed
+import requests
+import os
+from app.services.document_locator import find_document
+from app.core.config import settings
 
 class ValidationView(tk.Frame):
     def __init__(self, parent, controller):
@@ -44,8 +47,40 @@ class ValidationView(tk.Frame):
         scrollbar.pack(side="right", fill="y")
         self.tree.pack(fill="both", expand=True)
 
-        # Double click to validate
+        # Context Menu
+        self.context_menu = Menu(self, tearoff=0)
+        self.context_menu.add_command(label="📂 Apri File", command=self.open_file)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="✅ Convalida", command=lambda: self.on_double_click(None))
+
+        self.tree.bind("<Button-3>", self.show_context_menu)
         self.tree.bind("<Double-1>", self.on_double_click)
+
+    def show_context_menu(self, event):
+        item = self.tree.identify_row(event.y)
+        if item:
+            self.tree.selection_set(item)
+            self.context_menu.post(event.x_root, event.y_root)
+
+    def open_file(self):
+        selected = self.tree.selection()
+        if not selected: return
+
+        item_vals = self.tree.item(selected[0], "values")
+        cert_id = item_vals[0]
+
+        cert = next((x for x in self.data if str(x.get("id")) == str(cert_id)), None)
+        if not cert: return
+
+        try:
+            db_path = settings.DATABASE_PATH
+            path = find_document(db_path, cert)
+            if path and os.path.exists(path):
+                os.startfile(path)
+            else:
+                messagebox.showwarning("Attenzione", "File PDF non trovato.")
+        except Exception as e:
+            messagebox.showerror("Errore", f"Impossibile aprire il file: {e}")
 
     def refresh_data(self):
         runner = TaskRunner(self, "Caricamento", "Recupero documenti da validare...")

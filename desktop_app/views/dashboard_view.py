@@ -9,6 +9,8 @@ from desktop_app.views.config_view import ConfigView
 from desktop_app.views.dipendenti_view import DipendentiView
 from desktop_app.views.chat_view import ChatView
 from desktop_app.views.audit_view import AuditView
+from app import __version__ as app_version
+from app.core.config import settings
 
 class DashboardView(tk.Frame):
     def __init__(self, parent, controller):
@@ -74,6 +76,25 @@ class DashboardView(tk.Frame):
 
         # Select first tab
         self.notebook.select(self.tab_db)
+
+        # Status Bar
+        self.setup_status_bar()
+
+    def setup_status_bar(self):
+        status_frame = tk.Frame(self, bg="#E5E7EB", height=25)
+        status_frame.pack(side="bottom", fill="x")
+
+        # DB Path
+        db_path = settings.DATABASE_PATH or "Default"
+        tk.Label(status_frame, text=f"DB: {db_path}", bg="#E5E7EB", fg="#4B5563", font=("Segoe UI", 8)).pack(side="left", padx=10)
+
+        # Version
+        tk.Label(status_frame, text=f"v{app_version}", bg="#E5E7EB", fg="#4B5563", font=("Segoe UI", 8)).pack(side="right", padx=10)
+
+        # Read Only Indicator
+        user_info = self.controller.api_client.user_info
+        if user_info and user_info.get("read_only"):
+            tk.Label(status_frame, text="⚠ SOLA LETTURA", bg="#FECACA", fg="#DC2626", font=("Segoe UI", 8, "bold"), padx=5).pack(side="right", padx=10)
 
     def open_guide(self):
         webbrowser.open("http://localhost:5173") # TODO: Point to real URL or file path in prod
