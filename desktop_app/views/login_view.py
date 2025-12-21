@@ -1,6 +1,8 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk
 import threading
+from desktop_app.services.license_manager import LicenseManager
+from app import __version__ as app_version
 
 class LoginView(tk.Frame):
     def __init__(self, parent, controller):
@@ -44,6 +46,22 @@ class LoginView(tk.Frame):
         # Status Label
         self.lbl_status = tk.Label(container, text="", bg="white", fg="red")
         self.lbl_status.pack()
+
+        # --- License Info Footer ---
+        footer_frame = tk.Frame(self, bg="#F0F8FF")
+        footer_frame.pack(side="bottom", fill="x", pady=10, padx=10)
+
+        try:
+            lic_data = LicenseManager.get_license_data()
+            client_name = lic_data.get("Client Name", "N/D")
+            expiry = lic_data.get("Expiry Date", "N/D")
+            hwid = lic_data.get("Hardware ID", "N/D")
+
+            info_text = f"Cliente: {client_name} | Scadenza: {expiry} | HWID: {hwid} | Versione: {app_version}"
+            lbl_lic = tk.Label(footer_frame, text=info_text, bg="#F0F8FF", fg="#6B7280", font=("Segoe UI", 8))
+            lbl_lic.pack(side="right")
+        except Exception:
+            tk.Label(footer_frame, text=f"Versione: {app_version}", bg="#F0F8FF", fg="#6B7280").pack(side="right")
 
     def do_login(self):
         username = self.entry_user.get().strip()

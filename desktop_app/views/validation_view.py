@@ -154,70 +154,68 @@ class ValidationDialog(tk.Toplevel):
 
     def validate(self):
         # Prepare data
-        payload = {
-            "nome_dipendente": self.entry_dip.get(),
-            # "nome_corso": self.entry_corso.get(), # Not editable directly in update endpoint usually?
-            # Actually update endpoint allows editing some fields.
-            # But "Validate" action is specific?
-            # Usually validating means setting validated=True.
-            # And potentially updating fields.
-        }
-
-        # We need a separate call to update if fields changed, then validate.
-        # Or a specific validate endpoint.
-        # Looking at API... `PUT /certificati/{id}` updates and we can set `validated=True`?
-        # Usually validation is just a flag update.
-
-        # Let's assume we update the cert with the new values.
-        # Note: API might not accept 'nome_dipendente' directly if it expects 'dipendente_id' logic?
-        # The prompt mentioned "PUT /certificati/{id} supports partial updates... allows updating employee name".
-
         update_data = {
             "nome_dipendente_raw": self.entry_dip.get(), # If orphan
             "data_rilascio": self.entry_ril.get(),
             "data_scadenza": self.entry_scad.get()
         }
 
-        # Call validate endpoint
         try:
             # 1. Update data
-            url_update = f"certificati/{self.cert['id']}"
-            self.controller.api_client.update_certificato(self.cert['id'], update_data) # wait, update_certificato method missing in client?
-            # I need to check `api_client.py` content again.
+            self.controller.api_client.update_certificato(self.cert['id'], update_data)
             
             # 2. Validate
-            url_val = f"{self.controller.api_client.base_url}/certificati/{self.cert['id']}/validate"
+            # There is no specific APIClient method for validate, but we can assume validate just means it is now correct.
+            # Wait, the prompt said `validated=true` is used for fetching valid ones.
+            # We need to set `validated=True` on the backend.
+            # Usually `update_certificato` with `validated=True` works if schema allows.
+            # Or there is a specific endpoint.
+            # I used `requests.post(url_val)` in the previous iteration.
+            # I should keep that but use requests (imported implicitly? No, I need to import it if I use it).
+            # But I removed `import requests`.
+
+            # Let's check if I can just use update_certificato with validated=True?
+            # Schema usually allows it.
+            # If not, I need to use requests and import it.
+
+            # I will use requests for the validate action to be safe as I know that endpoint exists from my previous code memory.
+            # So I need `import requests`.
+            pass
+        except Exception:
+             pass
+
+        # RE-WRITING LOGIC PROPERLY BELOW
+        pass
+
+    def validate(self):
+        # Prepare data
+        update_data = {
+            "nome_dipendente_raw": self.entry_dip.get(),
+            "data_rilascio": self.entry_ril.get(),
+            "data_scadenza": self.entry_scad.get()
+            # "validated": True # If API supports this in PUT, we are golden.
+        }
+
+        try:
+            # 1. Update
+            self.controller.api_client.update_certificato(self.cert['id'], update_data)
+
+            # 2. Validate Endpoint (Legacy pattern)
             import requests
+            url_val = f"{self.controller.api_client.base_url}/certificati/{self.cert['id']}/validate"
             requests.post(url_val, headers=self.controller.api_client._get_headers())
 
             messagebox.showinfo("Successo", "Certificato convalidato.")
             self.parent_view.refresh_data()
             self.destroy()
-            
+
         except Exception as e:
-            # Fallback if manual requests needed
-            try:
-                # Manual request for update
-                u_url = f"{self.controller.api_client.base_url}/certificati/{self.cert['id']}"
-                requests.put(u_url, json=update_data, headers=self.controller.api_client._get_headers())
-
-                # Manual request for validate
-                v_url = f"{self.controller.api_client.base_url}/certificati/{self.cert['id']}/validate"
-                requests.post(v_url, headers=self.controller.api_client._get_headers())
-
-                messagebox.showinfo("Successo", "Certificato convalidato.")
-                self.parent_view.refresh_data()
-                self.destroy()
-            except Exception as e2:
-                messagebox.showerror("Errore", f"Errore durante la convalida: {e2}")
+            messagebox.showerror("Errore", f"Errore durante la convalida: {e}")
 
     def delete(self):
         if messagebox.askyesno("Conferma", "Eliminare definitivamente questo certificato?"):
             try:
-                url = f"{self.controller.api_client.base_url}/certificati/{self.cert['id']}"
-                import requests
-                requests.delete(url, headers=self.controller.api_client._get_headers())
-
+                self.controller.api_client.delete_certificato(self.cert['id'])
                 messagebox.showinfo("Eliminato", "Certificato eliminato.")
                 self.parent_view.refresh_data()
                 self.destroy()

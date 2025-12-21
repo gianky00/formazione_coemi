@@ -5,6 +5,8 @@ from desktop_app.views.database_view import DatabaseView
 from desktop_app.views.import_view import ImportView
 from desktop_app.views.validation_view import ValidationView
 from desktop_app.views.scadenzario_view import ScadenzarioView
+from desktop_app.views.config_view import ConfigView
+from desktop_app.views.dipendenti_view import DipendentiView
 
 class DashboardView(tk.Frame):
     def __init__(self, parent, controller):
@@ -49,15 +51,23 @@ class DashboardView(tk.Frame):
         self.tab_import = ImportView(self.notebook, self.controller)
         self.tab_validation = ValidationView(self.notebook, self.controller)
         self.tab_scadenzario = ScadenzarioView(self.notebook, self.controller)
+        self.tab_dipendenti = DipendentiView(self.notebook, self.controller)
+        self.tab_config = ConfigView(self.notebook, self.controller)
 
+        # Add Tabs
         self.notebook.add(self.tab_db, text="🗄️ Database")
         self.notebook.add(self.tab_scadenzario, text="📅 Scadenzario")
         self.notebook.add(self.tab_validation, text="✅ Convalida")
+        self.notebook.add(self.tab_dipendenti, text="👥 Anagrafica")
         self.notebook.add(self.tab_import, text="📥 Importazione")
+
+        # Only show Config if Admin
+        is_admin = user_info.get("is_admin", False) if user_info else False
+        if is_admin:
+            self.notebook.add(self.tab_config, text="⚙️ Configurazione")
 
         # Select first tab
         self.notebook.select(self.tab_db)
 
     def open_guide(self):
-        webbrowser.open("http://localhost:5173") # Assuming dev server or static file path
-        # In production this should point to the hosted guide or local index.html
+        webbrowser.open("http://localhost:5173") # TODO: Point to real URL or file path in prod

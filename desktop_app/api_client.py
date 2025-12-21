@@ -149,6 +149,20 @@ class APIClient:
         response.raise_for_status()
         return response.json()
 
+    # --- Certificates ---
+
+    def update_certificato(self, cert_id, data):
+        url = f"{self.base_url}/certificati/{cert_id}"
+        response = requests.put(url, json=data, headers=self._get_headers(), timeout=10)
+        response.raise_for_status()
+        return response.json()
+
+    def delete_certificato(self, cert_id):
+        url = f"{self.base_url}/certificati/{cert_id}"
+        response = requests.delete(url, headers=self._get_headers(), timeout=10)
+        response.raise_for_status()
+        return response.json()
+
     # --- System ---
 
     def trigger_maintenance(self):
