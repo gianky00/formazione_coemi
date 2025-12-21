@@ -42,12 +42,14 @@ class ImportView(tk.Frame):
         tk.Button(self, text="Pulisci Log", command=self.clear_log).pack(pady=10)
 
     def log(self, message):
-        # Use update_idletasks to ensure UI updates during potential pauses
+        # Schedule update on main thread
+        self.after(0, lambda: self._safe_log(message))
+
+    def _safe_log(self, message):
         self.log_text.config(state="normal")
         self.log_text.insert("end", message + "\n")
         self.log_text.see("end")
         self.log_text.config(state="disabled")
-        self.update_idletasks()
 
     def clear_log(self):
         self.log_text.config(state="normal")

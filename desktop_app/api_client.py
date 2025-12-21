@@ -103,7 +103,7 @@ class APIClient:
         """
         Sends a message to the Chatbot.
         """
-        url = f"{self.base_url}/chat"
+        url = f"{self.base_url}/chat/"
         payload = {
             "message": message,
             "history": history or []

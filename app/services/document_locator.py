@@ -25,7 +25,9 @@ def find_document(database_path: str, cert_data: dict) -> str | None:
 
     nome = cert_data.get('nome') or 'SCONOSCIUTO'
     matricola = cert_data.get('matricola')
-    if not matricola or str(matricola).strip() == "" or str(matricola).lower() == "none":
+    # Robust Matricola check for unvalidated files (often None or N/D or N-A)
+    matricola_str = str(matricola).strip().lower()
+    if not matricola or matricola_str == "" or matricola_str == "none" or matricola_str == "n/d":
         matricola = 'N-A'
 
     categoria = cert_data.get('categoria') or 'ALTRO'

@@ -77,6 +77,9 @@ class DashboardView(tk.Frame):
         # Select first tab
         self.notebook.select(self.tab_db)
 
+        # Bind Tab Change for Auto-Refresh
+        self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_change)
+
         # Status Bar
         self.setup_status_bar()
 
@@ -96,5 +99,36 @@ class DashboardView(tk.Frame):
         if user_info and user_info.get("read_only"):
             tk.Label(status_frame, text="⚠ SOLA LETTURA", bg="#FECACA", fg="#DC2626", font=("Segoe UI", 8, "bold"), padx=5).pack(side="right", padx=10)
 
+    def on_tab_change(self, event):
+        selected_tab = self.notebook.select()
+        if not selected_tab: return
+
+        widget_name = self.notebook.tab(selected_tab, "text")
+        widget = self.notebook.nametowidget(selected_tab)
+
+        if hasattr(widget, "refresh_data"):
+             # Use after_idle to avoid UI jank during switching
+             self.after_idle(widget.refresh_data)
+
     def open_guide(self):
-        webbrowser.open("http://localhost:5173") # TODO: Point to real URL or file path in prod
+        import os, sys
+        # Strategy: Look for guide_frontend/dist/index.html relative to app root
+        # Or docs/index.html if distributed
+
+        potential_paths = [
+            os.path.join(os.getcwd(), "guide_frontend", "dist", "index.html"),
+            os.path.join(os.getcwd(), "docs", "index.html"),
+            os.path.join(os.path.dirname(sys.executable), "docs", "index.html") # For frozen app
+        ]
+
+        found_path = None
+        for p in potential_paths:
+            if os.path.exists(p):
+                found_path = p
+                break
+
+        if found_path:
+            webbrowser.open(f"file://{found_path}")
+        else:
+            # Fallback to online or message
+            webbrowser.open("http://localhost:5173")

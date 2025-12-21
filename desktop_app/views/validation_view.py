@@ -24,7 +24,7 @@ class ValidationView(tk.Frame):
         tk.Label(toolbar, text="Certificati in attesa di convalida", bg="#F3F4F6", font=("Segoe UI", 10, "italic")).pack(side="left", padx=10)
 
         # Treeview
-        columns = ("id", "dipendente", "corso", "emissione", "scadenza", "fiducia")
+        columns = ("id", "dipendente", "corso", "emissione", "scadenza")
         self.tree = ttk.Treeview(self, columns=columns, show="headings", selectmode="browse")
 
         self.tree.heading("id", text="ID")
@@ -32,14 +32,12 @@ class ValidationView(tk.Frame):
         self.tree.heading("corso", text="Documento")
         self.tree.heading("emissione", text="Data Rilascio")
         self.tree.heading("scadenza", text="Data Scadenza")
-        self.tree.heading("fiducia", text="Fiducia AI")
 
         self.tree.column("id", width=50)
         self.tree.column("dipendente", width=200)
         self.tree.column("corso", width=200)
         self.tree.column("emissione", width=100)
         self.tree.column("scadenza", width=100)
-        self.tree.column("fiducia", width=80)
 
         scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscroll=scrollbar.set)
@@ -79,8 +77,12 @@ class ValidationView(tk.Frame):
                  messagebox.showerror("Errore", "Percorso Database non configurato.")
                  return
 
+            # Use raw name if main name is missing (common in unvalidated state)
+            search_name = cert.get('nome') or cert.get('nome_dipendente_raw')
+
             search_data = {
-                'nome': cert.get('nome'),
+                'nome': search_name,
+                'matricola': cert.get('matricola'), # Add matricola check
                 'categoria': cert.get('categoria'),
                 'data_scadenza': cert.get('data_scadenza')
             }
@@ -89,7 +91,7 @@ class ValidationView(tk.Frame):
             if path and os.path.exists(path):
                 os.startfile(path)
             else:
-                messagebox.showwarning("Attenzione", f"File PDF non trovato.\nCercato in: {path or 'N/D'}")
+                messagebox.showwarning("Attenzione", f"File PDF non trovato.\n\nDati ricerca:\n{search_data}")
         except Exception as e:
             messagebox.showerror("Errore", f"Impossibile aprire il file: {e}")
 
@@ -114,8 +116,7 @@ class ValidationView(tk.Frame):
                 item.get("nome") or "N/D",
                 item.get("corso") or "N/D",
                 item.get("data_rilascio") or "",
-                item.get("data_scadenza") or "",
-                f"{item.get('confidence', 0)}%" if item.get("confidence") else "N/D"
+                item.get("data_scadenza") or ""
             )
             self.tree.insert("", "end", values=values)
 
