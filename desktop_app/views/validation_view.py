@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from desktop_app.utils import TaskRunner
+import requests # Import requests for manual calls if needed
 
 class ValidationView(tk.Frame):
     def __init__(self, parent, controller):
@@ -155,55 +156,18 @@ class ValidationDialog(tk.Toplevel):
     def validate(self):
         # Prepare data
         update_data = {
-            "nome_dipendente_raw": self.entry_dip.get(), # If orphan
-            "data_rilascio": self.entry_ril.get(),
-            "data_scadenza": self.entry_scad.get()
-        }
-
-        try:
-            # 1. Update data
-            self.controller.api_client.update_certificato(self.cert['id'], update_data)
-            
-            # 2. Validate
-            # There is no specific APIClient method for validate, but we can assume validate just means it is now correct.
-            # Wait, the prompt said `validated=true` is used for fetching valid ones.
-            # We need to set `validated=True` on the backend.
-            # Usually `update_certificato` with `validated=True` works if schema allows.
-            # Or there is a specific endpoint.
-            # I used `requests.post(url_val)` in the previous iteration.
-            # I should keep that but use requests (imported implicitly? No, I need to import it if I use it).
-            # But I removed `import requests`.
-
-            # Let's check if I can just use update_certificato with validated=True?
-            # Schema usually allows it.
-            # If not, I need to use requests and import it.
-
-            # I will use requests for the validate action to be safe as I know that endpoint exists from my previous code memory.
-            # So I need `import requests`.
-            pass
-        except Exception:
-             pass
-
-        # RE-WRITING LOGIC PROPERLY BELOW
-        pass
-
-    def validate(self):
-        # Prepare data
-        update_data = {
             "nome_dipendente_raw": self.entry_dip.get(),
             "data_rilascio": self.entry_ril.get(),
             "data_scadenza": self.entry_scad.get()
-            # "validated": True # If API supports this in PUT, we are golden.
         }
 
         try:
             # 1. Update
             self.controller.api_client.update_certificato(self.cert['id'], update_data)
 
-            # 2. Validate Endpoint (Legacy pattern)
-            import requests
-            url_val = f"{self.controller.api_client.base_url}/certificati/{self.cert['id']}/validate"
-            requests.post(url_val, headers=self.controller.api_client._get_headers())
+            # 2. Validate Endpoint (Using PUT as per backend)
+            url_val = f"{self.controller.api_client.base_url}/certificati/{self.cert['id']}/valida"
+            requests.put(url_val, headers=self.controller.api_client._get_headers())
 
             messagebox.showinfo("Successo", "Certificato convalidato.")
             self.parent_view.refresh_data()

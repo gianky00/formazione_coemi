@@ -7,6 +7,7 @@ from desktop_app.views.validation_view import ValidationView
 from desktop_app.views.scadenzario_view import ScadenzarioView
 from desktop_app.views.config_view import ConfigView
 from desktop_app.views.dipendenti_view import DipendentiView
+from desktop_app.views.chat_view import ChatView
 
 class DashboardView(tk.Frame):
     def __init__(self, parent, controller):
@@ -48,10 +49,11 @@ class DashboardView(tk.Frame):
 
         # Initialize Tabs
         self.tab_db = DatabaseView(self.notebook, self.controller)
-        self.tab_import = ImportView(self.notebook, self.controller)
-        self.tab_validation = ValidationView(self.notebook, self.controller)
         self.tab_scadenzario = ScadenzarioView(self.notebook, self.controller)
+        self.tab_validation = ValidationView(self.notebook, self.controller)
+        self.tab_import = ImportView(self.notebook, self.controller)
         self.tab_dipendenti = DipendentiView(self.notebook, self.controller)
+        self.tab_chat = ChatView(self.notebook, self.controller)
         self.tab_config = ConfigView(self.notebook, self.controller)
 
         # Add Tabs
@@ -60,6 +62,7 @@ class DashboardView(tk.Frame):
         self.notebook.add(self.tab_validation, text="✅ Convalida")
         self.notebook.add(self.tab_dipendenti, text="👥 Anagrafica")
         self.notebook.add(self.tab_import, text="📥 Importazione")
+        self.notebook.add(self.tab_chat, text="💬 Lyra AI")
 
         # Only show Config if Admin
         is_admin = user_info.get("is_admin", False) if user_info else False

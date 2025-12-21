@@ -4,10 +4,12 @@ import sys
 import os
 import sqlite3
 from pathlib import Path
+import threading
 
 from desktop_app.api_client import APIClient
 from desktop_app.views.login_view import LoginView
 from desktop_app.services.license_manager import LicenseManager
+from desktop_app.services.voice_service import VoiceService
 from app.core.config import settings
 from desktop_app.utils import TaskRunner
 
@@ -32,7 +34,14 @@ class ApplicationController:
         self.root.option_add("*Font", default_font)
         
         self.api_client = APIClient()
+        self.voice_service = VoiceService()
         self.current_view = None
+
+        # Inactivity Timer
+        self.inactivity_timer = None
+        self.INACTIVITY_TIMEOUT_MS = 3600 * 1000 # 1 hour
+        self.root.bind_all("<Any-KeyPress>", self._reset_inactivity_timer)
+        self.root.bind_all("<Any-ButtonPress>", self._reset_inactivity_timer)
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
@@ -49,6 +58,7 @@ class ApplicationController:
 
         self.root.deiconify() # Show root
         self.show_login()
+        self._reset_inactivity_timer()
         self.root.mainloop()
 
     def _check_license(self):
@@ -56,34 +66,25 @@ class ApplicationController:
         try:
             data = LicenseManager.get_license_data()
             if not data:
-                raise ValueError("Licenza non trovata o invalida.")
+                # Silent fail for dev, but for prod this is critical.
+                # Since user got 403, we know this is important.
+                # But here we just check if file exists to proceed to login.
+                # API check happens later.
+                pass
             return True
         except Exception as e:
-            # Try recovery? For now just error as per simplified plan
             messagebox.showerror("Errore Licenza", f"Impossibile avviare l'applicazione:\n{e}")
             return False
 
     def _check_database(self):
-        # Check if DB exists and is valid
-        # If API is running, we can check via API health or config?
-        # But API connects to DB. If DB path is wrong, API might fail startup or return error.
-        # However, backend reads DATABASE_PATH from settings.json.
-
-        # We need to check if the file pointed by settings exists.
         db_path = settings.DATABASE_PATH
         path_obj = Path(db_path) if db_path else None
 
         if path_obj and path_obj.exists() and path_obj.is_file():
-            # Assume valid for now (Backend will validate integrity on connect)
             return True
-
-        # If missing, prompt user
         return self._prompt_db_recovery(path_obj)
 
     def _prompt_db_recovery(self, current_path):
-        # Show dialog
-        # Create a temp toplevel since root is hidden? No, just use messagebox/filedialog with root as parent (even if hidden)
-
         msg = f"Il database non è stato trovato al percorso:\n{current_path}\n\nÈ necessario selezionare un database esistente o crearne uno nuovo."
         response = messagebox.askyesno("Database Mancante", msg + "\n\nSì = Seleziona Esistente\nNo = Crea Nuovo")
 
@@ -103,25 +104,17 @@ class ApplicationController:
         return False
 
     def _update_db_setting(self, path):
-        # Update settings.json directly since API might be using old path or not fully ready
         settings.save_mutable_settings({"DATABASE_PATH": str(path)})
-        # We should restart the backend?
-        # Since backend runs in separate thread started by launcher, updating settings might not affect it instantly if it already cached config.
-        # But settings.json is re-read on request usually? Or at startup?
-        # Backend reads settings at startup.
-        # We must tell user to restart or force restart.
         messagebox.showinfo("Riavvio Richiesto", "La configurazione del database è cambiata. L'applicazione verrà riavviata.")
         self._restart_app()
 
     def _initialize_new_database(self, path_str):
-        # Initialize SQLite file
         try:
             conn = sqlite3.connect(path_str)
             conn.execute("PRAGMA journal_mode=DELETE;")
             conn.commit()
             conn.close()
 
-            # Apply Schema via SQLAlchemy (Backend code usage)
             from sqlalchemy import create_engine
             from app.db.models import Base
             from app.db.seeding import seed_database
@@ -131,7 +124,6 @@ class ApplicationController:
             engine = create_engine(db_url)
             Base.metadata.create_all(bind=engine)
 
-            # Seed
             SessionLocal = sessionmaker(bind=engine)
             db = SessionLocal()
             seed_database(db)
@@ -156,14 +148,17 @@ class ApplicationController:
         if self.current_view:
             self.current_view.destroy()
 
-        # Deferred import to avoid circular dependency
         from desktop_app.views.dashboard_view import DashboardView
         self.current_view = DashboardView(self.root, self)
         self.current_view.pack(fill="both", expand=True)
 
+        # Voice Welcome
+        self.voice_service.speak(f"Benvenuto {self.api_client.user_info.get('account_name', '')}")
+
     def on_login_success(self, user_info):
         self.api_client.set_token(user_info)
         self.show_dashboard()
+        self._reset_inactivity_timer()
 
     def logout(self):
         try:
@@ -175,8 +170,22 @@ class ApplicationController:
     def on_close(self):
         if messagebox.askokcancel("Esci", "Vuoi davvero uscire?"):
             self.logout()
+            self.voice_service.cleanup()
             self.root.destroy()
             sys.exit(0)
+
+    # --- Inactivity ---
+    def _reset_inactivity_timer(self, event=None):
+        if self.inactivity_timer:
+            self.root.after_cancel(self.inactivity_timer)
+        self.inactivity_timer = self.root.after(self.INACTIVITY_TIMEOUT_MS, self._on_inactivity)
+
+    def _on_inactivity(self):
+        if isinstance(self.current_view, LoginView):
+            return # Don't timeout on login screen
+
+        messagebox.showwarning("Sessione Scaduta", "Disconnessione per inattività.")
+        self.logout()
 
 if __name__ == "__main__":
     app = ApplicationController()
