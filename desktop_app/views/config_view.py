@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from desktop_app.utils import TaskRunner
 from app.core.config import settings as local_settings
+import requests
 
 class ConfigView(tk.Frame):
     def __init__(self, parent, controller):
@@ -9,7 +10,7 @@ class ConfigView(tk.Frame):
         self.controller = controller
         self.configure(bg="#F3F4F6")
 
-        # Main Notebook for sub-sections
+        # Main Notebook
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(fill="both", expand=True, padx=10, pady=10)
 
@@ -23,13 +24,14 @@ class SettingsTab(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
         self.controller = controller
-        self.configure(bg="white", padx=20, pady=20)
+        self.configure(bg="white")
 
-        # Scrollable Frame for settings if they get too long
+        # Scrollable Layout
         self.canvas = tk.Canvas(self, bg="white", highlightthickness=0)
         self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
-        self.scrollable_frame = tk.Frame(self.canvas, bg="white")
+        self.scrollable_frame = tk.Frame(self.canvas, bg="white", padx=20, pady=20)
 
+        # Bind resizing
         self.scrollable_frame.bind(
             "<Configure>",
             lambda e: self.canvas.configure(
@@ -37,7 +39,9 @@ class SettingsTab(tk.Frame):
             )
         )
 
-        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        self.canvas_window = self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+
+        self.canvas.bind("<Configure>", self._on_canvas_configure)
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
 
         self.canvas.pack(side="left", fill="both", expand=True)
@@ -46,61 +50,86 @@ class SettingsTab(tk.Frame):
         self.setup_ui(self.scrollable_frame)
         self.load_settings()
 
+    def _on_canvas_configure(self, event):
+        # Force the inner frame to match the canvas width
+        self.canvas.itemconfig(self.canvas_window, width=event.width)
+
     def setup_ui(self, parent):
-        # -- Paths --
-        self._add_section_header(parent, "Percorsi Sistema")
-        self.entry_db = self._add_field(parent, "Database Path:", readonly=True)
+        # Grid Configuration
+        parent.columnconfigure(1, weight=1) # Column 1 (Entries) expands
 
-        # -- AI Integration --
-        self._add_section_header(parent, "Integrazione AI")
-        self.entry_gemini_analysis = self._add_field(parent, "Gemini API Key (Analisi):", show="*")
-        self.entry_gemini_chat = self._add_field(parent, "Gemini API Key (Chat):", show="*")
+        row = 0
 
-        # Voice Toggle
+        # --- PATHS ---
+        self._add_header(parent, "Percorsi Sistema", row)
+        row += 1
+        self.entry_db = self._add_grid_field(parent, "Database Path:", row, readonly=True)
+        row += 1
+
+        # --- AI ---
+        self._add_header(parent, "Integrazione AI", row)
+        row += 1
+        self.entry_gemini_analysis = self._add_grid_field(parent, "Gemini API Key (Analisi):", row, show="*")
+        row += 1
+        self.entry_gemini_chat = self._add_grid_field(parent, "Gemini API Key (Chat):", row, show="*")
+        row += 1
+
         self.var_voice = tk.BooleanVar(value=True)
-        f_voice = tk.Frame(parent, bg="white")
-        f_voice.pack(fill="x", pady=5)
-        tk.Checkbutton(f_voice, text="Abilita Assistente Vocale", variable=self.var_voice, bg="white").pack(side="left")
+        tk.Checkbutton(parent, text="Abilita Assistente Vocale", variable=self.var_voice, bg="white", activebackground="white").grid(row=row, column=0, columnspan=2, sticky="w", padx=10, pady=5)
+        row += 1
 
-        # -- Email --
-        self._add_section_header(parent, "Configurazione Email (SMTP)")
+        # --- EMAIL ---
+        self._add_header(parent, "Configurazione Email (SMTP)", row)
+        row += 1
+
         # Presets
+        tk.Label(parent, text="Preset:", bg="white", font=("Segoe UI", 10)).grid(row=row, column=0, sticky="w", padx=10, pady=5)
         f_pre = tk.Frame(parent, bg="white")
-        f_pre.pack(fill="x", pady=5)
-        tk.Label(f_pre, text="Preset:", bg="white").pack(side="left")
-        ttk.Button(f_pre, text="Gmail", command=lambda: self.apply_preset("gmail")).pack(side="left", padx=5)
-        ttk.Button(f_pre, text="Outlook", command=lambda: self.apply_preset("outlook")).pack(side="left", padx=5)
+        f_pre.grid(row=row, column=1, sticky="w", padx=10, pady=5)
+        tk.Button(f_pre, text="Gmail", command=lambda: self.apply_preset("gmail")).pack(side="left", padx=(0, 5))
+        tk.Button(f_pre, text="Outlook", command=lambda: self.apply_preset("outlook")).pack(side="left", padx=5)
+        row += 1
 
-        self.entry_server = self._add_field(parent, "Server SMTP:")
-        self.entry_port = self._add_field(parent, "Porta:")
-        self.entry_email = self._add_field(parent, "Email Mittente:")
-        self.entry_password = self._add_field(parent, "Password (App Pwd):", show="*")
+        self.entry_server = self._add_grid_field(parent, "Server SMTP:", row)
+        row += 1
+        self.entry_port = self._add_grid_field(parent, "Porta:", row)
+        row += 1
+        self.entry_email = self._add_grid_field(parent, "Email Mittente:", row)
+        row += 1
+        self.entry_password = self._add_grid_field(parent, "Password (App Pwd):", row, show="*")
+        row += 1
 
-        tk.Button(parent, text="Invia Email di Prova", command=self.test_email).pack(anchor="w", pady=5)
+        tk.Button(parent, text="Invia Email di Prova", command=self.test_email).grid(row=row, column=0, columnspan=2, sticky="w", padx=10, pady=10)
+        row += 1
 
-        # -- Scadenze & Avvisi --
-        self._add_section_header(parent, "Scadenze e Avvisi")
-        self.entry_alert_days = self._add_field(parent, "Giorni Preavviso (Generale):")
-        self.entry_alert_visite = self._add_field(parent, "Giorni Preavviso (Visite):")
+        # --- THRESHOLDS ---
+        self._add_header(parent, "Scadenze e Avvisi", row)
+        row += 1
+        self.entry_alert_days = self._add_grid_field(parent, "Giorni Preavviso (Generale):", row)
+        row += 1
+        self.entry_alert_visite = self._add_grid_field(parent, "Giorni Preavviso (Visite):", row)
+        row += 1
 
-        # -- Manutenzione --
-        self._add_section_header(parent, "Manutenzione")
-        tk.Button(parent, text="🛠️ Esegui Backup e Manutenzione", command=self.trigger_maintenance, bg="#F59E0B", fg="white").pack(anchor="w", pady=5)
+        # --- MAINTENANCE ---
+        self._add_header(parent, "Manutenzione", row)
+        row += 1
+        tk.Button(parent, text="🛠️ Esegui Backup e Manutenzione", command=self.trigger_maintenance, bg="#F59E0B", fg="white", font=("Segoe UI", 10, "bold")).grid(row=row, column=0, columnspan=2, sticky="w", padx=10, pady=10)
+        row += 1
 
-        # -- Save --
+        # --- SAVE ---
         tk.Button(parent, text="SALVA TUTTO", bg="#1D4ED8", fg="white", font=("Segoe UI", 10, "bold"),
-                  command=self.save_settings, padx=20, pady=10).pack(pady=20, fill="x")
+                  command=self.save_settings).grid(row=row, column=0, columnspan=2, sticky="ew", padx=10, pady=30)
 
-    def _add_section_header(self, parent, text):
-        tk.Label(parent, text=text, font=("Segoe UI", 11, "bold"), bg="white", fg="#1E3A8A").pack(anchor="w", pady=(15, 5))
-        ttk.Separator(parent, orient='horizontal').pack(fill='x', pady=(0, 5))
-
-    def _add_field(self, parent, label, show=None, readonly=False):
+    def _add_header(self, parent, text, row):
         f = tk.Frame(parent, bg="white")
-        f.pack(fill="x", pady=2)
-        tk.Label(f, text=label, width=25, anchor="w", bg="white").pack(side="left")
-        e = tk.Entry(f, show=show)
-        e.pack(side="left", fill="x", expand=True)
+        f.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(20, 10))
+        tk.Label(f, text=text, font=("Segoe UI", 11, "bold"), bg="white", fg="#1E3A8A").pack(anchor="w", padx=10)
+        ttk.Separator(f, orient='horizontal').pack(fill='x', padx=10, pady=(5, 0))
+
+    def _add_grid_field(self, parent, label_text, row, show=None, readonly=False):
+        tk.Label(parent, text=label_text, bg="white", font=("Segoe UI", 10), anchor="w").grid(row=row, column=0, sticky="w", padx=10, pady=5)
+        e = tk.Entry(parent, show=show, font=("Segoe UI", 10))
+        e.grid(row=row, column=1, sticky="ew", padx=10, pady=5)
         if readonly:
             e.config(state="readonly")
         return e
@@ -154,13 +183,15 @@ class SettingsTab(tk.Frame):
             "ALERT_THRESHOLD_DAYS_VISITE": int(self.entry_alert_visite.get()) if self.entry_alert_visite.get().isdigit() else 30
         }
 
-        try:
+        def save_task():
             # 1. Update Backend (Persist)
             self.controller.api_client.update_mutable_config(data)
-
             # 2. Update Local Frontend State (Immediate Effect)
             local_settings.save_mutable_settings(data)
 
+        runner = TaskRunner(self, "Salvataggio", "Salvataggio impostazioni...")
+        try:
+            runner.run(save_task)
             messagebox.showinfo("Successo", "Impostazioni salvate correttamente.")
         except Exception as e:
             messagebox.showerror("Errore", f"Errore salvataggio: {e}")
