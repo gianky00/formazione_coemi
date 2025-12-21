@@ -8,6 +8,7 @@ from desktop_app.views.scadenzario_view import ScadenzarioView
 from desktop_app.views.config_view import ConfigView
 from desktop_app.views.dipendenti_view import DipendentiView
 from desktop_app.views.chat_view import ChatView
+from desktop_app.views.audit_view import AuditView
 
 class DashboardView(tk.Frame):
     def __init__(self, parent, controller):
@@ -55,6 +56,7 @@ class DashboardView(tk.Frame):
         self.tab_dipendenti = DipendentiView(self.notebook, self.controller)
         self.tab_chat = ChatView(self.notebook, self.controller)
         self.tab_config = ConfigView(self.notebook, self.controller)
+        self.tab_audit = AuditView(self.notebook, self.controller)
 
         # Add Tabs
         self.notebook.add(self.tab_db, text="🗄️ Database")
@@ -64,9 +66,10 @@ class DashboardView(tk.Frame):
         self.notebook.add(self.tab_import, text="📥 Importazione")
         self.notebook.add(self.tab_chat, text="💬 Lyra AI")
 
-        # Only show Config if Admin
+        # Only show Config/Audit if Admin
         is_admin = user_info.get("is_admin", False) if user_info else False
         if is_admin:
+            self.notebook.add(self.tab_audit, text="🛡️ Log Attività")
             self.notebook.add(self.tab_config, text="⚙️ Configurazione")
 
         # Select first tab

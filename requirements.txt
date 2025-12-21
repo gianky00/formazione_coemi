@@ -36,3 +36,4 @@ platformdirs
 sentry-sdk[fastapi]
 posthog
 packaging
+pygame

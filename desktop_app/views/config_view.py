@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from desktop_app.utils import TaskRunner
+from app.core.config import settings as local_settings
 
 class ConfigView(tk.Frame):
     def __init__(self, parent, controller):
@@ -23,50 +24,85 @@ class SettingsTab(tk.Frame):
         super().__init__(parent)
         self.controller = controller
         self.configure(bg="white", padx=20, pady=20)
-        self.setup_ui()
+
+        # Scrollable Frame for settings if they get too long
+        self.canvas = tk.Canvas(self, bg="white", highlightthickness=0)
+        self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        self.scrollable_frame = tk.Frame(self.canvas, bg="white")
+
+        self.scrollable_frame.bind(
+            "<Configure>",
+            lambda e: self.canvas.configure(
+                scrollregion=self.canvas.bbox("all")
+            )
+        )
+
+        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y")
+
+        self.setup_ui(self.scrollable_frame)
         self.load_settings()
 
-    def setup_ui(self):
-        # -- Paths Section --
-        lbl_paths = tk.Label(self, text="Percorsi Sistema", font=("Segoe UI", 12, "bold"), bg="white")
-        lbl_paths.pack(anchor="w", pady=(0, 10))
+    def setup_ui(self, parent):
+        # -- Paths --
+        self._add_section_header(parent, "Percorsi Sistema")
+        self.entry_db = self._add_field(parent, "Database Path:", readonly=True)
 
-        f_db = tk.Frame(self, bg="white")
-        f_db.pack(fill="x", pady=5)
-        tk.Label(f_db, text="Database Path:", width=15, anchor="w", bg="white").pack(side="left")
-        self.entry_db = tk.Entry(f_db)
-        self.entry_db.pack(side="left", fill="x", expand=True, padx=5)
-        self.entry_db.config(state="readonly") # Managed via logic, not direct edit usually
+        # -- AI Integration --
+        self._add_section_header(parent, "Integrazione AI")
+        self.entry_gemini_analysis = self._add_field(parent, "Gemini API Key (Analisi):", show="*")
+        self.entry_gemini_chat = self._add_field(parent, "Gemini API Key (Chat):", show="*")
 
-        # -- Email Section --
-        tk.Label(self, text="Configurazione Email (SMTP)", font=("Segoe UI", 12, "bold"), bg="white").pack(anchor="w", pady=(20, 10))
+        # Voice Toggle
+        self.var_voice = tk.BooleanVar(value=True)
+        f_voice = tk.Frame(parent, bg="white")
+        f_voice.pack(fill="x", pady=5)
+        tk.Checkbutton(f_voice, text="Abilita Assistente Vocale", variable=self.var_voice, bg="white").pack(side="left")
 
+        # -- Email --
+        self._add_section_header(parent, "Configurazione Email (SMTP)")
         # Presets
-        f_pre = tk.Frame(self, bg="white")
+        f_pre = tk.Frame(parent, bg="white")
         f_pre.pack(fill="x", pady=5)
         tk.Label(f_pre, text="Preset:", bg="white").pack(side="left")
         ttk.Button(f_pre, text="Gmail", command=lambda: self.apply_preset("gmail")).pack(side="left", padx=5)
         ttk.Button(f_pre, text="Outlook", command=lambda: self.apply_preset("outlook")).pack(side="left", padx=5)
 
-        # Fields
-        self.entry_server = self._add_field("Server SMTP:")
-        self.entry_port = self._add_field("Porta:")
-        self.entry_email = self._add_field("Email Mittente:")
-        self.entry_password = self._add_field("Password (App Pwd):", show="*")
+        self.entry_server = self._add_field(parent, "Server SMTP:")
+        self.entry_port = self._add_field(parent, "Porta:")
+        self.entry_email = self._add_field(parent, "Email Mittente:")
+        self.entry_password = self._add_field(parent, "Password (App Pwd):", show="*")
 
-        # Test Button
-        tk.Button(self, text="Invia Email di Prova", command=self.test_email).pack(anchor="w", pady=10)
+        tk.Button(parent, text="Invia Email di Prova", command=self.test_email).pack(anchor="w", pady=5)
 
-        # -- Save Button --
-        tk.Button(self, text="SALVA IMPOSTAZIONI", bg="#1D4ED8", fg="white", font=("Segoe UI", 10, "bold"),
-                  command=self.save_settings, padx=20, pady=10).pack(anchor="e", pady=20)
+        # -- Scadenze & Avvisi --
+        self._add_section_header(parent, "Scadenze e Avvisi")
+        self.entry_alert_days = self._add_field(parent, "Giorni Preavviso (Generale):")
+        self.entry_alert_visite = self._add_field(parent, "Giorni Preavviso (Visite):")
 
-    def _add_field(self, label, show=None):
-        f = tk.Frame(self, bg="white")
+        # -- Manutenzione --
+        self._add_section_header(parent, "Manutenzione")
+        tk.Button(parent, text="🛠️ Esegui Backup e Manutenzione", command=self.trigger_maintenance, bg="#F59E0B", fg="white").pack(anchor="w", pady=5)
+
+        # -- Save --
+        tk.Button(parent, text="SALVA TUTTO", bg="#1D4ED8", fg="white", font=("Segoe UI", 10, "bold"),
+                  command=self.save_settings, padx=20, pady=10).pack(pady=20, fill="x")
+
+    def _add_section_header(self, parent, text):
+        tk.Label(parent, text=text, font=("Segoe UI", 11, "bold"), bg="white", fg="#1E3A8A").pack(anchor="w", pady=(15, 5))
+        ttk.Separator(parent, orient='horizontal').pack(fill='x', pady=(0, 5))
+
+    def _add_field(self, parent, label, show=None, readonly=False):
+        f = tk.Frame(parent, bg="white")
         f.pack(fill="x", pady=2)
-        tk.Label(f, text=label, width=20, anchor="w", bg="white").pack(side="left")
+        tk.Label(f, text=label, width=25, anchor="w", bg="white").pack(side="left")
         e = tk.Entry(f, show=show)
         e.pack(side="left", fill="x", expand=True)
+        if readonly:
+            e.config(state="readonly")
         return e
 
     def apply_preset(self, provider):
@@ -79,46 +115,69 @@ class SettingsTab(tk.Frame):
 
     def load_settings(self):
         try:
-            # We need an endpoint for mutable config.
-            # Assuming GET /app_config/config exists and returns JSON.
             data = self.controller.api_client.get_mutable_config()
 
+            # DB Path
             self.entry_db.config(state="normal")
             self.entry_db.delete(0, "end")
             self.entry_db.insert(0, data.get("DATABASE_PATH", ""))
             self.entry_db.config(state="readonly")
 
+            # AI
+            self.entry_gemini_analysis.delete(0, "end"); self.entry_gemini_analysis.insert(0, data.get("GEMINI_API_KEY_ANALYSIS", ""))
+            self.entry_gemini_chat.delete(0, "end"); self.entry_gemini_chat.insert(0, data.get("GEMINI_API_KEY_CHAT", ""))
+            self.var_voice.set(data.get("VOICE_ASSISTANT_ENABLED", True))
+
+            # Email
             self.entry_server.delete(0, "end"); self.entry_server.insert(0, data.get("SMTP_SERVER", ""))
             self.entry_port.delete(0, "end"); self.entry_port.insert(0, str(data.get("SMTP_PORT", "")))
             self.entry_email.delete(0, "end"); self.entry_email.insert(0, data.get("SMTP_USERNAME", ""))
-            # Password usually not returned for security or masked.
+            # Password hidden/masked logic if needed
 
-        except Exception as e:
-            pass # Silent fail on load or default
+            # Thresholds
+            self.entry_alert_days.delete(0, "end"); self.entry_alert_days.insert(0, str(data.get("ALERT_THRESHOLD_DAYS", 60)))
+            self.entry_alert_visite.delete(0, "end"); self.entry_alert_visite.insert(0, str(data.get("ALERT_THRESHOLD_DAYS_VISITE", 30)))
+
+        except Exception:
+            pass
 
     def save_settings(self):
         data = {
+            "GEMINI_API_KEY_ANALYSIS": self.entry_gemini_analysis.get(),
+            "GEMINI_API_KEY_CHAT": self.entry_gemini_chat.get(),
+            "VOICE_ASSISTANT_ENABLED": self.var_voice.get(),
             "SMTP_SERVER": self.entry_server.get(),
             "SMTP_PORT": int(self.entry_port.get()) if self.entry_port.get().isdigit() else 587,
             "SMTP_USERNAME": self.entry_email.get(),
-            "SMTP_PASSWORD": self.entry_password.get()
+            "SMTP_PASSWORD": self.entry_password.get(),
+            "ALERT_THRESHOLD_DAYS": int(self.entry_alert_days.get()) if self.entry_alert_days.get().isdigit() else 60,
+            "ALERT_THRESHOLD_DAYS_VISITE": int(self.entry_alert_visite.get()) if self.entry_alert_visite.get().isdigit() else 30
         }
 
         try:
+            # 1. Update Backend (Persist)
             self.controller.api_client.update_mutable_config(data)
+
+            # 2. Update Local Frontend State (Immediate Effect)
+            local_settings.save_mutable_settings(data)
+
             messagebox.showinfo("Successo", "Impostazioni salvate correttamente.")
         except Exception as e:
             messagebox.showerror("Errore", f"Errore salvataggio: {e}")
 
     def test_email(self):
-        # Trigger test email endpoint
-        # POST /notifications/test-email
         try:
-            # Manual request
             url = f"{self.controller.api_client.base_url}/notifications/test-email"
             import requests
             requests.post(url, json={"email": self.entry_email.get()}, headers=self.controller.api_client._get_headers())
             messagebox.showinfo("Inviata", "Email di prova inviata.")
+        except Exception as e:
+            messagebox.showerror("Errore", str(e))
+
+    def trigger_maintenance(self):
+        try:
+            self.controller.api_client.trigger_maintenance()
+            messagebox.showinfo("Avviata", "Manutenzione e backup in background avviati.")
         except Exception as e:
             messagebox.showerror("Errore", str(e))
 
