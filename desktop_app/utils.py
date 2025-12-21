@@ -2,34 +2,16 @@ import os
 import sys
 import uuid
 import re
-from PyQt6.QtGui import QIcon, QPixmap
-from PyQt6.QtCore import QByteArray, QObject, pyqtSignal
+import threading
+import queue
+import tkinter as tk
+from tkinter import ttk
 from desktop_app.services.license_manager import LicenseManager
 from app.core.path_resolver import get_asset_path as _get_asset_path
-
-class GlobalLoading(QObject):
-    _instance = None
-    loading_changed = pyqtSignal(bool)
-
-    @staticmethod
-    def instance():
-        if not GlobalLoading._instance:
-            GlobalLoading._instance = GlobalLoading()
-        return GlobalLoading._instance
-
-    @staticmethod
-    def start():
-        GlobalLoading.instance().loading_changed.emit(True)
-
-    @staticmethod
-    def stop():
-        GlobalLoading.instance().loading_changed.emit(False)
 
 def get_device_id():
     """
     Retrieves the device fingerprint.
-    Tries to read 'Hardware ID' from the encrypted license file.
-    Falls back to MAC address (uuid.getnode()) if file not found.
     """
     try:
         data = LicenseManager.get_license_data()
@@ -37,76 +19,101 @@ def get_device_id():
             return data["Hardware ID"]
     except Exception:
         pass
-
-    # Fallback
     return str(uuid.getnode())
 
 def get_asset_path(relative_path):
-    """
-    Resolve path to assets, handling dev, PyInstaller, and Nuitka environments.
-    
-    Uses the universal path resolver from app.core.path_resolver.
-    Returns string path for backward compatibility.
-    """
     return str(_get_asset_path(relative_path))
-
-def load_colored_icon(icon_name, color_hex):
-    """
-    Loads an SVG icon from the lucide folder and recolors it.
-    Replaces 'currentColor' with the provided hex color.
-    """
-    path = get_asset_path(f"desktop_app/icons/lucide/{icon_name}")
-
-    if not os.path.exists(path):
-        return QIcon()
-
-    try:
-        with open(path, 'r', encoding='utf-8') as f:
-            svg_content = f.read()
-
-        # Replace currentColor
-        colored_svg = svg_content.replace("currentColor", color_hex)
-
-        # Create QIcon from bytes
-        data = QByteArray(colored_svg.encode('utf-8'))
-        pixmap = QPixmap()
-        pixmap.loadFromData(data, "SVG")
-        return QIcon(pixmap)
-
-    except Exception:
-        # Return empty QIcon if loading fails, avoiding crashes with invalid paths
-        if os.path.exists(path):
-            return QIcon(path)
-        return QIcon()
 
 def clean_text_for_display(text: str) -> str:
     """
-    Removes phonetic stress accents for visual display while preserving
-    standard Italian grammatical accents at the end of words.
-
-    Logic:
-    - Always removes acute phonetic markers (á, í, ú).
-    - Removes internal stress accents (ò, è, à, ì, ù) only if they are inside a word.
-    - Preserves Markdown formatting (e.g., _città_) by excluding '_' from the "inside word" check.
+    Removes phonetic stress accents for visual display.
     """
-    # 1. Always replace acute accents on a, i, u (Phonetic stress markers)
-    # S6397: Replaced character class [x] with x
-    # S5361: Replaced re.sub with str.replace for simple replacements
+    if not text:
+        return ""
     text = text.replace('á', 'a')
     text = text.replace('í', 'i')
     text = text.replace('ú', 'u')
-
-    # Regex lookahead (?=[^\W_]) ensures the character is followed by a word character
-    # that is NOT an underscore. This prevents stripping accents before a Markdown underscore.
-
-    # 2. Replace accented o/e ONLY if they are inside a word
     text = re.sub(r'[òó](?=[^\W_])', 'o', text)
     text = re.sub(r'[èé](?=[^\W_])', 'e', text)
-
-    # 3. Also clean other accents inside words if used for stress (e.g. càsa)
-    # S6397: Replaced character class
     text = re.sub(r'à(?=[^\W_])', 'a', text)
     text = re.sub(r'ì(?=[^\W_])', 'i', text)
     text = re.sub(r'ù(?=[^\W_])', 'u', text)
-
     return text
+
+class TaskRunner:
+    """
+    Runs a task in a separate thread while showing a modal blocking dialog.
+    This ensures serial execution and prevents UI interaction, avoiding race conditions.
+    """
+    def __init__(self, parent, title="Elaborazione...", message="Attendere prego..."):
+        self.parent = parent
+        self.title = title
+        self.message = message
+        self.queue = queue.Queue()
+        self.dialog = None
+
+    def run(self, target, *args, **kwargs):
+        """
+        Starts the task.
+        target: The function to run.
+        args, kwargs: Arguments for the function.
+        Returns: The result of the function or raises the exception it raised.
+        """
+        self._create_dialog()
+
+        # Wrap target to capture result/exception
+        def thread_target():
+            try:
+                result = target(*args, **kwargs)
+                self.queue.put(("success", result))
+            except Exception as e:
+                self.queue.put(("error", e))
+
+        thread = threading.Thread(target=thread_target, daemon=True)
+        thread.start()
+
+        # Start polling
+        self.parent.after(100, self._poll_queue)
+
+        # Wait for window to close (blocking the main loop effectively for the user)
+        self.parent.wait_window(self.dialog)
+
+        # Process result
+        if not self.queue.empty():
+            status, payload = self.queue.get()
+            if status == "success":
+                return payload
+            else:
+                raise payload
+        return None
+
+    def _create_dialog(self):
+        self.dialog = tk.Toplevel(self.parent)
+        self.dialog.title(self.title)
+        self.dialog.geometry("300x150")
+        self.dialog.resizable(False, False)
+        self.dialog.transient(self.parent)
+        self.dialog.grab_set() # Modal
+
+        # Center the dialog
+        self.dialog.update_idletasks()
+        x = self.parent.winfo_rootx() + (self.parent.winfo_width() // 2) - (150)
+        y = self.parent.winfo_rooty() + (self.parent.winfo_height() // 2) - (75)
+        self.dialog.geometry(f"+{x}+{y}")
+
+        # Content
+        lbl = ttk.Label(self.dialog, text=self.message, font=("Segoe UI", 10))
+        lbl.pack(pady=20)
+
+        pb = ttk.Progressbar(self.dialog, mode="indeterminate")
+        pb.pack(fill="x", padx=20, pady=10)
+        pb.start(10)
+
+        # Disable close button
+        self.dialog.protocol("WM_DELETE_WINDOW", lambda: None)
+
+    def _poll_queue(self):
+        if not self.queue.empty():
+            self.dialog.destroy()
+        else:
+            self.dialog.after(100, self._poll_queue)
