@@ -13,6 +13,7 @@ class DipendenteSchema(BaseModel):
     cognome: str
     data_nascita: Optional[date] = None
     email: Optional[str] = None
+    mansione: Optional[str] = None
     categoria_reparto: Optional[str] = None
     data_assunzione: Optional[date] = None
 
@@ -24,6 +25,7 @@ class DipendenteCreateSchema(BaseModel):
     cognome: str = Field(..., min_length=1)
     data_nascita: Optional[date] = None
     email: Optional[str] = None
+    mansione: Optional[str] = None
     categoria_reparto: Optional[str] = None
     data_assunzione: Optional[date] = None
 
@@ -39,6 +41,7 @@ class DipendenteUpdateSchema(BaseModel):
     cognome: Optional[str] = Field(None, min_length=1)
     data_nascita: Optional[date] = None
     email: Optional[str] = None
+    mansione: Optional[str] = None
     categoria_reparto: Optional[str] = None
     data_assunzione: Optional[date] = None
 

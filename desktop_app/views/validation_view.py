@@ -73,12 +73,23 @@ class ValidationView(tk.Frame):
         if not cert: return
 
         try:
+            # Check if settings.DATABASE_PATH is valid
             db_path = settings.DATABASE_PATH
-            path = find_document(db_path, cert)
+            if not db_path:
+                 messagebox.showerror("Errore", "Percorso Database non configurato.")
+                 return
+
+            search_data = {
+                'nome': cert.get('nome'),
+                'categoria': cert.get('categoria'),
+                'data_scadenza': cert.get('data_scadenza')
+            }
+
+            path = find_document(db_path, search_data)
             if path and os.path.exists(path):
                 os.startfile(path)
             else:
-                messagebox.showwarning("Attenzione", "File PDF non trovato.")
+                messagebox.showwarning("Attenzione", f"File PDF non trovato.\nCercato in: {path or 'N/D'}")
         except Exception as e:
             messagebox.showerror("Errore", f"Impossibile aprire il file: {e}")
 
@@ -100,8 +111,8 @@ class ValidationView(tk.Frame):
         for item in self.data:
             values = (
                 item.get("id"),
-                item.get("nome_dipendente") or "N/D",
-                item.get("nome_corso") or "N/D",
+                item.get("nome") or "N/D",
+                item.get("corso") or "N/D",
                 item.get("data_rilascio") or "",
                 item.get("data_scadenza") or "",
                 f"{item.get('confidence', 0)}%" if item.get("confidence") else "N/D"
@@ -121,8 +132,6 @@ class ValidationView(tk.Frame):
         self.open_validation_dialog(cert_id)
 
     def open_validation_dialog(self, cert_id):
-        # Fetch full details first? Or just use what we have?
-        # Better fetch fresh.
         try:
             cert = next((x for x in self.data if str(x.get("id")) == str(cert_id)), None)
             if not cert:
@@ -158,22 +167,22 @@ class ValidationDialog(tk.Toplevel):
         frame.pack(fill="both", expand=True)
 
         # Fields
-        tk.Label(frame, text="Dipendente:", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        tk.Label(frame, text="Dipendente (Cognome Nome):", font=("Segoe UI", 9, "bold")).pack(anchor="w")
         self.entry_dip = tk.Entry(frame, width=40)
-        self.entry_dip.insert(0, self.cert.get("nome_dipendente") or "")
+        self.entry_dip.insert(0, self.cert.get("nome") or "")
         self.entry_dip.pack(anchor="w", pady=(0, 10))
 
         tk.Label(frame, text="Corso:", font=("Segoe UI", 9, "bold")).pack(anchor="w")
         self.entry_corso = tk.Entry(frame, width=40)
-        self.entry_corso.insert(0, self.cert.get("nome_corso") or "")
+        self.entry_corso.insert(0, self.cert.get("corso") or "")
         self.entry_corso.pack(anchor="w", pady=(0, 10))
 
-        tk.Label(frame, text="Data Rilascio (YYYY-MM-DD):", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        tk.Label(frame, text="Data Rilascio (DD/MM/YYYY):", font=("Segoe UI", 9, "bold")).pack(anchor="w")
         self.entry_ril = tk.Entry(frame, width=40)
         self.entry_ril.insert(0, self.cert.get("data_rilascio") or "")
         self.entry_ril.pack(anchor="w", pady=(0, 10))
 
-        tk.Label(frame, text="Data Scadenza (YYYY-MM-DD):", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        tk.Label(frame, text="Data Scadenza (DD/MM/YYYY):", font=("Segoe UI", 9, "bold")).pack(anchor="w")
         self.entry_scad = tk.Entry(frame, width=40)
         self.entry_scad.insert(0, self.cert.get("data_scadenza") or "")
         self.entry_scad.pack(anchor="w", pady=(0, 10))
@@ -191,7 +200,8 @@ class ValidationDialog(tk.Toplevel):
     def validate(self):
         # Prepare data
         update_data = {
-            "nome_dipendente_raw": self.entry_dip.get(),
+            "nome": self.entry_dip.get(),
+            "corso": self.entry_corso.get(),
             "data_rilascio": self.entry_ril.get(),
             "data_scadenza": self.entry_scad.get()
         }

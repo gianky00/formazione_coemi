@@ -368,6 +368,13 @@ def _handle_new_dipendente(db, warnings, data):
         )
         db.add(dipendente)
 
+def _update_dipendente_fields(dipendente, data, db):
+    """Helper to update fields safely."""
+    if 'mansione' in data:
+        dipendente.mansione = data['mansione']
+    if 'categoria_reparto' in data:
+        dipendente.categoria_reparto = data['categoria_reparto']
+
 def _process_csv_row(row, db, warnings):
     """Processes a single row from the CSV import."""
     cognome = row.get('Cognome')
@@ -375,6 +382,8 @@ def _process_csv_row(row, db, warnings):
     data_nascita = row.get('Data_nascita')
     badge = row.get('Badge')
     data_assunzione = row.get('Data_assunzione')
+    mansione = row.get('Mansione')
+    reparto = row.get('Reparto')
 
     if not all([cognome, nome, badge]):
         return
@@ -392,12 +401,24 @@ def _process_csv_row(row, db, warnings):
         dipendente.data_nascita = parsed_data_nascita
         if parsed_data_assunzione:
             dipendente.data_assunzione = parsed_data_assunzione
+        if mansione:
+            dipendente.mansione = mansione
+        if reparto:
+            dipendente.categoria_reparto = reparto
     else:
         # Step 2: Matricola non trovata
-        _handle_new_dipendente(
-            db, warnings,
-            (cognome, nome, parsed_data_nascita, badge, parsed_data_assunzione, data_nascita)
+        # Logic extracted to handle new logic (if any)
+        # For new employees we create it first, then update extra fields
+        new_dip = Dipendente(
+            cognome=cognome,
+            nome=nome,
+            matricola=badge,
+            data_nascita=parsed_data_nascita,
+            data_assunzione=parsed_data_assunzione,
+            mansione=mansione,
+            categoria_reparto=reparto
         )
+        db.add(new_dip)
 
 def _decode_csv_content(content: bytes) -> str:
     """Detects and decodes CSV content encoding."""
@@ -895,6 +916,7 @@ def create_dipendente(
         cognome=dipendente.cognome,
         data_nascita=dipendente.data_nascita,
         email=dipendente.email,
+        mansione=dipendente.mansione,
         categoria_reparto=dipendente.categoria_reparto,
         data_assunzione=dipendente.data_assunzione
     )

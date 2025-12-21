@@ -128,6 +128,12 @@ class ImportView(tk.Frame):
                 self.log(f"OK: {os.path.basename(file_path)} -> {entities.get('nome')}")
                 stats['success'] += 1
 
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 409:
+                     self.log(f"SKIP: {os.path.basename(file_path)} -> Già presente.")
+                else:
+                     self.log(f"ERRORE HTTP: {os.path.basename(file_path)} -> {e}")
+                     stats['errors'] += 1
             except Exception as e:
                 self.log(f"ERRORE: {os.path.basename(file_path)} -> {e}")
                 stats['errors'] += 1

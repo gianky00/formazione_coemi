@@ -31,7 +31,7 @@ class DipendentiView(tk.Frame):
 
         self.tree.heading("id", text="ID")
         self.tree.heading("matricola", text="Matricola")
-        self.tree.heading("nome", text="Nome e Cognome")
+        self.tree.heading("nome", text="Cognome e Nome")
         self.tree.heading("data_nascita", text="Data Nascita")
         self.tree.heading("mansione", text="Mansione")
 
@@ -64,14 +64,18 @@ class DipendentiView(tk.Frame):
             self.tree.delete(item)
 
         for d in self.data:
-            nome = (d.get("nome") or "").lower()
+            # Construct Display Name: COGNOME NOME
+            cognome = (d.get("cognome") or "").upper()
+            nome = (d.get("nome") or "").upper()
+            display_name = f"{cognome} {nome}".strip()
+
             matricola = (d.get("matricola") or "").lower()
 
-            if query in nome or query in matricola:
+            if query in display_name.lower() or query in matricola:
                 values = (
                     d.get("id"),
                     d.get("matricola") or "",
-                    d.get("nome") or "",
+                    display_name,
                     d.get("data_nascita") or "",
                     d.get("mansione") or ""
                 )
@@ -115,11 +119,12 @@ class DipendenteDialog(tk.Toplevel):
         frame = tk.Frame(self, padx=20, pady=20)
         frame.pack(fill="both", expand=True)
 
-        self.entry_nome = self._add_field(frame, "Nome e Cognome:", self.dip_data.get("nome") if self.dip_data else "")
+        self.entry_cognome = self._add_field(frame, "Cognome:", self.dip_data.get("cognome") if self.dip_data else "")
+        self.entry_nome = self._add_field(frame, "Nome:", self.dip_data.get("nome") if self.dip_data else "")
         self.entry_matricola = self._add_field(frame, "Matricola:", self.dip_data.get("matricola") if self.dip_data else "")
         self.entry_nascita = self._add_field(frame, "Data Nascita (YYYY-MM-DD):", self.dip_data.get("data_nascita") if self.dip_data else "")
         self.entry_mansione = self._add_field(frame, "Mansione:", self.dip_data.get("mansione") if self.dip_data else "")
-        self.entry_reparto = self._add_field(frame, "Reparto:", self.dip_data.get("reparto") if self.dip_data else "")
+        self.entry_reparto = self._add_field(frame, "Reparto:", self.dip_data.get("categoria_reparto") if self.dip_data else "")
 
         # Buttons
         btn_frame = tk.Frame(frame, pady=20)
@@ -142,15 +147,16 @@ class DipendenteDialog(tk.Toplevel):
 
     def save(self):
         data = {
+            "cognome": self.entry_cognome.get(),
             "nome": self.entry_nome.get(),
             "matricola": self.entry_matricola.get(),
             "data_nascita": self.entry_nascita.get(), # Backend handles format validation
             "mansione": self.entry_mansione.get(),
-            "reparto": self.entry_reparto.get()
+            "categoria_reparto": self.entry_reparto.get()
         }
 
-        if not data["nome"]:
-            messagebox.showerror("Errore", "Il nome è obbligatorio.")
+        if not data["nome"] or not data["cognome"]:
+            messagebox.showerror("Errore", "Nome e Cognome sono obbligatori.")
             return
 
         try:

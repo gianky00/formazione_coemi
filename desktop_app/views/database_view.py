@@ -5,6 +5,7 @@ import os
 from desktop_app.utils import TaskRunner
 from app.services.document_locator import find_document
 from app.core.config import settings
+from desktop_app.views.edit_certificato_dialog import EditCertificatoDialog
 
 class DatabaseView(tk.Frame):
     def __init__(self, parent, controller):
@@ -132,16 +133,36 @@ class DatabaseView(tk.Frame):
         # Find path
         try:
             db_path = settings.DATABASE_PATH
-            path = find_document(db_path, cert)
+            if not db_path:
+                 messagebox.showerror("Errore", "Percorso Database non configurato.")
+                 return
+
+            # Helper for find_document (similar to ValidationView)
+            search_data = {
+                'nome': cert.get('nome'),
+                'categoria': cert.get('categoria'),
+                'data_scadenza': cert.get('data_scadenza')
+            }
+
+            path = find_document(db_path, search_data)
             if path and os.path.exists(path):
                 os.startfile(path)
             else:
-                messagebox.showwarning("Attenzione", "File PDF non trovato nel percorso atteso.")
+                messagebox.showwarning("Attenzione", f"File PDF non trovato.\nCercato in: {path or 'N/D'}")
         except Exception as e:
             messagebox.showerror("Errore", f"Impossibile aprire il file: {e}")
 
     def edit_item(self):
-        messagebox.showinfo("Info", "Funzionalità Modifica in sviluppo.")
+        selected = self.tree.selection()
+        if not selected: return
+
+        item_vals = self.tree.item(selected[0], "values")
+        cert_id = item_vals[0]
+
+        cert = next((x for x in self.data if str(x["id"]) == str(cert_id)), None)
+        if not cert: return
+
+        EditCertificatoDialog(self, self.controller, cert)
 
     def delete_item(self):
         selected = self.tree.selection()
