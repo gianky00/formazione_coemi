@@ -95,29 +95,41 @@ class ImportView(tk.Frame):
                         files.append(os.path.join(root, f))
         
         total = len(files)
-        # Note: We can't update the UI log *from this thread* safely in Tkinter if we weren't careful.
-        # But TaskRunner blocks the *main* loop's interaction, but not the loop itself?
-        # No, TaskRunner blocks via wait_window. The main loop is handling the modal dialog events.
-        # We cannot update the ImportView log widget from the worker thread.
-        # We must use a queue or just log at the end.
-        # For "Serial Execution" requested by user, I will just return the stats.
         
         for i, file_path in enumerate(files):
             try:
-                # Upload to /upload-pdf/
-                # We need to manually construct the request or add to APIClient.
-                # Doing it here for expediency and decoupled logic.
-
+                # 1. Upload & Analyze
                 url = f"{self.controller.api_client.base_url}/upload-pdf/"
                 with open(file_path, 'rb') as f:
                     files_dict = {'file': (os.path.basename(file_path), f, 'application/pdf')}
-                    # Increased timeout for AI analysis (can be slow)
-                    requests.post(url, files=files_dict, headers=self.controller.api_client._get_headers(), timeout=60)
+                    # Increased timeout for AI analysis
+                    res = requests.post(url, files=files_dict, headers=self.controller.api_client._get_headers(), timeout=60)
+                    res.raise_for_status()
 
+                data = res.json()
+                entities = data.get("entities", {})
+
+                # 2. Save Certificate to DB
+                # Mapping AI result to CertificatoCreazioneSchema
+                # entities: {'nome': '...', 'categoria': '...', 'corso': '...', 'data_rilascio': '...', 'data_scadenza': '...'}
+
+                payload = {
+                    "nome": entities.get("nome"),
+                    "corso": entities.get("corso"),
+                    "categoria": entities.get("categoria"),
+                    "data_rilascio": entities.get("data_rilascio"),
+                    "data_scadenza": entities.get("data_scadenza")
+                }
+
+                create_url = f"{self.controller.api_client.base_url}/certificati/"
+                create_res = requests.post(create_url, json=payload, headers=self.controller.api_client._get_headers())
+                create_res.raise_for_status()
+
+                self.log(f"OK: {os.path.basename(file_path)} -> {entities.get('nome')}")
                 stats['success'] += 1
+
             except Exception as e:
-                # Log error to console or collection
-                print(f"Error processing {file_path}: {e}")
+                self.log(f"ERRORE: {os.path.basename(file_path)} -> {e}")
                 stats['errors'] += 1
         
         return stats

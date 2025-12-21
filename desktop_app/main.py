@@ -10,8 +10,10 @@ from desktop_app.api_client import APIClient
 from desktop_app.views.login_view import LoginView
 from desktop_app.services.license_manager import LicenseManager
 from desktop_app.services.voice_service import VoiceService
+from desktop_app.services.update_checker import UpdateChecker
 from app.core.config import settings
 from desktop_app.utils import TaskRunner
+from app import __version__ as app_version
 
 # Import Config/Dipendenti Views
 from desktop_app.views.config_view import ConfigView
@@ -56,20 +58,32 @@ class ApplicationController:
         if not self._check_database():
             sys.exit(1)
 
+        # 3. Update Check (Async)
+        self._check_updates()
+
         self.root.deiconify() # Show root
         self.show_login()
         self._reset_inactivity_timer()
         self.root.mainloop()
+
+    def _check_updates(self):
+        checker = UpdateChecker(app_version)
+        def on_update(has_update, version, url):
+            if has_update:
+                self.root.after(0, lambda: self._prompt_update(version, url))
+        checker.check_for_updates(on_update)
+
+    def _prompt_update(self, version, url):
+        if messagebox.askyesno("Aggiornamento Disponibile", f"Nuova versione {version} disponibile. Scaricare ora?"):
+            import webbrowser
+            webbrowser.open(url)
 
     def _check_license(self):
         # Physical check
         try:
             data = LicenseManager.get_license_data()
             if not data:
-                # Silent fail for dev, but for prod this is critical.
-                # Since user got 403, we know this is important.
-                # But here we just check if file exists to proceed to login.
-                # API check happens later.
+                # If reading failed, try to regenerate/update or fail
                 pass
             return True
         except Exception as e:
@@ -153,9 +167,22 @@ class ApplicationController:
         self.current_view.pack(fill="both", expand=True)
 
         # Voice Welcome
-        self.voice_service.speak(f"Benvenuto {self.api_client.user_info.get('account_name', '')}")
+        name = self.api_client.user_info.get('account_name', '')
+        self.voice_service.speak(f"Benvenuto {name}")
 
     def on_login_success(self, user_info):
+        # 503 Fix: Check Read Only Status
+        is_read_only = user_info.get("read_only", False)
+        lock_owner = user_info.get("lock_owner")
+
+        if is_read_only:
+            owner_str = str(lock_owner) if lock_owner else "un altro utente"
+            messagebox.showwarning(
+                "Modalità Sola Lettura",
+                f"Il database è attualmente bloccato da {owner_str}.\n"
+                "L'applicazione funzionerà in modalità limitata (niente modifiche)."
+            )
+
         self.api_client.set_token(user_info)
         self.show_dashboard()
         self._reset_inactivity_timer()

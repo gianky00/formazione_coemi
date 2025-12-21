@@ -53,13 +53,17 @@ class LoginView(tk.Frame):
 
         try:
             lic_data = LicenseManager.get_license_data()
-            client_name = lic_data.get("Client Name", "N/D")
-            expiry = lic_data.get("Expiry Date", "N/D")
-            hwid = lic_data.get("Hardware ID", "N/D")
+            if lic_data:
+                # Use correct keys from admin_license_gui.py
+                client_name = lic_data.get("Cliente", "N/D")
+                expiry = lic_data.get("Scadenza Licenza", "N/D")
+                hwid = lic_data.get("Hardware ID", "N/D")
 
-            info_text = f"Cliente: {client_name} | Scadenza: {expiry} | HWID: {hwid} | Versione: {app_version}"
-            lbl_lic = tk.Label(footer_frame, text=info_text, bg="#F0F8FF", fg="#6B7280", font=("Segoe UI", 8))
-            lbl_lic.pack(side="right")
+                info_text = f"Cliente: {client_name} | Scadenza: {expiry} | HWID: {hwid} | Versione: {app_version}"
+                lbl_lic = tk.Label(footer_frame, text=info_text, bg="#F0F8FF", fg="#6B7280", font=("Segoe UI", 8))
+                lbl_lic.pack(side="right")
+            else:
+                raise ValueError("No data")
         except Exception:
             tk.Label(footer_frame, text=f"Versione: {app_version}", bg="#F0F8FF", fg="#6B7280").pack(side="right")
 
