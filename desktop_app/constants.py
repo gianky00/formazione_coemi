@@ -12,20 +12,8 @@ COLOR_WARNING_ORANGE = "#D97706"
 COLOR_SUCCESS_GREEN = "#10B981"
 COLOR_WARNING_YELLOW_TEXT = "#FBBF24"
 
-# Stylesheets
-STYLE_QFRAME_CARD = """
-    QFrame {
-        background-color: #FFFFFF;
-        border-radius: 12px;
-        border: 1px solid #E5E7EB;
-    }
-"""
-
-STYLE_LICENSE_VALID = "color: #93C5FD; font-size: 13px; font-weight: 500;"
-STYLE_LICENSE_EXPIRING = "color: #FBBF24; font-size: 13px; font-weight: 600;"
-
 # Formats
-DATE_FORMAT_DISPLAY = "dd/MM/yyyy"
+DATE_FORMAT_DISPLAY = "%d/%m/%Y"  # Standard Python format for strftime
 DATE_FORMAT_FILE = "%d_%m_%Y"
 
 # Status Messages

@@ -76,6 +76,7 @@ class Dipendente(Base):
     cognome = Column(String, index=True)
     data_nascita = Column(Date)
     email = Column(String, unique=True, index=True)
+    mansione = Column(String, nullable=True)
     categoria_reparto = Column(String)
     data_assunzione = Column(Date, nullable=True)
     certificati = relationship("Certificato", back_populates="dipendente")

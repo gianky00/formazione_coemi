@@ -203,10 +203,20 @@ def _extract_json_block(text: str) -> str:
     text = text.strip()
     
     # Fast path: checks if wrapped in markdown
-    # S5852: Potential ReDoS vulnerability in regex.
-    match = re.search(r'```json\s*(.*?)```', text, re.DOTALL) # NOSONAR
-    if match:
-        text = match.group(1).strip()
+    # S5852 Fix: Limit input length for regex to prevent ReDoS on massive strings
+    # and avoid catastrophic backtracking.
+    if len(text) < 100000: # Reasonable limit for JSON response
+        match = re.search(r'```json\s*(.*?)```', text, re.DOTALL)
+        if match:
+            text = match.group(1).strip()
+    else:
+        # Manual fallback for huge strings
+        if text.startswith("```json"):
+            end_marker = "```"
+            start = 7
+            end = text.rfind(end_marker)
+            if end != -1:
+                text = text[start:end].strip()
     
     start_idx = _find_start_index(text)
 

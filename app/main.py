@@ -199,4 +199,5 @@ app.include_router(stats.router, prefix="/api/v1/stats", tags=["Statistics"])
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["Chat"])
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # SECURITY: Bind only to localhost to prevent network access
+    uvicorn.run(app, host="127.0.0.1", port=8000)

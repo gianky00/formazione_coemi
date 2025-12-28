@@ -1,129 +1,78 @@
-import os
-import tempfile
+import pyttsx3
+import threading
 import logging
-from PyQt6.QtCore import QObject, QThread, pyqtSignal, QUrl
-from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from app.core.config import settings
-from gtts import gTTS
 
-# Configure logging
 logger = logging.getLogger(__name__)
 
-class TTSWorker(QThread):
+class VoiceService:
     """
-    Worker thread to handle blocking gTTS generation without freezing the GUI.
+    Servizio TTS Offline utilizzando pyttsx3 (SAPI5 su Windows).
+    Sostituisce gTTS per evitare latenza di rete e dipendenze API non ufficiali.
+    Thread-safe e non bloccante.
     """
-    finished = pyqtSignal(str) # Emits path to generated file
-    error = pyqtSignal(str)
+    _instance = None
+    _lock = threading.Lock()
 
-    def __init__(self, text):
-        super().__init__()
-        self.text = text
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super(VoiceService, cls).__new__(cls)
+                    cls._instance._init_engine()
+        return cls._instance
 
-    def run(self):
+    def _init_engine(self):
         try:
-            # Create a unique temp file path. 
-            fd, path = tempfile.mkstemp(suffix=".mp3")
-            os.close(fd)
+            self.engine = pyttsx3.init()
+            self.engine.setProperty('rate', 150)  # Velocità ottimale per l'italiano
             
-            # Generate audio using gTTS with forced female voice parameters
-            # lang='it', tld='com', slow=False
-            tts = gTTS(text=self.text, lang='it', tld='com', slow=False)
-
-            # Save audio to file
-            tts.save(path)
-
-            self.finished.emit(path)
+            # Tenta di selezionare una voce italiana
+            voices = self.engine.getProperty('voices')
+            for voice in voices:
+                if 'it' in voice.id or 'italian' in voice.name.lower():
+                    self.engine.setProperty('voice', voice.id)
+                    break
+            
+            self.enabled = settings.VOICE_ASSISTANT_ENABLED
         except Exception as e:
-            logger.error(f"gTTS Generation Error: {e}")
-            self.error.emit(str(e))
-
-class VoiceService(QObject):
-    """
-    Service to handle Text-to-Speech using gTTS and QMediaPlayer.
-    """
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.enabled = settings.VOICE_ASSISTANT_ENABLED
-        self.is_muted = False
-        
-        # Audio Player Setup
-        self._player = QMediaPlayer()
-        self._audio_output = QAudioOutput()
-        self._player.setAudioOutput(self._audio_output)
-        
-        # Keep track of temporary files to clean them up
-        self._current_file = None
-        self.worker = None # Keep reference to prevent GC
-        
-        self._player.mediaStatusChanged.connect(self._on_media_status_changed)
+            logger.error(f"Failed to init TTS engine: {e}")
+            self.engine = None
 
     def speak(self, text: str):
         """
-        Generates and plays speech for the given text.
+        Pronuncia il testo in modo asincrono (non bloccante).
         """
-        # Reload setting in case it changed
+        # Ricarica setting per consentire toggle a runtime
         self.enabled = settings.VOICE_ASSISTANT_ENABLED
-
-        if not self.enabled or self.is_muted or not text:
+        
+        if not self.engine or not self.enabled or not text:
             return
 
-        logger.info(f"Speaking: {text}")
-        
-        # Stop any current playback
-        self.stop()
+        def _run():
+            try:
+                # Necessario re-inizializzare loop per thread safety in alcuni contesti COM
+                # Ma pyttsx3 gestisce la coda internamente.
+                # Usiamo il lock per evitare sovrapposizioni strane se chiamato da thread multipli
+                with self._lock:
+                    self.engine.say(text)
+                    self.engine.runAndWait()
+            except Exception as e:
+                logger.error(f"TTS Error: {e}")
 
-        # Start generation in background thread
-        self.worker = TTSWorker(text=text)
-        self.worker.finished.connect(self._play_audio)
-        self.worker.error.connect(lambda e: logger.error(f"TTS Error: {e}"))
-        self.worker.start()
-
-    def _play_audio(self, file_path):
-        """
-        Slot called when TTS generation is complete.
-        """
-        self._current_file = file_path
-        self._player.setSource(QUrl.fromLocalFile(file_path))
-        self._player.play()
-
-    def _on_media_status_changed(self, status):
-        """
-        Cleanup file when playback finishes.
-        """
-        if status == QMediaPlayer.MediaStatus.EndOfMedia:
-            # We can't delete immediately as the player might still hold the handle briefly
-            pass
+        threading.Thread(target=_run, daemon=True).start()
 
     def stop(self):
-        """
-        Stops playback immediately.
-        """
-        if self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
-            self._player.stop()
-
-    def toggle_mute(self):
-        """
-        Toggles temporary mute (independent of global setting).
-        """
-        self.is_muted = not self.is_muted
-        if self.is_muted:
-            self.stop()
-        return self.is_muted
-    
-    def set_volume(self, volume: float):
-        """
-        Set volume (0.0 to 1.0)
-        """
-        self._audio_output.setVolume(volume)
+        """Ferma la riproduzione corrente."""
+        try:
+            if self.engine:
+                self.engine.stop()
+        except Exception:
+            pass
 
     def cleanup(self):
-        """
-        Destructor-like cleanup.
-        """
         self.stop()
-        if self._current_file and os.path.exists(self._current_file):
-            try:
-                os.remove(self._current_file)
-            except Exception: # S5754: Handle exception
-                pass
+        # pyttsx3 non ha un metodo quit() esplicito necessario come pygame
+
+# Singleton
+voice_service = VoiceService()

@@ -193,10 +193,19 @@ class LicenseAdminApp:
                 f"2. Crea una nuova cartella nominandola ESATTAMENTE come l'Hardware ID del cliente.\n"
                 f"3. Carica i 3 file generati ('{key_filename}', 'config.dat', 'manifest.json') in questa nuova cartella.")
 
-        messagebox.showinfo("Successo", msg)
+import platform
 
-        if os.name == 'nt':
-            os.startfile(target_dir)
+def open_file(path):
+    if platform.system() == "Windows":
+        os.startfile(path)
+    elif platform.system() == "Darwin":
+        subprocess.Popen(["open", path])
+    else:
+        subprocess.Popen(["xdg-open", path])
+
+# ... inside _show_success_message
+        messagebox.showinfo("Successo", msg)
+        open_file(target_dir)
 
 if __name__ == "__main__":
     root = tk.Tk()

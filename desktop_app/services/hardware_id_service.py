@@ -13,7 +13,7 @@ def _get_windows_disk_serial():
     This is a common and reliable binding target for licensing.
     """
     try:
-        import pythoncom
+        import pythoncom # pylint: disable=no-member
 
         # Initialize COM for the current thread
         pythoncom.CoInitialize()

@@ -336,7 +336,7 @@ def get_nuitka_command(fast_mode: bool = False) -> list:
         "--assume-yes-for-downloads",
         
         # === PLUGINS ESSENZIALI ===
-        "--plugin-enable=pyqt6",
+        "--enable-plugin=tk-inter",
         # Note: numpy plugin deprecated in Nuitka 2.x, multiprocessing always enabled
         
         # === INCLUSIONE DATI ===
@@ -397,14 +397,6 @@ def get_nuitka_command(fast_mode: bool = False) -> list:
         "--include-module=apscheduler",
         "--include-module=pandas",
         "--include-module=numpy",
-        
-        # PyQt6 (oltre al plugin)
-        "--include-module=PyQt6.QtSvg",
-        "--include-module=PyQt6.QtNetwork",
-        "--include-module=PyQt6.QtPrintSupport",
-        "--include-module=PyQt6.QtWebEngineWidgets",
-        "--include-module=PyQt6.QtWebEngineCore",
-        "--include-module=PyQt6.QtWebChannel",
         
         # Multipart (form upload)
         "--include-module=multipart",

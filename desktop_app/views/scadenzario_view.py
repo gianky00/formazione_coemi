@@ -1,572 +1,359 @@
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGraphicsView, QGraphicsScene,
-                             QSplitter, QTreeWidget, QTreeWidgetItem, QGraphicsRectItem,
-                             QGraphicsTextItem, QGraphicsLineItem, QPushButton, QHBoxLayout,
-                             QScrollBar, QTreeWidgetItemIterator, QFileDialog, QComboBox,
-                             QProgressBar, QFrame)
-from PyQt6.QtCore import Qt, QDate, QRectF, QVariantAnimation, QEasingCurve, pyqtSignal, QThreadPool, QLocale
-from PyQt6.QtGui import QColor, QBrush, QPen, QFont, QLinearGradient, QPainterPath, QPainter, QPageLayout, QPageSize, QImage
-from PyQt6.QtPrintSupport import QPrinter
-import requests
-from ..api_client import APIClient
-from ..components.animated_widgets import AnimatedButton, LoadingOverlay
-from ..components.custom_dialog import CustomMessageDialog
-from ..components.toast import ToastManager
-from ..workers.data_worker import FetchCertificatesWorker
-from ..workers.worker import Worker
-from collections import defaultdict
-from .gantt_item import GanttBarItem
-from desktop_app.constants import DATE_FORMAT_DISPLAY, STATUS_EXPIRING_SOON, STATUS_EXPIRED, STATUS_ACTIVE
+import tkinter as tk
+from tkinter import ttk, messagebox, filedialog
+from desktop_app.utils import TaskRunner, open_file
+from desktop_app.widgets.advanced_filter import setup_filterable_treeview
+import os
+import threading
 
-class ResizingGraphicsView(QGraphicsView):
-    resized = pyqtSignal()
 
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self.resized.emit()
+class ScadenzarioView(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+        self.data = []
 
-class ScadenzarioView(QWidget):
-    def __init__(self, api_client=None):
-        super().__init__()
-        self.api_client = api_client  # Will be set properly by MainDashboardWidget
-        self.layout = QVBoxLayout(self)
-        self.layout.setSpacing(10)
+        self.setup_ui()
+        self.setup_keyboard_shortcuts()
 
-        description = QLabel("Timeline interattiva dei certificati in scadenza.")
-        description.setStyleSheet("font-size: 14px; color: #6B7280;")
-        self.layout.addWidget(description)
+    def setup_ui(self):
+        # Toolbar
+        toolbar = tk.Frame(self, bg="#F3F4F6", pady=10)
+        toolbar.pack(fill="x")
 
-        # Toolbar - wrapped in a styled frame for visibility
-        toolbar_frame = QFrame()
-        toolbar_frame.setObjectName("scadenzario_toolbar")
-        toolbar_frame.setStyleSheet("""
-            QFrame#scadenzario_toolbar {
-                background-color: #FFFFFF;
-                border: 1px solid #E5E7EB;
-                border-radius: 8px;
-                padding: 5px;
-            }
-            QPushButton {
-                background-color: #3B82F6;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                padding: 8px 12px;
-                font-weight: 600;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #2563EB;
-            }
-            QPushButton:pressed {
-                background-color: #1D4ED8;
-            }
-            QPushButton#nav_btn {
-                background-color: #1E3A8A;
-                min-width: 40px;
-                font-size: 16px;
-            }
-            QPushButton#nav_btn:hover {
-                background-color: #1E40AF;
-            }
-            QPushButton#secondary_btn {
-                background-color: #F3F4F6;
-                color: #374151;
-                border: 1px solid #D1D5DB;
-            }
-            QPushButton#secondary_btn:hover {
-                background-color: #E5E7EB;
-            }
-            QComboBox {
-                padding: 8px 12px;
-                border: 1px solid #D1D5DB;
-                border-radius: 6px;
-                background-color: white;
-                font-size: 14px;
-            }
-        """)
-        toolbar_frame.setMinimumHeight(55)
-        
-        toolbar_layout = QHBoxLayout(toolbar_frame)
-        toolbar_layout.setContentsMargins(10, 5, 10, 5)
-        toolbar_layout.setSpacing(10)
+        tk.Button(toolbar, text="Aggiorna", command=self.refresh_data).pack(side="left", padx=10)
 
-        self.prev_month_button = QPushButton("◀ Prec")
-        self.prev_month_button.setObjectName("nav_btn")
-        self.prev_month_button.setFixedHeight(36)
-        self.prev_month_button.clicked.connect(self.prev_month)
-        toolbar_layout.addWidget(self.prev_month_button)
+        # Actions
+        tk.Button(toolbar, text="Esporta PDF", bg="#2563EB", fg="white", command=self.export_pdf).pack(side="left", padx=10)
+        tk.Button(toolbar, text="Invia Email Report", bg="#2563EB", fg="white", command=self.send_email).pack(side="left", padx=10)
 
-        self.next_month_button = QPushButton("Succ ▶")
-        self.next_month_button.setObjectName("nav_btn")
-        self.next_month_button.setFixedHeight(36)
-        self.next_month_button.clicked.connect(self.next_month)
-        toolbar_layout.addWidget(self.next_month_button)
+        # Search
+        tk.Label(toolbar, text="Cerca:", bg="#F3F4F6").pack(side="left", padx=(20, 5))
+        self.entry_search = ttk.Entry(toolbar, width=25)
+        self.entry_search.pack(side="left", padx=5)
+        self.entry_search.bind("<KeyRelease>", lambda e: self.filter_data())
 
-        toolbar_layout.addSpacing(15)
-        zoom_label = QLabel("Zoom:")
-        zoom_label.setStyleSheet("font-weight: 600; font-size: 14px;")
-        toolbar_layout.addWidget(zoom_label)
+        # Category Filter (populated dynamically from data) - increased width
+        tk.Label(toolbar, text="Categoria:", bg="#F3F4F6").pack(side="left", padx=(15, 5))
+        self.combo_categoria = ttk.Combobox(toolbar, values=["Tutte"], state="readonly", width=28)
+        self.combo_categoria.set("Tutte")
+        self.combo_categoria.pack(side="left", padx=5)
+        self.combo_categoria.bind("<<ComboboxSelected>>", lambda e: self.filter_data())
 
-        self.zoom_combo = QComboBox()
-        self.zoom_combo.addItems(["3 Mesi", "6 Mesi", "1 Anno"])
-        self.zoom_combo.setCurrentIndex(0)
-        self.zoom_combo.setMinimumWidth(110)
-        self.zoom_combo.setFixedHeight(36)
-        self.zoom_combo.currentIndexChanged.connect(self.update_zoom_from_combo)
-        toolbar_layout.addWidget(self.zoom_combo)
+        # Status Filter (populated dynamically from data) - increased width
+        tk.Label(toolbar, text="Stato:", bg="#F3F4F6").pack(side="left", padx=(15, 5))
+        self.combo_status = ttk.Combobox(toolbar, values=["Tutti"], state="readonly", width=15)
+        self.combo_status.set("Tutti")
+        self.combo_status.pack(side="left", padx=5)
+        self.combo_status.bind("<<ComboboxSelected>>", lambda e: self.filter_data())
 
-        toolbar_layout.addStretch()
+        # Reset filters button
+        self.btn_reset = tk.Button(toolbar, text="Reset Filtri", bg="#6B7280", fg="white",
+                                    font=("Segoe UI", 8), command=self._reset_filters)
+        self.btn_reset.pack(side="left", padx=10)
+        self.btn_reset.config(state="disabled")  # Initially disabled
 
-        self.generate_email_button = QPushButton("📧 Genera Email")
-        self.generate_email_button.setMinimumWidth(150)
-        self.generate_email_button.setFixedHeight(36)
-        self.generate_email_button.clicked.connect(self.generate_email)
-        toolbar_layout.addWidget(self.generate_email_button)
+        # Legend and count
+        self.lbl_count = tk.Label(toolbar, text="", bg="#F3F4F6", font=("Segoe UI", 9))
+        self.lbl_count.pack(side="right", padx=10)
 
-        self.export_pdf_button = QPushButton("📄 Esporta PDF")
-        self.export_pdf_button.setObjectName("secondary_btn")
-        self.export_pdf_button.setMinimumWidth(140)
-        self.export_pdf_button.setFixedHeight(36)
-        self.export_pdf_button.clicked.connect(self.export_to_pdf)
-        toolbar_layout.addWidget(self.export_pdf_button)
+        # Active filter indicator
+        self.lbl_filter_indicator = tk.Label(toolbar, text="", bg="#F3F4F6", fg="#DC2626", font=("Segoe UI", 8, "bold"))
+        self.lbl_filter_indicator.pack(side="right", padx=5)
 
-        self.layout.addWidget(toolbar_frame)
-        
-        # Legend row with visible colored boxes
-        legend_frame = QFrame()
-        legend_frame.setStyleSheet("QFrame { background-color: transparent; }")
-        self.legend_layout = QHBoxLayout(legend_frame)
-        self.legend_layout.setContentsMargins(0, 5, 0, 5)
-        self.legend_layout.setSpacing(15)
-        self.legend_layout.addStretch()
-        self.layout.addWidget(legend_frame)
+        tk.Label(toolbar, text="Rosso=Scaduto | Arancio=In Scadenza | Verde=Valido", bg="#F3F4F6", font=("Segoe UI", 8)).pack(side="right", padx=20)
 
-        # Loading Bar (for data fetch)
-        self.loading_bar = QProgressBar()
-        self.loading_bar.setRange(0, 0)
-        self.loading_bar.setFixedHeight(4)
-        self.loading_bar.setTextVisible(False)
-        self.loading_bar.setStyleSheet("QProgressBar { border: none; background: transparent; } QProgressBar::chunk { background: #1D4ED8; border-radius: 2px; }")
-        self.loading_bar.hide()
-        self.layout.addWidget(self.loading_bar)
+        # Treeview
+        columns = ("dipendente", "corso", "categoria", "scadenza", "giorni_rimanenti")
+        self.tree = ttk.Treeview(self, columns=columns, show="headings", selectmode="extended")
 
-        # Splitter
-        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.tree.heading("dipendente", text="Dipendente")
+        self.tree.heading("corso", text="Documento")
+        self.tree.heading("categoria", text="Categoria")
+        self.tree.heading("scadenza", text="Scadenza")
+        self.tree.heading("giorni_rimanenti", text="Giorni Rimanenti")
 
-        self.employee_tree = QTreeWidget()
-        self.employee_tree.setHeaderLabels(["Categoria / Dipendenti"])
-        self.employee_tree.itemClicked.connect(self._on_tree_item_selected)
-        font = QFont()
-        font.setPointSize(10)
-        self.employee_tree.setFont(font)
-        self.splitter.addWidget(self.employee_tree)
+        # Optimized column widths
+        self.tree.column("dipendente", width=200, minwidth=150)
+        self.tree.column("corso", width=300, minwidth=150)
+        self.tree.column("categoria", width=150, minwidth=100)
+        self.tree.column("scadenza", width=100, minwidth=80, anchor="center")
+        self.tree.column("giorni_rimanenti", width=120, minwidth=80, anchor="center")
 
-        self.gantt_view = ResizingGraphicsView()
-        self.gantt_view.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-        self.gantt_view.resized.connect(self.redraw_gantt_scene)
-        self.gantt_scene = QGraphicsScene()
-        self.gantt_view.setScene(self.gantt_scene)
-        self.splitter.addWidget(self.gantt_view)
+        # Tags for colors
+        self.tree.tag_configure("scaduto", background="#FECACA")  # Red-200
+        self.tree.tag_configure("in_scadenza", background="#FED7AA")  # Orange-200
+        self.tree.tag_configure("valido", background="#BBF7D0")  # Green-200
 
-        self.splitter.setSizes([300, 700])
-        self.layout.addWidget(self.splitter)
+        scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscroll=scrollbar.set)
 
-        self.api_client = APIClient()
-        self.threadpool = QThreadPool()
-        # Default view: 1 month before today. Total range 3 months covers (-1 to +2).
-        self.current_date = QDate.currentDate().addMonths(-1)
-        self.zoom_months = 3.0
-        self.target_zoom_months = 3.0
-        self.certificates = []
-        self.category_colors = {}
-        self.color_palette = [QColor(c) for c in ["#3b82f6", "#10b981", "#ef4444", "#f97316", "#8b5cf6", "#d946ef", "#14b8a6", "#64748b"]]
+        scrollbar.pack(side="right", fill="y")
+        self.tree.pack(fill="both", expand=True)
 
-        self.zoom_anim = QVariantAnimation(self)
-        self.zoom_anim.setDuration(400)
-        self.zoom_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-        self.zoom_anim.valueChanged.connect(self._on_zoom_anim_step)
+        # Column sorting
+        self.sort_column = None
+        self.sort_reverse = False
+        for col in columns:
+            self.tree.heading(col, command=lambda c=col: self.sort_by_column(c))
 
-        # Loading Overlay (for PDF/Email actions)
-        self.loading_overlay = LoadingOverlay(self)
-
-        self.load_data()
-
-    def update_zoom_from_combo(self, index):
-        zoom_map = {0: 3.0, 1: 6.0, 2: 12.0}
-        target = zoom_map.get(index, 3.0)
-        self.animate_zoom(target)
-
-    def animate_zoom(self, target_months):
-        self.zoom_anim.stop()
-        self.zoom_anim.setStartValue(self.zoom_months)
-        self.zoom_anim.setEndValue(target_months)
-        self.zoom_anim.start()
-
-    def _on_zoom_anim_step(self, value):
-        self.zoom_months = float(value)
-        self.redraw_gantt_scene()
-
-    def _on_tree_item_selected(self, item, column):
-        course_data = item.data(0, Qt.ItemDataRole.UserRole)
-        if not isinstance(course_data, dict): return
-
-        for scene_item in self.gantt_scene.items():
-            if isinstance(scene_item, GanttBarItem):
-                scene_item.setBrush(QBrush(scene_item.color))
-                scene_item.setPen(QPen(Qt.PenStyle.NoPen))
-
-        for rect_item in self.gantt_scene.items():
-            if isinstance(rect_item, GanttBarItem) and rect_item.data(Qt.ItemDataRole.UserRole) == course_data:
-                self.gantt_view.ensureVisible(rect_item)
-                rect_item.setBrush(QBrush(QColor("lightblue")))
-                rect_item.setPen(QPen(QColor("blue"), 2))
-                break
-
-    def prev_month(self):
-        self.current_date = self.current_date.addMonths(-1)
-        self.redraw_gantt_scene()
-
-    def next_month(self):
-        self.current_date = self.current_date.addMonths(1)
-        self.redraw_gantt_scene()
-
-    def load_data(self):
-        self.loading_bar.show()
-        self.splitter.setEnabled(False)
-        worker = FetchCertificatesWorker(self.api_client, validated=True)
-        worker.signals.result.connect(self._on_data_loaded)
-        worker.signals.error.connect(self._on_error)
-        worker.signals.finished.connect(self._on_worker_finished)
-        self.threadpool.start(worker)
-
-    def _on_worker_finished(self):
-        self.loading_bar.hide()
-        self.splitter.setEnabled(True)
-
-    def _on_error(self, message):
-        self.certificates = []
-        self._assign_category_colors()
-        self.populate_tree()
-        self.redraw_gantt_scene()
-        CustomMessageDialog.show_warning(self, "Errore Caricamento", f"Impossibile caricare lo scadenzario:\n{message}")
-
-    def _on_data_loaded(self, all_data):
-        self.certificates = []
-        if all_data:
-            excluded_categories = ['ATEX', 'BLSD', 'DIRETTIVA SEVESO', 'DIRIGENTI E FORMATORI', 'H2S', 'MEDICO COMPETENTE', 'HLO']
-            filtered_data = [item for item in all_data if item.get('categoria') not in excluded_categories]
-            
-            valid_items = []
-            today = QDate.currentDate()
-            
-            for item in filtered_data:
-                item['Dipendente'] = item['nome']
-                date_str = item.get('data_scadenza')
-                if date_str:
-                    qdate = QDate.fromString(date_str, DATE_FORMAT_DISPLAY)
-                    if qdate.isValid():
-                        # check within 90 days logic:
-                        if today.daysTo(qdate) <= 90:
-                            item['_parsed_date'] = qdate  # Store for efficient sorting
-                            valid_items.append(item)
-            
-            self.certificates = sorted(valid_items, key=lambda x: x['_parsed_date'])
-
-        self._assign_category_colors()
-        self.populate_tree()
-        self.redraw_gantt_scene()
-
-    def _assign_category_colors(self):
-        self.category_colors = {}
-        # S7508: Removed sorted(list(set(...))) redundancy
-        # S7494: Use set comprehension
-        unique_categories = sorted({cert['categoria'] for cert in self.certificates})
-        for i, category in enumerate(unique_categories):
-            self.category_colors[category] = self.color_palette[i % len(self.color_palette)]
-
-    def populate_tree(self):
-        self.employee_tree.setUpdatesEnabled(False)
-        self.employee_tree.clear()
-        
-        data_by_category = defaultdict(lambda: defaultdict(list))
-        for item in self.certificates:
-            parsed_date = item.get('_parsed_date')
-            if not parsed_date:
-                parsed_date = QDate.fromString(item.get('data_scadenza', ''), DATE_FORMAT_DISPLAY)
-            
-            status = STATUS_EXPIRED if QDate.currentDate() > parsed_date else STATUS_EXPIRING_SOON
-            data_by_category[item['categoria']][status].append(item)
-
-        for category, statuses in sorted(data_by_category.items()):
-            category_item = QTreeWidgetItem(self.employee_tree, [category])
-            category_item.setData(0, Qt.ItemDataRole.UserRole, "category")
-            for status in [STATUS_EXPIRING_SOON, STATUS_EXPIRED]:
-                if status in statuses:
-                    status_item = QTreeWidgetItem(category_item, [status])
-                    status_item.setData(0, Qt.ItemDataRole.UserRole, "status_folder")
-                    for cert in sorted(statuses[status], key=lambda x: x['Dipendente']):
-                        child_item = QTreeWidgetItem(status_item, [f"{cert['Dipendente']} ({cert.get('matricola', 'N/A')})"])
-                        child_item.setData(0, Qt.ItemDataRole.UserRole, cert)
-        
-        self.employee_tree.setUpdatesEnabled(True)
-
-    def _draw_zones(self, scene_width, start_date, end_date, col_width, header_height):
-        """Draw colored zones for expired, expiring, and warning areas."""
-        today = QDate.currentDate()
-        zone_definitions = {
-            "scaduto": (start_date, today.addDays(-1), QColor(239, 68, 68, 40), "#DC2626"),
-            "in_scadenza": (today, today.addDays(30), QColor(249, 115, 22, 40), "#EA580C"),
-            "avviso": (today.addDays(31), today.addDays(90), QColor(251, 191, 36, 40), "#D97706")
+        # Setup advanced column filters (right-click on headers)
+        column_names = {
+            "dipendente": "Dipendente",
+            "corso": "Documento",
+            "categoria": "Categoria",
+            "scadenza": "Data Scadenza",
+            "giorni_rimanenti": "Giorni Rimanenti"
         }
-        zone_labels = {"scaduto": "SCADUTI", "in_scadenza": "IN SCADENZA", "avviso": "AVVISI"}
+        setup_filterable_treeview(self.tree, column_names)
+        self.tree.bind("<<FilterChanged>>", lambda e: self._on_filter_changed())
 
-        for name, (zone_start, zone_end, bg_color, text_color) in zone_definitions.items():
-            start_x = max(0, start_date.daysTo(zone_start) * col_width)
-            end_x = min(scene_width, start_date.daysTo(zone_end) * col_width)
-            if end_x > start_x:
-                # Draw zone rectangle starting below header
-                zone_rect = QGraphicsRectItem(start_x, header_height, end_x - start_x, 2000)
-                zone_rect.setBrush(QBrush(bg_color))
-                zone_rect.setPen(QPen(Qt.PenStyle.NoPen))
-                zone_rect.setZValue(-1)
-                self.gantt_scene.addItem(zone_rect)
+    def setup_keyboard_shortcuts(self):
+        """Setup keyboard shortcuts for common actions."""
+        self.tree.bind("<F5>", lambda e: self.refresh_data())
+        self.tree.bind("<Control-a>", self.select_all)
+        self.tree.bind("<Control-f>", lambda e: self.entry_search.focus_set())
+        self.tree.bind("<Control-e>", lambda e: self.export_pdf())
+        self.tree.bind("<Escape>", lambda e: self._reset_filters())
 
-                # Draw zone label in header area
-                label_text = zone_labels.get(name, name.upper())
-                lbl = QGraphicsTextItem(label_text)
-                font = QFont()
-                font.setBold(True)
-                font.setPointSize(9)
-                lbl.setFont(font)
-                lbl.setDefaultTextColor(QColor(text_color))
+    def _on_filter_changed(self):
+        """Handle filter changes and update UI."""
+        self.filter_data()
+        self._update_filter_indicator()
 
-                # Center label in zone
-                lbl_width = lbl.boundingRect().width()
-                zone_center = (start_x + end_x) / 2
-                lbl_x = zone_center - (lbl_width / 2)
-                lbl.setPos(lbl_x, 2)
-                lbl.setZValue(10)
-                self.gantt_scene.addItem(lbl)
+    def _update_filter_indicator(self):
+        """Update the filter indicator and reset button state."""
+        has_filters = hasattr(self.tree, 'has_filters') and self.tree.has_filters()
+        has_search = bool(self.entry_search.get())
+        has_cat = self.combo_categoria.get() != "Tutte"
+        has_status = self.combo_status.get() != "Tutti"
 
-    def _draw_month_headers(self, start_date, end_date, total_days, col_width):
-        """Draw month headers below the zone labels."""
-        current_draw_date = start_date
-        while current_draw_date <= end_date:
-            if current_draw_date.day() != 1:
-                next_month = current_draw_date.addMonths(1)
-                next_month.setDate(next_month.year(), next_month.month(), 1)
-                current_draw_date = next_month
-                continue
-
-            days_from_start = start_date.daysTo(current_draw_date)
-            if days_from_start <= total_days:
-                locale = QLocale(QLocale.Language.Italian, QLocale.Country.Italy)
-                month_name = locale.toString(current_draw_date, "MMM yyyy").capitalize()
-                text = QGraphicsTextItem(month_name)
-                font = QFont()
-                font.setBold(True)
-                font.setPointSize(10)
-                text.setFont(font)
-                text.setDefaultTextColor(QColor("#374151"))
-                # Position month headers at Y=15 (below zone labels at Y=2)
-                text.setPos(days_from_start * col_width + 5, 15)
-                self.gantt_scene.addItem(text)
-            current_draw_date = current_draw_date.addMonths(1)
-
-    def _draw_today_line(self, start_date, end_date, today, col_width):
-        if start_date <= today <= end_date:
-            today_x = start_date.daysTo(today) * col_width
-            today_line = QGraphicsLineItem(today_x, 0, today_x, 2000)
-            today_line.setPen(QPen(QColor("#1D4ED8"), 2))
-            self.gantt_scene.addItem(today_line)
-            return today_line
-        return None
-
-    def _draw_bars(self, visible_certs, start_date, today, col_width, header_height, row_height):
-        sorted_certs = sorted(visible_certs, key=lambda x: x.get('_parsed_date', QDate.fromString(x['data_scadenza'], DATE_FORMAT_DISPLAY)))
-        y_pos = header_height
-        for cert_data in sorted_certs:
-            expiry_date = cert_data.get('_parsed_date')
-            if not expiry_date:
-                expiry_date = QDate.fromString(cert_data['data_scadenza'], DATE_FORMAT_DISPLAY)
-
-            bar_start_date = expiry_date.addDays(-30)
-            start_x = start_date.daysTo(bar_start_date) * col_width
-            end_x = start_date.daysTo(expiry_date) * col_width
-            bar_width = max(2, end_x - start_x)
-
-            color = self.category_colors.get(cert_data['categoria'], QColor("gray"))
-            gradient = QLinearGradient(start_x, y_pos, start_x + bar_width, y_pos)
-            gradient.setColorAt(0, color.lighter(120))
-            gradient.setColorAt(1, color)
-
-            rect = GanttBarItem(start_x, y_pos, bar_width, 18, QBrush(gradient), color, cert_data)
-            self.gantt_scene.addItem(rect)
-            y_pos += row_height
-        return y_pos
-
-    def redraw_gantt_scene(self):
-        # S3776: Refactored to reduce Cognitive Complexity
-        self.gantt_view.setUpdatesEnabled(False)
-        try:
-            self.gantt_scene.clear()
-            row_height = 22 # 18 + 4
-            header_height = 30
-
-            today = QDate.currentDate()
-            start_date = self.current_date
-            days_total = int(30.44 * self.zoom_months)
-            end_date = start_date.addDays(days_total)
-            total_days = max(1, start_date.daysTo(end_date))
-
-            scene_width = self.gantt_view.viewport().width()
-            if scene_width <= 0: scene_width = 700
-            col_width = scene_width / total_days
-
-            self._draw_zones(scene_width, start_date, end_date, col_width, header_height)
-            self._draw_month_headers(start_date, end_date, total_days, col_width)
-            today_line = self._draw_today_line(start_date, end_date, today, col_width)
-
-            visible_certs = [
-                cert for cert in self.certificates
-                if (QDate.fromString(cert['data_scadenza'], DATE_FORMAT_DISPLAY).addDays(-30) <= end_date) and \
-                   (QDate.fromString(cert['data_scadenza'], DATE_FORMAT_DISPLAY) >= start_date)
-            ]
-
-            total_height = self._draw_bars(visible_certs, start_date, today, col_width, header_height, row_height)
-
-            self.gantt_scene.setSceneRect(0, 0, scene_width, total_height)
-
-            for item in self.gantt_scene.items():
-                if isinstance(item, QGraphicsRectItem) and item.zValue() == -1:
-                    item.setRect(item.rect().x(), 0, item.rect().width(), total_height)
-                elif isinstance(item, QGraphicsLineItem) and today_line and item is today_line:
-                    item.setLine(item.line().x1(), 0, item.line().x2(), total_height)
-
-            self._update_legend(visible_certs)
-        finally:
-             self.gantt_view.setUpdatesEnabled(True)
-
-    def _update_legend(self, visible_certs):
-        while self.legend_layout.count() > 1:
-            item = self.legend_layout.takeAt(0)
-            if item.widget(): item.widget().deleteLater()
-
-        # S7508 & S7494
-        visible_categories = sorted({cert['categoria'] for cert in visible_certs})
-        for category in visible_categories:
-            color = self.category_colors.get(category)
-            if color:
-                color_box = QLabel()
-                color_box.setFixedSize(15, 15)
-                color_box.setStyleSheet(f"background-color: {color.name()}; border-radius: 4px;")
-                self.legend_layout.insertWidget(0, QLabel(category))
-                self.legend_layout.insertWidget(0, color_box)
-
-    def set_read_only(self, is_read_only: bool):
-        self.is_read_only = is_read_only
-        if is_read_only:
-            self.generate_email_button.setEnabled(False)
-            self.generate_email_button.setToolTip("Database in sola lettura")
+        if has_filters or has_search or has_cat or has_status:
+            self.btn_reset.config(state="normal", bg="#DC2626")
+            active = []
+            if has_search:
+                active.append("Cerca")
+            if has_cat:
+                active.append("Categoria")
+            if has_status:
+                active.append("Stato")
+            if has_filters:
+                active.append("Colonne")
+            self.lbl_filter_indicator.config(text=f"Filtri attivi: {', '.join(active)}")
         else:
-            self.generate_email_button.setEnabled(True)
-            self.generate_email_button.setToolTip("")
+            self.btn_reset.config(state="disabled", bg="#6B7280")
+            self.lbl_filter_indicator.config(text="")
 
-    def generate_email(self):
-        if getattr(self, 'is_read_only', False):
-            return
-        
-        if not self.api_client or not self.api_client.base_url:
-            CustomMessageDialog.show_error(self, "Errore", "Client API non inizializzato.")
-            return
-            
-        self.loading_overlay.set_text("Invio email in corso...")
-        self.loading_overlay.start()
+    def _reset_filters(self):
+        """Reset all filters."""
+        # Reset search
+        self.entry_search.delete(0, tk.END)
 
-        def send():
-            return requests.post(
-                f"{self.api_client.base_url}/notifications/send-manual-alert", 
-                headers=self.api_client._get_headers(), 
-                timeout=60
-            )
+        # Reset comboboxes
+        self.combo_categoria.set("Tutte")
+        self.combo_status.set("Tutti")
 
-        try:
-            worker = Worker(send)
-            worker.signals.result.connect(self._on_email_sent)
-            worker.signals.error.connect(lambda err: self._on_generic_error(err, "Errore Invio Email"))
-            worker.signals.finished.connect(self.loading_overlay.stop)
-            self.threadpool.start(worker)
-        except Exception as e:
-            self.loading_overlay.stop()
-            CustomMessageDialog.show_error(self, "Errore", f"Errore inizializzazione invio: {e}")
+        # Reset column filters
+        if hasattr(self.tree, 'clear_filters'):
+            self.tree.clear_filters()
 
-    def _on_email_sent(self, response):
-        try:
-            if response and response.status_code == 200:
-                ToastManager.success("Successo", "Richiesta di invio email inviata con successo.", self.window())
+        # Refresh display
+        self.filter_data()
+        self._update_filter_indicator()
+
+    def select_all(self, event=None):
+        """Select all items in the tree."""
+        self.tree.selection_set(self.tree.get_children())
+        return "break"
+
+    def sort_by_column(self, col):
+        """Sort treeview by column."""
+        if self.sort_column == col:
+            self.sort_reverse = not self.sort_reverse
+        else:
+            self.sort_column = col
+            self.sort_reverse = False
+
+        items = [(self.tree.item(item)["values"], item) for item in self.tree.get_children()]
+        col_idx = list(self.tree["columns"]).index(col)
+
+        # Special sorting for numeric days column
+        if col == "giorni_rimanenti":
+            def sort_key(x):
+                val = x[0][col_idx]
+                try:
+                    return int(val) if val != "N/D" else 99999
+                except:
+                    return 99999
+            items.sort(key=sort_key, reverse=self.sort_reverse)
+        else:
+            items.sort(key=lambda x: str(x[0][col_idx]).lower() if x[0][col_idx] else "", reverse=self.sort_reverse)
+
+        for idx, (vals, item) in enumerate(items):
+            self.tree.move(item, "", idx)
+
+        # Update heading to show sort direction
+        arrow = " ▼" if self.sort_reverse else " ▲"
+        headings = {"dipendente": "Dipendente", "corso": "Documento",
+                   "categoria": "Categoria", "scadenza": "Scadenza", "giorni_rimanenti": "Giorni Rimanenti"}
+        for c in self.tree["columns"]:
+            heading_text = headings.get(c, c)
+            if c == col:
+                self.tree.heading(c, text=heading_text + arrow)
             else:
-                error_detail = "Errore sconosciuto dal server."
-                if response:
-                    try:
-                        error_data = response.json()
-                        error_detail = error_data.get("detail", error_detail)
-                    except Exception:
-                        error_detail = response.text if hasattr(response, 'text') else str(response)
-                CustomMessageDialog.show_error(self, "Errore Invio Email", f"Impossibile inviare l'email:\n{error_detail}")
-        except Exception as e:
-            CustomMessageDialog.show_error(self, "Errore", f"Errore elaborazione risposta: {e}")
+                self.tree.heading(c, text=heading_text)
 
     def refresh_data(self):
-        self.load_data()
+        def fetch():
+            try:
+                new_data = self.controller.api_client.get("certificati", params={"validated": "true"})
+                if self.winfo_exists():
+                    self.after(0, lambda: self._update_data(new_data))
+            except Exception as e:
+                if self.winfo_exists():
+                    self.after(0, lambda: messagebox.showerror("Errore", str(e)))
 
-    def export_to_pdf(self):
-        default_filename = f"Report scadenze del {QDate.currentDate().toString('dd_MM_yyyy')}.pdf"
-        try:
-            result = QFileDialog.getSaveFileName(self, "Salva PDF", default_filename, "PDF Files (*.pdf)")
-            if isinstance(result, tuple):
-                path = result[0]
+        threading.Thread(target=fetch, daemon=True).start()
+
+    def _update_data(self, new_data):
+        self.data = new_data
+        self._update_filter_options()
+        self.filter_data()
+
+    def _update_filter_options(self):
+        """Update filter dropdowns to show only available options in current data."""
+        categories = set()
+        statuses = set()
+
+        for item in self.data:
+            cat = item.get("categoria")
+            if cat:
+                categories.add(cat.upper())
+            status = item.get("stato_certificato")
+            if status:
+                statuses.add(status.lower())
+
+        # Update category combobox
+        current_cat = self.combo_categoria.get()
+        cat_values = ["Tutte"] + sorted(categories)
+        self.combo_categoria["values"] = cat_values
+        if current_cat not in cat_values:
+            self.combo_categoria.set("Tutte")
+
+        # Update status combobox
+        current_status = self.combo_status.get()
+        status_map = {"attivo": "Valido", "in_scadenza": "In Scadenza", "scaduto": "Scaduto"}
+        status_values = ["Tutti"] + [status_map.get(s, s.title()) for s in sorted(statuses)]
+        self.combo_status["values"] = status_values
+        if current_status not in status_values:
+            self.combo_status.set("Tutti")
+
+    def filter_data(self):
+        query = self.entry_search.get().lower()
+        cat_filter = self.combo_categoria.get()
+        status_filter = self.combo_status.get().lower()
+
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+
+        def get_date_key(d):
+            val = d.get("data_scadenza")
+            return val if val else "9999-99-99"
+
+        sorted_data = sorted(self.data, key=get_date_key)
+
+        from datetime import datetime
+        today = datetime.now().date()
+
+        count = 0
+        for item in sorted_data:
+            nome = str(item.get("nome") or "").lower()
+            corso = str(item.get("corso") or "").lower()
+            categoria = str(item.get("categoria") or "").lower()
+
+            # Apply Category Filter
+            if cat_filter != "Tutte" and (item.get("categoria") or "").upper() != cat_filter.upper():
+                continue
+
+            scadenza_str = item.get("data_scadenza")
+            status = item.get("stato_certificato")
+
+            # Simple color logic
+            tag = "valido"
+            if status == "scaduto":
+                tag = "scaduto"
+            elif status == "in_scadenza":
+                tag = "in_scadenza"
+
+            # Apply Status Filter
+            if status_filter != "tutti":
+                if status_filter == "in scadenza" and tag != "in_scadenza":
+                    continue
+                if status_filter == "scaduto" and tag != "scaduto":
+                    continue
+                if status_filter == "valido" and tag != "valido":
+                    continue
+
+            # Apply Search Filter
+            if query and query not in nome and query not in corso and query not in categoria:
+                continue
+
+            # Calc days remaining - show empty for certificates without expiry (like NOMINA)
+            days_str = ""
+            if scadenza_str and scadenza_str.lower() != "none":
+                try:
+                    dt = datetime.strptime(scadenza_str, "%d/%m/%Y").date()
+                    delta = (dt - today).days
+                    days_str = str(delta)
+                except:
+                    pass
             else:
-                path = result
-        except Exception:
+                scadenza_str = ""  # Empty cell instead of "NESSUNA"
+
+            values = (
+                item.get("nome"),
+                item.get("corso"),
+                item.get("categoria") or "ALTRO",
+                scadenza_str,
+                days_str
+            )
+            self.tree.insert("", "end", values=values, tags=(tag,))
+            count += 1
+
+        self.lbl_count.config(text=f"{count} certificati")
+
+    def export_pdf(self):
+        file_path = filedialog.asksaveasfilename(defaultextension=".pdf", filetypes=[("PDF Files", "*.pdf")])
+        if not file_path:
             return
 
-        if not path: return
-
-        self.loading_overlay.set_text("Generazione Report PDF...")
-
-        def download():
-            return requests.get(f"{self.api_client.base_url}/notifications/export-report", headers=self.api_client._get_headers(), timeout=60)
-
+        runner = TaskRunner(self, "Esportazione", "Generazione PDF in corso...")
         try:
-            worker = Worker(download)
-            worker.signals.result.connect(lambda res: self._on_pdf_downloaded(res, path))
-            worker.signals.error.connect(lambda err: self._on_generic_error(err, "Errore Esportazione"))
-            worker.signals.finished.connect(self.loading_overlay.stop)
-            self.threadpool.start(worker)
-        except Exception:
-            self.loading_overlay.stop()
+            def task():
+                import requests
+                url = f"{self.controller.api_client.base_url}/notifications/export-report"
+                res = requests.get(url, headers=self.controller.api_client._get_headers())
+                res.raise_for_status()
+                with open(file_path, "wb") as f:
+                    f.write(res.content)
 
-    def _on_pdf_downloaded(self, response, path):
-        if response.status_code == 200:
+            runner.run(task)
+            messagebox.showinfo("Successo", f"PDF salvato in: {file_path}")
+            open_file(file_path)
+
+        except Exception as e:
+            messagebox.showerror("Errore", f"Errore esportazione: {e}")
+
+    def send_email(self):
+        if messagebox.askyesno("Conferma", "Inviare il report scadenze via email agli indirizzi configurati?"):
+            runner = TaskRunner(self, "Invio Email", "Invio in corso...")
             try:
-                with open(path, 'wb') as f:
-                    f.write(response.content)
-                # S3457: Removed f-string without placeholders
-                ToastManager.success("Esportazione Riuscita", "Report esportato con successo.", self.window())
-            except Exception as e:
-                CustomMessageDialog.show_error(self, "Errore", f"Impossibile salvare il file: {e}")
-        else:
-            CustomMessageDialog.show_error(self, "Errore", f"Errore durante l'esportazione: {response.text}")
+                def task():
+                    import requests
+                    url = f"{self.controller.api_client.base_url}/notifications/send-manual-alert"
+                    res = requests.post(url, headers=self.controller.api_client._get_headers())
+                    res.raise_for_status()
 
-    def _on_generic_error(self, error_tuple, title):
-        # S1481: Unused exctype and tb
-        _, value, _ = error_tuple
-        CustomMessageDialog.show_error(self, title, f"{value}")
-    
-    def cleanup(self):
-        """Cleanup method to stop all running threads before destruction."""
-        # Wait for any pending thread pool tasks
-        try:
-            self.threadpool.waitForDone(2000)
-        except Exception:
-            pass
+                runner.run(task)
+                messagebox.showinfo("Successo", "Email inviata correttamente.")
+            except Exception as e:
+                messagebox.showerror("Errore", f"Errore invio email: {e}")

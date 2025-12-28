@@ -55,24 +55,46 @@ def _draw_table_header(pdf, header, col_widths, color):
     pdf.ln()
 
 def _draw_table_rows(pdf, data, col_widths, header, color):
-    pdf.set_font('Arial', '', 9)
+    pdf.set_font('Arial', '', 8)
     row_num = 1
     for cert in data:
         if pdf.get_y() > (pdf.page_break_trigger - 20):
             pdf.add_page()
             _draw_table_header(pdf, header, col_widths, color)
-            pdf.set_font('Arial', '', 9)
+            pdf.set_font('Arial', '', 8)
 
-        matricola = cert.dipendente.matricola if cert.dipendente and cert.dipendente.matricola is not None else "N/A"
-        dipendente_nome = f"{cert.dipendente.nome or ''} {cert.dipendente.cognome or ''}".strip() if cert.dipendente else "N/A"
-        categoria = cert.corso.categoria_corso if cert.corso else "N/A"
-        data_scadenza = cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else "N/A"
+        # Get matricola - prefer dipendente.matricola, fallback to cert matricola
+        matricola = ""
+        if cert.dipendente and cert.dipendente.matricola:
+            matricola = str(cert.dipendente.matricola)
+        elif hasattr(cert, 'matricola_raw') and cert.matricola_raw:
+            matricola = str(cert.matricola_raw)
+        if not matricola:
+            matricola = "-"
 
-        pdf.cell(col_widths[0], 10, str(row_num), 1, 0, 'C')
-        pdf.cell(col_widths[1], 10, safe_text(matricola), 1, 0, 'C')
-        pdf.cell(col_widths[2], 10, safe_text(dipendente_nome), 1, 0, 'L')
-        pdf.cell(col_widths[3], 10, safe_text(categoria), 1, 0, 'L')
-        pdf.cell(col_widths[4], 10, safe_text(data_scadenza), 1, 1, 'C')
+        # Get dipendente name - prefer dipendente object, fallback to raw name
+        dipendente_nome = ""
+        if cert.dipendente:
+            cognome = cert.dipendente.cognome or ""
+            nome = cert.dipendente.nome or ""
+            dipendente_nome = f"{cognome} {nome}".strip()
+        if not dipendente_nome and hasattr(cert, 'nome_dipendente_raw') and cert.nome_dipendente_raw:
+            dipendente_nome = cert.nome_dipendente_raw
+        if not dipendente_nome:
+            dipendente_nome = "-"
+
+        # Get categoria - truncate if too long
+        categoria = cert.corso.categoria_corso if cert.corso else "-"
+        if len(categoria) > 20:
+            categoria = categoria[:18] + ".."
+
+        data_scadenza = cert.data_scadenza_calcolata.strftime('%d/%m/%Y') if cert.data_scadenza_calcolata else "-"
+
+        pdf.cell(col_widths[0], 8, str(row_num), 1, 0, 'C')
+        pdf.cell(col_widths[1], 8, safe_text(matricola), 1, 0, 'C')
+        pdf.cell(col_widths[2], 8, safe_text(dipendente_nome[:25] if len(dipendente_nome) > 25 else dipendente_nome), 1, 0, 'L')
+        pdf.cell(col_widths[3], 8, safe_text(categoria), 1, 0, 'L')
+        pdf.cell(col_widths[4], 8, safe_text(data_scadenza), 1, 1, 'C')
         row_num += 1
     pdf.ln(10)
 
@@ -89,8 +111,9 @@ def generate_pdf_report_in_memory(expiring_visite, expiring_corsi, overdue_certi
             pdf.cell(0, 10, safe_text(title), 0, 1, 'L')
             pdf.ln(2)
 
-            header = ['Nr.', 'Matricola', 'Dipendente', 'Categoria', 'Data Scadenza']
-            col_widths = [15, 30, 60, 50, 30]
+            header = ['Nr.', 'Matr.', 'Dipendente', 'Categoria', 'Scadenza']
+            # Adjusted column widths: Nr=12, Matr=22, Dipendente=55, Categoria=45, Scadenza=26 = 160 total
+            col_widths = [12, 22, 58, 42, 26]
 
             _draw_table_header(pdf, header, col_widths, color)
             _draw_table_rows(pdf, data, col_widths, header, color)

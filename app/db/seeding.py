@@ -59,6 +59,7 @@ def migrate_schema(db: Session):
         # Dipendenti table
         _add_column_if_missing(db, "dipendenti", "email", "VARCHAR", index=True)
         _add_column_if_missing(db, "dipendenti", "data_assunzione", "DATE")
+        _add_column_if_missing(db, "dipendenti", "mansione", "VARCHAR")
 
         # Ensure indexes exist
         try:

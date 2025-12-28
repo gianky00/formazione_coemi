@@ -1,443 +1,865 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableView, QHeaderView, QPushButton, QHBoxLayout, QStyledItemDelegate, QLineEdit, QLabel, QMenu, QProgressBar
-from PyQt6.QtCore import QAbstractTableModel, Qt, pyqtSignal, QUrl, QThreadPool
-from PyQt6.QtGui import QDesktopServices, QAction
-import pandas as pd
+import tkinter as tk
+from tkinter import ttk, messagebox, Menu
+from desktop_app.utils import TaskRunner, ProgressTaskRunner, open_file
+from desktop_app.widgets.advanced_filter import setup_filterable_treeview
 import requests
-from ..api_client import APIClient
-from .edit_dialog import EditCertificatoDialog
-from app.services.document_locator import find_document
-from ..workers.data_worker import FetchCertificatesWorker, DeleteCertificatesWorker, ValidateCertificatesWorker
-from ..components.animated_widgets import LoadingOverlay
-from ..components.custom_dialog import CustomMessageDialog
-from desktop_app.constants import STATUS_READ_ONLY
-import subprocess
 import os
+import threading
+from app.services.document_locator import find_document
+from app.core.config import settings
+from app.core.constants import CATEGORIE_STATICHE  # Used in ValidationDialog
 
 
-class SimpleTableModel(QAbstractTableModel):
-    def __init__(self, data, parent=None):
+class ValidationView(tk.Frame):
+    def __init__(self, parent, controller):
         super().__init__(parent)
-        self._data = data
+        self.controller = controller
+        self.data = []
+        self.orphan_data = []
 
-    def rowCount(self, parent=None):
-        return self._data.shape[0]
+        self.setup_ui()
+        self.setup_keyboard_shortcuts()
 
-    def columnCount(self, parent=None):
-        return self._data.shape[1]
+    def setup_ui(self):
+        # Sub-notebook for "Da Convalidare" and "Orfani"
+        self.sub_notebook = ttk.Notebook(self)
+        self.sub_notebook.pack(fill="both", expand=True)
 
-    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
-        if not index.isValid():
-            return None
-        if role == Qt.ItemDataRole.DisplayRole or role == Qt.ItemDataRole.EditRole:
-            val = self._data.iloc[index.row(), index.column()]
-            if pd.isna(val) or val == "None" or val is None:
-                return ""
-            return str(val).upper()
-        return None
+        # Tab 1: Da Convalidare
+        self.tab_validate = tk.Frame(self.sub_notebook)
+        self.sub_notebook.add(self.tab_validate, text=" Da Convalidare")
 
-    def flags(self, index):
-        return super().flags(index)
+        # Tab 2: Orfani
+        self.tab_orphans = tk.Frame(self.sub_notebook)
+        self.sub_notebook.add(self.tab_orphans, text=" Orfani (Non Associati)")
 
-    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
-        if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
-            if not self._data.empty and section < len(self._data.columns):
-                return str(self._data.columns[section]).replace("_", " ")
-        return None
+        self._setup_validation_tab()
+        self._setup_orphans_tab()
 
-class ValidationView(QWidget):
-    validation_completed = pyqtSignal()
+        # Tab change binding
+        self.sub_notebook.bind("<<NotebookTabChanged>>", self._on_subtab_changed)
 
-    def __init__(self, api_client=None):
-        super().__init__()
-        self.api_client = api_client if api_client else APIClient()
-        self.threadpool = QThreadPool()
+    def _setup_validation_tab(self):
+        """Setup the main validation tab."""
+        # Toolbar
+        toolbar = tk.Frame(self.tab_validate, bg="#F3F4F6", pady=10)
+        toolbar.pack(fill="x")
 
-        self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(20, 20, 20, 20)
-        self.layout.setSpacing(15)
+        tk.Button(toolbar, text="Aggiorna", command=self.refresh_data).pack(side="left", padx=10)
+        tk.Label(toolbar, text="Certificati in attesa di convalida", bg="#F3F4F6", font=("Segoe UI", 10, "italic")).pack(side="left", padx=10)
 
-        description = QLabel("Verifica, modifica e approva i dati estratti prima dell'archiviazione.")
-        description.setObjectName("viewDescription")
-        self.layout.addWidget(description)
+        # Search
+        tk.Label(toolbar, text="Cerca:", bg="#F3F4F6").pack(side="left", padx=(20, 5))
+        self.entry_search = ttk.Entry(toolbar, width=25)
+        self.entry_search.pack(side="left", padx=5)
+        self.entry_search.bind("<KeyRelease>", lambda e: self.filter_data())
 
-        # Loading Bar (for indeterminate loading)
-        self.loading_bar = QProgressBar()
-        self.loading_bar.setRange(0, 0)
-        self.loading_bar.setFixedHeight(4)
-        self.loading_bar.setTextVisible(False)
-        self.loading_bar.setStyleSheet("QProgressBar { border: none; background: transparent; } QProgressBar::chunk { background: #1D4ED8; border-radius: 2px; }")
-        self.loading_bar.hide()
-        self.layout.addWidget(self.loading_bar)
+        # Category Filter (populated dynamically from data)
+        tk.Label(toolbar, text="Categoria:", bg="#F3F4F6").pack(side="left", padx=(15, 5))
+        self.combo_categoria = ttk.Combobox(toolbar, values=["Tutte"], state="readonly", width=25)
+        self.combo_categoria.set("Tutte")
+        self.combo_categoria.pack(side="left", padx=5)
+        self.combo_categoria.bind("<<ComboboxSelected>>", lambda e: self.filter_data())
 
-        self.main_card = QWidget()
-        self.main_card.setObjectName("card")
-        main_card_layout = QVBoxLayout(self.main_card)
-        main_card_layout.setSpacing(15)
+        # Results count
+        self.lbl_count = tk.Label(toolbar, text="", bg="#F3F4F6", font=("Segoe UI", 9))
+        self.lbl_count.pack(side="right", padx=10)
 
-        # Controls
-        controls_layout = QHBoxLayout()
-        controls_layout.addStretch()
+        # Treeview
+        columns = ("id", "dipendente", "corso", "categoria", "emissione", "scadenza")
+        self.tree = ttk.Treeview(self.tab_validate, columns=columns, show="headings", selectmode="extended")
 
-        self.edit_button = QPushButton("Modifica")
-        controls_layout.addWidget(self.edit_button)
+        self.tree.heading("id", text="ID")
+        self.tree.heading("dipendente", text="Dipendente")
+        self.tree.heading("corso", text="Documento")
+        self.tree.heading("categoria", text="Categoria")
+        self.tree.heading("emissione", text="Data Rilascio")
+        self.tree.heading("scadenza", text="Data Scadenza")
 
-        self.validate_button = QPushButton("Convalida Selezionati")
-        self.validate_button.setObjectName("primary")
-        self.validate_button.clicked.connect(self.validate_selected)
-        controls_layout.addWidget(self.validate_button)
+        # Optimized column widths
+        self.tree.column("id", width=50, minwidth=40, stretch=False, anchor="center")
+        self.tree.column("dipendente", width=180, minwidth=120)
+        self.tree.column("corso", width=300, minwidth=150)
+        self.tree.column("categoria", width=150, minwidth=100)
+        self.tree.column("emissione", width=100, minwidth=80, anchor="center")
+        self.tree.column("scadenza", width=100, minwidth=80, anchor="center")
 
-        self.delete_button = QPushButton("Cancella Selezionati")
-        self.delete_button.setObjectName("destructive")
-        self.delete_button.clicked.connect(self.delete_selected)
-        controls_layout.addWidget(self.delete_button)
-        main_card_layout.addLayout(controls_layout)
+        # Row color tags (alternating for better readability)
+        self.tree.tag_configure("odd", background="#F9FAFB")
+        self.tree.tag_configure("even", background="#FFFFFF")
 
-        self.edit_button.clicked.connect(self.edit_data)
+        scrollbar = ttk.Scrollbar(self.tab_validate, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscroll=scrollbar.set)
 
-        # Table
-        self.table_view = QTableView()
-        self.table_view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
-        self.table_view.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
-        self.table_view.setAlternatingRowColors(True)
-        self.table_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.table_view.customContextMenuRequested.connect(self._show_context_menu)
+        scrollbar.pack(side="right", fill="y")
+        self.tree.pack(fill="both", expand=True)
 
-        main_card_layout.addWidget(self.table_view)
-        self.layout.addWidget(self.main_card)
+        # Context Menu
+        self.context_menu = Menu(self, tearoff=0)
+        self.context_menu.add_command(label="Apri File PDF", command=self.open_file, accelerator="Enter")
+        self.context_menu.add_command(label="Apri Cartella", command=self.open_folder)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="Convalida", command=lambda: self.on_double_click(None), accelerator="F2")
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="Elimina", command=self.delete_selected, accelerator="Del")
 
-        # Loading Overlay (for determinate actions)
-        self.loading_overlay = LoadingOverlay(self)
+        self.tree.bind("<Button-3>", self.show_context_menu)
+        self.tree.bind("<Double-1>", self.on_double_click)
 
-        # Initial Load
-        if self.api_client.access_token:
-            self.load_data()
+        # Column sorting
+        self.sort_column = None
+        self.sort_reverse = False
+        for col in columns:
+            self.tree.heading(col, command=lambda c=col: self.sort_by_column(c))
 
-        if hasattr(self, 'model') and self.table_view.selectionModel():
-            self.table_view.selectionModel().selectionChanged.connect(self.update_button_states)
-        self.update_button_states()
+        # Setup advanced column filters (right-click on headers)
+        column_names = {
+            "id": "ID",
+            "dipendente": "Dipendente",
+            "corso": "Documento",
+            "categoria": "Categoria",
+            "emissione": "Data Rilascio",
+            "scadenza": "Data Scadenza"
+        }
+        setup_filterable_treeview(self.tree, column_names)
+        self.tree.bind("<<FilterChanged>>", lambda e: self.filter_data())
 
-    def refresh_data(self):
-        """Public slot to reload data from the API."""
-        self.load_data()
+    def _setup_orphans_tab(self):
+        """Setup the orphan certificates tab."""
+        # Toolbar
+        toolbar = tk.Frame(self.tab_orphans, bg="#FEF3C7", pady=10)
+        toolbar.pack(fill="x")
 
-    def set_loading(self, loading):
-        if loading:
-            self.loading_bar.show()
-            self.main_card.setEnabled(False)
-        else:
-            self.loading_bar.hide()
-            self.main_card.setEnabled(True)
+        tk.Button(toolbar, text="Aggiorna", command=self.refresh_data).pack(side="left", padx=10)
 
-    def set_read_only(self, is_read_only: bool):
-        self.is_read_only = is_read_only
-        self.update_button_states()
+        # Warning message
+        tk.Label(toolbar, text="\u26A0 Certificati non associati a nessun dipendente",
+                 bg="#FEF3C7", fg="#92400E", font=("Segoe UI", 10, "bold")).pack(side="left", padx=10)
 
-    def update_button_states(self):
-        if getattr(self, 'is_read_only', False):
-            self.edit_button.setEnabled(False)
-            self.validate_button.setEnabled(False)
-            self.delete_button.setEnabled(False)
-            # S1192: Use constant
-            self.edit_button.setToolTip(STATUS_READ_ONLY)
-            self.validate_button.setToolTip(STATUS_READ_ONLY)
-            self.delete_button.setToolTip(STATUS_READ_ONLY)
+        # Action buttons
+        tk.Button(toolbar, text="Assegna a Dipendente", bg="#2563EB", fg="white",
+                  font=("Segoe UI", 9), command=self._assign_orphan).pack(side="right", padx=10)
+        tk.Button(toolbar, text="Elimina Selezionati", bg="#DC2626", fg="white",
+                  font=("Segoe UI", 9), command=self._delete_orphans).pack(side="right", padx=5)
+
+        # Count label
+        self.lbl_orphan_count = tk.Label(toolbar, text="", bg="#FEF3C7", font=("Segoe UI", 9))
+        self.lbl_orphan_count.pack(side="right", padx=10)
+
+        # Treeview for orphans
+        columns = ("id", "nome_raw", "corso", "categoria", "emissione", "scadenza")
+        self.tree_orphans = ttk.Treeview(self.tab_orphans, columns=columns, show="headings", selectmode="extended")
+
+        self.tree_orphans.heading("id", text="ID")
+        self.tree_orphans.heading("nome_raw", text="Nome Rilevato (PDF)")
+        self.tree_orphans.heading("corso", text="Documento")
+        self.tree_orphans.heading("categoria", text="Categoria")
+        self.tree_orphans.heading("emissione", text="Data Rilascio")
+        self.tree_orphans.heading("scadenza", text="Data Scadenza")
+
+        self.tree_orphans.column("id", width=50, minwidth=40, stretch=False, anchor="center")
+        self.tree_orphans.column("nome_raw", width=200, minwidth=150)
+        self.tree_orphans.column("corso", width=280, minwidth=150)
+        self.tree_orphans.column("categoria", width=150, minwidth=100)
+        self.tree_orphans.column("emissione", width=100, minwidth=80, anchor="center")
+        self.tree_orphans.column("scadenza", width=100, minwidth=80, anchor="center")
+
+        # Tag for orphan rows
+        self.tree_orphans.tag_configure("orphan", background="#FEF3C7")
+
+        scrollbar = ttk.Scrollbar(self.tab_orphans, orient="vertical", command=self.tree_orphans.yview)
+        self.tree_orphans.configure(yscroll=scrollbar.set)
+
+        scrollbar.pack(side="right", fill="y")
+        self.tree_orphans.pack(fill="both", expand=True)
+
+        # Double-click to assign
+        self.tree_orphans.bind("<Double-1>", lambda e: self._assign_orphan())
+
+    def _on_subtab_changed(self, event):
+        """Handle sub-tab changes."""
+        pass  # Data is loaded together in refresh_data
+
+    def _assign_orphan(self):
+        """Open dialog to assign orphan certificate to an employee."""
+        selected = self.tree_orphans.selection()
+        if not selected:
+            messagebox.showwarning("Attenzione", "Seleziona almeno un certificato orfano da assegnare.")
             return
-        else:
-            self.edit_button.setToolTip("")
-            self.validate_button.setToolTip("")
-            self.delete_button.setToolTip("")
 
-        selection_model = self.table_view.selectionModel()
-        has_selection = selection_model is not None and selection_model.hasSelection()
-        is_single_selection = len(selection_model.selectedRows()) == 1 if has_selection else False
-
-        self.edit_button.setEnabled(is_single_selection)
-        self.validate_button.setEnabled(has_selection)
-        self.delete_button.setEnabled(has_selection)
-
-    def _get_selection_info(self):
-        # Bug 4 Fix: Capture selection state
-        if not self.table_view.selectionModel() or not self.table_view.selectionModel().hasSelection():
-            return {'mode': 'none'}
-
-        selected_rows = self.table_view.selectionModel().selectedRows()
-        if not selected_rows: return {'mode': 'none'}
-
-        first_row = min(r.row() for r in selected_rows)
-
-        # Try to capture ID
-        if hasattr(self, 'df') and not self.df.empty and 'id' in self.df.columns:
-             try:
-                 # Ensure we are accessing the correct row in dataframe
-                 if first_row < len(self.df):
-                     return {'mode': 'reselect_by_id', 'id': self.df.iloc[first_row]['id'], 'fallback_row': first_row}
-             except Exception: # S5754: Handle exception
-                 pass
-
-        return {'mode': 'reselect_by_row', 'row': first_row}
-
-    def _restore_selection(self, selection_info):
-        # Bug 4 Fix: Restore selection
-        if not selection_info or selection_info.get('mode') == 'none':
+        # Get list of employees for selection
+        try:
+            dipendenti = self.controller.api_client.get_dipendenti_list()
+        except Exception as e:
+            messagebox.showerror("Errore", f"Impossibile caricare dipendenti: {e}")
             return
 
-        if self.df.empty: return
+        AssignOrphanDialog(self, self.controller, selected, self.orphan_data, dipendenti)
 
-        row_to_select = -1
+    def _delete_orphans(self):
+        """Delete selected orphan certificates."""
+        selected = self.tree_orphans.selection()
+        if not selected:
+            messagebox.showwarning("Attenzione", "Seleziona almeno un certificato da eliminare.")
+            return
 
-        if selection_info['mode'] == 'reselect_by_id':
-            target_id = selection_info.get('id')
-            if 'id' in self.df.columns:
-                # Find index of row with this ID
-                matches = self.df.index[self.df['id'] == target_id].tolist()
-                if matches:
-                    row_to_select = matches[0]
-                else:
-                    # Fallback to similar row position
-                    row_to_select = min(selection_info.get('fallback_row', 0), len(self.df) - 1)
+        count = len(selected)
+        if not messagebox.askyesno("Conferma", f"Eliminare {count} certificato/i orfano/i?"):
+            return
 
-        elif selection_info['mode'] == 'reselect_by_row':
-            row_to_select = min(selection_info.get('row', 0), len(self.df) - 1)
-
-        if row_to_select != -1 and hasattr(self, 'model') and row_to_select < self.model.rowCount():
-            self.table_view.selectRow(row_to_select)
-
-    def edit_data(self):
-        if getattr(self, 'is_read_only', False): return
+        # Get cert IDs
+        cert_ids = []
+        for sel in selected:
+            vals = self.tree_orphans.item(sel, "values")
+            cert_ids.append(vals[0])
 
         try:
-            selected_ids = self.get_selected_ids()
-            if not selected_ids or len(selected_ids) > 1:
-                CustomMessageDialog.show_warning(self, "Selezione Invalida", "Seleziona una singola riga da modificare.")
+            from desktop_app.utils import ProgressTaskRunner
+            runner = ProgressTaskRunner(self, "Eliminazione", f"Eliminazione di {count} certificati...")
+            runner.run(self._delete_single_cert, cert_ids)
+            self.refresh_data()
+            messagebox.showinfo("Completato", f"Eliminati {count} certificati orfani.")
+        except Exception as e:
+            messagebox.showerror("Errore", str(e))
+
+    def setup_keyboard_shortcuts(self):
+        """Setup keyboard shortcuts for common actions."""
+        self.tree.bind("<Return>", self.open_file)
+        self.tree.bind("<F2>", lambda e: self.on_double_click(None))
+        self.tree.bind("<F5>", lambda e: self.refresh_data())
+        self.tree.bind("<Delete>", lambda e: self.delete_selected())
+        self.tree.bind("<Control-a>", self.select_all)
+        self.tree.bind("<Control-f>", lambda e: self.entry_search.focus_set())
+
+    def sort_by_column(self, col):
+        """Sort treeview by column."""
+        if self.sort_column == col:
+            self.sort_reverse = not self.sort_reverse
+        else:
+            self.sort_column = col
+            self.sort_reverse = False
+
+        # Get all items with values
+        items = [(self.tree.item(item)["values"], item) for item in self.tree.get_children()]
+
+        # Get column index
+        col_idx = list(self.tree["columns"]).index(col)
+
+        # Sort
+        items.sort(key=lambda x: str(x[0][col_idx]).lower() if x[0][col_idx] else "", reverse=self.sort_reverse)
+
+        # Rearrange items
+        for idx, (vals, item) in enumerate(items):
+            self.tree.move(item, "", idx)
+
+        # Update heading to show sort direction
+        arrow = " ▼" if self.sort_reverse else " ▲"
+        for c in self.tree["columns"]:
+            heading_text = {"id": "ID", "dipendente": "Dipendente", "corso": "Documento",
+                           "categoria": "Categoria", "emissione": "Data Rilascio", "scadenza": "Data Scadenza"}.get(c, c)
+            if c == col:
+                self.tree.heading(c, text=heading_text + arrow)
+            else:
+                self.tree.heading(c, text=heading_text)
+
+    def select_all(self, event=None):
+        """Select all items in the tree."""
+        self.tree.selection_set(self.tree.get_children())
+        return "break"
+
+    def show_context_menu(self, event):
+        # Only show context menu if clicking on a row, not header
+        region = self.tree.identify_region(event.x, event.y)
+        if region == "heading":
+            return  # Let the filter popup handle header clicks
+
+        item = self.tree.identify_row(event.y)
+        if item:
+            if item not in self.tree.selection():
+                self.tree.selection_set(item)
+            self.context_menu.post(event.x_root, event.y_root)
+
+    def open_file(self, event=None):
+        selected = self.tree.selection()
+        if not selected:
+            return
+
+        item_vals = self.tree.item(selected[0], "values")
+        cert_id = item_vals[0]
+
+        cert = next((x for x in self.data if str(x.get("id")) == str(cert_id)), None)
+        if not cert:
+            return
+
+        try:
+            db_path = settings.DOCUMENTS_FOLDER
+            if not db_path:
+                messagebox.showerror("Errore", "Percorso Database non configurato.")
                 return
 
-            cert_id = selected_ids[0]
-            response = requests.get(f"{self.api_client.base_url}/certificati/{cert_id}", headers=self.api_client._get_headers(), timeout=10)
-            response.raise_for_status()
-            cert_data = response.json()
+            search_name = cert.get('nome') or cert.get('nome_dipendente_raw')
 
-            all_categories = self.df['categoria'].unique().tolist() if not self.df.empty else []
-            dialog = EditCertificatoDialog(cert_data, all_categories, self)
-            
-            # Rimosso il try-except generico per permettere al test di fallire correttamente se c'è un problema
-            if dialog.exec():
-                updated_data = dialog.get_data()
-                if updated_data:
-                    update_response = requests.put(f"{self.api_client.base_url}/certificati/{cert_id}", json=updated_data, headers=self.api_client._get_headers(), timeout=10)
-                    update_response.raise_for_status()
-                    CustomMessageDialog.show_info(self, "Successo", "Certificato aggiornato con successo.")
-
-                    # Capture selection preference before reload
-                    self._pending_selection = self._get_selection_info()
-                    self.load_data()
-        except requests.exceptions.RequestException as e:
-            CustomMessageDialog.show_error(self, "Errore", f"Impossibile modificare il certificato: {e}")
-        except Exception as e:
-            CustomMessageDialog.show_error(self, "Errore", f"Si è verificato un errore inatteso: {e}")
-
-    def load_data(self):
-        self.set_loading(True)
-        worker = FetchCertificatesWorker(self.api_client, validated=False)
-        worker.signals.result.connect(self._on_data_loaded)
-        worker.signals.error.connect(self._on_error)
-        worker.signals.finished.connect(lambda: self.set_loading(False))
-        self.threadpool.start(worker)
-
-    def _on_error(self, message):
-        CustomMessageDialog.show_error(self, "Errore di Connessione", f"Impossibile caricare i dati da validare: {message}")
-        self._on_data_loaded([])
-
-    def _on_data_loaded(self, data):
-        # S3776: Refactored logic to reduce complexity
-        if not data:
-            self.df = pd.DataFrame()
-        else:
-            self.df = pd.DataFrame(data)
-            self.df.rename(columns={
-                'nome': 'DIPENDENTE',
-                'data_rilascio': 'DATA_EMISSIONE',
-                'corso': 'DOCUMENTO',
-                'assegnazione_fallita_ragione': 'CAUSA'
-            }, inplace=True)
-
-        if not self.df.empty:
-            if 'stato_certificato' in self.df.columns:
-                self.df['stato_certificato'] = self.df['stato_certificato'].apply(lambda x: str(x).replace('_', ' ') if x else x)
-
-            if 'data_nascita' not in self.df.columns:
-                self.df['data_nascita'] = None
-
-            column_order = ['id', 'DIPENDENTE', 'data_nascita', 'matricola', 'DOCUMENTO', 'categoria', 'DATA_EMISSIONE', 'data_scadenza', 'stato_certificato', 'CAUSA']
-            existing_columns = [col for col in column_order if col in self.df.columns]
-            self.df = self.df[existing_columns]
-
-        self.model = SimpleTableModel(self.df, self)
-        self.table_view.setModel(self.model)
-
-        if not self.df.empty and 'id' in self.df.columns:
-            id_col_index = self.df.columns.get_loc('id')
-            self.table_view.setColumnHidden(id_col_index, True)
-
-        self.table_view.verticalHeader().setDefaultSectionSize(50)
-        self._adjust_headers()
-
-        if self.table_view.selectionModel():
-            self.table_view.selectionModel().selectionChanged.connect(self.update_button_states)
-
-        self.update_button_states()
-
-        # Restore selection if requested
-        if hasattr(self, '_pending_selection'):
-            self._restore_selection(self._pending_selection)
-            del self._pending_selection
-
-    def _adjust_headers(self):
-        header = self.table_view.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        if 'DIPENDENTE' in self.df.columns:
-            header.setSectionResizeMode(self.df.columns.get_loc('DIPENDENTE'), QHeaderView.ResizeMode.Stretch)
-        if 'DOCUMENTO' in self.df.columns:
-            header.setSectionResizeMode(self.df.columns.get_loc('DOCUMENTO'), QHeaderView.ResizeMode.Stretch)
-        if 'data_nascita' in self.df.columns:
-            header.setSectionResizeMode(self.df.columns.get_loc('data_nascita'), QHeaderView.ResizeMode.ResizeToContents)
-
-    def get_selected_ids(self):
-        if self.df.empty:
-            return []
-
-        selection_model = self.table_view.selectionModel()
-        if not selection_model: return []
-        selected_rows_indices = selection_model.selectedRows()
-
-        if 'id' not in self.df.columns: return []
-        id_column_index = self.df.columns.get_loc('id')
-
-        selected_ids = [str(self.model.index(row.row(), id_column_index).data()) for row in selected_rows_indices]
-        return selected_ids
-
-    def delete_selected(self):
-        if getattr(self, 'is_read_only', False): return
-        selected_ids = self.get_selected_ids()
-        if not selected_ids: return
-
-        if CustomMessageDialog.show_question(self, 'Conferma Cancellazione', f'Sei sicuro di voler cancellare {len(selected_ids)} certificati?'):
-            self.perform_action("delete", selected_ids)
-
-    def validate_selected(self):
-        if getattr(self, 'is_read_only', False): return
-        selected_ids = self.get_selected_ids()
-        if not selected_ids: return
-
-        if CustomMessageDialog.show_question(self, 'Conferma Validazione', f'Sei sicuro di voler validare {len(selected_ids)} certificati?'):
-            self.perform_action("validate", selected_ids)
-
-    def perform_action(self, action_type, ids):
-        # Use Overlay instead of simple loading
-        self.loading_overlay.show_progress(0, len(ids), "Preparazione operazione...")
-
-        if action_type == "validate":
-            worker = ValidateCertificatesWorker(self.api_client, ids)
-            action_text = "Salvataggio record"
-        else:
-            worker = DeleteCertificatesWorker(self.api_client, ids)
-            action_text = "Cancellazione record"
-
-        worker.signals.progress.connect(lambda cur, tot: self.loading_overlay.show_progress(cur, tot, f"{action_text} {cur} di {tot}..."))
-        worker.signals.result.connect(lambda res: self._on_action_completed(res, action_type))
-        worker.signals.error.connect(lambda err: CustomMessageDialog.show_error(self, "Errore", f"Errore durante l'operazione: {err}"))
-        worker.signals.finished.connect(self.loading_overlay.stop)
-
-        self.threadpool.start(worker)
-
-    def _on_action_completed(self, result, action_type):
-        try:
-            # Ensure result is a dict
-            if not isinstance(result, dict):
-                result = {"success": 0, "errors": []}
-            
-            success = result.get("success", 0)
-            errors = result.get("errors", [])
-
-            if errors:
-                # Ensure errors is a list of strings
-                error_list = [str(e) for e in errors] if isinstance(errors, list) else [str(errors)]
-                CustomMessageDialog.show_warning(self, "Operazione Parzialmente Riuscita",
-                                    f"{success} operazioni riuscite.\n"
-                                    f"Errori su {len(error_list)} elementi:\n" + "\n".join(error_list[:5]))
-            else:
-                CustomMessageDialog.show_info(self, "Successo", f"Operazione completata con successo su {success} elementi.")
-
-            if success > 0 and action_type == "validate":
-                try:
-                    self.validation_completed.emit()
-                except Exception:
-                    pass
-
-            # Reload data after dialog is closed
-            try:
-                self.load_data()
-            except Exception:
-                pass
-        except Exception as e:
-            CustomMessageDialog.show_error(self, "Errore", f"Errore durante l'elaborazione del risultato: {e}")
-
-    def _show_context_menu(self, pos):
-        try:
-            index = self.table_view.indexAt(pos)
-            if not index.isValid(): return
-
-            menu = QMenu(self)
-            open_pdf_action = QAction("Apri PDF", self)
-            open_folder_action = QAction("Apri percorso file", self)
-            menu.addAction(open_pdf_action)
-            menu.addAction(open_folder_action)
-
-            action = menu.exec(self.table_view.viewport().mapToGlobal(pos))
-            if not action: return
-
-            row_idx = index.row()
-            if not hasattr(self, 'model') or row_idx >= self.model.rowCount(): return
-
-            row_data = self.df.iloc[row_idx]
-            cert_data = {
-                'nome': row_data.get('DIPENDENTE'),
-                'matricola': row_data.get('matricola'),
-                'categoria': row_data.get('categoria'),
-                'data_scadenza': row_data.get('data_scadenza')
+            search_data = {
+                'nome': search_name,
+                'matricola': cert.get('matricola'),
+                'categoria': cert.get('categoria'),
+                'data_scadenza': cert.get('data_scadenza')
             }
 
-            if action == open_pdf_action:
-                self._open_document(cert_data, open_folder=False)
-            elif action == open_folder_action:
-                self._open_document(cert_data, open_folder=True)
-        except Exception as e:
-            CustomMessageDialog.show_error(self, "Errore", f"Impossibile eseguire l'azione: {e}")
-
-    def _open_document(self, cert_data, open_folder=False):
-        try:
-            # Fix per test: permettiamo l'esecuzione anche se get_paths ritorna None (nel caso di mock)
-            # usando "or {}" per evitare crash su .get() successivi
-            paths = self.api_client.get_paths() or {}
-            
-            db_path = paths.get('database_path')
-            file_path = find_document(db_path, cert_data)
-
-            if file_path:
-                if open_folder:
-                    if os.name == 'nt':
-                        subprocess.run(['explorer', '/select,', file_path])
-                    else:
-                        QDesktopServices.openUrl(QUrl.fromLocalFile(os.path.dirname(file_path)))
-                else:
-                     QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
+            path = find_document(db_path, search_data)
+            if path and os.path.exists(path):
+                open_file(path)
             else:
-                 CustomMessageDialog.show_warning(self, "Non Trovato", "Il file PDF non è stato trovato nel percorso previsto.")
+                # Build helpful message
+                msg = "File PDF non trovato.\n\n"
+                msg += f"Dipendente: {search_data.get('nome', 'N/D')}\n"
+                msg += f"Matricola: {search_data.get('matricola', 'N/D')}\n"
+                msg += f"Categoria: {search_data.get('categoria', 'N/D')}\n"
+                msg += f"\nPercorso database: {db_path}\n"
+                msg += "\nAssicurarsi che il file PDF sia stato importato correttamente."
+                messagebox.showwarning("Attenzione", msg)
         except Exception as e:
-            CustomMessageDialog.show_error(self, "Errore", f"Impossibile eseguire l'operazione: {e}")
-    
-    def cleanup(self):
-        """Cleanup method to stop all running threads before destruction."""
+            messagebox.showerror("Errore", f"Impossibile aprire il file: {e}")
+
+    def open_folder(self, event=None):
+        """Open the folder containing the PDF file."""
+        selected = self.tree.selection()
+        if not selected:
+            return
+
+        item_vals = self.tree.item(selected[0], "values")
+        cert_id = item_vals[0]
+
+        cert = next((x for x in self.data if str(x.get("id")) == str(cert_id)), None)
+        if not cert:
+            return
+
         try:
-            self.threadpool.waitForDone(2000)
-        except Exception:
-            pass
+            db_path = settings.DOCUMENTS_FOLDER
+            if not db_path:
+                messagebox.showerror("Errore", "Percorso Database non configurato.")
+                return
+
+            search_name = cert.get('nome') or cert.get('nome_dipendente_raw')
+
+            search_data = {
+                'nome': search_name,
+                'matricola': cert.get('matricola'),
+                'categoria': cert.get('categoria'),
+                'data_scadenza': cert.get('data_scadenza')
+            }
+
+            path = find_document(db_path, search_data)
+            if path and os.path.exists(path):
+                folder = os.path.dirname(path)
+                open_file(folder)
+            else:
+                # Open base documents folder
+                docs_folder = os.path.join(db_path, "DOCUMENTI DIPENDENTI")
+                if os.path.exists(docs_folder):
+                    open_file(docs_folder)
+                else:
+                    open_file(db_path)
+        except Exception as e:
+            messagebox.showerror("Errore", f"Impossibile aprire la cartella: {e}")
+
+    def delete_selected(self, event=None):
+        """Delete selected certificates."""
+        selected = self.tree.selection()
+        if not selected:
+            return
+
+        count = len(selected)
+        msg = f"Eliminare {count} certificato/i selezionato/i?" if count > 1 else "Eliminare il certificato selezionato?"
+
+        if not messagebox.askyesno("Conferma", msg):
+            return
+
+        # Get cert IDs
+        cert_ids = []
+        for sel in selected:
+            vals = self.tree.item(sel, "values")
+            cert_ids.append(vals[0])
+
+        if count == 1:
+            try:
+                self.controller.api_client.delete_certificato(cert_ids[0])
+                self.refresh_data()
+            except Exception as e:
+                messagebox.showerror("Errore", str(e))
+        else:
+            runner = ProgressTaskRunner(
+                self,
+                "Eliminazione in corso",
+                f"Eliminazione di {count} certificati..."
+            )
+
+            try:
+                result = runner.run(self._delete_single_cert, cert_ids)
+
+                success = sum(1 for r in result.get("results", []) if r.get("success"))
+                errors = [r.get("error") for r in result.get("results", []) if not r.get("success")]
+
+                msg = f"Eliminati: {success}/{count}"
+                if errors:
+                    msg += f"\n\nErrori: {len(errors)}"
+
+                messagebox.showinfo("Risultato", msg)
+                self.refresh_data()
+
+            except Exception as e:
+                messagebox.showerror("Errore", str(e))
+
+    def _delete_single_cert(self, cert_id):
+        """Delete a single certificate."""
+        self.controller.api_client.delete_certificato(cert_id)
+        return cert_id
+
+    def refresh_data(self):
+        def fetch():
+            try:
+                new_data = self.controller.api_client.get("certificati", params={"validated": "false"})
+                if self.winfo_exists():
+                    self.after(0, lambda: self._update_data(new_data))
+            except Exception as e:
+                if self.winfo_exists():
+                    self.after(0, lambda: messagebox.showerror("Errore", str(e)))
+
+        threading.Thread(target=fetch, daemon=True).start()
+
+    def _update_data(self, new_data):
+        # Separate orphans from regular pending certificates
+        self.data = [c for c in new_data if c.get("dipendente_id") or c.get("matricola")]
+        self.orphan_data = [c for c in new_data if not c.get("dipendente_id") and not c.get("matricola")]
+
+        self._update_filter_options()
+        self.filter_data()
+        self._filter_orphans()
+
+    def _update_filter_options(self):
+        """Update filter dropdown to show only available options in current data."""
+        # Get unique categories from data
+        categories = set()
+
+        for item in self.data:
+            cat = item.get("categoria")
+            if cat:
+                categories.add(cat.upper())
+
+        # Update category combobox
+        current_cat = self.combo_categoria.get()
+        cat_values = ["Tutte"] + sorted(categories)
+        self.combo_categoria["values"] = cat_values
+        if current_cat not in cat_values:
+            self.combo_categoria.set("Tutte")
+
+    def filter_data(self):
+        query = self.entry_search.get().lower()
+        cat_filter = self.combo_categoria.get()
+
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+
+        count = 0
+        for idx, item in enumerate(self.data):
+            nome = str(item.get("nome") or "").lower()
+            corso = str(item.get("corso") or "").lower()
+            categoria = str(item.get("categoria") or "").lower()
+
+            # Apply Category Filter
+            if cat_filter != "Tutte" and (item.get("categoria") or "").upper() != cat_filter.upper():
+                continue
+
+            # Apply Search Filter
+            if query and query not in nome and query not in corso and query not in categoria:
+                continue
+
+            scad = item.get("data_scadenza")
+            if not scad or scad.lower() == "none":
+                scad = "NESSUNA"
+
+            # Apply advanced column filters
+            values = (
+                item.get("id"),
+                item.get("nome") or "N/D",
+                item.get("corso") or "N/D",
+                item.get("categoria") or "ALTRO",
+                item.get("data_rilascio") or "",
+                scad
+            )
+
+            # Check column filters
+            if hasattr(self.tree, 'check_filter'):
+                columns = ["id", "dipendente", "corso", "categoria", "emissione", "scadenza"]
+                skip = False
+                for col_idx, col in enumerate(columns):
+                    if not self.tree.check_filter(col, values[col_idx]):
+                        skip = True
+                        break
+                if skip:
+                    continue
+
+            # Alternating row colors
+            tag = "odd" if count % 2 == 0 else "even"
+
+            self.tree.insert("", "end", values=values, tags=(tag,))
+            count += 1
+
+        self.lbl_count.config(text=f"{count} da convalidare")
+
+    def _filter_orphans(self):
+        """Update the orphan certificates tree."""
+        # Clear existing items
+        for item in self.tree_orphans.get_children():
+            self.tree_orphans.delete(item)
+
+        count = 0
+        for item in self.orphan_data:
+            scad = item.get("data_scadenza")
+            if not scad or scad.lower() == "none":
+                scad = ""
+
+            values = (
+                item.get("id"),
+                item.get("nome_dipendente_raw") or item.get("nome") or "Non identificato",
+                item.get("corso") or "",
+                item.get("categoria") or "ALTRO",
+                item.get("data_rilascio") or "",
+                scad
+            )
+            self.tree_orphans.insert("", "end", values=values, tags=("orphan",))
+            count += 1
+
+        self.lbl_orphan_count.config(text=f"{count} orfani")
+
+        # Update tab label with count
+        if count > 0:
+            self.sub_notebook.tab(1, text=f" Orfani ({count})")
+        else:
+            self.sub_notebook.tab(1, text=" Orfani (Non Associati)")
+
+    def on_double_click(self, event):
+        selected = self.tree.selection()
+        if not selected:
+            return
+
+        # Handle multiple selection - validate each one
+        if len(selected) > 1:
+            self.batch_validate(selected)
+        else:
+            # Single selection - open dialog
+            vals = self.tree.item(selected[0], "values")
+            cert_id = vals[0]
+            self.open_validation_dialog(cert_id)
+
+    def batch_validate(self, selected_items):
+        """Handle batch validation for multiple selected items with progress bar."""
+        count = len(selected_items)
+        if not messagebox.askyesno("Conferma", f"Convalidare {count} certificati selezionati?"):
+            return
+
+        # Get cert IDs from selection
+        cert_ids = []
+        for item in selected_items:
+            vals = self.tree.item(item, "values")
+            cert_ids.append(vals[0])
+
+        runner = ProgressTaskRunner(
+            self,
+            "Convalida in corso",
+            f"Convalida di {count} certificati..."
+        )
+
+        try:
+            result = runner.run(self._validate_single_cert, cert_ids)
+
+            success = sum(1 for r in result.get("results", []) if r.get("success"))
+            errors = [r.get("error") for r in result.get("results", []) if not r.get("success")]
+
+            msg = f"Convalidati: {success}/{count}"
+            if errors:
+                msg += f"\n\nErrori: {len(errors)}"
+                if len(errors) <= 3:
+                    msg += "\n" + "\n".join(errors)
+
+            messagebox.showinfo("Risultato", msg)
+            self.refresh_data()
+
+        except Exception as e:
+            messagebox.showerror("Errore", str(e))
+
+    def _validate_single_cert(self, cert_id):
+        """Validate a single certificate."""
+        url_val = f"{self.controller.api_client.base_url}/certificati/{cert_id}/valida"
+        res = requests.put(url_val, headers=self.controller.api_client._get_headers())
+        res.raise_for_status()
+        return cert_id
+
+    def open_validation_dialog(self, cert_id):
+        try:
+            cert = next((x for x in self.data if str(x.get("id")) == str(cert_id)), None)
+            if not cert:
+                return
+
+            ValidationDialog(self, self.controller, cert)
+        except Exception as e:
+            messagebox.showerror("Errore", str(e))
+
+
+class ValidationDialog(tk.Toplevel):
+    def __init__(self, parent, controller, cert_data):
+        super().__init__(parent)
+        self.controller = controller
+        self.cert = cert_data
+        self.parent_view = parent
+
+        self.title(f"Convalida Certificato #{cert_data.get('id')}")
+        self.geometry("500x550")
+        self.resizable(False, False)
+        self.transient(parent)
+        self.grab_set()
+
+        self.setup_ui()
+
+        # Center
+        self.update_idletasks()
+        x = parent.winfo_rootx() + (parent.winfo_width() // 2) - (250)
+        y = parent.winfo_rooty() + (parent.winfo_height() // 2) - (275)
+        self.geometry(f"+{x}+{y}")
+
+    def setup_ui(self):
+        frame = tk.Frame(self, padx=20, pady=20)
+        frame.pack(fill="both", expand=True)
+
+        # Fields
+        tk.Label(frame, text="Dipendente (Cognome Nome):", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        self.entry_dip = tk.Entry(frame, width=40)
+        self.entry_dip.insert(0, self.cert.get("nome") or "")
+        self.entry_dip.pack(anchor="w", pady=(0, 10))
+
+        tk.Label(frame, text="Corso:", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        self.entry_corso = tk.Entry(frame, width=40)
+        self.entry_corso.insert(0, self.cert.get("corso") or "")
+        self.entry_corso.pack(anchor="w", pady=(0, 10))
+
+        # Categoria as Dropdown
+        tk.Label(frame, text="Categoria:", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        self.combo_categoria = ttk.Combobox(frame, values=sorted(CATEGORIE_STATICHE), state="readonly", width=37)
+        current_cat = self.cert.get("categoria") or "ALTRO"
+        if current_cat in CATEGORIE_STATICHE:
+            self.combo_categoria.set(current_cat)
+        else:
+            self.combo_categoria.set("ALTRO")
+        self.combo_categoria.pack(anchor="w", pady=(0, 10))
+
+        tk.Label(frame, text="Data Rilascio (DD/MM/YYYY):", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        self.entry_ril = tk.Entry(frame, width=40)
+        self.entry_ril.insert(0, self.cert.get("data_rilascio") or "")
+        self.entry_ril.pack(anchor="w", pady=(0, 10))
+
+        tk.Label(frame, text="Data Scadenza (DD/MM/YYYY):", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        self.entry_scad = tk.Entry(frame, width=40)
+        self.entry_scad.insert(0, self.cert.get("data_scadenza") or "")
+        self.entry_scad.pack(anchor="w", pady=(0, 10))
+
+        # Buttons
+        btn_frame = tk.Frame(frame, pady=20)
+        btn_frame.pack(fill="x", side="bottom")
+
+        tk.Button(btn_frame, text="CONVALIDA", bg="#10B981", fg="white", font=("Segoe UI", 10, "bold"),
+                  command=self.validate).pack(side="right", padx=5)
+
+        tk.Button(btn_frame, text="ELIMINA", bg="#DC2626", fg="white", font=("Segoe UI", 10, "bold"),
+                  command=self.delete).pack(side="left", padx=5)
+
+    def validate(self):
+        # Prepare data
+        update_data = {
+            "nome": self.entry_dip.get(),
+            "corso": self.entry_corso.get(),
+            "categoria": self.combo_categoria.get(),
+            "data_rilascio": self.entry_ril.get(),
+            "data_scadenza": self.entry_scad.get()
+        }
+
+        try:
+            # 1. Update
+            self.controller.api_client.update_certificato(self.cert['id'], update_data)
+
+            # 2. Validate Endpoint (Using PUT as per backend)
+            url_val = f"{self.controller.api_client.base_url}/certificati/{self.cert['id']}/valida"
+            requests.put(url_val, headers=self.controller.api_client._get_headers())
+
+            messagebox.showinfo("Successo", "Certificato convalidato.")
+            self.parent_view.refresh_data()
+            self.destroy()
+
+        except Exception as e:
+            messagebox.showerror("Errore", f"Errore durante la convalida: {e}")
+
+    def delete(self):
+        if messagebox.askyesno("Conferma", "Eliminare definitivamente questo certificato?"):
+            try:
+                self.controller.api_client.delete_certificato(self.cert['id'])
+                messagebox.showinfo("Eliminato", "Certificato eliminato.")
+                self.parent_view.refresh_data()
+                self.destroy()
+            except Exception as e:
+                messagebox.showerror("Errore", str(e))
+
+
+class AssignOrphanDialog(tk.Toplevel):
+    """Dialog to assign orphan certificates to an employee."""
+
+    def __init__(self, parent, controller, selected_items, orphan_data, dipendenti):
+        super().__init__(parent)
+        self.controller = controller
+        self.parent_view = parent
+        self.selected_items = selected_items
+        self.orphan_data = orphan_data
+        self.dipendenti = dipendenti
+
+        self.title(f"Assegna {len(selected_items)} Certificato/i Orfano/i")
+        self.geometry("550x450")
+        self.resizable(True, True)
+        self.transient(parent)
+        self.grab_set()
+
+        self.setup_ui()
+
+        # Center
+        self.update_idletasks()
+        x = parent.winfo_rootx() + (parent.winfo_width() // 2) - (275)
+        y = parent.winfo_rooty() + (parent.winfo_height() // 2) - (225)
+        self.geometry(f"+{x}+{y}")
+
+    def setup_ui(self):
+        frame = tk.Frame(self, padx=20, pady=15)
+        frame.pack(fill="both", expand=True)
+
+        # Info about selected certificates
+        tk.Label(frame, text=f"Certificati selezionati: {len(self.selected_items)}",
+                 font=("Segoe UI", 10, "bold")).pack(anchor="w")
+
+        # List of selected certs (summary)
+        cert_list = tk.Frame(frame, bg="#FEF3C7", relief="solid", bd=1)
+        cert_list.pack(fill="x", pady=10)
+
+        for i, sel in enumerate(self.selected_items[:5]):  # Show max 5
+            vals = self.parent_view.tree_orphans.item(sel, "values")
+            tk.Label(cert_list, text=f"  \u2022 {vals[1]} - {vals[2]}",
+                     bg="#FEF3C7", font=("Segoe UI", 9), anchor="w").pack(fill="x")
+
+        if len(self.selected_items) > 5:
+            tk.Label(cert_list, text=f"  ... e altri {len(self.selected_items) - 5}",
+                     bg="#FEF3C7", font=("Segoe UI", 9, "italic"), anchor="w").pack(fill="x")
+
+        # Separator
+        ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=10)
+
+        # Search for employee
+        tk.Label(frame, text="Cerca Dipendente:", font=("Segoe UI", 10, "bold")).pack(anchor="w")
+
+        search_frame = tk.Frame(frame)
+        search_frame.pack(fill="x", pady=5)
+
+        self.search_var = tk.StringVar()
+        self.search_var.trace("w", self._filter_employees)
+        tk.Entry(search_frame, textvariable=self.search_var, width=40).pack(side="left", fill="x", expand=True)
+
+        # Employee listbox
+        list_frame = tk.Frame(frame)
+        list_frame.pack(fill="both", expand=True, pady=10)
+
+        self.employee_listbox = tk.Listbox(list_frame, font=("Segoe UI", 10), selectmode="single")
+        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.employee_listbox.yview)
+        self.employee_listbox.configure(yscrollcommand=scrollbar.set)
+
+        scrollbar.pack(side="right", fill="y")
+        self.employee_listbox.pack(side="left", fill="both", expand=True)
+
+        # Populate employee list
+        self._populate_employees()
+
+        # Buttons
+        btn_frame = tk.Frame(frame)
+        btn_frame.pack(fill="x", pady=10)
+
+        tk.Button(btn_frame, text="Annulla", command=self.destroy,
+                  font=("Segoe UI", 10), width=12).pack(side="left")
+
+        tk.Button(btn_frame, text="Assegna", bg="#10B981", fg="white",
+                  font=("Segoe UI", 10, "bold"), width=15,
+                  command=self._assign).pack(side="right")
+
+    def _populate_employees(self, filter_text=""):
+        """Populate employee listbox."""
+        self.employee_listbox.delete(0, tk.END)
+        self.filtered_dipendenti = []
+
+        filter_text = filter_text.lower()
+
+        for dip in self.dipendenti:
+            cognome = dip.get("cognome", "")
+            nome = dip.get("nome", "")
+            matricola = dip.get("matricola", "")
+            display = f"{cognome} {nome}".strip()
+            if matricola:
+                display += f" ({matricola})"
+
+            if filter_text and filter_text not in display.lower():
+                continue
+
+            self.employee_listbox.insert(tk.END, display)
+            self.filtered_dipendenti.append(dip)
+
+    def _filter_employees(self, *args):
+        """Filter employees based on search."""
+        self._populate_employees(self.search_var.get())
+
+    def _assign(self):
+        """Assign selected certificates to selected employee."""
+        selection = self.employee_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("Attenzione", "Seleziona un dipendente.")
+            return
+
+        selected_dip = self.filtered_dipendenti[selection[0]]
+        dip_id = selected_dip.get("id")
+        dip_name = f"{selected_dip.get('cognome', '')} {selected_dip.get('nome', '')}".strip()
+
+        # Confirm
+        count = len(self.selected_items)
+        if not messagebox.askyesno("Conferma",
+                                    f"Assegnare {count} certificato/i a:\n{dip_name}?"):
+            return
+
+        # Get cert IDs
+        cert_ids = []
+        for sel in self.selected_items:
+            vals = self.parent_view.tree_orphans.item(sel, "values")
+            cert_ids.append(vals[0])
+
+        success = 0
+        errors = []
+
+        for cert_id in cert_ids:
+            try:
+                # Update the certificate with the dipendente_id
+                update_data = {
+                    "dipendente_id": dip_id,
+                    "nome": dip_name
+                }
+                self.controller.api_client.update_certificato(cert_id, update_data)
+                success += 1
+            except Exception as e:
+                errors.append(str(e))
+
+        # Show result
+        if success == count:
+            messagebox.showinfo("Completato", f"Assegnati {success} certificati a {dip_name}.")
+        else:
+            messagebox.showwarning("Parziale", f"Assegnati {success}/{count}.\nErrori: {len(errors)}")
+
+        self.parent_view.refresh_data()
+        self.destroy()
