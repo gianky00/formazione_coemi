@@ -9,7 +9,7 @@ from app.db.session import get_db
 from app.db.models import Corso, Certificato, ValidationStatus, Dipendente, User as UserModel
 from app.services import ai_extraction, certificate_logic, matcher
 from app.services.document_locator import find_document, construct_certificate_path
-from app.services.sync_service import archive_certificate_file, link_orphaned_certificates, get_unique_filename
+from app.services.sync_service import archive_certificate_file, link_orphaned_certificates, get_unique_filename, remove_empty_folders
 from app.core.config import settings, get_user_data_dir
 from app.utils.date_parser import parse_date_flexible
 from app.utils.file_security import verify_file_signature
@@ -325,7 +325,7 @@ def _sync_cert_file_system(db_cert, old_cert_data, db):
     status = certificate_logic.get_certificate_status(db, db_cert)
 
     if old_cert_data != new_cert_data:
-        database_path = settings.DATABASE_PATH or str(get_user_data_dir())
+        database_path = settings.DOCUMENTS_FOLDER or str(get_user_data_dir())
         if database_path:
             old_file_path = find_document(database_path, old_cert_data)
             if old_file_path and os.path.exists(old_file_path):
@@ -440,7 +440,7 @@ def _link_orphaned_certificates_after_import(db):
     """Helper to link orphaned certificates after bulk import."""
     orphaned_certs = db.query(Certificato).options(selectinload(Certificato.corso)).filter(Certificato.dipendente_id.is_(None)).all()
     linked_count = 0
-    database_path = settings.DATABASE_PATH or str(get_user_data_dir())
+    database_path = settings.DOCUMENTS_FOLDER or str(get_user_data_dir())
 
     for cert in orphaned_certs:
         if cert.nome_dipendente_raw:
@@ -751,7 +751,7 @@ def delete_certificato(
 
         # Only proceed if we have enough info to find the file
         if cert_data['categoria']:
-            database_path = settings.DATABASE_PATH or str(get_user_data_dir())
+            database_path = settings.DOCUMENTS_FOLDER or str(get_user_data_dir())
             if database_path:
                 file_path = find_document(database_path, cert_data)
                 if file_path and os.path.exists(file_path):
@@ -766,6 +766,10 @@ def delete_certificato(
                     dest_path = os.path.join(trash_dir, new_filename)
 
                     shutil.move(file_path, dest_path)
+
+                    # Clean up empty folders up to DOCUMENTI DIPENDENTI
+                    docs_root = os.path.join(database_path, "DOCUMENTI DIPENDENTI")
+                    remove_empty_folders(os.path.dirname(file_path), root_path=docs_root)
     except Exception as e:
         print(f"Error deleting file for certificate {certificato_id}: {e}")
         # Proceed with DB deletion regardless of file error

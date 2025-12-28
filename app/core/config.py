@@ -13,7 +13,7 @@ from app.utils.security import reveal_string
 
 SECRET_KEY = "a_very_strong_and_long_secret_key_that_is_not_easily_guessable_and_is_unique_to_this_application"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 43200  # 30 days
+ACCESS_TOKEN_EXPIRE_MINUTES = 60  # 60 minutes
 
 FIRST_RUN_ADMIN_USERNAME = "admin"
 
@@ -268,6 +268,21 @@ class SettingsManager:
     @property
     def DATABASE_PATH(self): # NOSONAR
         return self.mutable.get("DATABASE_PATH")
+
+    @property
+    def DOCUMENTS_FOLDER(self): # NOSONAR
+        """
+        Returns the folder for storing documents.
+        If DATABASE_PATH points to a .db file, returns its parent folder.
+        Otherwise returns DATABASE_PATH itself.
+        """
+        db_path = self.mutable.get("DATABASE_PATH")
+        if not db_path:
+            return None
+        # If it's a file (ends with .db or similar), use parent folder
+        if db_path.lower().endswith('.db') or os.path.isfile(db_path):
+            return os.path.dirname(db_path)
+        return db_path
 
     @property
     def MAX_UPLOAD_SIZE(self): # NOSONAR

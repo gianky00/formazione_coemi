@@ -30,10 +30,9 @@ python-jose[cryptography]
 geoip2
 user-agents
 wmi
-gTTS>=2.5.1
+pyttsx3
 psutil
 platformdirs
 sentry-sdk[fastapi]
 posthog
 packaging
-pygame

@@ -11,6 +11,9 @@ from desktop_app.views.login_view import LoginView
 from desktop_app.services.license_manager import LicenseManager
 from desktop_app.services.voice_service import VoiceService
 from desktop_app.services.update_checker import UpdateChecker
+from desktop_app.services.toast_service import ToastManager
+from desktop_app.services.proactive_service import ProactiveService
+from desktop_app.services.notification_center import NotificationCenter
 from app.core.config import settings
 from desktop_app.utils import TaskRunner
 from app import __version__ as app_version
@@ -26,7 +29,10 @@ class ApplicationController:
         self.root.title("Intelleo")
         self.root.geometry("1024x768")
         self.root.minsize(800, 600)
-        
+
+        # Maximize window on startup (show taskbar)
+        self.root.state('zoomed')
+
         # Style Configuration
         self.style = ttk.Style()
         self.style.theme_use('clam')
@@ -34,10 +40,13 @@ class ApplicationController:
         # Configure fonts
         default_font = ("Segoe UI", 10)
         self.root.option_add("*Font", default_font)
-        
+
         self.api_client = APIClient()
         self.voice_service = VoiceService()
         self.current_view = None
+        self.toast_manager = ToastManager(self.root)
+        self.notification_center = NotificationCenter(self)
+        self.proactive_service = None  # Will be initialized after login
 
         # Inactivity Timer
         self.inactivity_timer = None
@@ -170,6 +179,10 @@ class ApplicationController:
         name = self.api_client.user_info.get('account_name', '')
         self.voice_service.speak(f"Benvenuto {name}")
 
+        # Initialize and run proactive analysis
+        self.proactive_service = ProactiveService(self, self.toast_manager, self.notification_center)
+        self.proactive_service.run_startup_analysis()
+
     def on_login_success(self, user_info):
         # 503 Fix: Check Read Only Status
         is_read_only = user_info.get("read_only", False)
@@ -200,6 +213,12 @@ class ApplicationController:
             self.voice_service.cleanup()
             self.root.destroy()
             sys.exit(0)
+
+    # --- Toast Notifications ---
+    def show_toast(self, title, message, toast_type="info", duration=5000, on_click=None):
+        """Show a toast notification."""
+        if self.toast_manager:
+            self.toast_manager.show(title, message, toast_type, duration, on_click)
 
     # --- Inactivity ---
     def _reset_inactivity_timer(self, event=None):

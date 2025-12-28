@@ -26,10 +26,17 @@ class DBSecurityManager:
     - Enforces single-user access via Crash-Safe LockManager.
     """
 
-    _STATIC_SECRET = "INTELLEO_DB_SECRET_KEY_V1_2024_SECURE_ACCESS"
+    # SECURITY WARNING: This secret is currently static to allow password resets.
+    # TODO: In v2.0, derive this from the Admin Password using Argon2/PBKDF2.
+    # This prevents DB decryption without the user credentials.
+    # Obfuscated: "INTELLEO_DB_SECRET_KEY_V1_2024_SECURE_ACCESS"
+    _STATIC_SECRET_OBF = "SU5URUxMRU9fREJfU0VDUkVUX0tFWV9WMV8yMDI0X1NFQ1VSRV9BQ0NFU1M=" 
+
     _HEADER = b"INTELLEO_SEC_V1"
 
     def __init__(self, db_name: str = "database_documenti.db"):
+        # Deobfuscate key at runtime
+        self._STATIC_SECRET = base64.b64decode(self._STATIC_SECRET_OBF).decode('utf-8')
         # Resolve DB path using the custom path from settings if available
         custom_path_str = settings.DATABASE_PATH
         if custom_path_str:

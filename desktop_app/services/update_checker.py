@@ -1,15 +1,18 @@
 import threading
 import requests
-import webbrowser
-from PyQt6.QtCore import QObject, pyqtSignal # Not using PyQt anymore, need Tkinter or Generic
-# Wait, I cannot use PyQt signals in Tkinter app easily.
-# I will use a callback mechanism or Tkinter events.
+import logging
+
+logger = logging.getLogger(__name__)
 
 class UpdateChecker:
+    """
+    Checks for updates using GitHub API (or custom backend).
+    Thread-safe implementation using callbacks.
+    """
     def __init__(self, current_version):
         self.current_version = current_version
-        self.github_repo = "https://github.com/tuo-repo/intelleo" # Placeholder
-        self.api_url = f"https://api.github.com/repos/tuo-repo/intelleo/releases/latest"
+        # TODO: Configure real repo via config
+        self.api_url = "https://api.github.com/repos/gianky00/intelleo-licenses/releases/latest" 
 
     def check_for_updates(self, callback):
         """
@@ -20,16 +23,20 @@ class UpdateChecker:
 
     def _check_thread(self, callback):
         try:
-            # Simulated check or real if repo exists
-            # response = requests.get(self.api_url, timeout=5)
-            # if response.status_code == 200:
-            #     data = response.json()
-            #     latest_tag = data.get("tag_name", "").replace("v", "")
-            #     if latest_tag > self.current_version:
-            #         callback(True, latest_tag, data.get("html_url"))
-            #         return
-
-            # Since repo is private/placeholder, we skip unless configured
+            # Short timeout to avoid blocking startup UX perception
+            response = requests.get(self.api_url, timeout=3)
+            if response.status_code == 200:
+                data = response.json()
+                latest_tag = data.get("tag_name", "").lstrip("v")
+                
+                # Simple string compare works for semantic versioning usually, but packaging.version is better
+                # For now, strict inequality check
+                if latest_tag != self.current_version and latest_tag > self.current_version:
+                    logger.info(f"Update found: {latest_tag}")
+                    callback(True, latest_tag, data.get("html_url"))
+                    return
+            
             callback(False, None, None)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Update check failed: {e}")
             callback(False, None, None)

@@ -39,9 +39,9 @@ class LoginView(tk.Frame):
         self.entry_pass.bind("<Return>", lambda e: self.do_login())
         
         # Button
-        btn_login = tk.Button(container, text="ACCEDI", bg="#1D4ED8", fg="white", font=("Segoe UI", 11, "bold"),
+        self.btn_login = tk.Button(container, text="ACCEDI", bg="#1D4ED8", fg="white", font=("Segoe UI", 11, "bold"),
                               relief="flat", padx=20, pady=10, command=self.do_login, cursor="hand2")
-        btn_login.pack(pady=20, fill="x")
+        self.btn_login.pack(pady=20, fill="x")
         
         # Status Label
         self.lbl_status = tk.Label(container, text="", bg="white", fg="red")
@@ -75,10 +75,15 @@ class LoginView(tk.Frame):
             self.lbl_status.config(text="Inserisci username e password")
             return
 
+        # Disable UI to prevent double-submit
+        self.entry_user.config(state="disabled")
+        self.entry_pass.config(state="disabled")
+        self.btn_login.config(state="disabled", cursor="watch")
+        
         self.lbl_status.config(text="Connessione in corso...", fg="blue")
         self.update_idletasks()
 
-        # Perform login in a separate thread to avoid freezing UI (simple manual thread here)
+        # Perform login in a separate thread
         threading.Thread(target=self._login_thread, args=(username, password), daemon=True).start()
 
     def _login_thread(self, username, password):
@@ -89,7 +94,7 @@ class LoginView(tk.Frame):
             # Additional info fetch
             self.controller.api_client.set_token(token_data)
 
-            # Back to UI thread
+            # Back to UI thread -> Success
             self.after(0, lambda: self.controller.on_login_success(token_data))
 
         except Exception as e:
@@ -99,4 +104,12 @@ class LoginView(tk.Frame):
             elif "ConnectionError" in str(type(e).__name__):
                 error_msg = "Impossibile connettersi al server."
 
-            self.after(0, lambda: self.lbl_status.config(text=error_msg, fg="red"))
+            # Back to UI thread -> Failure (Re-enable UI)
+            def on_fail():
+                self.lbl_status.config(text=error_msg, fg="red")
+                self.entry_user.config(state="normal")
+                self.entry_pass.config(state="normal")
+                self.btn_login.config(state="normal", cursor="hand2")
+                self.entry_pass.delete(0, 'end')
+                
+            self.after(0, on_fail)

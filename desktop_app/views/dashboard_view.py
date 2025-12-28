@@ -1,16 +1,23 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 import webbrowser
+import sys
+import logging
+from pathlib import Path
 from desktop_app.views.database_view import DatabaseView
 from desktop_app.views.import_view import ImportView
 from desktop_app.views.validation_view import ValidationView
 from desktop_app.views.scadenzario_view import ScadenzarioView
 from desktop_app.views.config_view import ConfigView
 from desktop_app.views.dipendenti_view import DipendentiView
-from desktop_app.views.chat_view import ChatView
-from desktop_app.views.audit_view import AuditView
+from desktop_app.views.lyra_view import LyraView
+from desktop_app.services.notification_center import NotificationBell, NotificationPanel
 from app import __version__ as app_version
 from app.core.config import settings
+from app.core.path_resolver import get_asset_path
+
+logger = logging.getLogger(__name__)
+
 
 class DashboardView(tk.Frame):
     def __init__(self, parent, controller):
@@ -19,116 +26,151 @@ class DashboardView(tk.Frame):
         self.configure(bg="#F3F4F6")
 
         self.setup_ui()
+        self.setup_keyboard_shortcuts()
 
     def setup_ui(self):
         # Header
-        header = tk.Frame(self, bg="#1E3A8A", height=50)
-        header.pack(fill="x", side="top")
+        header = tk.Frame(self, bg="#1E3A8A", height=60)
+        header.pack(fill="x")
+        header.pack_propagate(False)
 
-        # App Title in Header
-        lbl_app = tk.Label(header, text="Intelleo Desktop", bg="#1E3A8A", fg="white", font=("Segoe UI", 12, "bold"))
-        lbl_app.pack(side="left", padx=20, pady=10)
+        # Logo/Title - increased font size
+        lbl_title = tk.Label(header, text="Intelleo", font=("Segoe UI", 18, "bold"),
+                             bg="#1E3A8A", fg="white")
+        lbl_title.pack(side="left", padx=20, pady=10)
 
-        # User Info
-        user_info = self.controller.api_client.user_info
-        username = user_info.get("account_name", "Utente") if user_info else "Utente"
+        # User Info - increased font size
+        user_info = self.controller.api_client.user_info or {}
+        username = user_info.get("account_name") or user_info.get("username") or "Utente"
 
-        lbl_user = tk.Label(header, text=f"Utente: {username}", bg="#1E3A8A", fg="#93C5FD", font=("Segoe UI", 10))
-        lbl_user.pack(side="right", padx=20)
+        lbl_user = tk.Label(header, text=f"  {username}", font=("Segoe UI", 11),
+                            bg="#1E3A8A", fg="white")
+        lbl_user.pack(side="right", padx=10, pady=10)
 
-        # Logout Button
-        btn_logout = tk.Button(header, text="Esci", bg="#B91C1C", fg="white", relief="flat",
-                               font=("Segoe UI", 9), command=self.controller.logout)
-        btn_logout.pack(side="right", padx=10, pady=10)
+        # Logout Button - increased font size
+        btn_logout = tk.Button(header, text="Esci", bg="#DC2626", fg="white", relief="flat",
+                               font=("Segoe UI", 10), command=self.controller.logout)
+        btn_logout.pack(side="right", padx=5, pady=10)
 
-        # Guide Button
+        # Guide Button - increased font size
         btn_guide = tk.Button(header, text="Guida", bg="#059669", fg="white", relief="flat",
-                              font=("Segoe UI", 9), command=self.open_guide)
+                              font=("Segoe UI", 10), command=self.open_guide)
         btn_guide.pack(side="right", padx=10, pady=10)
 
-        # Tabs
+        # Notification Bell
+        if hasattr(self.controller, 'notification_center') and self.controller.notification_center:
+            self.notification_bell = NotificationBell(
+                header,
+                self.controller.notification_center,
+                on_click=self._show_notification_panel
+            )
+            self.notification_bell.pack(side="right", padx=5)
+
+        # Read-Only Warning Banner (if applicable)
+        if user_info.get("read_only"):
+            warning_frame = tk.Frame(self, bg="#FEF3C7", height=30)
+            warning_frame.pack(fill="x")
+            tk.Label(warning_frame, text="MODALITA SOLA LETTURA - Il database e bloccato da un altro utente",
+                     bg="#FEF3C7", fg="#92400E", font=("Segoe UI", 9, "bold")).pack(pady=5)
+
+        # Footer with version
+        footer = tk.Frame(self, bg="#F3F4F6", height=25)
+        footer.pack(side="bottom", fill="x")
+        footer.pack_propagate(False)
+
+        lbl_version = tk.Label(footer, text=f"v{app_version}", font=("Segoe UI", 9),
+                               bg="#F3F4F6", fg="#6B7280")
+        lbl_version.pack(side="left", padx=15, pady=3)
+
+        # Notebook (Tabs)
         self.notebook = ttk.Notebook(self)
-        self.notebook.pack(fill="both", expand=True, padx=10, pady=10)
+        self.notebook.pack(fill="both", expand=True, padx=10, pady=(10, 5))
 
-        # Initialize Tabs
-        self.tab_db = DatabaseView(self.notebook, self.controller)
-        self.tab_scadenzario = ScadenzarioView(self.notebook, self.controller)
-        self.tab_validation = ValidationView(self.notebook, self.controller)
+        # Create tabs
         self.tab_import = ImportView(self.notebook, self.controller)
+        self.tab_validation = ValidationView(self.notebook, self.controller)
+        self.tab_database = DatabaseView(self.notebook, self.controller)
+        self.tab_scadenzario = ScadenzarioView(self.notebook, self.controller)
         self.tab_dipendenti = DipendentiView(self.notebook, self.controller)
-        self.tab_chat = ChatView(self.notebook, self.controller)
+        self.tab_lyra = LyraView(self.notebook, self.controller)
         self.tab_config = ConfigView(self.notebook, self.controller)
-        self.tab_audit = AuditView(self.notebook, self.controller)
 
-        # Add Tabs
-        self.notebook.add(self.tab_db, text="🗄️ Database")
-        self.notebook.add(self.tab_scadenzario, text="📅 Scadenzario")
-        self.notebook.add(self.tab_validation, text="✅ Convalida")
-        self.notebook.add(self.tab_dipendenti, text="👥 Anagrafica")
-        self.notebook.add(self.tab_import, text="📥 Importazione")
-        self.notebook.add(self.tab_chat, text="💬 Lyra AI")
+        # Add tabs to notebook (order: Importa, Convalida, Database, Scadenzario, Dipendenti, Lyra IA, Configurazione)
+        self.notebook.add(self.tab_import, text=" Importa")
+        self.notebook.add(self.tab_validation, text=" Convalida")
+        self.notebook.add(self.tab_database, text=" Database")
+        self.notebook.add(self.tab_scadenzario, text=" Scadenzario")
+        self.notebook.add(self.tab_dipendenti, text=" Dipendenti")
+        self.notebook.add(self.tab_lyra, text=" Lyra IA")
+        self.notebook.add(self.tab_config, text=" Configurazione")
 
-        # Only show Config/Audit if Admin
-        is_admin = user_info.get("is_admin", False) if user_info else False
-        if is_admin:
-            self.notebook.add(self.tab_audit, text="🛡️ Log Attività")
-            self.notebook.add(self.tab_config, text="⚙️ Configurazione")
+        # Tab Change Event - Refresh data when switching tabs
+        self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed)
 
-        # Select first tab
-        self.notebook.select(self.tab_db)
+        # No auto-refresh for import tab (first tab)
 
-        # Bind Tab Change for Auto-Refresh
-        self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_change)
+    def setup_keyboard_shortcuts(self):
+        """Setup global keyboard shortcuts."""
+        # Tab navigation with Ctrl+1-7 (Importa, Convalida, Database, Scadenzario, Dipendenti, Lyra IA, Config)
+        self.bind_all("<Control-Key-1>", lambda e: self.notebook.select(0))  # Importa
+        self.bind_all("<Control-Key-2>", lambda e: self.notebook.select(1))  # Convalida
+        self.bind_all("<Control-Key-3>", lambda e: self.notebook.select(2))  # Database
+        self.bind_all("<Control-Key-4>", lambda e: self.notebook.select(3))  # Scadenzario
+        self.bind_all("<Control-Key-5>", lambda e: self.notebook.select(4))  # Dipendenti
+        self.bind_all("<Control-Key-6>", lambda e: self.notebook.select(5))  # Lyra IA
+        self.bind_all("<Control-Key-7>", lambda e: self.notebook.select(6))  # Configurazione
 
-        # Status Bar
-        self.setup_status_bar()
+        # F1 for guide
+        self.bind_all("<F1>", lambda e: self.open_guide())
 
-    def setup_status_bar(self):
-        status_frame = tk.Frame(self, bg="#E5E7EB", height=25)
-        status_frame.pack(side="bottom", fill="x")
+        # Ctrl+Q to logout
+        self.bind_all("<Control-q>", lambda e: self.controller.logout())
 
-        # DB Path
-        db_path = settings.DATABASE_PATH or "Default"
-        tk.Label(status_frame, text=f"DB: {db_path}", bg="#E5E7EB", fg="#4B5563", font=("Segoe UI", 8)).pack(side="left", padx=10)
-
-        # Version
-        tk.Label(status_frame, text=f"v{app_version}", bg="#E5E7EB", fg="#4B5563", font=("Segoe UI", 8)).pack(side="right", padx=10)
-
-        # Read Only Indicator
-        user_info = self.controller.api_client.user_info
-        if user_info and user_info.get("read_only"):
-            tk.Label(status_frame, text="⚠ SOLA LETTURA", bg="#FECACA", fg="#DC2626", font=("Segoe UI", 8, "bold"), padx=5).pack(side="right", padx=10)
-
-    def on_tab_change(self, event):
+    def on_tab_changed(self, event):
+        """Refreshes the data of the selected tab."""
         selected_tab = self.notebook.select()
-        if not selected_tab: return
+        tab_widget = self.notebook.nametowidget(selected_tab)
 
-        widget_name = self.notebook.tab(selected_tab, "text")
-        widget = self.notebook.nametowidget(selected_tab)
+        if hasattr(tab_widget, 'refresh_data'):
+            tab_widget.refresh_data()
 
-        if hasattr(widget, "refresh_data"):
-             # Use after_idle to avoid UI jank during switching
-             self.after_idle(widget.refresh_data)
+    def _show_notification_panel(self):
+        """Show the notification panel dropdown."""
+        if hasattr(self.controller, 'notification_center') and self.controller.notification_center:
+            NotificationPanel(
+                self.notification_bell,
+                self.controller.notification_center,
+                self.controller
+            )
 
     def open_guide(self):
-        import os, sys
-        # Strategy: Look for guide_frontend/dist/index.html relative to app root
-        # Or docs/index.html if distributed
-
-        potential_paths = [
-            os.path.join(os.getcwd(), "guide_frontend", "dist", "index.html"),
-            os.path.join(os.getcwd(), "docs", "index.html"),
-            os.path.join(os.path.dirname(sys.executable), "docs", "index.html") # For frozen app
+        """
+        Locates and opens the interactive guide in the system browser.
+        Uses path_resolver for universal compatibility.
+        """
+        # Try different locations via path_resolver
+        candidates = [
+            "guide/index.html",  # Nuitka frozen mapping
+            "guide_frontend/dist/index.html",  # Dev/Manual mapping
         ]
 
-        found_path = None
-        for p in potential_paths:
-            if os.path.exists(p):
-                found_path = p
-                break
+        found_uri = None
+        for rel_path in candidates:
+            try:
+                path = get_asset_path(rel_path)
+                if path.exists():
+                    found_uri = path.absolute().as_uri()
+                    break
+            except Exception:
+                continue
 
-        if found_path:
-            webbrowser.open(f"file://{found_path}")
+        if found_uri:
+            webbrowser.open(found_uri)
         else:
-            # Fallback to online or message
-            webbrowser.open("http://localhost:5173")
+            # Last fallback: Try opening Vite dev server if local
+            if not getattr(sys, 'frozen', False):
+                webbrowser.open("http://localhost:5173")
+            else:
+                # Silently log instead of showing error (guide is optional)
+                logger.debug("Guida interattiva non trovata")
+                messagebox.showinfo("Guida", "La guida interattiva non e disponibile.\nContattare l'assistenza tecnica per maggiori informazioni.")

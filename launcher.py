@@ -12,8 +12,8 @@ import logging
 import logging.handlers
 import importlib
 
-# --- BUG FIX: Increase recursion limit to prevent crashes on bulk operations ---
-sys.setrecursionlimit(5000)
+# REMOVED: sys.setrecursionlimit(5000) - Code smell removed.
+# If RecursionError occurs, investigate infinite loops in sync_service or UI tree.
 
 # Constants
 DATABASE_FILENAME = "database_documenti.db"

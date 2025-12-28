@@ -42,12 +42,13 @@ def create_user(
             detail="The user with this username already exists in the system.",
         )
 
-    # Force default password to "primoaccesso"
+    # Use provided password or fallback to default
     default_password = os.getenv("DEFAULT_USER_PASSWORD", "primoaccesso") # NOSONAR
+    password_to_use = user_in.password if user_in.password else default_password
 
     user = UserModel(
         username=user_in.username,
-        hashed_password=security.get_password_hash(default_password),
+        hashed_password=security.get_password_hash(password_to_use),
         account_name=user_in.account_name,
         gender=user_in.gender,
         is_admin=user_in.is_admin,

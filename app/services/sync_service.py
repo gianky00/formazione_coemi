@@ -86,6 +86,16 @@ def _move_file_safely(current_path, expected_path, database_path):
         unique_filename = get_unique_filename(dest_dir, filename)
         final_path = os.path.join(dest_dir, unique_filename)
 
+        # Race condition check: Verify existence again immediately before move
+        if os.path.exists(final_path):
+             logging.warning(f"Destination {final_path} appeared suddenly. Regenerating name.")
+             unique_filename = get_unique_filename(dest_dir, filename) # Retry once
+             final_path = os.path.join(dest_dir, unique_filename)
+             
+        if os.path.exists(final_path):
+             logging.error(f"Cannot move file, destination occupied: {final_path}")
+             return False
+
         shutil.move(current_path, final_path)
         remove_empty_folders(os.path.dirname(current_path), root_path=database_path)
         logging.info(f"Moved file to: {final_path}")
@@ -103,7 +113,7 @@ def archive_certificate_file(db: Session, cert: Certificato) -> bool:
     Moves a certificate's file to the STORICO folder.
     Returns True if file was moved, False otherwise.
     """
-    database_path = settings.DATABASE_PATH or str(get_user_data_dir())
+    database_path = settings.DOCUMENTS_FOLDER or str(get_user_data_dir())
     if not database_path or not os.path.exists(database_path):
         return False
 
@@ -134,7 +144,7 @@ def link_orphaned_certificates(db: Session, dipendente: Dipendente) -> int:
     # S3776: Refactored to reduce complexity
     orphans = db.query(Certificato).options(selectinload(Certificato.corso)).filter(Certificato.dipendente_id.is_(None)).all()
     linked_count = 0
-    database_path = settings.DATABASE_PATH or str(get_user_data_dir())
+    database_path = settings.DOCUMENTS_FOLDER or str(get_user_data_dir())
 
     for cert in orphans:
         if not cert.nome_dipendente_raw: continue
@@ -211,7 +221,7 @@ def synchronize_all_files(db: Session):
     """
     # S3776: Refactored
     logging.info("Starting Mass File Synchronization...")
-    database_path = settings.DATABASE_PATH or str(get_user_data_dir())
+    database_path = settings.DOCUMENTS_FOLDER or str(get_user_data_dir())
 
     if not database_path or not os.path.exists(database_path):
         return {"error": "Database path invalid"}
