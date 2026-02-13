@@ -1,12 +1,15 @@
+from typing import Annotated, Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, get_db
+from app.api.deps import get_current_user
 from app.db.models import User
+from app.db.session import get_db
 from app.services.chat_service import chat_service
 
-router = APIRouter()
+router = APIRouter(prefix="/chat", tags=["Chat"])
 
 
 class ChatMessage(BaseModel):
@@ -26,9 +29,9 @@ class ChatResponse(BaseModel):
 @router.post("/", response_model=ChatResponse)
 async def chat_endpoint(
     request: ChatRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> Any:
     """
     Chat endpoint using Gemini Flash with RAG context.
     """
@@ -45,4 +48,6 @@ async def chat_endpoint(
         return ChatResponse(response=reply)
 
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        ) from e

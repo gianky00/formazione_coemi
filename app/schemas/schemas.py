@@ -1,6 +1,6 @@
 import re
 from datetime import date, datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -10,27 +10,27 @@ DATE_ERROR_MSG: str = "Formato data non valido. Usare DD/MM/YYYY."
 
 class DipendenteSchema(BaseModel):
     id: int
-    matricola: Optional[str] = None
+    matricola: str | None = None
     nome: str
     cognome: str
-    data_nascita: Optional[date] = None
-    email: Optional[str] = None
-    mansione: Optional[str] = None
-    categoria_reparto: Optional[str] = None
-    data_assunzione: Optional[date] = None
+    data_nascita: date | None = None
+    email: str | None = None
+    mansione: str | None = None
+    categoria_reparto: str | None = None
+    data_assunzione: date | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class DipendenteCreateSchema(BaseModel):
-    matricola: Optional[str] = Field(None, min_length=1)
+    matricola: str | None = Field(None, min_length=1)
     nome: str = Field(..., min_length=1)
     cognome: str = Field(..., min_length=1)
-    data_nascita: Optional[date] = None
-    email: Optional[str] = None
-    mansione: Optional[str] = None
-    categoria_reparto: Optional[str] = None
-    data_assunzione: Optional[date] = None
+    data_nascita: date | None = None
+    email: str | None = None
+    mansione: str | None = None
+    categoria_reparto: str | None = None
+    data_assunzione: date | None = None
 
     @field_validator("nome", "cognome")
     @classmethod
@@ -41,14 +41,14 @@ class DipendenteCreateSchema(BaseModel):
 
 
 class DipendenteUpdateSchema(BaseModel):
-    matricola: Optional[str] = Field(None, min_length=1)
-    nome: Optional[str] = Field(None, min_length=1)
-    cognome: Optional[str] = Field(None, min_length=1)
-    data_nascita: Optional[date] = None
-    email: Optional[str] = None
-    mansione: Optional[str] = None
-    categoria_reparto: Optional[str] = None
-    data_assunzione: Optional[date] = None
+    matricola: str | None = Field(None, min_length=1)
+    nome: str | None = Field(None, min_length=1)
+    cognome: str | None = Field(None, min_length=1)
+    data_nascita: date | None = None
+    email: str | None = None
+    mansione: str | None = None
+    categoria_reparto: str | None = None
+    data_assunzione: date | None = None
 
     @field_validator("nome", "cognome")
     @classmethod
@@ -61,14 +61,14 @@ class DipendenteUpdateSchema(BaseModel):
 class CertificatoSchema(BaseModel):
     id: int
     nome: str
-    data_nascita: Optional[str] = None
-    matricola: Optional[str] = None
+    data_nascita: str | None = None
+    matricola: str | None = None
     corso: str
     categoria: str
     data_rilascio: str
-    data_scadenza: Optional[str] = None
+    data_scadenza: str | None = None
     stato_certificato: str
-    assegnazione_fallita_ragione: Optional[str] = None
+    assegnazione_fallita_ragione: str | None = None
 
 
 class DipendenteDetailSchema(DipendenteSchema):
@@ -77,12 +77,12 @@ class DipendenteDetailSchema(DipendenteSchema):
 
 class CertificatoCreazioneSchema(BaseModel):
     nome: str = Field(..., min_length=1, description="Nome e cognome del dipendente")
-    data_nascita: Optional[str] = None
+    data_nascita: str | None = None
     corso: str = Field(..., min_length=1, description="Nome del corso")
     categoria: str = Field(..., min_length=1, description="Categoria del corso")
     data_rilascio: str
-    data_scadenza: Optional[str] = None
-    dipendente_id: Optional[int] = None
+    data_scadenza: str | None = None
+    dipendente_id: int | None = None
 
     @field_validator("data_rilascio")
     @classmethod
@@ -97,7 +97,7 @@ class CertificatoCreazioneSchema(BaseModel):
 
     @field_validator("data_scadenza")
     @classmethod
-    def validate_data_scadenza(cls, v: Optional[str]) -> Optional[str]:
+    def validate_data_scadenza(cls, v: str | None) -> str | None:
         if v is None or not v.strip() or v.strip().lower() == "none":
             return None
         try:
@@ -108,16 +108,16 @@ class CertificatoCreazioneSchema(BaseModel):
 
 
 class CertificatoAggiornamentoSchema(BaseModel):
-    nome: Optional[str] = None
-    data_nascita: Optional[str] = None
-    corso: Optional[str] = None
-    categoria: Optional[str] = None
-    data_rilascio: Optional[str] = None
-    data_scadenza: Optional[str] = None
+    nome: str | None = None
+    data_nascita: str | None = None
+    corso: str | None = None
+    categoria: str | None = None
+    data_rilascio: str | None = None
+    data_scadenza: str | None = None
 
     @field_validator("data_rilascio")
     @classmethod
-    def validate_data_rilascio(cls, v: Optional[str]) -> Optional[str]:
+    def validate_data_rilascio(cls, v: str | None) -> str | None:
         if v is None:
             return v
         try:
@@ -128,7 +128,7 @@ class CertificatoAggiornamentoSchema(BaseModel):
 
     @field_validator("data_scadenza")
     @classmethod
-    def validate_data_scadenza(cls, v: Optional[str]) -> Optional[str]:
+    def validate_data_scadenza(cls, v: str | None) -> str | None:
         if v is None or not v.strip() or v.strip().lower() == "none":
             return None
         try:
@@ -143,13 +143,13 @@ class CertificatoAggiornamentoSchema(BaseModel):
 
 class UserBase(BaseModel):
     username: str
-    account_name: Optional[str] = None
-    gender: Optional[str] = None  # 'M', 'F', or None
+    account_name: str | None = None
+    gender: str | None = None  # 'M', 'F', or None
     is_admin: bool = False
 
 
 class UserCreateSchema(UserBase):
-    password: Optional[str] = None
+    password: str | None = None
 
 
 class UserPasswordUpdateSchema(BaseModel):
@@ -158,17 +158,17 @@ class UserPasswordUpdateSchema(BaseModel):
 
 
 class UserUpdateSchema(BaseModel):
-    username: Optional[str] = None
-    account_name: Optional[str] = None
-    password: Optional[str] = None
-    gender: Optional[str] = None
-    is_admin: Optional[bool] = None
+    username: str | None = None
+    account_name: str | None = None
+    password: str | None = None
+    gender: str | None = None
+    is_admin: bool | None = None
 
 
 class UserSchema(UserBase):
     id: int
-    last_login: Optional[datetime] = None
-    previous_login: Optional[datetime] = None
+    last_login: datetime | None = None
+    previous_login: datetime | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -179,32 +179,32 @@ class Token(BaseModel):
     token_type: str
     user_id: int
     username: str
-    account_name: Optional[str] = None
-    gender: Optional[str] = None
+    account_name: str | None = None
+    gender: str | None = None
     is_admin: bool
-    previous_login: Optional[datetime] = None
+    previous_login: datetime | None = None
     read_only: bool = False
-    lock_owner: Optional[dict[str, Any]] = None
+    lock_owner: dict[str, Any] | None = None
     require_password_change: bool = False
 
 
 class TokenData(BaseModel):
-    username: Optional[str] = None
+    username: str | None = None
 
 
 class AuditLogSchema(BaseModel):
     id: int
-    user_id: Optional[int] = None
+    user_id: int | None = None
     username: str
     action: str
-    category: Optional[str] = None
-    details: Optional[str] = None
+    category: str | None = None
+    details: str | None = None
     timestamp: datetime
-    ip_address: Optional[str] = None
-    user_agent: Optional[str] = None
-    geolocation: Optional[str] = None
-    severity: Optional[str] = "LOW"
-    device_id: Optional[str] = None
-    changes: Optional[str] = None  # JSON string
+    ip_address: str | None = None
+    user_agent: str | None = None
+    geolocation: str | None = None
+    severity: str | None = "LOW"
+    device_id: str | None = None
+    changes: str | None = None  # JSON string
 
     model_config = ConfigDict(from_attributes=True)

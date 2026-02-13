@@ -1,64 +1,62 @@
-import os
-import threading
+import logging
+from typing import Any, Optional
 
 import geoip2.database
+from geoip2.models import City
+
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class GeoLocationService:
-    _reader = None
-    _db_path = "GeoLite2-City.mmdb"
-    _lock = threading.Lock()
+    _reader: Optional[geoip2.database.Reader] = None
 
     @classmethod
-    def get_reader(cls):
-        if cls._reader:
-            return cls._reader
+    def get_reader(cls) -> Optional[geoip2.database.Reader]:
+        """Inizializza e ritorna il database GeoLite2."""
+        if cls._reader is None:
+            db_path = settings.GEOLITE_DB_PATH
+            if not db_path:
+                return None
 
-        with cls._lock:
-            if cls._reader:
-                return cls._reader
+            from pathlib import Path
 
-            paths = [
-                cls._db_path,
-                os.path.join("app", "assets", cls._db_path),
-                # Fallback for frozen/different cwd
-                os.path.join(os.path.dirname(__file__), "..", "assets", cls._db_path),
-            ]
+            if not Path(db_path).exists():
+                logger.warning(f"GeoLite2 database not found at {db_path}")
+                return None
 
-            for path in paths:
-                if os.path.exists(path):
-                    try:
-                        cls._reader = geoip2.database.Reader(path)
-                        return cls._reader
-                    except Exception:
-                        pass
-            return None
+            try:
+                cls._reader = geoip2.database.Reader(db_path)
+            except Exception as e:
+                logger.error(f"Failed to load GeoLite2 database: {e}")
+                return None
+        return cls._reader
 
     @classmethod
-    def get_location(cls, ip: str) -> str:
-        if ip in ("127.0.0.1", "::1", "localhost"):
+    def get_location(cls, ip_address: str) -> str:
+        """Ritorna la stringa 'Città, Paese' per un dato IP."""
+        if not ip_address or ip_address in ("127.0.0.1", "localhost", "::1"):
             return "Localhost"
 
-        reader = cls.get_reader()
-        if reader:
-            try:
-                response = reader.city(ip)
-                city = response.city.name or ""
-                country = response.country.name or ""
-                if city and country:
-                    return f"{city}, {country}"
-                elif country:
-                    return country
-                elif city:
-                    return city
-            except Exception:
-                pass
+        try:
+            reader = cls.get_reader()
+            if not reader:
+                return "Unknown (No DB)"
 
-        return "Unknown"
+            response: City = reader.city(ip_address)
+            city = response.city.name or "Unknown City"
+            country = response.country.name or "Unknown Country"
+            return f"{city}, {country}"
+        except Exception:
+            return "Unknown Location"
 
     @classmethod
-    def close(cls):
-        with cls._lock:
-            if cls._reader:
+    def close(cls) -> None:
+        """Chiude il database GeoLite2."""
+        if cls._reader:
+            try:
                 cls._reader.close()
-                cls._reader = None
+            except Exception:
+                pass
+            cls._reader = None

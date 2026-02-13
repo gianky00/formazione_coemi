@@ -1,3 +1,5 @@
+from typing import Annotated, Any
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
@@ -10,11 +12,11 @@ from app.services.notification_service import (
     get_report_data,
 )
 
-router = APIRouter()
+router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
 
 @router.get("/export-report")
-def export_report(db: Session = Depends(get_db)):
+def export_report(db: Annotated[Session, Depends(get_db)]) -> Response:
     """
     Generates and downloads the PDF report of expiring/overdue certificates.
     """
@@ -37,13 +39,13 @@ def export_report(db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Errore durante la generazione del report: {e}"
-        )
+        ) from e
 
 
 @router.post("/send-manual-alert", dependencies=[Depends(deps.check_write_permission)])
-async def send_manual_alert(background_tasks: BackgroundTasks):
+async def send_manual_alert(background_tasks: BackgroundTasks) -> Any:
     """
-    Manually triggers the check for expiring and overdue certificates and sends the notification email asynchronously.
+    Manually triggers the check for expiring and overdue certificates.
     """
     background_tasks.add_task(check_and_send_alerts)
     return {

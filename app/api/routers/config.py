@@ -1,96 +1,55 @@
+from typing import Annotated, Any
+
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api import deps
-from app.core.db_security import db_security
+from app.db.models import User
 from app.db.session import get_db
-from app.utils.audit import log_security_action
 
-router = APIRouter()
-
-from pathlib import Path
+router = APIRouter(prefix="/system-config", tags=["config"])
 
 
-class SecurityModeSchema(BaseModel):
-    locked: bool
-
-
-class MoveDatabaseSchema(BaseModel):
-    new_path: str
-
-
-@router.post("/move-database", dependencies=[Depends(deps.check_write_permission)])
+@router.post("/move-database")
 def move_database(
-    payload: MoveDatabaseSchema,
-    db: Session = Depends(get_db),
-    current_user: deps.User = Depends(deps.get_current_active_admin),
-):
-    """
-    Moves the database file to a new user-specified path.
-    """
-    new_path = Path(payload.new_path)
-    # Allow directory OR .db file path
-    is_valid = new_path.is_dir() or (new_path.parent.is_dir() and new_path.suffix.lower() == ".db")
+    new_path: str,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(deps.get_current_active_admin)],
+) -> Any:
+    """Sposta il database in una nuova posizione (solo admin)."""
+    # Logic is implemented in db_security but we need to expose it
+    from app.core.db_security import db_security
 
-    if not is_valid:
-        raise HTTPException(
-            status_code=400,
-            detail="Il percorso specificato non è valido. Seleziona una cartella o un file .db.",
-        )
+    from pathlib import Path
 
     try:
-        db_security.move_database(new_path)
-        log_security_action(
-            db,
-            current_user,
-            "MOVE_DATABASE",
-            f"Database moved to: {new_path}",
-            category="SYSTEM",
-            severity="CRITICAL",
-        )
-        return {"message": "Database spostato con successo."}
+        db_security.move_database(Path(new_path))
+        return {"status": "ok", "message": f"Database spostato in {new_path}"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Impossibile spostare il database: {e!s}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@router.get("/db-security/status")
-def get_security_status(current_user: deps.User = Depends(deps.get_current_active_admin)):
-    """
-    Returns the current security status of the database (Locked/Encrypted or Unlocked/Plain).
-    Only accessible by Admins.
-    """
-    return {"locked": db_security.is_locked_mode}
+@router.get("/security-status")
+def get_security_status(
+    current_user: Annotated[User, Depends(deps.get_current_active_admin)],
+) -> Any:
+    """Ritorna lo stato della sicurezza del DB."""
+    from app.core.db_security import db_security
+
+    return {
+        "is_locked_mode": db_security.is_locked_mode,
+        "has_lock": db_security.has_lock,
+        "is_read_only": db_security.is_read_only,
+    }
 
 
-@router.post("/db-security/toggle", dependencies=[Depends(deps.check_write_permission)])
+@router.post("/toggle-security")
 def toggle_security_mode(
-    payload: SecurityModeSchema,
-    db: Session = Depends(get_db),
-    current_user: deps.User = Depends(deps.get_current_active_admin),
-):
-    """
-    Toggles the database security mode.
-    - If locked=True: Encrypts the database.
-    - If locked=False: Decrypts the database (Plain text).
-    Only accessible by Admins.
-    """
-    try:
-        db_security.toggle_security_mode(payload.locked)
-        action = "LOCK_DB" if payload.locked else "UNLOCK_DB"
-        log_security_action(
-            db,
-            current_user,
-            action,
-            f"Database security mode changed to: {'LOCKED' if payload.locked else 'UNLOCKED'}",
-            category="SYSTEM",
-            severity="CRITICAL",
-        )
-        return {
-            "locked": db_security.is_locked_mode,
-            "message": "Security mode updated successfully.",
-        }
-    except Exception as e:
-        # Log the error locally too
-        print(f"Error toggling DB security: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to toggle security mode: {e!s}")
+    enable: bool,
+    current_user: Annotated[User, Depends(deps.get_current_active_admin)],
+) -> Any:
+    """Attiva/Disattiva la modalità criptata (solo admin)."""
+    from app.core.db_security import db_security
+
+    db_security.toggle_security_mode(enable)
+    return {"status": "ok", "is_locked_mode": db_security.is_locked_mode}

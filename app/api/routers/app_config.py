@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -21,22 +21,22 @@ class AppConfigSchema(BaseModel):
 class MutableSettingsSchema(BaseModel):
     """Pydantic model for validating incoming mutable settings updates."""
 
-    FIRST_RUN_ADMIN_PASSWORD: Optional[str] = Field(None, min_length=4)
-    GEMINI_API_KEY_ANALYSIS: Optional[str] = None
-    GEMINI_API_KEY_CHAT: Optional[str] = None
-    VOICE_ASSISTANT_ENABLED: Optional[bool] = None
-    SMTP_HOST: Optional[str] = None
-    SMTP_PORT: Optional[int] = Field(None, gt=0, le=65535)
-    SMTP_USER: Optional[str] = None
-    SMTP_PASSWORD: Optional[str] = None
-    EMAIL_RECIPIENTS_TO: Optional[str] = None
-    EMAIL_RECIPIENTS_CC: Optional[str] = None
-    ALERT_THRESHOLD_DAYS: Optional[int] = Field(None, ge=1)
-    ALERT_THRESHOLD_DAYS_VISITE: Optional[int] = Field(None, ge=1)
+    FIRST_RUN_ADMIN_PASSWORD: str | None = Field(None, min_length=4)
+    GEMINI_API_KEY_ANALYSIS: str | None = None
+    GEMINI_API_KEY_CHAT: str | None = None
+    VOICE_ASSISTANT_ENABLED: bool | None = None
+    SMTP_HOST: str | None = None
+    SMTP_PORT: int | None = Field(None, gt=0, le=65535)
+    SMTP_USER: str | None = None
+    SMTP_PASSWORD: str | None = None
+    EMAIL_RECIPIENTS_TO: str | None = None
+    EMAIL_RECIPIENTS_CC: str | None = None
+    ALERT_THRESHOLD_DAYS: int | None = Field(None, ge=1)
+    ALERT_THRESHOLD_DAYS_VISITE: int | None = Field(None, ge=1)
 
     # Extra fields sent by frontend that we must ignore to avoid 400 Bad Request
-    account_name: Optional[str] = None
-    gender: Optional[str] = None
+    account_name: str | None = None
+    gender: str | None = None
 
 
 @router.get("/config/updater", response_model=AppConfigSchema)

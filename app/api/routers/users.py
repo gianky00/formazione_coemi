@@ -37,6 +37,12 @@ def create_user(
             detail="The user with this username already exists in the system.",
         )
 
+    if not user_in.password:
+        raise HTTPException(
+            status_code=400,
+            detail="Password is required for new users.",
+        )
+
     new_user = User(
         username=user_in.username,
         hashed_password=security.get_password_hash(user_in.password),

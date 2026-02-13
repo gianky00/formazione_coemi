@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import case, func
@@ -6,14 +7,18 @@ from sqlalchemy.orm import Session
 
 from app.api import deps
 from app.core.config import settings
-from app.db.models import Certificato, Corso, Dipendente, ValidationStatus
+from app.db.models import Certificato, Corso, Dipendente, User, ValidationStatus
 from app.db.session import get_db
 
-router = APIRouter()
+router = APIRouter(prefix="/stats", tags=["Statistics"])
 
 
-@router.get("/summary")
-def get_stats_summary(db: Session = Depends(get_db), current_user=Depends(deps.get_current_user)):
+@router.get("/summary", response_model=dict[str, Any])
+def get_stats_summary(
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(deps.get_current_user)],
+) -> Any:
+    """Ritorna un riepilogo generale delle statistiche."""
     today = date.today()
     threshold = today + timedelta(days=settings.ALERT_THRESHOLD_DAYS)
 
@@ -36,7 +41,6 @@ def get_stats_summary(db: Session = Depends(get_db), current_user=Depends(deps.g
 
     compliance = 0
     if total_certificati > 0:
-        # S125: Removed commented out code
         compliance = int(((total_certificati - scaduti) / total_certificati) * 100)
 
     return {
@@ -49,10 +53,12 @@ def get_stats_summary(db: Session = Depends(get_db), current_user=Depends(deps.g
     }
 
 
-@router.get("/compliance")
+@router.get("/compliance", response_model=list[dict[str, Any]])
 def get_compliance_by_category(
-    db: Session = Depends(get_db), current_user=Depends(deps.get_current_user)
-):
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(deps.get_current_user)],
+) -> Any:
+    """Ritorna la compliance percentuale divisa per categoria di corso."""
     today = date.today()
     threshold = today + timedelta(days=settings.ALERT_THRESHOLD_DAYS)
 
@@ -85,11 +91,11 @@ def get_compliance_by_category(
 
     data = []
     for row in results:
-        cat = row[0]
-        total = row[1] or 0
-        expired = row[2] or 0
-        expiring = row[3] or 0
-        active = row[4] or 0
+        cat = str(row[0])
+        total = int(row[1] or 0)
+        expired = int(row[2] or 0)
+        expiring = int(row[3] or 0)
+        active = int(row[4] or 0)
 
         compliance = int((active / total) * 100) if total > 0 else 0
         data.append(
@@ -103,5 +109,7 @@ def get_compliance_by_category(
             }
         )
 
-    data.sort(key=lambda x: x["compliance"])
+    import operator
+
+    data.sort(key=operator.itemgetter("compliance"))
     return data

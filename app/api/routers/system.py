@@ -1,24 +1,25 @@
 import logging
+from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api import deps
+from app.db.models import User
 from app.db.session import SessionLocal, get_db
 from app.schemas.system import SystemAction
 from app.services.file_maintenance import organize_expired_files
 
-router = APIRouter()
+router = APIRouter(prefix="/system", tags=["System"])
 logger = logging.getLogger(__name__)
 
 # Global flag to prevent concurrent maintenance tasks
 MAINTENANCE_RUNNING = False
 
 
-def run_maintenance_task():
+def run_maintenance_task() -> None:
     """
     Wrapper to run maintenance in a separate thread/session.
-    Bug Fix: Ensures own DB session is created for background task.
     """
     global MAINTENANCE_RUNNING
     if MAINTENANCE_RUNNING:
@@ -39,7 +40,7 @@ def run_maintenance_task():
 
 
 @router.post("/maintenance/background", dependencies=[Depends(deps.get_current_user)])
-def trigger_maintenance(background_tasks: BackgroundTasks):
+def trigger_maintenance(background_tasks: BackgroundTasks) -> Any:
     """
     Triggers the file maintenance task in the background.
     """
@@ -52,10 +53,9 @@ def trigger_maintenance(background_tasks: BackgroundTasks):
 
 
 @router.get("/lock-status", dependencies=[Depends(deps.get_current_user)])
-def get_lock_status():
+def get_lock_status() -> Any:
     """
     Returns the current lock status (Read-Only mode).
-    Used by the frontend to detect split-brain or network lock loss.
     """
     from app.core.db_security import db_security
 
@@ -63,10 +63,13 @@ def get_lock_status():
 
 
 @router.post("/optimize", dependencies=[Depends(deps.get_current_active_admin)])
-def optimize_system(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def optimize_system(
+    background_tasks: BackgroundTasks,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(deps.get_current_active_admin)],
+) -> Any:
     """
     Triggers database optimization (VACUUM & ANALYZE) AND Mass File Synchronization.
-    Bug 8 Fix: Run synchronization in background to prevent HTTP timeout.
     """
     from app.core.db_security import db_security
 
@@ -82,17 +85,15 @@ def optimize_system(background_tasks: BackgroundTasks, db: Session = Depends(get
             "status": "background_task_started",
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Optimization failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Optimization failed: {e}") from e
 
 
 @router.post("/open-action")
-def open_action(action_request: SystemAction):
+def open_action(action_request: SystemAction) -> Any:
     """
     Endpoint used by external instances (launcher) to send commands to the running instance.
     """
     try:
-        # Import inside the function to avoid strict startup dependency if desktop_app is missing (unlikely)
-        # and to avoid circular import issues at module level if any.
         from desktop_app.ipc_bridge import IPCBridge
 
         bridge = IPCBridge.instance()
@@ -104,4 +105,4 @@ def open_action(action_request: SystemAction):
         raise HTTPException(status_code=500, detail="IPC Bridge unavailable")
     except Exception as e:
         logger.error(f"Error dispatching action: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

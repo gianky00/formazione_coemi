@@ -1,7 +1,9 @@
 import base64
 import logging
 import os
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
+from typing import Any
 
 import google.generativeai as genai
 import sentry_sdk
@@ -24,7 +26,7 @@ from app.utils.logging import setup_logging
 
 
 # --- SENTRY INTEGRATION (Obfuscated DSN) ---
-def _get_sentry_dsn():
+def _get_sentry_dsn() -> str | None:
     """Decode obfuscated Sentry DSN to bypass static analysis."""
     # Base64 encoded DSN parts for obfuscation
     _p1 = "aHR0cHM6Ly9mMjUyZDU5OGFhZjdlNzBmZTk0ZDUzMzQ3NGI3NjYzOQ=="  # protocol+key
@@ -39,7 +41,7 @@ def _get_sentry_dsn():
         return None
 
 
-def init_sentry_fastapi():
+def init_sentry_fastapi() -> None:
     """Initialize Sentry for FastAPI."""
     dsn = os.environ.get("SENTRY_DSN") or _get_sentry_dsn()
     if dsn:
@@ -57,7 +59,7 @@ def init_sentry_fastapi():
 
 
 # --- BACKGROUND TASKS ---
-def run_maintenance_task():
+def run_maintenance_task() -> None:
     """Background task to organize expired files."""
     logging.info("Starting background file maintenance...")
     db = SessionLocal()
@@ -69,14 +71,13 @@ def run_maintenance_task():
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifecycle events for the FastAPI application."""
     # --- Startup ---
     setup_logging()
 
     # Initialize Database Security & Memory DB
     try:
-        # Note: engine is statically configured in session.py to use db_security.get_connection
         db_security.load_memory_db()
     except PermissionError as e:
         logging.error(f"CRITICAL: {e}")
@@ -84,16 +85,13 @@ async def lifespan(app: FastAPI):
         yield
         return
     except Exception as e:
-        # We Log but DO NOT BLOCK startup.
-        # This allows the UI to launch and prompt the user to fix the DB.
         logging.warning(f"Database Load Error (Non-Fatal for UI): {e}")
 
     # Seed Database
-    db = SessionLocal()
     try:
-        seed_database(db)
-    finally:
-        db.close()
+        seed_database()
+    except Exception as e:
+        logging.error(f"Seeding failed: {e}")
 
     # Initialize AI (Gemini)
     if settings.GEMINI_API_KEY_ANALYSIS:
@@ -104,9 +102,7 @@ async def lifespan(app: FastAPI):
 
     # Start Scheduler
     scheduler = AsyncIOScheduler()
-    # Task 1: Check for expiring certificates and send email alerts (Every day at 08:00)
     scheduler.add_job(check_and_send_alerts, "cron", hour=8, minute=0)
-    # Task 2: Organize expired files (Every day at 01:00)
     scheduler.add_job(run_maintenance_task, "cron", hour=1, minute=0)
 
     try:
@@ -135,10 +131,9 @@ app = FastAPI(
 
 
 @app.middleware("http")
-async def check_startup_error(request: Request, call_next):
+async def check_startup_error(request: Request, call_next: Callable[[Request], Any]) -> Any:
     """Middleware to return 503 if app failed to start (e.g. DB Locked)."""
     if hasattr(request.app.state, "startup_error") and request.app.state.startup_error:
-        # Allow health check to bypass error reporting
         if request.url.path == "/api/v1/health":
             return await call_next(request)
 
@@ -147,7 +142,7 @@ async def check_startup_error(request: Request, call_next):
 
 
 @app.get("/api/v1/health", tags=["Health"])
-async def health_check(request: Request):
+async def health_check(request: Request) -> Any:
     """Simple health check endpoint."""
     if hasattr(request.app.state, "startup_error") and request.app.state.startup_error:
         return JSONResponse(
@@ -157,12 +152,11 @@ async def health_check(request: Request):
     return {"status": "ok"}
 
 
-# Include API routers (Unified through api_router)
+# Include API routers
 app.include_router(api_router.router, prefix="/api/v1")
 
 # Initialize Sentry
 init_sentry_fastapi()
 
 if __name__ == "__main__":
-    # SECURITY: Bind only to localhost to prevent network access
     uvicorn.run(app, host="127.0.0.1", port=8000)

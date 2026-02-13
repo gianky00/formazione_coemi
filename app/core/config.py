@@ -251,6 +251,10 @@ class SettingsManager:
         return bool(self.mutable.get("VOICE_ASSISTANT_ENABLED", True))
 
     @property
+    def GEOLITE_DB_PATH(self) -> str | None:
+        return self._get_config_value("GEOLITE_DB_PATH", None)
+
+    @property
     def SMTP_HOST(self) -> str:  # NOSONAR
         return str(self.mutable.get("SMTP_HOST"))
 
