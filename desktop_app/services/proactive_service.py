@@ -2,9 +2,10 @@
 Proactive Notification Service for Intelleo.
 Analyzes data and provides intelligent suggestions and alerts.
 """
+
 import threading
-from datetime import datetime, timedelta
 from collections import defaultdict
+from datetime import datetime
 
 
 class ProactiveService:
@@ -29,10 +30,13 @@ class ProactiveService:
         try:
             # Small delay to let dashboard load
             import time
+
             time.sleep(2)
 
             # Fetch data
-            certificates = self.controller.api_client.get("certificati", params={"validated": "true"})
+            certificates = self.controller.api_client.get(
+                "certificati", params={"validated": "true"}
+            )
             pending = self.controller.api_client.get("certificati", params={"validated": "false"})
             dipendenti = self.controller.api_client.get_dipendenti_list()
 
@@ -54,7 +58,7 @@ class ProactiveService:
         today = datetime.now().date()
         expired = []
         expiring_soon = []  # Within 30 days
-        expiring_60 = []    # Within 60 days
+        expiring_60 = []  # Within 60 days
 
         for cert in certificates:
             scadenza = cert.get("data_scadenza")
@@ -69,7 +73,7 @@ class ProactiveService:
                     "corso": cert.get("corso"),
                     "categoria": cert.get("categoria"),
                     "days_left": days_left,
-                    "scadenza": scadenza
+                    "scadenza": scadenza,
                 }
 
                 if days_left < 0:
@@ -89,7 +93,7 @@ class ProactiveService:
                 self._format_cert_list(expired[:3], len(expired)),
                 lambda: self._go_to_tab(3),  # Scadenzario
                 category="certificates",
-                action_label="Vai a Scadenzario"
+                action_label="Vai a Scadenzario",
             )
 
         if expiring_soon:
@@ -99,7 +103,7 @@ class ProactiveService:
                 self._format_cert_list(expiring_soon[:3], len(expiring_soon)),
                 lambda: self._go_to_tab(3),
                 category="certificates",
-                action_label="Vai a Scadenzario"
+                action_label="Vai a Scadenzario",
             )
 
         if expiring_60 and not expiring_soon:
@@ -109,7 +113,7 @@ class ProactiveService:
                 "Pianifica il rinnovo per tempo.",
                 lambda: self._go_to_tab(3),
                 category="certificates",
-                action_label="Vai a Scadenzario"
+                action_label="Vai a Scadenzario",
             )
 
     def _analyze_pending_validations(self, pending):
@@ -131,7 +135,7 @@ class ProactiveService:
                     "Sono presenti molti certificati in attesa di convalida.",
                     lambda: self._go_to_tab(1),  # Convalida
                     category="certificates",
-                    action_label="Vai a Convalida"
+                    action_label="Vai a Convalida",
                 )
             else:
                 self._notify_on_main_thread(
@@ -140,7 +144,7 @@ class ProactiveService:
                     "Clicca per visualizzare e convalidare.",
                     lambda: self._go_to_tab(1),
                     category="certificates",
-                    action_label="Vai a Convalida"
+                    action_label="Vai a Convalida",
                 )
 
         # Notify about orphan certificates separately
@@ -152,7 +156,7 @@ class ProactiveService:
                 "Certificati non associati a nessun dipendente. Verificare le anagrafiche.",
                 lambda: self._go_to_tab(1),
                 category="certificates",
-                action_label="Vai a Convalida"
+                action_label="Vai a Convalida",
             )
 
     def _analyze_incomplete_employees(self, dipendenti):
@@ -169,17 +173,16 @@ class ProactiveService:
                 missing.append("mansione")
 
             if missing:
-                incomplete.append({
-                    "nome": f"{dip.get('cognome', '')} {dip.get('nome', '')}",
-                    "missing": missing
-                })
+                incomplete.append(
+                    {"nome": f"{dip.get('cognome', '')} {dip.get('nome', '')}", "missing": missing}
+                )
 
         if incomplete:
             self._notify_on_main_thread(
                 "warning",
                 f"{len(incomplete)} Dipendenti Incompleti",
                 f"Dati mancanti: {', '.join(incomplete[0]['missing'][:2])}...",
-                lambda: self._go_to_tab(4)  # Dipendenti
+                lambda: self._go_to_tab(4),  # Dipendenti
             )
 
     def _analyze_training_groups(self, certificates):
@@ -200,12 +203,14 @@ class ProactiveService:
                     categoria = cert.get("categoria", "ALTRO")
                     corso = cert.get("corso", "")
                     key = f"{categoria}"
-                    groups[key].append({
-                        "nome": cert.get("nome"),
-                        "corso": corso,
-                        "scadenza": scadenza,
-                        "days_left": days_left
-                    })
+                    groups[key].append(
+                        {
+                            "nome": cert.get("nome"),
+                            "corso": corso,
+                            "scadenza": scadenza,
+                            "days_left": days_left,
+                        }
+                    )
             except:
                 continue
 
@@ -220,7 +225,7 @@ class ProactiveService:
                 "info",
                 f"Suggerimento: Corso {cat}",
                 f"{len(emps)} dipendenti in scadenza. Considera formazione di gruppo!",
-                lambda: self._show_training_plan(cat, emps)
+                lambda: self._show_training_plan(cat, emps),
             )
 
     def _suggest_maintenance(self):
@@ -231,7 +236,7 @@ class ProactiveService:
             "Suggerimento",
             "Ricorda di eseguire backup periodici del database.",
             lambda: self._go_to_tab(6),  # Configurazione
-            duration=4000
+            duration=4000,
         )
 
     def _format_cert_list(self, certs, total):
@@ -243,9 +248,18 @@ class ProactiveService:
             lines.append(f"... e altri {total - len(certs)}")
         return "\n".join(lines)
 
-    def _notify_on_main_thread(self, toast_type, title, message, on_click=None, duration=6000,
-                                category=None, action_label=None):
+    def _notify_on_main_thread(
+        self,
+        toast_type,
+        title,
+        message,
+        on_click=None,
+        duration=6000,
+        category=None,
+        action_label=None,
+    ):
         """Schedule notification on main thread and add to notification center."""
+
         def notify():
             # Show toast
             if toast_type == "error":
@@ -261,7 +275,9 @@ class ProactiveService:
 
             # Add to notification center (without showing toast again)
             if self.notification_center:
-                priority = {"error": 3, "warning": 2, "alert": 1, "info": 0, "success": 0}.get(toast_type, 0)
+                priority = {"error": 3, "warning": 2, "alert": 1, "info": 0, "success": 0}.get(
+                    toast_type, 0
+                )
                 self.notification_center.add(
                     title=title,
                     message=message,
@@ -270,7 +286,7 @@ class ProactiveService:
                     action_label=action_label or "Vai",
                     category=category,
                     priority=priority,
-                    show_toast=False  # Already shown above
+                    show_toast=False,  # Already shown above
                 )
 
         self.controller.root.after(100, notify)
@@ -278,14 +294,14 @@ class ProactiveService:
     def _go_to_tab(self, tab_index):
         """Navigate to a specific tab."""
         try:
-            if hasattr(self.controller.current_view, 'notebook'):
+            if hasattr(self.controller.current_view, "notebook"):
                 self.controller.current_view.notebook.select(tab_index)
         except:
             pass
 
     def _show_training_plan(self, categoria, employees):
         """Show a training plan suggestion dialog."""
-        from tkinter import Toplevel, Label, Frame, Button, Text, Scrollbar, END
+        from tkinter import END, Button, Frame, Label, Scrollbar, Text, Toplevel
 
         dialog = Toplevel(self.controller.root)
         dialog.title(f"Piano Formazione: {categoria}")
@@ -297,15 +313,24 @@ class ProactiveService:
         header = Frame(dialog, bg="#1E3A8A", height=50)
         header.pack(fill="x")
         header.pack_propagate(False)
-        Label(header, text=f"Piano Formazione - {categoria}",
-              font=("Segoe UI", 12, "bold"), bg="#1E3A8A", fg="white").pack(pady=12)
+        Label(
+            header,
+            text=f"Piano Formazione - {categoria}",
+            font=("Segoe UI", 12, "bold"),
+            bg="#1E3A8A",
+            fg="white",
+        ).pack(pady=12)
 
         # Content
         content = Frame(dialog, padx=20, pady=15)
         content.pack(fill="both", expand=True)
 
-        Label(content, text=f"Dipendenti con {categoria} in scadenza nei prossimi 90 giorni:",
-              font=("Segoe UI", 10, "bold"), anchor="w").pack(fill="x", pady=(0, 10))
+        Label(
+            content,
+            text=f"Dipendenti con {categoria} in scadenza nei prossimi 90 giorni:",
+            font=("Segoe UI", 10, "bold"),
+            anchor="w",
+        ).pack(fill="x", pady=(0, 10))
 
         # Employee list
         text_frame = Frame(content)
@@ -319,10 +344,10 @@ class ProactiveService:
         scrollbar.config(command=text.yview)
 
         # Sort by expiry
-        sorted_emps = sorted(employees, key=lambda x: x['days_left'])
+        sorted_emps = sorted(employees, key=lambda x: x["days_left"])
 
         for emp in sorted_emps:
-            days = emp['days_left']
+            days = emp["days_left"]
             status = "SCADUTO" if days < 0 else f"{days} giorni"
             text.insert(END, f"• {emp['nome']}\n")
             text.insert(END, f"  Corso: {emp['corso']}\n")
@@ -331,12 +356,22 @@ class ProactiveService:
         text.config(state="disabled")
 
         # Suggestion
-        Label(content, text=f"Suggerimento: Organizza un corso di gruppo per {len(employees)} persone.",
-              font=("Segoe UI", 9, "italic"), fg="#059669").pack(fill="x", pady=10)
+        Label(
+            content,
+            text=f"Suggerimento: Organizza un corso di gruppo per {len(employees)} persone.",
+            font=("Segoe UI", 9, "italic"),
+            fg="#059669",
+        ).pack(fill="x", pady=10)
 
         # Close button
-        Button(content, text="Chiudi", command=dialog.destroy,
-               bg="#3B82F6", fg="white", font=("Segoe UI", 10)).pack(pady=10)
+        Button(
+            content,
+            text="Chiudi",
+            command=dialog.destroy,
+            bg="#3B82F6",
+            fg="white",
+            font=("Segoe UI", 10),
+        ).pack(pady=10)
 
     def notify_sync_complete(self, success=True, message=""):
         """Notify when sync is complete."""
@@ -345,14 +380,14 @@ class ProactiveService:
                 "success",
                 "Sincronizzazione Completata",
                 message or "I file sono stati sincronizzati correttamente.",
-                duration=4000
+                duration=4000,
             )
         else:
             self._notify_on_main_thread(
                 "error",
                 "Sincronizzazione Fallita",
                 message or "Si è verificato un errore durante la sincronizzazione.",
-                duration=6000
+                duration=6000,
             )
 
     def notify_action_required(self, title, message, action=None):

@@ -1,10 +1,14 @@
-from sqlalchemy.orm import Session
-from sqlalchemy import or_
-from app.db.models import Dipendente
-from typing import Optional
 from datetime import date
 
-def find_employee_by_name(db: Session, raw_name: str, data_nascita: Optional[date] = None) -> Optional[Dipendente]:
+from sqlalchemy import or_
+from sqlalchemy.orm import Session
+
+from app.db.models import Dipendente
+
+
+def find_employee_by_name(
+    db: Session, raw_name: str, data_nascita: date | None = None
+) -> Dipendente | None:
     """
     Tenta di trovare un dipendente nel database basandosi su una stringa di nome grezzo.
     Cerca combinazioni Nome Cognome e Cognome Nome.
@@ -31,13 +35,9 @@ def find_employee_by_name(db: Session, raw_name: str, data_nascita: Optional[dat
         part2 = " ".join(nome_parts[i:])
 
         # Matches Nome=part1 AND Cognome=part2
-        conditions.append(
-            (Dipendente.nome.ilike(part1)) & (Dipendente.cognome.ilike(part2))
-        )
+        conditions.append((Dipendente.nome.ilike(part1)) & (Dipendente.cognome.ilike(part2)))
         # Matches Nome=part2 AND Cognome=part1
-        conditions.append(
-            (Dipendente.nome.ilike(part2)) & (Dipendente.cognome.ilike(part1))
-        )
+        conditions.append((Dipendente.nome.ilike(part2)) & (Dipendente.cognome.ilike(part1)))
 
     if not conditions:
         return None

@@ -1,12 +1,15 @@
-import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
 import os
 import shutil
+import tkinter as tk
+from tkinter import filedialog, messagebox
+
 import requests
-from desktop_app.utils import TaskRunner, ProgressTaskRunner
+
 from app.core.config import settings
 from app.services.document_locator import construct_certificate_path
 from app.services.sync_service import get_unique_filename
+from desktop_app.utils import ProgressTaskRunner, TaskRunner
+
 
 class ImportView(tk.Frame):
     def __init__(self, parent, controller):
@@ -14,41 +17,78 @@ class ImportView(tk.Frame):
         self.controller = controller
         self.configure(bg="#F3F4F6")
         self.log_text = None
-        
+
         self.setup_ui()
 
     def setup_ui(self):
         # Header
-        lbl = tk.Label(self, text="Importazione e Analisi Documenti", bg="#F3F4F6", font=("Segoe UI", 14, "bold"))
+        lbl = tk.Label(
+            self,
+            text="Importazione e Analisi Documenti",
+            bg="#F3F4F6",
+            font=("Segoe UI", 14, "bold"),
+        )
         lbl.pack(pady=20)
-        
+
         # Controls Frame
         controls = tk.Frame(self, bg="#F3F4F6")
         controls.pack(pady=10)
-        
-        btn_file = tk.Button(controls, text="📄 Seleziona File PDF", bg="white", command=self.select_file, padx=10, pady=5)
+
+        btn_file = tk.Button(
+            controls,
+            text="📄 Seleziona File PDF",
+            bg="white",
+            command=self.select_file,
+            padx=10,
+            pady=5,
+        )
         btn_file.pack(side="left", padx=10)
-        
-        btn_folder = tk.Button(controls, text="📂 Seleziona Cartella", bg="white", command=self.select_folder, padx=10, pady=5)
+
+        btn_folder = tk.Button(
+            controls,
+            text="📂 Seleziona Cartella",
+            bg="white",
+            command=self.select_folder,
+            padx=10,
+            pady=5,
+        )
         btn_folder.pack(side="left", padx=10)
-        
-        btn_csv = tk.Button(controls, text="👥 Importa Dipendenti (CSV)", bg="#3B82F6", fg="white", command=self.import_csv, padx=10, pady=5)
+
+        btn_csv = tk.Button(
+            controls,
+            text="👥 Importa Dipendenti (CSV)",
+            bg="#3B82F6",
+            fg="white",
+            command=self.import_csv,
+            padx=10,
+            pady=5,
+        )
         btn_csv.pack(side="left", padx=10)
 
         # Log Area
         lbl_log = tk.Label(self, text="Log Operazioni:", bg="#F3F4F6", anchor="w")
         lbl_log.pack(fill="x", padx=20, pady=(20, 0))
 
-        self.log_text = tk.Text(self, height=15, state="disabled", font=("Consolas", 9), bg="#1e1e1e", fg="#d4d4d4")
+        self.log_text = tk.Text(
+            self, height=15, state="disabled", font=("Consolas", 9), bg="#1e1e1e", fg="#d4d4d4"
+        )
         self.log_text.pack(fill="both", expand=True, padx=20, pady=5)
 
         # Configure log tags for colors
-        self.log_text.tag_configure("success", foreground="#4ade80", font=("Consolas", 9, "bold"))  # Green
-        self.log_text.tag_configure("error", foreground="#f87171", font=("Consolas", 9, "bold"))  # Red
-        self.log_text.tag_configure("warning", foreground="#fbbf24", font=("Consolas", 9, "bold"))  # Yellow/Orange
+        self.log_text.tag_configure(
+            "success", foreground="#4ade80", font=("Consolas", 9, "bold")
+        )  # Green
+        self.log_text.tag_configure(
+            "error", foreground="#f87171", font=("Consolas", 9, "bold")
+        )  # Red
+        self.log_text.tag_configure(
+            "warning", foreground="#fbbf24", font=("Consolas", 9, "bold")
+        )  # Yellow/Orange
         self.log_text.tag_configure("info", foreground="#60a5fa")  # Blue
         self.log_text.tag_configure("skip", foreground="#a78bfa")  # Purple
-        self.log_text.tag_configure("header", foreground="#22d3ee", font=("Consolas", 10, "bold"))  # Cyan
+        self.log_text.tag_configure(
+            "header", foreground="#22d3ee", font=("Consolas", 10, "bold")
+        )  # Cyan
 
         # Clear Log Button
         tk.Button(self, text="Pulisci Log", command=self.clear_log).pack(pady=10)
@@ -122,9 +162,7 @@ class ImportView(tk.Frame):
         self.log(f"Trovati {len(files)} file PDF da analizzare")
 
         runner = ProgressTaskRunner(
-            self,
-            "Analisi AI in corso",
-            f"Analisi di {len(files)} documenti..."
+            self, "Analisi AI in corso", f"Analisi di {len(files)} documenti..."
         )
 
         try:
@@ -133,14 +171,21 @@ class ImportView(tk.Frame):
             # Count results
             success = sum(1 for r in result.get("results", []) if r.get("success"))
             errors = len(result.get("errors", []))
-            skipped = sum(1 for r in result.get("results", []) if not r.get("success") and "409" in str(r.get("error", "")))
+            skipped = sum(
+                1
+                for r in result.get("results", [])
+                if not r.get("success") and "409" in str(r.get("error", ""))
+            )
 
-            self.log(f"--- ANALISI TERMINATA ---")
+            self.log("--- ANALISI TERMINATA ---")
             self.log(f"Successi: {success}")
             self.log(f"Saltati (già presenti): {skipped}")
             self.log(f"Errori: {errors - skipped}")
 
-            messagebox.showinfo("Completato", f"Analisi terminata.\n\nSuccessi: {success}\nSaltati: {skipped}\nErrori: {errors - skipped}")
+            messagebox.showinfo(
+                "Completato",
+                f"Analisi terminata.\n\nSuccessi: {success}\nSaltati: {skipped}\nErrori: {errors - skipped}",
+            )
 
         except Exception as e:
             self.log(f"Errore critico: {e}")
@@ -151,9 +196,14 @@ class ImportView(tk.Frame):
         try:
             # 1. Upload & Analyze
             url = f"{self.controller.api_client.base_url}/upload-pdf/"
-            with open(file_path, 'rb') as f:
-                files_dict = {'file': (os.path.basename(file_path), f, 'application/pdf')}
-                res = requests.post(url, files=files_dict, headers=self.controller.api_client._get_headers(), timeout=120)
+            with open(file_path, "rb") as f:
+                files_dict = {"file": (os.path.basename(file_path), f, "application/pdf")}
+                res = requests.post(
+                    url,
+                    files=files_dict,
+                    headers=self.controller.api_client._get_headers(),
+                    timeout=120,
+                )
                 res.raise_for_status()
 
             data = res.json()
@@ -165,11 +215,13 @@ class ImportView(tk.Frame):
                 "corso": entities.get("corso"),
                 "categoria": entities.get("categoria"),
                 "data_rilascio": entities.get("data_rilascio"),
-                "data_scadenza": entities.get("data_scadenza")
+                "data_scadenza": entities.get("data_scadenza"),
             }
 
             create_url = f"{self.controller.api_client.base_url}/certificati/"
-            create_res = requests.post(create_url, json=payload, headers=self.controller.api_client._get_headers())
+            create_res = requests.post(
+                create_url, json=payload, headers=self.controller.api_client._get_headers()
+            )
             create_res.raise_for_status()
 
             # Copy file to database structure
@@ -181,7 +233,7 @@ class ImportView(tk.Frame):
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 409:
                 self.log(f"SKIP: {os.path.basename(file_path)} -> Già presente.")
-                raise Exception(f"409: Già presente")
+                raise Exception("409: Già presente")
             else:
                 self.log(f"ERRORE HTTP: {os.path.basename(file_path)} -> {e}")
                 raise
@@ -201,9 +253,9 @@ class ImportView(tk.Frame):
         try:
             from datetime import datetime
 
-            nome = entities.get('nome') or 'SCONOSCIUTO'
-            categoria = entities.get('categoria') or 'ALTRO'
-            data_scadenza = entities.get('data_scadenza')
+            nome = entities.get("nome") or "SCONOSCIUTO"
+            categoria = entities.get("categoria") or "ALTRO"
+            data_scadenza = entities.get("data_scadenza")
 
             # Try to find the employee in DB to get matricola
             matricola = None
@@ -212,7 +264,7 @@ class ImportView(tk.Frame):
                 for dip in dipendenti:
                     dip_nome = f"{dip.get('cognome', '')} {dip.get('nome', '')}".strip().upper()
                     if nome.upper() == dip_nome:
-                        matricola = dip.get('matricola')
+                        matricola = dip.get("matricola")
                         break
             except Exception:
                 pass  # If we can't fetch, use None
@@ -239,10 +291,10 @@ class ImportView(tk.Frame):
 
             # Build cert_data for path construction
             cert_data = {
-                'nome': nome,
-                'matricola': matricola,
-                'categoria': categoria,
-                'data_scadenza': data_scadenza
+                "nome": nome,
+                "matricola": matricola,
+                "categoria": categoria,
+                "data_scadenza": data_scadenza,
             }
 
             # Construct destination path with correct status
@@ -270,7 +322,9 @@ class ImportView(tk.Frame):
         def sync_task():
             try:
                 sync_url = f"{self.controller.api_client.base_url}/system/maintenance/background"
-                sync_res = requests.post(sync_url, headers=self.controller.api_client._get_headers(), timeout=300)
+                sync_res = requests.post(
+                    sync_url, headers=self.controller.api_client._get_headers(), timeout=300
+                )
 
                 # Schedule UI update on main thread
                 if sync_res.ok:
@@ -279,7 +333,7 @@ class ImportView(tk.Frame):
                     self.after(0, lambda: self._on_sync_complete(True, message))
                 else:
                     self.after(0, lambda: self._on_sync_complete(False, sync_res.text))
-            except Exception as e:
+            except Exception:
                 self.after(0, lambda: self._on_sync_complete(False, str(e)))
 
         thread = threading.Thread(target=sync_task, daemon=True)
@@ -289,21 +343,21 @@ class ImportView(tk.Frame):
         """Handle sync completion with toast notification."""
         if success:
             self.log(f"OK: Sincronizzazione completata - {message}")
-            if hasattr(self.controller, 'show_toast'):
+            if hasattr(self.controller, "show_toast"):
                 self.controller.show_toast(
                     "Sincronizzazione Completata",
                     message or "I file sono stati sincronizzati correttamente.",
                     "success",
-                    5000
+                    5000,
                 )
         else:
             self.log(f"ERRORE: Sincronizzazione fallita - {message}")
-            if hasattr(self.controller, 'show_toast'):
+            if hasattr(self.controller, "show_toast"):
                 self.controller.show_toast(
                     "Sincronizzazione Fallita",
                     message or "Si è verificato un errore durante la sincronizzazione.",
                     "error",
-                    8000
+                    8000,
                 )
 
     def import_csv(self):
@@ -318,7 +372,10 @@ class ImportView(tk.Frame):
                 self.log("Sincronizzazione file PDF in corso...")
                 self._run_sync_with_notification()
 
-                messagebox.showinfo("Successo", "Importazione CSV completata.\nI file PDF verranno sincronizzati automaticamente.")
+                messagebox.showinfo(
+                    "Successo",
+                    "Importazione CSV completata.\nI file PDF verranno sincronizzati automaticamente.",
+                )
             except Exception as e:
                 self.log(f"Errore CSV: {e}")
                 messagebox.showerror("Errore", str(e))

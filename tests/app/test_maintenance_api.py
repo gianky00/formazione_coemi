@@ -1,9 +1,9 @@
-import pytest
 from fastapi.testclient import TestClient
-from app.main import app
+from sqlalchemy.orm import Session
+
 from app.core import security
 from app.db.models import User
-from sqlalchemy.orm import Session
+
 
 def test_trigger_maintenance_endpoint(test_client: TestClient, db_session: Session, mocker):
     # Mock organize_expired_files to avoid actual file system ops and verify call

@@ -1,6 +1,9 @@
 import os
+
 import requests
+
 from desktop_app.utils import get_device_id
+
 
 class APIClient:
     def __init__(self):
@@ -23,7 +26,7 @@ class APIClient:
             "read_only": token_data.get("read_only", False),
             "lock_owner": token_data.get("lock_owner"),
             "previous_login": token_data.get("previous_login"),
-            "require_password_change": token_data.get("require_password_change", False)
+            "require_password_change": token_data.get("require_password_change", False),
         }
 
     def clear_token(self):
@@ -41,6 +44,7 @@ class APIClient:
             except requests.exceptions.RequestException as e:
                 # Log network errors but don't block logout - user must be able to exit
                 import logging
+
                 logging.getLogger(__name__).warning(f"Logout request failed (non-blocking): {e}")
         self.clear_token()
 
@@ -54,6 +58,7 @@ class APIClient:
         except Exception as e:
             # Device ID is optional - log but don't fail
             import logging
+
             logging.getLogger(__name__).debug(f"Could not get device ID (non-critical): {e}")
 
         return headers
@@ -63,8 +68,8 @@ class APIClient:
         Performs a generic GET request to a given endpoint.
         """
         # Ensure endpoint starts with a slash
-        if not endpoint.startswith('/'):
-            endpoint = f'/{endpoint}'
+        if not endpoint.startswith("/"):
+            endpoint = f"/{endpoint}"
 
         url = f"{self.base_url}{endpoint}"
 
@@ -104,10 +109,7 @@ class APIClient:
         Sends a message to the Chatbot.
         """
         url = f"{self.base_url}/chat/"
-        payload = {
-            "message": message,
-            "history": history or []
-        }
+        payload = {"message": message, "history": history or []}
         response = requests.post(url, json=payload, headers=self._get_headers(), timeout=30)
         response.raise_for_status()
         return response.json()
@@ -184,16 +186,18 @@ class APIClient:
         Uploads a CSV file to import employee data.
         Bug 4 Fix: Check size before loading to avoid Memory Bomb.
         """
-        MAX_CSV_SIZE = 5 * 1024 * 1024 # 5MB limit matching backend
+        MAX_CSV_SIZE = 5 * 1024 * 1024  # 5MB limit matching backend
 
         if os.path.getsize(file_path) > MAX_CSV_SIZE:
-             raise ValueError(f"Il file supera il limite massimo di {MAX_CSV_SIZE // (1024*1024)}MB.")
+            raise ValueError(
+                f"Il file supera il limite massimo di {MAX_CSV_SIZE // (1024 * 1024)}MB."
+            )
 
         url = f"{self.base_url}/dipendenti/import-csv"
         # Streaming upload is automatic with open() file object in requests
         # Increased timeout to 300s (5 min) for large files
-        with open(file_path, 'rb') as f:
-            files = {'file': (os.path.basename(file_path), f, 'text/csv')}
+        with open(file_path, "rb") as f:
+            files = {"file": (os.path.basename(file_path), f, "text/csv")}
             response = requests.post(url, files=files, headers=self._get_headers(), timeout=300)
         response.raise_for_status()
         return response.json()
@@ -213,7 +217,7 @@ class APIClient:
             "password": password,
             "account_name": account_name,
             "is_admin": is_admin,
-            "gender": gender
+            "gender": gender,
         }
         response = requests.post(url, json=payload, headers=self._get_headers(), timeout=10)
         response.raise_for_status()
@@ -271,7 +275,16 @@ class APIClient:
         response.raise_for_status()
         return response.json()
 
-    def get_audit_logs(self, skip=0, limit=100, user_id=None, category=None, search=None, start_date=None, end_date=None):
+    def get_audit_logs(
+        self,
+        skip=0,
+        limit=100,
+        user_id=None,
+        category=None,
+        search=None,
+        start_date=None,
+        end_date=None,
+    ):
         url = f"{self.base_url}/audit/"
         params = {"skip": skip, "limit": limit}
         if user_id:
@@ -282,9 +295,13 @@ class APIClient:
             params["search"] = search
         if start_date:
             # Assuming start_date is a datetime or date object, or ISO string
-            params["start_date"] = start_date.isoformat() if hasattr(start_date, 'isoformat') else start_date
+            params["start_date"] = (
+                start_date.isoformat() if hasattr(start_date, "isoformat") else start_date
+            )
         if end_date:
-            params["end_date"] = end_date.isoformat() if hasattr(end_date, 'isoformat') else end_date
+            params["end_date"] = (
+                end_date.isoformat() if hasattr(end_date, "isoformat") else end_date
+            )
 
         response = requests.get(url, params=params, headers=self._get_headers(), timeout=10)
         response.raise_for_status()
@@ -297,7 +314,7 @@ class APIClient:
             "details": details,
             "category": category,
             "changes": changes,
-            "severity": severity
+            "severity": severity,
         }
         # Short timeout for audit logs as they are fire-and-forget-ish from UI perspective
         response = requests.post(url, json=payload, headers=self._get_headers(), timeout=5)
@@ -317,6 +334,8 @@ class APIClient:
     def toggle_db_security(self, locked: bool):
         url = f"{self.base_url}/config/db-security/toggle"
         payload = {"locked": locked}
-        response = requests.post(url, json=payload, headers=self._get_headers(), timeout=120) # Encryption might take time
+        response = requests.post(
+            url, json=payload, headers=self._get_headers(), timeout=120
+        )  # Encryption might take time
         response.raise_for_status()
         return response.json()

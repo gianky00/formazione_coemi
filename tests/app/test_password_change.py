@@ -1,10 +1,12 @@
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+
+from app.api import deps
 from app.core import security
 from app.db.models import User
-from app.api import deps
 from app.main import app
+
 
 @pytest.fixture
 def enable_real_auth():
@@ -15,6 +17,7 @@ def enable_real_auth():
     yield
     # Restore
     app.dependency_overrides = original_overrides
+
 
 def test_change_own_password(test_client: TestClient, db_session: Session, enable_real_auth):
     # 1. Setup User
@@ -34,10 +37,7 @@ def test_change_own_password(test_client: TestClient, db_session: Session, enabl
     headers = {"Authorization": f"Bearer {token}"}
 
     # 3. Change Password (Success)
-    payload = {
-        "old_password": old_password,
-        "new_password": new_password
-    }
+    payload = {"old_password": old_password, "new_password": new_password}
     response = test_client.post("/auth/change-password", json=payload, headers=headers)
     assert response.status_code == 200
     assert response.json()["message"] == "Password aggiornata con successo"
@@ -55,6 +55,7 @@ def test_change_own_password(test_client: TestClient, db_session: Session, enabl
     response = test_client.post("/auth/login", data=login_data_new)
     assert response.status_code == 200
 
+
 def test_change_password_wrong_old(test_client: TestClient, db_session: Session, enable_real_auth):
     # 1. Setup User
     username = "pwfailuser"
@@ -70,10 +71,7 @@ def test_change_password_wrong_old(test_client: TestClient, db_session: Session,
     headers = {"Authorization": f"Bearer {token}"}
 
     # 3. Change Password (Fail)
-    payload = {
-        "old_password": "wrongpassword",
-        "new_password": "newpassword"
-    }
+    payload = {"old_password": "wrongpassword", "new_password": "newpassword"}
     response = test_client.post("/auth/change-password", json=payload, headers=headers)
     assert response.status_code == 400
     assert "password attuale non è corretta" in response.json()["detail"]

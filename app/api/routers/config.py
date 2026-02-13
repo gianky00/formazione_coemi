@@ -1,60 +1,73 @@
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
 from app.api import deps
 from app.core.db_security import db_security
-from app.utils.audit import log_security_action
 from app.db.session import get_db
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from app.utils.audit import log_security_action
 
 router = APIRouter()
 
-import shutil
 from pathlib import Path
+
 
 class SecurityModeSchema(BaseModel):
     locked: bool
 
+
 class MoveDatabaseSchema(BaseModel):
     new_path: str
+
 
 @router.post("/move-database", dependencies=[Depends(deps.check_write_permission)])
 def move_database(
     payload: MoveDatabaseSchema,
     db: Session = Depends(get_db),
-    current_user: deps.User = Depends(deps.get_current_active_admin)
+    current_user: deps.User = Depends(deps.get_current_active_admin),
 ):
     """
     Moves the database file to a new user-specified path.
     """
     new_path = Path(payload.new_path)
     # Allow directory OR .db file path
-    is_valid = new_path.is_dir() or (new_path.parent.is_dir() and new_path.suffix.lower() == '.db')
+    is_valid = new_path.is_dir() or (new_path.parent.is_dir() and new_path.suffix.lower() == ".db")
 
     if not is_valid:
-        raise HTTPException(status_code=400, detail="Il percorso specificato non è valido. Seleziona una cartella o un file .db.")
+        raise HTTPException(
+            status_code=400,
+            detail="Il percorso specificato non è valido. Seleziona una cartella o un file .db.",
+        )
 
     try:
         db_security.move_database(new_path)
-        log_security_action(db, current_user, "MOVE_DATABASE", f"Database moved to: {new_path}", category="SYSTEM", severity="CRITICAL")
+        log_security_action(
+            db,
+            current_user,
+            "MOVE_DATABASE",
+            f"Database moved to: {new_path}",
+            category="SYSTEM",
+            severity="CRITICAL",
+        )
         return {"message": "Database spostato con successo."}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Impossibile spostare il database: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Impossibile spostare il database: {e!s}")
+
 
 @router.get("/db-security/status")
-def get_security_status(
-    current_user: deps.User = Depends(deps.get_current_active_admin)
-):
+def get_security_status(current_user: deps.User = Depends(deps.get_current_active_admin)):
     """
     Returns the current security status of the database (Locked/Encrypted or Unlocked/Plain).
     Only accessible by Admins.
     """
     return {"locked": db_security.is_locked_mode}
 
+
 @router.post("/db-security/toggle", dependencies=[Depends(deps.check_write_permission)])
 def toggle_security_mode(
     payload: SecurityModeSchema,
     db: Session = Depends(get_db),
-    current_user: deps.User = Depends(deps.get_current_active_admin)
+    current_user: deps.User = Depends(deps.get_current_active_admin),
 ):
     """
     Toggles the database security mode.
@@ -65,9 +78,19 @@ def toggle_security_mode(
     try:
         db_security.toggle_security_mode(payload.locked)
         action = "LOCK_DB" if payload.locked else "UNLOCK_DB"
-        log_security_action(db, current_user, action, f"Database security mode changed to: {'LOCKED' if payload.locked else 'UNLOCKED'}", category="SYSTEM", severity="CRITICAL")
-        return {"locked": db_security.is_locked_mode, "message": "Security mode updated successfully."}
+        log_security_action(
+            db,
+            current_user,
+            action,
+            f"Database security mode changed to: {'LOCKED' if payload.locked else 'UNLOCKED'}",
+            category="SYSTEM",
+            severity="CRITICAL",
+        )
+        return {
+            "locked": db_security.is_locked_mode,
+            "message": "Security mode updated successfully.",
+        }
     except Exception as e:
         # Log the error locally too
         print(f"Error toggling DB security: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to toggle security mode: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to toggle security mode: {e!s}")

@@ -1,6 +1,7 @@
 from datetime import date
-from app.db.models import Dipendente, Certificato, Corso
-from app.schemas.schemas import CertificatoSchema
+
+from app.db.models import Certificato, Corso, Dipendente
+
 
 def test_update_certificato_homonym_linking(test_client, db_session):
     # 1. Setup Employees (Homonyms)
@@ -20,7 +21,7 @@ def test_update_certificato_homonym_linking(test_client, db_session):
         data_nascita_raw="01/01/1980",
         corso_id=course.id,
         data_rilascio=date(2023, 1, 1),
-        dipendente_id=None # Orphan
+        dipendente_id=None,  # Orphan
     )
     db_session.add(cert)
     db_session.commit()
@@ -39,11 +40,12 @@ def test_update_certificato_homonym_linking(test_client, db_session):
 
     # Assert it linked to emp1 (Born 1980)
     assert data["matricola"] == "001"
-    assert data["nome"] == "Rossi Mario" # or "Mario Rossi" depending on schema format
+    assert data["nome"] == "Rossi Mario"  # or "Mario Rossi" depending on schema format
 
     # Double check via DB
     db_session.refresh(cert)
     assert cert.dipendente_id == emp1.id
+
 
 def test_update_certificato_data_nascita(test_client, db_session):
     # 1. Setup
@@ -56,7 +58,7 @@ def test_update_certificato_data_nascita(test_client, db_session):
         data_nascita_raw="01/01/2000",
         corso_id=course.id,
         data_rilascio=date(2023, 1, 1),
-        dipendente_id=None
+        dipendente_id=None,
     )
     db_session.add(cert)
     db_session.commit()

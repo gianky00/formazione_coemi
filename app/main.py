@@ -1,30 +1,27 @@
-import uvicorn
-import google.generativeai as genai
+import base64
+import logging
+import os
 from contextlib import asynccontextmanager
+
+import google.generativeai as genai
+import sentry_sdk
+import uvicorn
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.starlette import StarletteIntegration
+
+from app import __version__
 from app.api import main as api_router
-from app.api.routers import notifications as notifications_router
-from app.api.routers import auth, users, audit, config, system, app_config, stats, chat
-from app.db.session import engine
-from app.db.models import Base
 from app.core.config import settings
 from app.core.db_security import db_security
 from app.db.seeding import seed_database
-from app.services.notification_service import check_and_send_alerts
-from app.services.file_maintenance import organize_expired_files
 from app.db.session import SessionLocal
+from app.services.file_maintenance import organize_expired_files
+from app.services.notification_service import check_and_send_alerts
 from app.utils.logging import setup_logging
-from datetime import datetime, timedelta
-from app import __version__
-import logging
-import sentry_sdk
-from sentry_sdk.integrations.fastapi import FastApiIntegration
-from sentry_sdk.integrations.starlette import StarletteIntegration
-import os
-import sys
-import base64
+
 
 # --- SENTRY INTEGRATION (Obfuscated DSN) ---
 def _get_sentry_dsn():
@@ -41,162 +38,130 @@ def _get_sentry_dsn():
     except Exception:
         return None
 
+
 def init_sentry_fastapi():
-    """Initialize Sentry for FastAPI with proper integrations."""
-    if sentry_sdk.is_initialized():
-        return
-    
-    environment = "production" if getattr(sys, 'frozen', False) else "development"
+    """Initialize Sentry for FastAPI."""
     dsn = os.environ.get("SENTRY_DSN") or _get_sentry_dsn()
-    
-    if not dsn:
-        return
-    
-    sentry_sdk.init(
-        dsn=dsn,
-        environment=environment,
-        release=f"intelleo@{__version__}",
-        traces_sample_rate=0.5,  # Performance optimization: 50% sampling
-        profiles_sample_rate=0.1,  # Profile 10% of transactions
-        send_default_pii=False,  # Privacy: don't send PII
-        attach_stacktrace=True,
-        integrations=[
-            FastApiIntegration(transaction_style="endpoint"),
-            StarletteIntegration(transaction_style="endpoint"),
-        ],
-        # Performance: ignore health checks
-        before_send_transaction=lambda event, hint: None if event.get("transaction") == "/api/v1/health" else event,
-    )
+    if dsn:
+        sentry_sdk.init(
+            dsn=dsn,
+            integrations=[
+                FastApiIntegration(),
+                StarletteIntegration(),
+            ],
+            traces_sample_rate=1.0,
+            profiles_sample_rate=1.0,
+            environment=os.environ.get("APP_ENV", "production"),
+            release=f"formazione-coemi@{__version__}",
+        )
 
-# Initialize Sentry early
-init_sentry_fastapi()
 
-# Configure logger
-logger = logging.getLogger(__name__)
-
-scheduler = AsyncIOScheduler()
-
+# --- BACKGROUND TASKS ---
 def run_maintenance_task():
-    """Background task for file maintenance."""
+    """Background task to organize expired files."""
+    logging.info("Starting background file maintenance...")
+    db = SessionLocal()
     try:
-        # We don't acquire the global session lock because this task is read-only on DB
-        # and filesystem operations are safe enough.
-        print("Starting background file maintenance...")
-        db = SessionLocal()
-        try:
-            organize_expired_files(db)
-        finally:
-            db.close()
-        print("Background file maintenance completed.")
-    except Exception as e:
-        print(f"Error during background file maintenance: {e}")
+        organize_expired_files(db)
+    finally:
+        db.close()
+    logging.info("Background file maintenance completed.")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Lifecycle events for the FastAPI application."""
+    # --- Startup ---
     setup_logging()
-    """
-    Handle application startup and shutdown events.
-    """
-    app.state.startup_error = None
 
-    # Initialize DB Security (Load into RAM, Check Lock)
+    # Initialize Database Security & Memory DB
     try:
-        db_security.load_memory_db()
         # Note: engine is statically configured in session.py to use db_security.get_connection
+        db_security.load_memory_db()
     except PermissionError as e:
-        print(f"CRITICAL: {e}")
+        logging.error(f"CRITICAL: {e}")
         app.state.startup_error = str(e)
         yield
         return
     except Exception as e:
         # We Log but DO NOT BLOCK startup.
         # This allows the UI to launch and prompt the user to fix the DB.
-        print(f"WARNING: Database Load Error (Non-Fatal for UI): {e}")
-        # We do NOT set app.state.startup_error here to allow Login UI to load.
+        logging.warning(f"Database Load Error (Non-Fatal for UI): {e}")
 
-    # Startup
+    # Seed Database
+    db = SessionLocal()
     try:
-        # Attempt to create tables and seed.
-        # If this fails (e.g. corrupted DB), we catch it and continue so the UI can handle recovery.
+        seed_database(db)
+    finally:
+        db.close()
+
+    # Initialize AI (Gemini)
+    if settings.GEMINI_API_KEY_ANALYSIS:
         try:
-            Base.metadata.create_all(bind=engine)
-            seed_database()
-        except Exception as e:
-            logger.warning(f"Database Seeding/Migration failed: {e}. Proceeding in Recovery Mode.")
-            # Do NOT raise. Continue.
-
-        # EXPLICITLY REMOVED AUTO-CREATION logic per user request.
-        # The database file is created only via the "Create New Database" UI flow in launcher.py.
-        if not db_security.db_path.exists():
-            logger.warning(f"Database file not found at {db_security.db_path}. Waiting for UI recovery.")
-
-        # File Maintenance is now deferred to background task triggered by UI
-        # to prevent blocking startup.
-
-        if settings.GEMINI_API_KEY_ANALYSIS:
             genai.configure(api_key=settings.GEMINI_API_KEY_ANALYSIS)
+        except Exception as e:
+            logging.error(f"Failed to initialize Gemini AI: {e}")
 
-        # Schedule the daily alert job
-        scheduler.add_job(check_and_send_alerts, 'cron', hour=8, minute=0)
+    # Start Scheduler
+    scheduler = AsyncIOScheduler()
+    # Task 1: Check for expiring certificates and send email alerts (Every day at 08:00)
+    scheduler.add_job(check_and_send_alerts, "cron", hour=8, minute=0)
+    # Task 2: Organize expired files (Every day at 01:00)
+    scheduler.add_job(run_maintenance_task, "cron", hour=1, minute=0)
 
-        # DB Sync (Auto-save) is managed by db_security internal timer to avoid double-write conflicts
-
+    try:
         scheduler.start()
     except Exception as e:
-        print(f"STARTUP EXCEPTION (Handled): {e}")
-        # Only set startup_error for truly fatal things that prevent the API from even serving status
-        # For DB issues, we prefer to let the UI handle it.
+        logging.error(f"STARTUP EXCEPTION (Handled): {e}")
 
     yield
 
-    # Shutdown
-    if not hasattr(app.state, "startup_error") or not app.state.startup_error:
-        try:
+    # --- Shutdown ---
+    try:
+        if hasattr(scheduler, "shutdown"):
             scheduler.shutdown()
-        except Exception as e:
-            logger.warning(f"Error during scheduler shutdown: {e}")
-        # Save and Unlock
         db_security.cleanup()
+    except Exception as e:
+        logging.error(f"Shutdown error: {e}")
+
 
 app = FastAPI(
-    title="Intelleo",
-    description="API for the Intelleo desktop application.",
+    title="Formazione Coemi API",
     version=__version__,
-    lifespan=lifespan
+    lifespan=lifespan,
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
 )
+
 
 @app.middleware("http")
 async def check_startup_error(request: Request, call_next):
+    """Middleware to return 503 if app failed to start (e.g. DB Locked)."""
     if hasattr(request.app.state, "startup_error") and request.app.state.startup_error:
-        return JSONResponse(
-            status_code=503,
-            content={"detail": request.app.state.startup_error}
-        )
+        # Allow health check to bypass error reporting
+        if request.url.path == "/api/v1/health":
+            return await call_next(request)
+
+        return JSONResponse(status_code=503, content={"detail": request.app.state.startup_error})
     return await call_next(request)
+
 
 @app.get("/api/v1/health", tags=["Health"])
 async def health_check(request: Request):
-    """
-    Simple health check endpoint.
-    """
+    """Simple health check endpoint."""
     if hasattr(request.app.state, "startup_error") and request.app.state.startup_error:
-         return JSONResponse(
+        return JSONResponse(
             status_code=503,
-            content={"status": "error", "detail": request.app.state.startup_error}
+            content={"status": "error", "detail": request.app.state.startup_error},
         )
     return {"status": "ok"}
 
-# Include API routers
+
+# Include API routers (Unified through api_router)
 app.include_router(api_router.router, prefix="/api/v1")
-app.include_router(notifications_router.router, prefix="/api/v1/notifications", tags=["Notifications"])
-app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
-app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
-app.include_router(audit.router, prefix="/api/v1/audit", tags=["Audit"])
-app.include_router(config.router, prefix="/api/v1/config", tags=["Configuration"])
-app.include_router(system.router, prefix="/api/v1/system", tags=["System"])
-app.include_router(app_config.router, prefix="/api/v1/app_config", tags=["App Config"])
-app.include_router(stats.router, prefix="/api/v1/stats", tags=["Statistics"])
-app.include_router(chat.router, prefix="/api/v1/chat", tags=["Chat"])
+
+# Initialize Sentry
+init_sentry_fastapi()
 
 if __name__ == "__main__":
     # SECURITY: Bind only to localhost to prevent network access

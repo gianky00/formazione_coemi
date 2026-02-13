@@ -1,6 +1,7 @@
-import pytest
-from app.db.models import Dipendente
 from datetime import date
+
+from app.db.models import Dipendente
+
 
 def test_csv_import_flexible_dates(test_client, db_session):
     # CSV with mixed date formats
@@ -8,8 +9,7 @@ def test_csv_import_flexible_dates(test_client, db_session):
     content = "Cognome;Nome;Data_nascita;Badge;Data_assunzione\nRossi;Mario;1980-01-01;123;01/02/2020\nVerdi;Luigi;01-01-1990;456;2021/03/01"
 
     response = test_client.post(
-        "/dipendenti/import-csv",
-        files={"file": ("dates.csv", content, "text/csv")}
+        "/dipendenti/import-csv", files={"file": ("dates.csv", content, "text/csv")}
     )
     assert response.status_code == 200
 

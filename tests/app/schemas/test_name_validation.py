@@ -1,6 +1,8 @@
 import pytest
-from app.schemas.schemas import DipendenteCreateSchema
 from pydantic import ValidationError
+
+from app.schemas.schemas import DipendenteCreateSchema
+
 
 def test_name_validation():
     # Valid

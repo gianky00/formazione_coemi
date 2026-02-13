@@ -1,7 +1,8 @@
 import os
-import geoip2.database
-from typing import Optional
 import threading
+
+import geoip2.database
+
 
 class GeoLocationService:
     _reader = None
@@ -14,13 +15,14 @@ class GeoLocationService:
             return cls._reader
 
         with cls._lock:
-            if cls._reader: return cls._reader
+            if cls._reader:
+                return cls._reader
 
             paths = [
                 cls._db_path,
                 os.path.join("app", "assets", cls._db_path),
                 # Fallback for frozen/different cwd
-                os.path.join(os.path.dirname(__file__), "..", "assets", cls._db_path)
+                os.path.join(os.path.dirname(__file__), "..", "assets", cls._db_path),
             ]
 
             for path in paths:

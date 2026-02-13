@@ -1,7 +1,7 @@
-import pytest
-from unittest.mock import patch, MagicMock
-import threading
-from app.services.notification_service import check_and_send_alerts, _email_lock
+from unittest.mock import patch
+
+from app.services.notification_service import _email_lock, check_and_send_alerts
+
 
 def test_race_condition_prevention():
     # Acquire lock manually to simulate running task
@@ -19,6 +19,7 @@ def test_race_condition_prevention():
     finally:
         _email_lock.release()
 
+
 def test_normal_execution():
     # Ensure lock is free
     if _email_lock.locked():
@@ -28,5 +29,5 @@ def test_normal_execution():
         mock_data.return_value = ([], [], [])
         # Mock SessionLocal to avoid DB connection
         with patch("app.services.notification_service.SessionLocal") as MockSession:
-             check_and_send_alerts()
-             mock_data.assert_called_once()
+            check_and_send_alerts()
+            mock_data.assert_called_once()

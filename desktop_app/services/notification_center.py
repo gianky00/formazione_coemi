@@ -2,18 +2,27 @@
 Notification Center Service for Intelleo.
 Manages all notifications with persistence and retrieval for the notification bell.
 """
-import tkinter as tk
-from tkinter import ttk
-from datetime import datetime
-from collections import deque
+
 import threading
+import tkinter as tk
+from collections import deque
+from datetime import datetime
+from tkinter import ttk
 
 
 class Notification:
     """Represents a single notification."""
 
-    def __init__(self, title, message, notification_type="info", action=None,
-                 action_label=None, category=None, priority=0):
+    def __init__(
+        self,
+        title,
+        message,
+        notification_type="info",
+        action=None,
+        action_label=None,
+        category=None,
+        priority=0,
+    ):
         self.id = id(self)
         self.title = title
         self.message = message
@@ -41,8 +50,17 @@ class NotificationCenter:
         self.on_change_callbacks = []
         self._lock = threading.Lock()
 
-    def add(self, title, message, notification_type="info", action=None,
-            action_label=None, category=None, priority=0, show_toast=True):
+    def add(
+        self,
+        title,
+        message,
+        notification_type="info",
+        action=None,
+        action_label=None,
+        category=None,
+        priority=0,
+        show_toast=True,
+    ):
         """Add a new notification."""
         notif = Notification(
             title=title,
@@ -51,18 +69,15 @@ class NotificationCenter:
             action=action,
             action_label=action_label,
             category=category,
-            priority=priority
+            priority=priority,
         )
 
         with self._lock:
             self.notifications.appendleft(notif)
 
         # Show toast if requested
-        if show_toast and hasattr(self.controller, 'toast_manager'):
-            self.controller.toast_manager.show(
-                title, message, notification_type,
-                on_click=action
-            )
+        if show_toast and hasattr(self.controller, "toast_manager"):
+            self.controller.toast_manager.show(title, message, notification_type, on_click=action)
 
         # Notify listeners
         self._notify_change()
@@ -161,13 +176,13 @@ class NotificationBell(tk.Frame):
             bg="#1E3A8A",
             fg="white",
             cursor="hand2",
-            padx=10
+            padx=10,
         )
         self.btn_bell.pack(side="left")
 
         # Use a bell character
         try:
-            self.btn_bell.config(text="\U0001F514")  # Bell emoji
+            self.btn_bell.config(text="\U0001f514")  # Bell emoji
         except:
             self.btn_bell.config(text="[N]")  # Fallback
 
@@ -179,7 +194,7 @@ class NotificationBell(tk.Frame):
             bg="#EF4444",
             fg="white",
             width=2,
-            height=1
+            height=1,
         )
 
         # Bind click
@@ -206,11 +221,13 @@ class NotificationBell(tk.Frame):
 
     def _pulse_badge(self):
         """Simple pulse animation for badge."""
+
         def pulse_step(step=0):
             if step < 3:
                 colors = ["#EF4444", "#F87171", "#EF4444"]
                 self.badge.config(bg=colors[step % len(colors)])
                 self.after(200, lambda: pulse_step(step + 1))
+
         pulse_step()
 
 
@@ -222,7 +239,7 @@ class NotificationPanel(tk.Toplevel):
     ICONS = {
         "info": ("i", "#3B82F6"),
         "success": ("\u2713", "#10B981"),
-        "warning": ("\u26A0", "#F59E0B"),
+        "warning": ("\u26a0", "#F59E0B"),
         "error": ("\u2717", "#EF4444"),
         "alert": ("!", "#8B5CF6"),
     }
@@ -234,7 +251,7 @@ class NotificationPanel(tk.Toplevel):
 
         # Window setup
         self.overrideredirect(True)
-        self.attributes('-topmost', True)
+        self.attributes("-topmost", True)
         self.configure(bg="#FFFFFF")
 
         # Add shadow/border effect
@@ -257,22 +274,33 @@ class NotificationPanel(tk.Toplevel):
         header.pack(fill="x")
         header.pack_propagate(False)
 
-        tk.Label(header, text="Notifiche", font=("Segoe UI", 11, "bold"),
-                 bg="#F3F4F6", fg="#1F2937").pack(side="left", padx=15, pady=8)
+        tk.Label(
+            header, text="Notifiche", font=("Segoe UI", 11, "bold"), bg="#F3F4F6", fg="#1F2937"
+        ).pack(side="left", padx=15, pady=8)
 
         # Actions frame
         actions = tk.Frame(header, bg="#F3F4F6")
         actions.pack(side="right", padx=10)
 
-        self.btn_mark_read = tk.Label(actions, text="Segna tutto letto",
-                                       font=("Segoe UI", 9), fg="#3B82F6",
-                                       bg="#F3F4F6", cursor="hand2")
+        self.btn_mark_read = tk.Label(
+            actions,
+            text="Segna tutto letto",
+            font=("Segoe UI", 9),
+            fg="#3B82F6",
+            bg="#F3F4F6",
+            cursor="hand2",
+        )
         self.btn_mark_read.pack(side="left", padx=5)
         self.btn_mark_read.bind("<Button-1>", lambda e: self._mark_all_read())
 
-        self.btn_view_all = tk.Label(actions, text="Vedi tutto",
-                                      font=("Segoe UI", 9), fg="#3B82F6",
-                                      bg="#F3F4F6", cursor="hand2")
+        self.btn_view_all = tk.Label(
+            actions,
+            text="Vedi tutto",
+            font=("Segoe UI", 9),
+            fg="#3B82F6",
+            bg="#F3F4F6",
+            cursor="hand2",
+        )
         self.btn_view_all.pack(side="left", padx=5)
         self.btn_view_all.bind("<Button-1>", lambda e: self._open_notifications_view())
 
@@ -280,14 +308,14 @@ class NotificationPanel(tk.Toplevel):
         container = tk.Frame(self, bg="#FFFFFF")
         container.pack(fill="both", expand=True)
 
-        self.canvas = tk.Canvas(container, bg="#FFFFFF", highlightthickness=0,
-                                width=380, height=350)
+        self.canvas = tk.Canvas(
+            container, bg="#FFFFFF", highlightthickness=0, width=380, height=350
+        )
         scrollbar = ttk.Scrollbar(container, orient="vertical", command=self.canvas.yview)
 
         self.scrollable_frame = tk.Frame(self.canvas, bg="#FFFFFF")
         self.scrollable_frame.bind(
-            "<Configure>",
-            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+            "<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         )
 
         self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw", width=380)
@@ -301,10 +329,13 @@ class NotificationPanel(tk.Toplevel):
         self.scrollable_frame.bind("<MouseWheel>", self._on_mousewheel)
 
         # Empty state placeholder
-        self.empty_label = tk.Label(self.scrollable_frame,
-                                     text="Nessuna notifica",
-                                     font=("Segoe UI", 10),
-                                     fg="#9CA3AF", bg="#FFFFFF")
+        self.empty_label = tk.Label(
+            self.scrollable_frame,
+            text="Nessuna notifica",
+            font=("Segoe UI", 10),
+            fg="#9CA3AF",
+            bg="#FFFFFF",
+        )
 
     def _on_mousewheel(self, event):
         try:
@@ -322,10 +353,14 @@ class NotificationPanel(tk.Toplevel):
         notifications = self.notification_center.get_all()[:20]  # Show last 20
 
         if not notifications:
-            self.empty_label = tk.Label(self.scrollable_frame,
-                                         text="Nessuna notifica",
-                                         font=("Segoe UI", 10),
-                                         fg="#9CA3AF", bg="#FFFFFF", pady=50)
+            self.empty_label = tk.Label(
+                self.scrollable_frame,
+                text="Nessuna notifica",
+                font=("Segoe UI", 10),
+                fg="#9CA3AF",
+                bg="#FFFFFF",
+                pady=50,
+            )
             self.empty_label.pack()
             return
 
@@ -345,8 +380,9 @@ class NotificationPanel(tk.Toplevel):
 
         # Icon
         icon, color = self.ICONS.get(notif.notification_type, ("i", "#3B82F6"))
-        icon_label = tk.Label(content, text=icon, font=("Segoe UI", 12, "bold"),
-                              fg=color, bg=bg_color, width=2)
+        icon_label = tk.Label(
+            content, text=icon, font=("Segoe UI", 12, "bold"), fg=color, bg=bg_color, width=2
+        )
         icon_label.pack(side="left", padx=(0, 10))
 
         # Text content
@@ -358,15 +394,27 @@ class NotificationPanel(tk.Toplevel):
         if not notif.read:
             title_text = "\u2022 " + title_text  # Bullet point for unread
 
-        title_label = tk.Label(text_frame, text=title_text,
-                               font=("Segoe UI", 9, "bold"),
-                               fg="#1F2937", bg=bg_color, anchor="w")
+        title_label = tk.Label(
+            text_frame,
+            text=title_text,
+            font=("Segoe UI", 9, "bold"),
+            fg="#1F2937",
+            bg=bg_color,
+            anchor="w",
+        )
         title_label.pack(fill="x")
 
         # Message (truncated)
         msg = notif.message[:80] + "..." if len(notif.message) > 80 else notif.message
-        msg_label = tk.Label(text_frame, text=msg, font=("Segoe UI", 8),
-                             fg="#6B7280", bg=bg_color, anchor="w", wraplength=280)
+        msg_label = tk.Label(
+            text_frame,
+            text=msg,
+            font=("Segoe UI", 8),
+            fg="#6B7280",
+            bg=bg_color,
+            anchor="w",
+            wraplength=280,
+        )
         msg_label.pack(fill="x")
 
         # Time
@@ -374,8 +422,9 @@ class NotificationPanel(tk.Toplevel):
         if notif.timestamp.date() != datetime.now().date():
             time_str = notif.timestamp.strftime("%d/%m %H:%M")
 
-        time_label = tk.Label(text_frame, text=time_str, font=("Segoe UI", 7),
-                              fg="#9CA3AF", bg=bg_color, anchor="w")
+        time_label = tk.Label(
+            text_frame, text=time_str, font=("Segoe UI", 7), fg="#9CA3AF", bg=bg_color, anchor="w"
+        )
         time_label.pack(fill="x")
 
         # Bind click events
@@ -402,7 +451,9 @@ class NotificationPanel(tk.Toplevel):
         """Open full notifications view."""
         self.destroy()
         # Switch to notifications tab if exists, or open dialog
-        if hasattr(self.controller, 'current_view') and hasattr(self.controller.current_view, 'notebook'):
+        if hasattr(self.controller, "current_view") and hasattr(
+            self.controller.current_view, "notebook"
+        ):
             # Find notifications tab
             notebook = self.controller.current_view.notebook
             for i in range(notebook.index("end")):
@@ -449,7 +500,7 @@ class NotificationsWindow(tk.Toplevel):
     ICONS = {
         "info": ("i", "#3B82F6"),
         "success": ("\u2713", "#10B981"),
-        "warning": ("\u26A0", "#F59E0B"),
+        "warning": ("\u26a0", "#F59E0B"),
         "error": ("\u2717", "#EF4444"),
         "alert": ("!", "#8B5CF6"),
     }
@@ -489,17 +540,30 @@ class NotificationsWindow(tk.Toplevel):
         header.pack(fill="x")
         header.pack_propagate(False)
 
-        tk.Label(header, text="Centro Notifiche", font=("Segoe UI", 14, "bold"),
-                 bg="#1E3A8A", fg="white").pack(side="left", padx=20, pady=15)
+        tk.Label(
+            header, text="Centro Notifiche", font=("Segoe UI", 14, "bold"), bg="#1E3A8A", fg="white"
+        ).pack(side="left", padx=20, pady=15)
 
         # Action buttons
         btn_frame = tk.Frame(header, bg="#1E3A8A")
         btn_frame.pack(side="right", padx=20)
 
-        tk.Button(btn_frame, text="Segna tutto letto", bg="#3B82F6", fg="white",
-                  command=self._mark_all_read, relief="flat").pack(side="left", padx=5)
-        tk.Button(btn_frame, text="Cancella tutto", bg="#6B7280", fg="white",
-                  command=self._clear_all, relief="flat").pack(side="left", padx=5)
+        tk.Button(
+            btn_frame,
+            text="Segna tutto letto",
+            bg="#3B82F6",
+            fg="white",
+            command=self._mark_all_read,
+            relief="flat",
+        ).pack(side="left", padx=5)
+        tk.Button(
+            btn_frame,
+            text="Cancella tutto",
+            bg="#6B7280",
+            fg="white",
+            command=self._clear_all,
+            relief="flat",
+        ).pack(side="left", padx=5)
 
         # Main content with sidebar
         main = tk.Frame(self, bg="#F3F4F6")
@@ -510,8 +574,9 @@ class NotificationsWindow(tk.Toplevel):
         sidebar.pack(side="left", fill="y", padx=(10, 0), pady=10)
         sidebar.pack_propagate(False)
 
-        tk.Label(sidebar, text="Filtri", font=("Segoe UI", 10, "bold"),
-                 bg="#FFFFFF", fg="#1F2937").pack(anchor="w", padx=15, pady=(15, 10))
+        tk.Label(
+            sidebar, text="Filtri", font=("Segoe UI", 10, "bold"), bg="#FFFFFF", fg="#1F2937"
+        ).pack(anchor="w", padx=15, pady=(15, 10))
 
         # Filter buttons
         self.filter_var = tk.StringVar(value="all")
@@ -525,9 +590,15 @@ class NotificationsWindow(tk.Toplevel):
         ]
 
         for value, label, color in filters:
-            rb = tk.Radiobutton(sidebar, text=label, variable=self.filter_var,
-                               value=value, bg="#FFFFFF", anchor="w",
-                               command=self.load_notifications)
+            rb = tk.Radiobutton(
+                sidebar,
+                text=label,
+                variable=self.filter_var,
+                value=value,
+                bg="#FFFFFF",
+                anchor="w",
+                command=self.load_notifications,
+            )
             rb.pack(fill="x", padx=15, pady=2)
 
         # Notifications list
@@ -535,18 +606,19 @@ class NotificationsWindow(tk.Toplevel):
         list_frame.pack(side="left", fill="both", expand=True, padx=10, pady=10)
 
         # Scrollable list
-        self.canvas = tk.Canvas(list_frame, bg="#FFFFFF", highlightthickness=1,
-                                highlightbackground="#E5E7EB")
+        self.canvas = tk.Canvas(
+            list_frame, bg="#FFFFFF", highlightthickness=1, highlightbackground="#E5E7EB"
+        )
         scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.canvas.yview)
 
         self.scrollable_frame = tk.Frame(self.canvas, bg="#FFFFFF")
         self.scrollable_frame.bind(
-            "<Configure>",
-            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+            "<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         )
 
-        self.canvas_window = self.canvas.create_window((0, 0), window=self.scrollable_frame,
-                                                        anchor="nw")
+        self.canvas_window = self.canvas.create_window(
+            (0, 0), window=self.scrollable_frame, anchor="nw"
+        )
         self.canvas.configure(yscrollcommand=scrollbar.set)
 
         # Resize canvas window when canvas resizes
@@ -585,9 +657,14 @@ class NotificationsWindow(tk.Toplevel):
             notifications = [n for n in notifications if n.notification_type == filter_type]
 
         if not notifications:
-            tk.Label(self.scrollable_frame, text="Nessuna notifica",
-                     font=("Segoe UI", 11), fg="#9CA3AF", bg="#FFFFFF",
-                     pady=50).pack()
+            tk.Label(
+                self.scrollable_frame,
+                text="Nessuna notifica",
+                font=("Segoe UI", 11),
+                fg="#9CA3AF",
+                bg="#FFFFFF",
+                pady=50,
+            ).pack()
             return
 
         for notif in notifications:
@@ -612,29 +689,44 @@ class NotificationsWindow(tk.Toplevel):
         icon, color = self.ICONS.get(notif.notification_type, ("i", "#3B82F6"))
         type_frame = tk.Frame(header_row, bg=color, padx=8, pady=2)
         type_frame.pack(side="left")
-        tk.Label(type_frame, text=icon + " " + notif.notification_type.upper(),
-                 font=("Segoe UI", 8, "bold"), fg="white", bg=color).pack()
+        tk.Label(
+            type_frame,
+            text=icon + " " + notif.notification_type.upper(),
+            font=("Segoe UI", 8, "bold"),
+            fg="white",
+            bg=color,
+        ).pack()
 
         # Category if present
         if notif.category:
             cat_label = self.CATEGORY_LABELS.get(notif.category, notif.category)
-            tk.Label(header_row, text=cat_label, font=("Segoe UI", 8),
-                     fg="#6B7280", bg=bg_color).pack(side="left", padx=10)
+            tk.Label(
+                header_row, text=cat_label, font=("Segoe UI", 8), fg="#6B7280", bg=bg_color
+            ).pack(side="left", padx=10)
 
         # Time
         time_str = notif.timestamp.strftime("%d/%m/%Y %H:%M")
-        tk.Label(header_row, text=time_str, font=("Segoe UI", 8),
-                 fg="#9CA3AF", bg=bg_color).pack(side="right")
+        tk.Label(header_row, text=time_str, font=("Segoe UI", 8), fg="#9CA3AF", bg=bg_color).pack(
+            side="right"
+        )
 
         # Title
         title_font = ("Segoe UI", 10, "bold") if not notif.read else ("Segoe UI", 10)
-        tk.Label(content, text=notif.title, font=title_font,
-                 fg="#1F2937", bg=bg_color, anchor="w").pack(fill="x", pady=(8, 4))
+        tk.Label(
+            content, text=notif.title, font=title_font, fg="#1F2937", bg=bg_color, anchor="w"
+        ).pack(fill="x", pady=(8, 4))
 
         # Message
-        tk.Label(content, text=notif.message, font=("Segoe UI", 9),
-                 fg="#4B5563", bg=bg_color, anchor="w", wraplength=500,
-                 justify="left").pack(fill="x")
+        tk.Label(
+            content,
+            text=notif.message,
+            font=("Segoe UI", 9),
+            fg="#4B5563",
+            bg=bg_color,
+            anchor="w",
+            wraplength=500,
+            justify="left",
+        ).pack(fill="x")
 
         # Action buttons
         if notif.action or not notif.read:
@@ -643,18 +735,36 @@ class NotificationsWindow(tk.Toplevel):
 
             if notif.action:
                 action_text = notif.action_label or "Vai"
-                tk.Button(btn_frame, text=action_text, bg="#3B82F6", fg="white",
-                         font=("Segoe UI", 8), relief="flat",
-                         command=lambda: self._execute_action(notif)).pack(side="left", padx=(0, 5))
+                tk.Button(
+                    btn_frame,
+                    text=action_text,
+                    bg="#3B82F6",
+                    fg="white",
+                    font=("Segoe UI", 8),
+                    relief="flat",
+                    command=lambda: self._execute_action(notif),
+                ).pack(side="left", padx=(0, 5))
 
             if not notif.read:
-                tk.Button(btn_frame, text="Segna letto", bg="#6B7280", fg="white",
-                         font=("Segoe UI", 8), relief="flat",
-                         command=lambda n=notif: self._mark_read(n)).pack(side="left", padx=5)
+                tk.Button(
+                    btn_frame,
+                    text="Segna letto",
+                    bg="#6B7280",
+                    fg="white",
+                    font=("Segoe UI", 8),
+                    relief="flat",
+                    command=lambda n=notif: self._mark_read(n),
+                ).pack(side="left", padx=5)
 
-            tk.Button(btn_frame, text="Elimina", bg="#9CA3AF", fg="white",
-                     font=("Segoe UI", 8), relief="flat",
-                     command=lambda n=notif: self._dismiss(n)).pack(side="right")
+            tk.Button(
+                btn_frame,
+                text="Elimina",
+                bg="#9CA3AF",
+                fg="white",
+                font=("Segoe UI", 8),
+                relief="flat",
+                command=lambda n=notif: self._dismiss(n),
+            ).pack(side="right")
 
         # Separator
         sep = tk.Frame(self.scrollable_frame, bg="#E5E7EB", height=1)
@@ -685,6 +795,7 @@ class NotificationsWindow(tk.Toplevel):
     def _clear_all(self):
         """Clear all notifications."""
         from tkinter import messagebox
+
         if messagebox.askyesno("Conferma", "Cancellare tutte le notifiche?"):
             self.notification_center.clear_all()
             self.load_notifications()

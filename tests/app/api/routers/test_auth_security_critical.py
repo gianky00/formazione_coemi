@@ -1,21 +1,20 @@
-import pytest
-from unittest.mock import MagicMock, patch
-from app.db.models import AuditLog, BlacklistedToken, User
+from unittest.mock import patch
+
 from app.core import security
-from app.api import deps
-from datetime import timedelta
+from app.db.models import AuditLog, BlacklistedToken, User
 
 # We use 'test_client' fixture from conftest.py
 # We use 'db_session' fixture to inspect the database
+
 
 def test_brute_force_detection(test_client, db_session):
     """
     Test that >5 failed login attempts trigger a CRITICAL audit log.
     """
-    username = "admin" # Admin is created by the override_user_auth/test_client setup usually,
-                       # but here we rely on the DB.
-                       # test_client fixture creates an admin user in get_current_user override,
-                       # but for LOGIN we need the user in the DB to verify password.
+    username = "admin"  # Admin is created by the override_user_auth/test_client setup usually,
+    # but here we rely on the DB.
+    # test_client fixture creates an admin user in get_current_user override,
+    # but for LOGIN we need the user in the DB to verify password.
 
     # Ensure user exists in the DB (conftest db_session creates tables but empty)
     # The 'test_client' fixture overrides get_current_user but doesn't necessarily seed the DB for 'login'.
@@ -26,7 +25,7 @@ def test_brute_force_detection(test_client, db_session):
         user = User(
             username=username,
             hashed_password=security.get_password_hash("password123"),
-            is_admin=True
+            is_admin=True,
         )
         db_session.add(user)
         db_session.commit()
@@ -44,8 +43,8 @@ def test_brute_force_detection(test_client, db_session):
 
     for i in range(5):
         response = test_client.post(
-            "/auth/login", # relative to base_url set in test_client
-            data={"username": username, "password": "wrong_password"}
+            "/auth/login",  # relative to base_url set in test_client
+            data={"username": username, "password": "wrong_password"},
         )
         assert response.status_code == 400
 
@@ -57,13 +56,15 @@ def test_brute_force_detection(test_client, db_session):
     test_client.post("/auth/login", data={"username": username, "password": "wrong_password"})
 
     # Check the last log
-    critical_log = db_session.query(AuditLog).filter(
-        AuditLog.action == "LOGIN_FAILED",
-        AuditLog.severity == "CRITICAL"
-    ).first()
+    critical_log = (
+        db_session.query(AuditLog)
+        .filter(AuditLog.action == "LOGIN_FAILED", AuditLog.severity == "CRITICAL")
+        .first()
+    )
 
     assert critical_log is not None
     assert "Tentativo di login fallito" in critical_log.details
+
 
 def test_login_session_locked(test_client, db_session):
     """
@@ -79,16 +80,18 @@ def test_login_session_locked(test_client, db_session):
 
     owner_info = {"username": "other_user", "host": "1.2.3.4"}
 
-    with patch("app.api.routers.auth.db_security.acquire_session_lock", return_value=(False, owner_info)):
+    with patch(
+        "app.api.routers.auth.db_security.acquire_session_lock", return_value=(False, owner_info)
+    ):
         response = test_client.post(
-            "/auth/login",
-            data={"username": username, "password": password}
+            "/auth/login", data={"username": username, "password": password}
         )
 
     assert response.status_code == 200
     data = response.json()
     assert data["read_only"] is True
     assert data["lock_owner"] == owner_info
+
 
 def test_login_session_unlocked(test_client, db_session):
     """
@@ -104,13 +107,13 @@ def test_login_session_unlocked(test_client, db_session):
 
     with patch("app.api.routers.auth.db_security.acquire_session_lock", return_value=(True, None)):
         response = test_client.post(
-            "/auth/login",
-            data={"username": username, "password": password}
+            "/auth/login", data={"username": username, "password": password}
         )
 
     assert response.status_code == 200
     data = response.json()
     assert data["read_only"] is False
+
 
 def test_logout_cleanup_called(test_client, db_session):
     """
@@ -121,9 +124,7 @@ def test_logout_cleanup_called(test_client, db_session):
 
     # Seed user
     user = User(
-        username=username,
-        hashed_password=security.get_password_hash(password),
-        is_admin=True
+        username=username, hashed_password=security.get_password_hash(password), is_admin=True
     )
     db_session.add(user)
     db_session.commit()

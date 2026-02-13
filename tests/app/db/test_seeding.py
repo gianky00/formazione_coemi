@@ -1,5 +1,6 @@
-from app.db.seeding import seed_database
 from app.db.models import Corso
+from app.db.seeding import seed_database
+
 
 def test_seed_database(db_session):
     # Run seeding
@@ -18,6 +19,7 @@ def test_seed_database(db_session):
     blsd = db_session.query(Corso).filter_by(nome_corso="BLSD").first()
     assert blsd is not None
     assert blsd.validita_mesi == 12
+
 
 def test_seed_idempotency(db_session):
     """Verify that running seed twice doesn't duplicate data."""

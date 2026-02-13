@@ -1,12 +1,12 @@
 import pytest
-import os
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from app.core import security
-from app.db.models import User, BlacklistedToken, AuditLog
-from app.core.config import settings
-from app.main import app
+
 from app.api import deps
+from app.core import security
+from app.db.models import AuditLog, BlacklistedToken, User
+from app.main import app
+
 
 @pytest.fixture
 def enable_real_auth():
@@ -17,6 +17,7 @@ def enable_real_auth():
     yield
     # Restore
     app.dependency_overrides = original_overrides
+
 
 def test_logout_invalidates_token(test_client: TestClient, db_session: Session, enable_real_auth):
     # 1. Login to get token
@@ -49,7 +50,10 @@ def test_logout_invalidates_token(test_client: TestClient, db_session: Session, 
     assert response_rejected.status_code == 401
     assert "invalidated" in response_rejected.json()["detail"]
 
-def test_audit_logging_on_user_create(test_client: TestClient, db_session: Session, enable_real_auth):
+
+def test_audit_logging_on_user_create(
+    test_client: TestClient, db_session: Session, enable_real_auth
+):
     # 1. Setup Admin
     username = "auditadmin"
     password = "auditpassword"
@@ -67,9 +71,9 @@ def test_audit_logging_on_user_create(test_client: TestClient, db_session: Sessi
     # 2. Create a new user
     new_user_data = {
         "username": "newuser",
-        "password": "newpassword", # This will be ignored now
+        "password": "newpassword",  # This will be ignored now
         "account_name": "New User",
-        "is_admin": False
+        "is_admin": False,
     }
     response = test_client.post("/users/", json=new_user_data, headers=headers)
     assert response.status_code == 200
@@ -77,5 +81,5 @@ def test_audit_logging_on_user_create(test_client: TestClient, db_session: Sessi
     # 3. Check Audit Log
     log_entry = db_session.query(AuditLog).filter_by(action="USER_CREATE").first()
     assert log_entry is not None
-    assert log_entry.username == "auditadmin" # Who performed the action
+    assert log_entry.username == "auditadmin"  # Who performed the action
     assert "newuser" in log_entry.details

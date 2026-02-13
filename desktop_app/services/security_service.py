@@ -1,44 +1,62 @@
+import logging
 import os
 import sys
-import logging
-import time
 
 logger = logging.getLogger(__name__)
 
 # Constants for detections
 VM_PROCESSES = [
-    "vmtoolsd.exe", "vmware-tray.exe", "vm3dservice.exe",  # VMware
-    "vboxservice.exe", "vboxtray.exe",                     # VirtualBox
-    "qemu-ga.exe",                                         # QEMU
-    "prl_cc.exe", "prl_tools.exe",                         # Parallels
-    "vmsrvc.exe", "vmusrvc.exe",                           # Virtual PC
-    "sbiesvc.exe"                                          # Sandboxie
+    "vmtoolsd.exe",
+    "vmware-tray.exe",
+    "vm3dservice.exe",  # VMware
+    "vboxservice.exe",
+    "vboxtray.exe",  # VirtualBox
+    "qemu-ga.exe",  # QEMU
+    "prl_cc.exe",
+    "prl_tools.exe",  # Parallels
+    "vmsrvc.exe",
+    "vmusrvc.exe",  # Virtual PC
+    "sbiesvc.exe",  # Sandboxie
 ]
 
 ANALYSIS_TOOLS = [
-    "wireshark.exe", "fiddler.exe", "charles.exe",              # Network Analysis
-    "processhacker.exe", "procmon.exe", "procmon64.exe",        # Process Monitoring
-    "cheatengine-x86_64.exe", "cheatengine-i386.exe",           # Memory Manipulation
-    "x64dbg.exe", "x32dbg.exe", "ollydbg.exe", "ida64.exe", "ida.exe", # Debuggers/Disassemblers
-    "httpdebuggerui.exe", "dnspy.exe", "pestudio.exe"           # .NET/Traffic Analysis
+    "wireshark.exe",
+    "fiddler.exe",
+    "charles.exe",  # Network Analysis
+    "processhacker.exe",
+    "procmon.exe",
+    "procmon64.exe",  # Process Monitoring
+    "cheatengine-x86_64.exe",
+    "cheatengine-i386.exe",  # Memory Manipulation
+    "x64dbg.exe",
+    "x32dbg.exe",
+    "ollydbg.exe",
+    "ida64.exe",
+    "ida.exe",  # Debuggers/Disassemblers
+    "httpdebuggerui.exe",
+    "dnspy.exe",
+    "pestudio.exe",  # .NET/Traffic Analysis
 ]
+
 
 def _get_running_processes_wmi():
     """
     Retrieves a list of running process names using WMI (Windows only).
     Returns an empty list on failure or non-Windows OS.
     """
-    if os.name != 'nt':
+    if os.name != "nt":
         return []
 
     try:
         import wmi
+
         c = wmi.WMI()
         # Retrieving just names is faster
         return [p.Name.lower() for p in c.Win32_Process()]
     except Exception as e:
         logger.error(f"Failed to query WMI for processes: {e}")
         return []
+
 
 def is_virtual_environment():
     """
@@ -63,16 +81,17 @@ def is_virtual_environment():
         r"C:\Windows\System32\drivers\vm3dmp.sys",
         r"C:\Windows\System32\drivers\vmtools.sys",
         r"C:\Windows\System32\drivers\vmmouse.sys",
-        r"C:\Windows\System32\drivers\vmusbmouse.sys"
+        r"C:\Windows\System32\drivers\vmusbmouse.sys",
     ]
 
-    if os.name == 'nt':
+    if os.name == "nt":
         for fpath in vm_files:
             if os.path.exists(fpath):
                 logger.warning(f"VM Detection: Found driver {fpath}")
                 return True, "Esecuzione in virtual machine non consentita (Driver rilevati)."
 
     return False, ""
+
 
 def is_analysis_tool_running():
     """
@@ -83,9 +102,13 @@ def is_analysis_tool_running():
     for tool in ANALYSIS_TOOLS:
         if tool.lower() in running_processes:
             logger.warning(f"Security: Analysis tool detected: {tool}")
-            return True, f"Rilevato strumento di analisi non consentito: {tool}. Chiudere il programma e riprovare."
+            return (
+                True,
+                f"Rilevato strumento di analisi non consentito: {tool}. Chiudere il programma e riprovare.",
+            )
 
     return False, ""
+
 
 def is_debugger_active():
     """

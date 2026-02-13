@@ -1,13 +1,19 @@
 from datetime import date
-from app.db.models import Dipendente, Certificato, Corso, ValidationStatus
+
+from app.db.models import Certificato, Corso, Dipendente, ValidationStatus
+
 
 def test_csv_rehiring_update_matricola(test_client, db_session):
     # Setup: Existing employee with OLD matricola
-    emp = Dipendente(nome="Mario", cognome="Rossi", matricola="OLD001", data_nascita=date(1980, 1, 1))
+    emp = Dipendente(
+        nome="Mario", cognome="Rossi", matricola="OLD001", data_nascita=date(1980, 1, 1)
+    )
     db_session.add(emp)
 
     # Setup: Another employee who is NOT in the CSV (should be preserved)
-    emp_historical = Dipendente(nome="Luigi", cognome="Verdi", matricola="HIST01", data_nascita=date(1950, 1, 1))
+    emp_historical = Dipendente(
+        nome="Luigi", cognome="Verdi", matricola="HIST01", data_nascita=date(1950, 1, 1)
+    )
     db_session.add(emp_historical)
 
     db_session.commit()
@@ -41,10 +47,15 @@ Rossi;Mario;NEW001;01/01/1980
     assert historical is not None
     assert historical.nome == "Luigi"
 
+
 def test_csv_duplicate_error(test_client, db_session):
     # Setup: Two employees with SAME details (Duplicate in DB)
-    d1 = Dipendente(nome="Giovanni", cognome="Bianchi", matricola="DUP01", data_nascita=date(1990, 1, 1))
-    d2 = Dipendente(nome="Giovanni", cognome="Bianchi", matricola="DUP02", data_nascita=date(1990, 1, 1))
+    d1 = Dipendente(
+        nome="Giovanni", cognome="Bianchi", matricola="DUP01", data_nascita=date(1990, 1, 1)
+    )
+    d2 = Dipendente(
+        nome="Giovanni", cognome="Bianchi", matricola="DUP02", data_nascita=date(1990, 1, 1)
+    )
     db_session.add_all([d1, d2])
     db_session.commit()
 
@@ -69,6 +80,7 @@ Bianchi;Giovanni;NEW999;01/01/1990
     db_session.refresh(d2)
     assert d1.matricola == "DUP01"
     assert d2.matricola == "DUP02"
+
 
 def test_csv_broad_effect_linking(test_client, db_session):
     # Scenario:
@@ -95,7 +107,7 @@ def test_csv_broad_effect_linking(test_client, db_session):
         corso_id=course.id,
         data_rilascio=date(2023, 1, 1),
         stato_validazione=ValidationStatus.AUTOMATIC,
-        dipendente_id=None
+        dipendente_id=None,
     )
 
     cert_manual = Certificato(
@@ -104,7 +116,7 @@ def test_csv_broad_effect_linking(test_client, db_session):
         corso_id=course.id,
         data_rilascio=date(2023, 2, 1),
         stato_validazione=ValidationStatus.MANUAL,
-        dipendente_id=None
+        dipendente_id=None,
     )
 
     db_session.add_all([cert_auto, cert_manual])

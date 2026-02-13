@@ -10,19 +10,21 @@ Usage:
 Author: Migration Team
 Version: 1.0.0
 """
+
+import argparse
 import subprocess
 import sys
 import time
-import argparse
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 # Fix Windows console encoding
 if sys.platform == "win32":
     import io
+
     try:
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
     except Exception:
         pass
 
@@ -50,6 +52,7 @@ WAIT_TIME = 3  # seconds to wait after launch
 # HELPERS
 # =============================================================================
 
+
 def find_exe() -> Path:
     """Find the compiled executable."""
     for candidate in EXE_CANDIDATES:
@@ -62,10 +65,11 @@ def find_exe() -> Path:
 # STRESS TEST
 # =============================================================================
 
+
 def run_stress_test(exe_path: Path, runs: int, delay: float):
     """
     Run stress test: multiple consecutive launches.
-    
+
     Args:
         exe_path: Path to executable
         runs: Number of runs
@@ -76,33 +80,30 @@ def run_stress_test(exe_path: Path, runs: int, delay: float):
     print(f"   Wait time: {WAIT_TIME}s per avvio")
     print(f"   Delay: {delay}s tra avvii")
     print()
-    
+
     crashes = 0
     success = 0
     errors = []
-    
+
     start_time = time.time()
-    
+
     for i in range(runs):
         run_num = i + 1
         print(f"Run {run_num:3d}/{runs}...", end=" ", flush=True)
-        
+
         try:
             process = subprocess.Popen(
-                [str(exe_path)],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                cwd=exe_path.parent
+                [str(exe_path)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=exe_path.parent
             )
-            
+
             # Wait for app to stabilize
             time.sleep(WAIT_TIME)
-            
+
             # Check if still running
             if process.poll() is None:
                 print("✅")
                 success += 1
-                
+
                 # Cleanup
                 process.terminate()
                 try:
@@ -111,29 +112,22 @@ def run_stress_test(exe_path: Path, runs: int, delay: float):
                     process.kill()
             else:
                 exit_code = process.returncode
-                stderr = process.stderr.read().decode('utf-8', errors='replace')[:200]
+                stderr = process.stderr.read().decode("utf-8", errors="replace")[:200]
                 print(f"❌ CRASH (exit: {exit_code})")
                 crashes += 1
-                errors.append({
-                    "run": run_num,
-                    "exit_code": exit_code,
-                    "stderr": stderr
-                })
-                
+                errors.append({"run": run_num, "exit_code": exit_code, "stderr": stderr})
+
         except Exception as e:
             print(f"❌ ERROR: {e}")
             crashes += 1
-            errors.append({
-                "run": run_num,
-                "error": str(e)
-            })
-        
+            errors.append({"run": run_num, "error": str(e)})
+
         # Delay between runs
         if i < runs - 1:
             time.sleep(delay)
-    
+
     elapsed = time.time() - start_time
-    
+
     # Report
     print()
     print("=" * 60)
@@ -142,25 +136,25 @@ def run_stress_test(exe_path: Path, runs: int, delay: float):
     print(f"\n   Totale avvii:  {runs}")
     print(f"   Successi:      {success}")
     print(f"   Crash:         {crashes}")
-    print(f"   Success Rate:  {(success/runs)*100:.1f}%")
-    print(f"   Tempo totale:  {elapsed/60:.1f} minuti")
-    
+    print(f"   Success Rate:  {(success / runs) * 100:.1f}%")
+    print(f"   Tempo totale:  {elapsed / 60:.1f} minuti")
+
     if errors:
-        print(f"\n   ⚠️  Dettagli crash:")
+        print("\n   ⚠️  Dettagli crash:")
         for err in errors[:5]:  # Show first 5
             print(f"      Run {err['run']}: {err.get('exit_code', err.get('error', 'unknown'))}")
         if len(errors) > 5:
             print(f"      ... e altri {len(errors) - 5} errori")
-    
+
     print()
     if crashes == 0:
         print("✅ STRESS TEST PASSATO - Nessun crash rilevato")
         return 0
     elif crashes / runs < 0.01:  # < 1% crash rate
-        print(f"⚠️  STRESS TEST PARZIALE - {crashes} crash ({crashes/runs*100:.2f}%)")
+        print(f"⚠️  STRESS TEST PARZIALE - {crashes} crash ({crashes / runs * 100:.2f}%)")
         return 1
     else:
-        print(f"❌ STRESS TEST FALLITO - Troppi crash ({crashes/runs*100:.1f}%)")
+        print(f"❌ STRESS TEST FALLITO - Troppi crash ({crashes / runs * 100:.1f}%)")
         return 2
 
 
@@ -173,35 +167,41 @@ Esempi:
   python stress_test.py              # 100 avvii (default)
   python stress_test.py --runs=50    # 50 avvii
   python stress_test.py --delay=2    # 2s tra avvii
-        """
+        """,
     )
-    parser.add_argument("--runs", type=int, default=DEFAULT_RUNS, help=f"Numero avvii (default: {DEFAULT_RUNS})")
-    parser.add_argument("--delay", type=float, default=DEFAULT_DELAY, help=f"Delay tra avvii in secondi (default: {DEFAULT_DELAY})")
+    parser.add_argument(
+        "--runs", type=int, default=DEFAULT_RUNS, help=f"Numero avvii (default: {DEFAULT_RUNS})"
+    )
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=DEFAULT_DELAY,
+        help=f"Delay tra avvii in secondi (default: {DEFAULT_DELAY})",
+    )
     args = parser.parse_args()
-    
+
     print("\n" + "=" * 60)
     print("🔥 STRESS TEST - Stabilità Build Nuitka")
     print("=" * 60)
     print(f"   Data: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    
+
     # Find exe
     exe = find_exe()
     if not exe:
         print(f"\n❌ Build non trovato in: {DIST_DIR}")
         print("   Esegui prima: python admin/offusca/build_nuitka.py")
         return 1
-    
+
     # Confirm with user for long tests
     estimated_time = args.runs * (WAIT_TIME + args.delay) / 60
     print(f"\n   ⏱️  Tempo stimato: ~{estimated_time:.0f} minuti")
-    
+
     if args.runs > 20:
         print(f"\n   ⚠️  Test lungo ({args.runs} avvii). Premi Ctrl+C per interrompere.\n")
         time.sleep(2)
-    
+
     return run_stress_test(exe, args.runs, args.delay)
 
 
 if __name__ == "__main__":
     sys.exit(main())
-

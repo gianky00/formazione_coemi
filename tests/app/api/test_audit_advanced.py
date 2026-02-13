@@ -1,8 +1,10 @@
+from datetime import UTC, datetime, timedelta
+
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+
 from app.db.models import AuditLog, User
-from app.utils.audit import log_security_action
-from datetime import datetime, timedelta, timezone
+
 
 def test_audit_log_filtering(test_client: TestClient, db_session: Session):
     # 1. Setup: Create users and logs
@@ -14,14 +16,38 @@ def test_audit_log_filtering(test_client: TestClient, db_session: Session):
 
     # Create logs with different dates and categories
     # User 1
-    log1 = AuditLog(user_id=user1.id, username=user1.username, action="ACT1", category="AUTH", timestamp=datetime.now(timezone.utc) - timedelta(days=10))
-    log2 = AuditLog(user_id=user1.id, username=user1.username, action="ACT2", category="USER_MGMT", timestamp=datetime.now(timezone.utc))
+    log1 = AuditLog(
+        user_id=user1.id,
+        username=user1.username,
+        action="ACT1",
+        category="AUTH",
+        timestamp=datetime.now(UTC) - timedelta(days=10),
+    )
+    log2 = AuditLog(
+        user_id=user1.id,
+        username=user1.username,
+        action="ACT2",
+        category="USER_MGMT",
+        timestamp=datetime.now(UTC),
+    )
 
     # User 2
-    log3 = AuditLog(user_id=user2.id, username=user2.username, action="ACT3", category="AUTH", timestamp=datetime.now(timezone.utc))
+    log3 = AuditLog(
+        user_id=user2.id,
+        username=user2.username,
+        action="ACT3",
+        category="AUTH",
+        timestamp=datetime.now(UTC),
+    )
 
     # System
-    log4 = AuditLog(user_id=None, username="SYSTEM", action="SYS1", category="SYSTEM", timestamp=datetime.now(timezone.utc))
+    log4 = AuditLog(
+        user_id=None,
+        username="SYSTEM",
+        action="SYS1",
+        category="SYSTEM",
+        timestamp=datetime.now(UTC),
+    )
 
     db_session.add_all([log1, log2, log3, log4])
     db_session.commit()
@@ -34,7 +60,7 @@ def test_audit_log_filtering(test_client: TestClient, db_session: Session):
     assert all(l["username"] == "user1" for l in data)
 
     # 3. Filter by Date Range (User 1 only recent)
-    start = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    start = (datetime.now(UTC) - timedelta(days=1)).isoformat()
     # Use params dict to ensure URL encoding of special chars (like + in timezone)
     resp = test_client.get("/audit/", params={"user_id": user1.id, "start_date": start})
     data = resp.json()
@@ -42,16 +68,18 @@ def test_audit_log_filtering(test_client: TestClient, db_session: Session):
     assert data[0]["action"] == "ACT2"
 
     # 4. Filter by Category
-    resp = test_client.get(f"/audit/?category=AUTH")
+    resp = test_client.get("/audit/?category=AUTH")
     assert resp.status_code == 200
     data = resp.json()
     assert len(data) == 2
     assert all(l["category"] == "AUTH" for l in data)
 
     # 5. Create Log via POST
-    resp = test_client.post("/audit/", json={"action": "TEST_CREATE", "details": "foo", "category": "CONFIG"})
+    resp = test_client.post(
+        "/audit/", json={"action": "TEST_CREATE", "details": "foo", "category": "CONFIG"}
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert data["action"] == "TEST_CREATE"
     assert data["category"] == "CONFIG"
-    assert data["username"] == "admin" # Mocked current user
+    assert data["username"] == "admin"  # Mocked current user

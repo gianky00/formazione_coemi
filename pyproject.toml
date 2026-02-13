@@ -1,0 +1,141 @@
+[project]
+name = "formazione_coemi"
+version = "0.1.0"
+description = "Piattaforma automazione e gestione formazione Coemi"
+requires-python = ">=3.12"
+dependencies = [
+    "uvicorn==0.38.0",
+    "google-generativeai==0.8.5",
+    "fastapi==0.121.2",
+    "sqlalchemy==2.0.44",
+    "pydantic==2.12.4",
+    "pandas==2.3.3",
+    "numpy",
+    "python-dateutil==2.9.0.post0",
+    "requests==2.32.5",
+    "python-multipart==0.0.20",
+    "protobuf==4.25.3",
+    "httpx==0.28.1",
+    "fpdf2==2.8.5",
+    "apscheduler==3.10.4",
+    "tenacity",
+    "bcrypt",
+    "cryptography",
+    "passlib[bcrypt]",
+    "python-jose[cryptography]",
+    "geoip2",
+    "user-agents",
+    "wmi",
+    "pyttsx3",
+    "psutil",
+    "platformdirs",
+    "sentry-sdk[fastapi]",
+    "posthog",
+    "packaging",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "mypy",
+    "bandit",
+    "deptry",
+    "codespell",
+    "refurb",
+    "vulture",
+    "xenon",
+    "interrogate",
+    "pre-commit",
+    "pytest",
+    "pytest-cov",
+    "pytest-mock",
+    "pyfakefs",
+    "radon",
+    "types-requests",
+    "types-python-dateutil",
+    "types-PyYAML",
+    "pandas-stubs",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific rules
+    "PERF", # perflint
+    "T20",  # flake8-print
+]
+ignore = [
+    "E501", # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "desktop_app"]
+combine-as-imports = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+docstring-code-format = true
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = false
+show_error_codes = true
+show_error_context = true
+pretty = true
+
+[[tool.mypy.overrides]]
+module = [
+    "google.generativeai.*",
+    "apscheduler.*",
+    "fpdf2.*",
+    "geoip2.*",
+    "user_agents.*",
+    "wmi.*",
+    "pyttsx3.*",
+    "posthog.*",
+    "jose.*",
+    "passlib.*",
+]
+ignore_missing_imports = true
+
+[tool.deptry]
+extend_exclude = ["tests", "admin", "tools"]
+known_first_party = ["app", "desktop_app"]
+
+[tool.deptry.per_rule_ignores]
+DEP002 = ["ruff", "mypy", "bandit", "deptry", "codespell", "refurb", "vulture", "xenon", "interrogate", "pre-commit", "pytest-cov", "pytest-mock", "pyfakefs", "radon", "types-requests", "types-python-dateutil", "types-PyYAML", "pandas-stubs"]
+
+[tool.bandit]
+exclude_dirs = ["tests", "admin", "tools"]
+skips = ["B101"]
+
+[tool.interrogate]
+ignore-init-method = true
+ignore-init-module = true
+ignore-magic = true
+ignore-semiprivate = true
+ignore-private = true
+ignore-property-decorators = true
+ignore-module = true
+ignore-nested-functions = true
+fail-under = 0
+exclude = ["tests", "admin", "tools", "dist"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=app --cov=desktop_app --cov-report=term-missing"

@@ -1,6 +1,8 @@
 import os
 import sys
+
 from app.core.config import get_user_data_dir
+
 
 class LicenseChecker:
     @staticmethod
@@ -16,7 +18,7 @@ class LicenseChecker:
 
         # 2. Application Root / Install Directory (Legacy)
         # In frozen apps, this is sys._MEIPASS or executable dir
-        base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(sys.argv[0])))
+        base_path = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(sys.argv[0])))
 
         # Check root
         if os.path.exists(os.path.join(base_path, "pyarmor.rkey")):
@@ -29,8 +31,8 @@ class LicenseChecker:
         # 3. Check current working directory
         cwd = os.getcwd()
         if os.path.exists(os.path.join(cwd, "pyarmor.rkey")):
-             return True
+            return True
         if os.path.exists(os.path.join(cwd, "Licenza", "pyarmor.rkey")):
-             return True
+            return True
 
         return False

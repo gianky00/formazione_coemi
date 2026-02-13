@@ -14,18 +14,20 @@ Usage:
 Author: Migration Team
 Version: 1.0.0
 """
+
+import argparse
 import subprocess
 import sys
 import time
-import argparse
 from pathlib import Path
 
 # Fix Windows console encoding
 if sys.platform == "win32":
     import io
+
     try:
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
     except Exception:
         pass
 
@@ -103,18 +105,19 @@ def get_dist_root() -> Path | None:
 # TESTS
 # =============================================================================
 
+
 def test_exe_exists() -> bool:
     """Test 1: Eseguibile esiste."""
     print("🔍 Test 1: Eseguibile esiste...")
-    
+
     exe = find_exe()
     if exe:
         size_mb = exe.stat().st_size / (1024 * 1024)
         print(f"   ✅ PASS: {exe.relative_to(PROJECT_ROOT)} ({size_mb:.1f} MB)")
         return True
     else:
-        print(f"   ❌ FAIL: Eseguibile non trovato")
-        print(f"   Cercato in:")
+        print("   ❌ FAIL: Eseguibile non trovato")
+        print("   Cercato in:")
         for candidate in EXE_CANDIDATES:
             print(f"     - {candidate.relative_to(PROJECT_ROOT)}")
         return False
@@ -123,23 +126,23 @@ def test_exe_exists() -> bool:
 def test_exe_size() -> bool:
     """Test 2: Dimensione eseguibile ragionevole."""
     print("📏 Test 2: Dimensione eseguibile...")
-    
+
     exe = find_exe()
     if not exe:
         print("   ⏭️  SKIP: Exe non trovato")
         return False
-    
+
     size_mb = exe.stat().st_size / (1024 * 1024)
-    
+
     # Exe should be at least 10MB (sanity check)
     if size_mb < 10:
         print(f"   ❌ FAIL: Troppo piccolo ({size_mb:.1f} MB) - build incompleto?")
         return False
-    
+
     # Exe should not be larger than 500MB (something wrong)
     if size_mb > 500:
         print(f"   ⚠️  WARN: Molto grande ({size_mb:.1f} MB) - controllare dipendenze")
-    
+
     print(f"   ✅ PASS: {size_mb:.1f} MB (dimensione OK)")
     return True
 
@@ -147,12 +150,12 @@ def test_exe_size() -> bool:
 def test_dist_structure() -> bool:
     """Test 3: Struttura directory dist corretta."""
     print("📂 Test 3: Struttura directory...")
-    
+
     dist_root = get_dist_root()
     if not dist_root:
         print("   ⏭️  SKIP: Dist root non trovata")
         return False
-    
+
     all_ok = True
     for asset in CRITICAL_ASSETS:
         asset_path = dist_root / asset
@@ -161,23 +164,23 @@ def test_dist_structure() -> bool:
         else:
             print(f"   ⚠️  WARN: Asset mancante: {asset}")
             # Non fallire per asset mancanti, solo warning
-    
-    print(f"   ✅ PASS: Struttura base OK")
+
+    print("   ✅ PASS: Struttura base OK")
     return all_ok
 
 
 def test_critical_dlls() -> bool:
     """Test 4: DLL critiche presenti."""
     print("🔗 Test 4: DLL critiche...")
-    
+
     dist_root = get_dist_root()
     if not dist_root:
         print("   ⏭️  SKIP: Dist root non trovata")
         return False
-    
+
     missing = []
     found = 0
-    
+
     # Search recursively for DLLs
     for dll_name in CRITICAL_DLLS:
         dll_files = list(dist_root.rglob(dll_name))
@@ -186,11 +189,11 @@ def test_critical_dlls() -> bool:
             log_info(f"Found: {dll_name}")
         else:
             missing.append(dll_name)
-    
+
     if missing:
         print(f"   ⚠️  WARN: DLL mancanti: {', '.join(missing)}")
-        print(f"   (Potrebbero essere incluse con nome diverso)")
-    
+        print("   (Potrebbero essere incluse con nome diverso)")
+
     if found >= len(CRITICAL_DLLS) // 2:  # At least half found
         print(f"   ✅ PASS: {found}/{len(CRITICAL_DLLS)} DLL trovate")
         return True
@@ -202,48 +205,48 @@ def test_critical_dlls() -> bool:
 def test_exe_launches(timeout_sec: int = 5) -> bool:
     """Test 5: Eseguibile si avvia senza crash immediato."""
     print(f"🚀 Test 5: Avvio eseguibile (attesa {timeout_sec}s)...")
-    
+
     exe = find_exe()
     if not exe:
         print("   ⏭️  SKIP: Exe non trovato")
         return False
-    
+
     try:
         # Launch exe
         process = subprocess.Popen(
             [str(exe)],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            cwd=exe.parent  # Run from dist directory
+            cwd=exe.parent,  # Run from dist directory
         )
-        
+
         # Wait for specified time
         time.sleep(timeout_sec)
-        
+
         # Check if still running
         if process.poll() is None:
             # Still running = good
             print(f"   ✅ PASS: Applicazione in esecuzione dopo {timeout_sec}s")
-            
+
             # Terminate cleanly
             process.terminate()
             try:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 process.kill()
-            
+
             return True
         else:
             # Crashed
             exit_code = process.returncode
-            stderr = process.stderr.read().decode('utf-8', errors='replace')
-            
+            stderr = process.stderr.read().decode("utf-8", errors="replace")
+
             print(f"   ❌ FAIL: Crash immediato (exit code: {exit_code})")
             if stderr:
-                print(f"   Stderr (primi 500 char):")
+                print("   Stderr (primi 500 char):")
                 print(f"   {stderr[:500]}")
             return False
-            
+
     except Exception as e:
         print(f"   ❌ FAIL: Errore lancio: {e}")
         return False
@@ -252,43 +255,39 @@ def test_exe_launches(timeout_sec: int = 5) -> bool:
 def test_no_critical_errors() -> bool:
     """Test 6: Nessun errore critico in stderr."""
     print("📝 Test 6: Verifica errori critici...")
-    
+
     exe = find_exe()
     if not exe:
         print("   ⏭️  SKIP: Exe non trovato")
         return False
-    
+
     try:
         # Run with short timeout
         result = subprocess.run(
-            [str(exe)],
-            capture_output=True,
-            text=True,
-            timeout=8,
-            cwd=exe.parent
+            [str(exe)], capture_output=True, text=True, timeout=8, cwd=exe.parent
         )
-        
+
         stderr = result.stderr or ""
         stdout = result.stdout or ""
         combined = stderr + stdout
-        
+
         # Check for critical errors
         errors_found = []
         for error_pattern in CRITICAL_ERRORS:
             if error_pattern.lower() in combined.lower():
                 errors_found.append(error_pattern)
-        
+
         if errors_found:
-            print(f"   ❌ FAIL: Errori critici trovati:")
+            print("   ❌ FAIL: Errori critici trovati:")
             for err in errors_found:
                 print(f"     - {err}")
             if stderr:
                 print(f"   Stderr (primi 300 char): {stderr[:300]}")
             return False
-        
+
         print("   ✅ PASS: Nessun errore critico rilevato")
         return True
-        
+
     except subprocess.TimeoutExpired:
         # Timeout = app is running (good)
         print("   ✅ PASS: App in esecuzione (timeout = nessun crash)")
@@ -301,29 +300,29 @@ def test_no_critical_errors() -> bool:
 def test_file_count() -> bool:
     """Test 7: Numero file ragionevole nella dist."""
     print("📊 Test 7: Conteggio file...")
-    
+
     dist_root = get_dist_root()
     if not dist_root:
         print("   ⏭️  SKIP: Dist root non trovata")
         return False
-    
+
     all_files = list(dist_root.rglob("*"))
     file_count = len([f for f in all_files if f.is_file()])
     dir_count = len([f for f in all_files if f.is_dir()])
-    
+
     # Calculate total size
     total_size = sum(f.stat().st_size for f in all_files if f.is_file())
     total_size_mb = total_size / (1024 * 1024)
-    
+
     print(f"   File: {file_count}")
     print(f"   Directory: {dir_count}")
     print(f"   Dimensione totale: {total_size_mb:.1f} MB")
-    
+
     # Sanity checks
     if file_count < 50:
         print(f"   ⚠️  WARN: Pochi file ({file_count}) - build incompleto?")
-    
-    print(f"   ✅ PASS: Struttura OK")
+
+    print("   ✅ PASS: Struttura OK")
     return True
 
 
@@ -331,17 +330,18 @@ def test_file_count() -> bool:
 # MAIN
 # =============================================================================
 
+
 def main():
     """Run all tests."""
     global VERBOSE
-    
+
     parser = argparse.ArgumentParser(description="Test build Nuitka")
     parser.add_argument("--verbose", "-v", action="store_true", help="Output verboso")
     parser.add_argument("--skip-launch", action="store_true", help="Salta test avvio exe")
     args = parser.parse_args()
-    
+
     VERBOSE = args.verbose
-    
+
     print()
     print("=" * 60)
     print("🧪 TEST BUILD - Verifica Eseguibile Nuitka")
@@ -349,7 +349,7 @@ def main():
     print(f"Project: {PROJECT_ROOT}")
     print(f"Dist dir: {DIST_DIR}")
     print()
-    
+
     # Define tests
     tests = [
         ("Exe Exists", test_exe_exists),
@@ -358,16 +358,18 @@ def main():
         ("Critical DLLs", test_critical_dlls),
         ("File Count", test_file_count),
     ]
-    
+
     if not args.skip_launch:
-        tests.extend([
-            ("Exe Launches", test_exe_launches),
-            ("No Critical Errors", test_no_critical_errors),
-        ])
+        tests.extend(
+            [
+                ("Exe Launches", test_exe_launches),
+                ("No Critical Errors", test_no_critical_errors),
+            ]
+        )
     else:
         print("⏭️  Test avvio exe saltati (--skip-launch)")
         print()
-    
+
     # Run tests
     results = []
     for name, test_func in tests:
@@ -378,23 +380,23 @@ def main():
             print(f"   ❌ EXCEPTION: {e}")
             results.append((name, False))
         print()
-    
+
     # Summary
     print("=" * 60)
     print("📊 RIEPILOGO RISULTATI")
     print("=" * 60)
-    
+
     passed = sum(1 for _, r in results if r)
     total = len(results)
-    
+
     for name, result in results:
         status = "✅" if result else "❌"
         print(f"  {status} {name}")
-    
+
     print()
     print(f"Passati: {passed}/{total}")
     print()
-    
+
     if passed == total:
         print("✅ BUILD VALIDATO - Tutti i test passati!")
         print()
@@ -419,4 +421,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-

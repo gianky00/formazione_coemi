@@ -1,14 +1,15 @@
 import re
 
+
 def verify_file_signature(file_content: bytes, file_type: str) -> bool:
     """
     Verifies the file signature (magic number) against the expected file type.
     """
-    if file_type.lower() == 'pdf':
+    if file_type.lower() == "pdf":
         # PDF signature: %PDF-
-        return file_content.startswith(b'%PDF-')
+        return file_content.startswith(b"%PDF-")
 
-    elif file_type.lower() == 'csv':
+    elif file_type.lower() == "csv":
         # CSV doesn't have a strict magic number, but we can check
         # if it's readable text and doesn't contain binary control characters
         # (excluding standard whitespace like \n, \r, \t)
@@ -16,23 +17,24 @@ def verify_file_signature(file_content: bytes, file_type: str) -> bool:
             # Try to decode as UTF-8 (or other common encodings if needed)
             # If it fails, it's likely binary
             # S1481: Unused variable removed
-            file_content.decode('utf-8')
+            file_content.decode("utf-8")
         except UnicodeDecodeError:
             try:
-                file_content.decode('cp1252') # Common fallback
+                file_content.decode("cp1252")  # Common fallback
             except UnicodeDecodeError:
                 try:
-                     file_content.decode('latin-1')
-                except Exception: # S5754: Handle general exception
-                     return False
+                    file_content.decode("latin-1")
+                except Exception:  # S5754: Handle general exception
+                    return False
 
         # Heuristic: check for null bytes which are rare in valid CSVs
-        if b'\x00' in file_content:
+        if b"\x00" in file_content:
             return False
 
         return True
 
     return False
+
 
 def sanitize_filename(filename: str) -> str:
     """
@@ -44,4 +46,4 @@ def sanitize_filename(filename: str) -> str:
     # Replace invalid chars with _
     # Windows invalid: < > : " / \ | ? *
     # Also good to avoid control chars
-    return re.sub(r'[<>:"/\\|?*]', '_', filename).strip()
+    return re.sub(r'[<>:"/\\|?*]', "_", filename).strip()

@@ -1,9 +1,10 @@
-import pytest
 import os
 from datetime import datetime
+from unittest.mock import patch
+
 from app.db.models import Certificato, Corso, Dipendente
 from app.utils.file_security import sanitize_filename
-from unittest.mock import patch
+
 
 def test_delete_certificate_deletes_file(test_client, db_session, test_dirs):
     # 1. Setup Data in DB
@@ -14,7 +15,7 @@ def test_delete_certificate_deletes_file(test_client, db_session, test_dirs):
         dipendente=dip,
         corso=corso,
         data_rilascio=datetime.strptime("01/01/2020", "%d/%m/%Y").date(),
-        data_scadenza_calcolata=datetime.strptime("01/01/2025", "%d/%m/%Y").date()
+        data_scadenza_calcolata=datetime.strptime("01/01/2025", "%d/%m/%Y").date(),
     )
 
     db_session.add(dip)
@@ -33,7 +34,9 @@ def test_delete_certificate_deletes_file(test_client, db_session, test_dirs):
 
     # Assuming "ATTIVO" status. document_locator searches all statuses so exact folder matters less,
     # but let's put it in ATTIVO for realism.
-    folder = os.path.join(str(test_dirs), "DOCUMENTI DIPENDENTI", f"{nome_fs} ({matr_fs})", cat_fs, "ATTIVO")
+    folder = os.path.join(
+        str(test_dirs), "DOCUMENTI DIPENDENTI", f"{nome_fs} ({matr_fs})", cat_fs, "ATTIVO"
+    )
     os.makedirs(folder, exist_ok=True)
 
     filename = f"{nome_fs} ({matr_fs}) - {cat_fs} - 01_01_2025.pdf"
@@ -48,7 +51,7 @@ def test_delete_certificate_deletes_file(test_client, db_session, test_dirs):
     # Patch shutil.move (since deletion implies moving to trash in this system)
     with patch("shutil.move") as mock_move:
         response = test_client.delete(f"/certificati/{cert_id}")
-    
+
     assert response.status_code == 200
 
     # 4. Verify DB deletion

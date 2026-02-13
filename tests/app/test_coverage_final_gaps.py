@@ -1,8 +1,11 @@
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import patch, MagicMock
-from app.db.models import User, AuditLog
-from app.api import deps
 from fastapi import HTTPException
+
+from app.api import deps
+from app.db.models import AuditLog, User
+
 
 # --- Auth Deps ---
 def test_get_current_user_deleted(db_session):
@@ -12,7 +15,7 @@ def test_get_current_user_deleted(db_session):
     # payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[security.ALGORITHM])
 
     with patch("jose.jwt.decode") as mock_jwt:
-        mock_jwt.return_value = {"sub": "999"} # ID 999
+        mock_jwt.return_value = {"sub": "999"}  # ID 999
 
         # Ensure ID 999 is not in DB
         assert db_session.query(User).filter_by(id=999).first() is None
@@ -22,6 +25,7 @@ def test_get_current_user_deleted(db_session):
         # deps.py raises 401 credentials_exception if user is not found
         assert exc.value.status_code == 401
 
+
 # --- System Concurrency ---
 def test_maintenance_already_running(test_client, user_token_headers):
     # Patch the global variable in system module
@@ -29,6 +33,7 @@ def test_maintenance_already_running(test_client, user_token_headers):
         res = test_client.post("/system/maintenance/background", headers=user_token_headers)
         assert res.status_code == 200
         assert res.json()["status"] == "skipped"
+
 
 # --- Config Exception ---
 def test_move_database_exception(test_client, admin_token_headers):
@@ -38,10 +43,13 @@ def test_move_database_exception(test_client, admin_token_headers):
 
         # Need mock path check too, otherwise 400 "invalid folder"
         with patch("pathlib.Path.is_dir", return_value=True):
-            res = test_client.post("/config/move-database", json={"new_path": "/tmp/new"}, headers=admin_token_headers)
+            res = test_client.post(
+                "/config/move-database", json={"new_path": "/tmp/new"}, headers=admin_token_headers
+            )
 
         assert res.status_code == 500
         assert "Disk Full" in res.json()["detail"]
+
 
 # --- Audit Categories ---
 def test_audit_categories_filtering(test_client, admin_token_headers, db_session):

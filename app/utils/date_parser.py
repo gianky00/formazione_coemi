@@ -1,9 +1,9 @@
-from datetime import datetime, date
-from typing import Optional
-import re
+from datetime import date, datetime
+
 from dateutil import parser as dateutil_parser
 
-def parse_date_flexible(date_str: str) -> Optional[date]:
+
+def parse_date_flexible(date_str: str) -> date | None:
     """
     Tries to parse a date string from various formats.
     Supported formats:
@@ -21,15 +21,7 @@ def parse_date_flexible(date_str: str) -> Optional[date]:
     date_str = date_str.strip()
 
     # Simple manual formats first (fastest and strictly defined)
-    formats = [
-        '%d/%m/%Y',
-        '%d-%m-%Y',
-        '%Y-%m-%d',
-        '%Y/%m/%d',
-        '%d.%m.%Y',
-        '%d/%m/%y',
-        '%d-%m-%y'
-    ]
+    formats = ["%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d", "%Y/%m/%d", "%d.%m.%Y", "%d/%m/%y", "%d-%m-%y"]
 
     for fmt in formats:
         try:

@@ -1,15 +1,18 @@
-import pytest
-from unittest.mock import MagicMock, patch, ANY
-from app.services import notification_service
-from app.db.models import Certificato, Corso, Dipendente
 from datetime import date, timedelta
-import smtplib
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from app.db.models import Certificato, Corso, Dipendente
+from app.services import notification_service
 
 # --- Mocks ---
+
 
 @pytest.fixture
 def mock_db_session():
     return MagicMock()
+
 
 @pytest.fixture
 def sample_certificates():
@@ -53,6 +56,7 @@ def sample_certificates():
 
     return [cert1, cert2, cert3]
 
+
 @pytest.fixture
 def mock_settings():
     with patch("app.services.notification_service.settings") as mock_settings:
@@ -66,7 +70,9 @@ def mock_settings():
         mock_settings.ALERT_THRESHOLD_DAYS_VISITE = 30
         yield mock_settings
 
+
 # --- Tests ---
+
 
 def test_generate_pdf_report_in_memory_success(sample_certificates):
     expiring_visite = [sample_certificates[1]]
@@ -92,6 +98,7 @@ def test_generate_pdf_report_in_memory_success(sample_certificates):
         # Verify headers were drawn (indirectly via cell calls)
         assert mock_pdf_instance.cell.call_count > 0
 
+
 def test_generate_pdf_report_in_memory_missing_logo():
     with patch("app.services.notification_service.PDF") as MockPDF:
         mock_pdf_instance = MockPDF.return_value
@@ -101,7 +108,8 @@ def test_generate_pdf_report_in_memory_missing_logo():
         mock_pdf_instance.add_page.side_effect = Exception("Generic PDF Error")
 
         with pytest.raises(ValueError, match="Si è verificato un errore imprevisto"):
-             notification_service.generate_pdf_report_in_memory([], [], [], 30, 60)
+            notification_service.generate_pdf_report_in_memory([], [], [], 30, 60)
+
 
 def test_send_email_notification_ssl(mock_settings):
     mock_settings.SMTP_PORT = 465
@@ -113,13 +121,12 @@ def test_send_email_notification_ssl(mock_settings):
 
         with patch("builtins.open", create=True) as mock_open:
             mock_open.side_effect = FileNotFoundError
-            notification_service.send_email_notification(
-                pdf_content, 1, 1, 1, 60, 30
-            )
+            notification_service.send_email_notification(pdf_content, 1, 1, 1, 60, 30)
 
         mock_smtp_ssl.assert_called_with("smtp.example.com", 465, timeout=30)
         mock_server.login.assert_called_with("user@example.com", "password")
         mock_server.send_message.assert_called()
+
 
 def test_send_email_notification_starttls(mock_settings):
     mock_settings.SMTP_PORT = 587
@@ -129,40 +136,50 @@ def test_send_email_notification_starttls(mock_settings):
         mock_server = mock_smtp.return_value.__enter__.return_value
 
         with patch("builtins.open", create=True) as mock_open:
-             mock_open.side_effect = FileNotFoundError
-             notification_service.send_email_notification(
-                pdf_content, 1, 1, 1, 60, 30
-             )
+            mock_open.side_effect = FileNotFoundError
+            notification_service.send_email_notification(pdf_content, 1, 1, 1, 60, 30)
 
         mock_smtp.assert_called_with("smtp.example.com", 587, timeout=30)
         mock_server.starttls.assert_called()
         mock_server.login.assert_called_with("user@example.com", "password")
         mock_server.send_message.assert_called()
 
+
 def test_check_and_send_alerts_success(mock_db_session, sample_certificates, mock_settings):
     # Setup
     mock_db_session.query.return_value.all.return_value = sample_certificates
 
-    with patch("app.services.notification_service.SessionLocal", return_value=mock_db_session), \
-         patch("app.services.notification_service.certificate_logic.get_certificate_status", return_value="scaduto"), \
-         patch("app.services.notification_service.generate_pdf_report_in_memory", return_value=b"PDF"), \
-         patch("app.services.notification_service.send_email_notification") as mock_send:
-
+    with (
+        patch("app.services.notification_service.SessionLocal", return_value=mock_db_session),
+        patch(
+            "app.services.notification_service.certificate_logic.get_certificate_status",
+            return_value="scaduto",
+        ),
+        patch(
+            "app.services.notification_service.generate_pdf_report_in_memory", return_value=b"PDF"
+        ),
+        patch("app.services.notification_service.send_email_notification") as mock_send,
+    ):
         notification_service.check_and_send_alerts()
 
         mock_send.assert_called_once()
         # Verify kwargs mainly
         _, kwargs = mock_send.call_args
-        assert kwargs['pdf_content_bytes'] == b"PDF"
+        assert kwargs["pdf_content_bytes"] == b"PDF"
+
 
 def test_check_and_send_alerts_pdf_gen_failure(mock_db_session, sample_certificates, mock_settings):
     mock_db_session.query.return_value.all.return_value = sample_certificates
 
-    with patch("app.services.notification_service.SessionLocal", return_value=mock_db_session), \
-         patch("app.services.notification_service.certificate_logic.get_certificate_status", return_value="scaduto"), \
-         patch("app.services.notification_service.generate_pdf_report_in_memory", return_value=None), \
-         patch("app.services.notification_service.logging.error") as mock_log:
-
+    with (
+        patch("app.services.notification_service.SessionLocal", return_value=mock_db_session),
+        patch(
+            "app.services.notification_service.certificate_logic.get_certificate_status",
+            return_value="scaduto",
+        ),
+        patch("app.services.notification_service.generate_pdf_report_in_memory", return_value=None),
+        patch("app.services.notification_service.logging.error") as mock_log,
+    ):
         notification_service.check_and_send_alerts()
 
         assert mock_log.call_count >= 1
@@ -173,6 +190,7 @@ def test_check_and_send_alerts_pdf_gen_failure(mock_db_session, sample_certifica
                 break
         assert found
 
+
 def test_check_and_send_alerts_locking(mock_db_session):
     # Cannot patch acquire on the lock object directly as it is read-only in CPython
     # We patch the lock object itself in the module
@@ -180,9 +198,10 @@ def test_check_and_send_alerts_locking(mock_db_session):
     mock_lock = MagicMock()
     mock_lock.acquire.return_value = False
 
-    with patch("app.services.notification_service.SessionLocal", return_value=mock_db_session), \
-         patch("app.services.notification_service._email_lock", mock_lock):
+    with (
+        patch("app.services.notification_service.SessionLocal", return_value=mock_db_session),
+        patch("app.services.notification_service._email_lock", mock_lock),
+    ):
+        notification_service.check_and_send_alerts()
 
-         notification_service.check_and_send_alerts()
-
-         mock_db_session.query.assert_not_called()
+        mock_db_session.query.assert_not_called()

@@ -1,12 +1,12 @@
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from app.db.models import User
+
 from app.core import security
-from app.api import deps
-import pytest
+from app.db.models import User
 
 # Note: We do NOT use the global override_get_current_user here because we want to test the LOGIN flow
 # which issues tokens.
+
 
 def test_login_updates_previous_access(test_client: TestClient, db_session: Session):
     # 1. Create a user manually

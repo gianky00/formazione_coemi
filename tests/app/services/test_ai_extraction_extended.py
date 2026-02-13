@@ -1,23 +1,25 @@
-import pytest
-import json
 from unittest.mock import MagicMock, patch
-from google.api_core import exceptions
+
+import pytest
+
 from app.services import ai_extraction
-from app.core.config import settings
+
 
 def test_gemini_client_singleton():
     # Reset singleton
     ai_extraction.GeminiClient._instance = None
 
-    with patch("google.generativeai.configure") as mock_conf, \
-         patch("google.generativeai.GenerativeModel") as mock_model:
-
+    with (
+        patch("google.generativeai.configure") as mock_conf,
+        patch("google.generativeai.GenerativeModel") as mock_model,
+    ):
         client1 = ai_extraction.GeminiClient()
         client2 = ai_extraction.GeminiClient()
 
         assert client1 is client2
         mock_conf.assert_called_once()
         mock_model.assert_called_once()
+
 
 def test_gemini_client_missing_key():
     ai_extraction.GeminiClient._instance = None
@@ -30,6 +32,7 @@ def test_gemini_client_missing_key():
         with pytest.raises(ValueError, match="GEMINI_API_KEY_ANALYSIS not configured"):
             ai_extraction.GeminiClient()
 
+
 def test_extract_entities_json_decode_error(mocker):
     mock_model = MagicMock()
     mock_response = MagicMock()
@@ -41,6 +44,7 @@ def test_extract_entities_json_decode_error(mocker):
     result = ai_extraction.extract_entities_with_ai(b"pdf")
     assert "error" in result
     assert "Invalid JSON" in result["error"]
+
 
 def test_extract_entities_generic_exception(mocker):
     mock_model = MagicMock()

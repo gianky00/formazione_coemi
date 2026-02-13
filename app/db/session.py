@@ -3,10 +3,13 @@ This module handles the database session and engine creation.
 It sets up the SQLAlchemy engine to use a shared In-Memory SQLite connection
 managed by DBSecurityManager, ensuring strict data security (decryption in RAM).
 """
+
+from collections.abc import Generator
+
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
-import os
+
 from app.core.db_security import db_security
 
 # Database URL for In-Memory SQLite
@@ -18,21 +21,23 @@ engine = create_engine(
     DATABASE_URL,
     connect_args={"check_same_thread": False},
     poolclass=StaticPool,
-    creator=db_security.get_connection
+    creator=db_security.get_connection,
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-def reconfigure_engine(new_url: str):
+
+def reconfigure_engine(new_url: str) -> None:
     """
     No-op: The engine is statically configured to use the memory connection from DBSecurityManager.
     """
     pass
 
-def get_db():
+
+def get_db() -> Generator[Session, None, None]:
     """
     FastAPI dependency that provides a database session for each request.
-    
+
     Ensures proper cleanup:
     - Routes must explicitly call db.commit() for changes
     - Any uncommitted changes are rolled back on close

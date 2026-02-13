@@ -19,15 +19,16 @@ Options:
 Author: Migration Team
 Version: 1.0.0 (Nuitka Migration)
 """
-import subprocess
-import sys
-import os
-import shutil
-import time
-from pathlib import Path
-from datetime import datetime
+
 import argparse
 import logging
+import os
+import shutil
+import subprocess
+import sys
+import time
+from datetime import datetime
+from pathlib import Path
 
 # =============================================================================
 # CONFIGURATION
@@ -53,11 +54,11 @@ BUILD_LOG = PROJECT_ROOT / "admin" / "offusca" / "build_nuitka_log.txt"
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler(BUILD_LOG, mode='w', encoding='utf-8'),
-        logging.StreamHandler(sys.stdout)
-    ]
+        logging.FileHandler(BUILD_LOG, mode="w", encoding="utf-8"),
+        logging.StreamHandler(sys.stdout),
+    ],
 )
 logger = logging.getLogger(__name__)
 
@@ -68,18 +69,19 @@ logger = logging.getLogger(__name__)
 # Fix Windows console encoding for emoji support
 if sys.platform == "win32":
     import io
+
     try:
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
     except Exception:
         pass  # Fallback if already wrapped
 
 
 def log_section(title: str):
     """Print section header."""
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"  {title}")
-    print(f"{'='*70}\n")
+    print(f"{'=' * 70}\n")
     logger.info(f"=== {title} ===")
 
 
@@ -111,24 +113,25 @@ def log_info(msg: str):
 # ENVIRONMENT CHECKS
 # =============================================================================
 
+
 def check_environment() -> bool:
     """
     Verifica che l'ambiente di build sia pronto.
-    
+
     Checks:
     - Python 3.12+
     - Nuitka installato
     - MSVC disponibile (cl.exe)
     - Node.js + npm
     - Frontend buildato
-    
+
     Returns:
         bool: True se tutti i check passano
     """
     log_section("🔍 VERIFICA AMBIENTE")
-    
+
     all_pass = True
-    
+
     # Check 1: Python version
     py_version = sys.version_info
     if py_version >= (3, 12):
@@ -136,15 +139,17 @@ def check_environment() -> bool:
     else:
         log_error(f"Python {py_version.major}.{py_version.minor} (richiesto >= 3.12)")
         all_pass = False
-    
+
     # Check 2: Nuitka installed
     try:
         result = subprocess.run(
             [sys.executable, "-m", "nuitka", "--version"],
-            capture_output=True, text=True, timeout=10
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         if result.returncode == 0:
-            version = result.stdout.strip().split('\n')[0]
+            version = result.stdout.strip().split("\n")[0]
             log_success(f"Nuitka {version}")
         else:
             log_error("Nuitka non funzionante")
@@ -155,15 +160,17 @@ def check_environment() -> bool:
     except Exception as e:
         log_error(f"Errore verifica Nuitka: {e}")
         all_pass = False
-    
+
     # Check 3: MSVC compiler (via Nuitka detection or direct)
     try:
         result = subprocess.run(
             [sys.executable, "-m", "nuitka", "--version"],
-            capture_output=True, text=True, timeout=15
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         if "Version C compiler:" in result.stdout:
-            for line in result.stdout.split('\n'):
+            for line in result.stdout.split("\n"):
                 if "Version C compiler:" in line:
                     compiler_info = line.replace("Version C compiler:", "").strip()
                     # Truncate long path
@@ -180,7 +187,7 @@ def check_environment() -> bool:
                 log_warning("MSVC non verificato (Nuitka potrebbe trovarlo)")
     except Exception:
         log_warning("MSVC check fallito (Nuitka potrebbe comunque trovarlo)")
-    
+
     # Check 4: Node.js + npm (skip if frontend already built)
     frontend_index = FRONTEND_DIR / "dist" / "index.html"
     if frontend_index.exists():
@@ -189,10 +196,12 @@ def check_environment() -> bool:
         # Try npm, then npm.cmd on Windows
         npm_found = False
         npm_commands = ["npm", "npm.cmd"] if sys.platform == "win32" else ["npm"]
-        
+
         for npm_cmd in npm_commands:
             try:
-                result = subprocess.run([npm_cmd, "--version"], capture_output=True, text=True, timeout=5)
+                result = subprocess.run(
+                    [npm_cmd, "--version"], capture_output=True, text=True, timeout=5
+                )
                 if result.returncode == 0:
                     log_success(f"npm {result.stdout.strip()}")
                     npm_found = True
@@ -201,24 +210,24 @@ def check_environment() -> bool:
                 continue
             except Exception:
                 continue
-        
+
         if not npm_found:
             log_error("npm non trovato. Installa Node.js o builda il frontend manualmente")
             all_pass = False
-    
+
     # Check 5: Frontend build (already checked above, reuse variable)
     if frontend_index.exists():
         log_success(f"Frontend buildato ({frontend_index.relative_to(PROJECT_ROOT)})")
     else:
         log_warning("Frontend non buildato (verrà buildato automaticamente)")
-    
+
     # Check 6: Entry point exists
     if ENTRY_POINT.exists():
         log_success(f"Entry point: {ENTRY_POINT.name}")
     else:
         log_error(f"Entry point non trovato: {ENTRY_POINT}")
         all_pass = False
-    
+
     # Check 7: Icon exists
     icon_found = False
     for icon_path in ICON_PATHS:
@@ -228,7 +237,7 @@ def check_environment() -> bool:
             break
     if not icon_found:
         log_warning("Icon non trovata (build procederà senza icona custom)")
-    
+
     return all_pass
 
 
@@ -236,53 +245,45 @@ def check_environment() -> bool:
 # BUILD STEPS
 # =============================================================================
 
+
 def build_frontend() -> bool:
     """
     Build React frontend se necessario.
-    
+
     Returns:
         bool: True se frontend è pronto
     """
     log_section("⚛️  BUILD REACT FRONTEND")
-    
+
     frontend_index = FRONTEND_DIR / "dist" / "index.html"
-    
+
     if frontend_index.exists():
         log_success("Frontend già buildato (dist/index.html esiste)")
         return True
-    
+
     log_info("Frontend non buildato, eseguo npm run build...")
-    
+
     # Determine npm command (npm.cmd on Windows)
     npm_cmd = "npm.cmd" if sys.platform == "win32" else "npm"
-    
+
     try:
         # Install dependencies first if needed
         if not (FRONTEND_DIR / "node_modules").exists():
             log_info("Installazione dipendenze npm...")
-            subprocess.run(
-                [npm_cmd, "install"],
-                cwd=FRONTEND_DIR,
-                check=True,
-                capture_output=True
-            )
-        
+            subprocess.run([npm_cmd, "install"], cwd=FRONTEND_DIR, check=True, capture_output=True)
+
         # Build
         result = subprocess.run(
-            [npm_cmd, "run", "build"],
-            cwd=FRONTEND_DIR,
-            capture_output=True,
-            text=True,
-            check=True
+            [npm_cmd, "run", "build"], cwd=FRONTEND_DIR, capture_output=True, text=True, check=True
         )
-        
+
         if frontend_index.exists():
             log_success("Frontend build completato")
             return True
         else:
             log_error("Build completato ma index.html non trovato")
             return False
-            
+
     except subprocess.CalledProcessError as e:
         log_error(f"Build frontend fallito: {e.stderr}")
         return False
@@ -294,7 +295,7 @@ def build_frontend() -> bool:
 def clean_build_dir():
     """Rimuove directory di build precedenti."""
     log_section("🧹 PULIZIA")
-    
+
     if DIST_DIR.exists():
         log_info(f"Rimuovo {DIST_DIR.relative_to(PROJECT_ROOT)}")
         try:
@@ -321,24 +322,23 @@ def get_icon_path() -> str:
 def get_nuitka_command(fast_mode: bool = False) -> list:
     """
     Costruisce il comando Nuitka completo.
-    
+
     Args:
         fast_mode: Se True, disabilita LTO per build più veloce
-    
+
     Returns:
         list: Lista di argomenti per subprocess
     """
     cmd = [
-        sys.executable, "-m", "nuitka",
-        
+        sys.executable,
+        "-m",
+        "nuitka",
         # === MODALITÀ STANDALONE ===
         "--standalone",
         "--assume-yes-for-downloads",
-        
         # === PLUGINS ESSENZIALI ===
         "--enable-plugin=tk-inter",
         # Note: numpy plugin deprecated in Nuitka 2.x, multiprocessing always enabled
-        
         # === INCLUSIONE DATI ===
         # React SPA (guide)
         f"--include-data-dir={FRONTEND_DIR / 'dist'}=guide",
@@ -347,11 +347,9 @@ def get_nuitka_command(fast_mode: bool = False) -> list:
         f"--include-data-dir={PROJECT_ROOT / 'desktop_app' / 'icons'}=desktop_app/icons",
         # Docs (per LYRA profile)
         f"--include-data-files={PROJECT_ROOT / 'docs' / 'LYRA_PROFILE.md'}=docs/LYRA_PROFILE.md",
-        
         # === PACKAGES COMPLETI ===
         "--include-package=app",
         "--include-package=desktop_app",
-        
         # === MODULI CRITICI (Import dinamici) ===
         # Backend
         "--include-module=uvicorn",
@@ -367,12 +365,10 @@ def get_nuitka_command(fast_mode: bool = False) -> list:
         "--include-module=starlette",
         "--include-module=pydantic",
         "--include-module=pydantic_settings",
-        
         # Database
         "--include-module=sqlalchemy",
         "--include-module=sqlalchemy.sql.default_comparator",
         "--include-module=sqlalchemy.dialects.sqlite",
-        
         # AI & APIs
         "--include-module=google.generativeai",
         "--include-module=google.api_core",
@@ -380,7 +376,6 @@ def get_nuitka_command(fast_mode: bool = False) -> list:
         "--include-module=google.protobuf",
         "--include-module=grpc",
         "--include-module=httpx",
-        
         # Security
         "--include-module=bcrypt",
         "--include-module=cryptography",
@@ -390,98 +385,87 @@ def get_nuitka_command(fast_mode: bool = False) -> list:
         "--include-module=passlib.handlers.bcrypt",
         "--include-module=jose",
         "--include-module=jose.backends.cryptography_backend",
-        
         # Utils
         "--include-module=tenacity",
         "--include-module=fpdf",  # fpdf2 provides fpdf
         "--include-module=apscheduler",
         "--include-module=pandas",
         "--include-module=numpy",
-        
         # Multipart (form upload)
         "--include-module=multipart",
         "--include-module=python_multipart",
-        
         # Email
         "--include-module=email.mime.text",
         "--include-module=email.mime.multipart",
         "--include-module=email.mime.application",
-        
         # Sentry & Analytics
         "--include-package=sentry_sdk.integrations",  # Include TUTTE le integrazioni (argv, logging, threading...)
         "--include-module=sentry_sdk",
         "--include-module=posthog",
-        
         # Charset
         "--include-module=charset_normalizer",
         "--include-module=charset_normalizer.md",
-        
         # GeoIP & User Agents
         "--include-module=geoip2",
         "--include-module=user_agents",
         "--include-module=ua_parser",
-        
         # Win32
         "--include-module=win32com.client",
         "--include-module=pythoncom",
         "--include-module=win32api",
         "--include-module=pywintypes",
-        
         # === OTTIMIZZAZIONI ===
         f"--lto={'yes' if not fast_mode else 'no'}",
-        
         # === PARALLELIZZAZIONE ===
         f"--jobs={os.cpu_count() or 4}",
-        
         # === WINDOWS SPECIFICO ===
         "--windows-console-mode=disable",
-        
         # === OUTPUT ===
         f"--output-dir={DIST_DIR}",
         f"--output-filename={APP_NAME}.exe",
     ]
-    
+
     # Add icon if exists
     icon_path = get_icon_path()
     if icon_path:
         cmd.append(f"--windows-icon-from-ico={icon_path}")
-    
+
     # Entry point (MUST be last)
     cmd.append(str(ENTRY_POINT))
-    
+
     return cmd
 
 
 def compile_with_nuitka(fast_mode: bool = False) -> bool:
     """
     Esegue compilazione Nuitka con output real-time.
-    
+
     La compilazione Nuitka avviene in più fasi:
     1. Python Analysis (~5-10 min prima volta)
     2. C Code Generation (~2-5 min)
     3. C Compilation (~20-30 min prima volta)
     4. Linking (~2-5 min)
-    
+
     Args:
         fast_mode: Se True, disabilita LTO per build più veloce
-    
+
     Returns:
         bool: True se compilazione riuscita
     """
     log_section("🚀 COMPILAZIONE NUITKA")
-    
+
     if fast_mode:
         log_warning("Modalità FAST: LTO disabilitato (build più veloce ma meno ottimizzato)")
-    
+
     cmd = get_nuitka_command(fast_mode)
-    
+
     # Log comando completo (formattato per leggibilità)
     print("🔧 Comando Nuitka:")
     print("  " + " \\\n    ".join(cmd[:5]) + " \\")
-    print(f"    ... (+{len(cmd)-6} parametri) ...")
+    print(f"    ... (+{len(cmd) - 6} parametri) ...")
     print(f"    {cmd[-1]}")
     print()
-    
+
     print("⏳ Inizio compilazione...")
     print("   📊 Prima build: ~35-50 minuti")
     print("   📊 Build successive (con ccache): ~10-15 minuti")
@@ -490,9 +474,9 @@ def compile_with_nuitka(fast_mode: bool = False) -> bool:
     print("-" * 70)
     print("  OUTPUT NUITKA (real-time)")
     print("-" * 70)
-    
+
     start_time = time.time()
-    
+
     # Real-time output con Popen
     try:
         process = subprocess.Popen(
@@ -502,25 +486,25 @@ def compile_with_nuitka(fast_mode: bool = False) -> bool:
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
-            universal_newlines=True
+            universal_newlines=True,
         )
-        
+
         # Stampa output in real-time
         for line in process.stdout:
             # Flush per garantire output immediato
-            print(line, end='', flush=True)
+            print(line, end="", flush=True)
             # Log to file (senza newline perché già presente)
             logger.info(f"[NUITKA] {line.rstrip()}")
-        
+
         process.wait()
         elapsed = time.time() - start_time
         elapsed_min = elapsed / 60
-        
+
         print("-" * 70)
-        
+
         if process.returncode == 0:
             log_success(f"Compilazione completata in {elapsed_min:.1f} minuti")
-            
+
             # Verifica output eseguibile
             exe_path = DIST_DIR / f"{APP_NAME}.dist" / f"{APP_NAME}.exe"
             if exe_path.exists():
@@ -539,7 +523,7 @@ def compile_with_nuitka(fast_mode: bool = False) -> bool:
                         size_mb = alt_exe.stat().st_size / (1024 * 1024)
                         log_success(f"Eseguibile (path alternativo): {alt_exe} ({size_mb:.1f} MB)")
                         return True
-                
+
                 log_error(f"Eseguibile non trovato in: {exe_path}")
                 log_info("Cerco in directory dist...")
                 # List what's in dist
@@ -551,17 +535,17 @@ def compile_with_nuitka(fast_mode: bool = False) -> bool:
             log_error(f"Compilazione fallita dopo {elapsed_min:.1f} minuti")
             log_error(f"Exit code: {process.returncode}")
             return False
-            
+
     except KeyboardInterrupt:
         log_warning("Compilazione interrotta dall'utente (Ctrl+C)")
-        if 'process' in locals():
+        if "process" in locals():
             process.terminate()
             process.wait(timeout=5)
         return False
     except Exception as e:
         log_error(f"Errore durante compilazione: {e}")
         return False
-            
+
     except subprocess.TimeoutExpired:
         log_error("Compilazione timeout (>2 ore)")
         return False
@@ -573,22 +557,22 @@ def compile_with_nuitka(fast_mode: bool = False) -> bool:
 def post_process() -> bool:
     """
     Post-processing: verifica output e crea file aggiuntivi.
-    
+
     Returns:
         bool: True se post-processing riuscito
     """
     log_section("🔧 POST-PROCESSING")
-    
+
     dist_root = DIST_DIR / f"{APP_NAME}.dist"
-    
+
     # Check alternate location
     if not dist_root.exists():
         dist_root = DIST_DIR
-    
+
     if not dist_root.exists():
         log_error(f"Directory dist non trovata: {dist_root}")
         return False
-    
+
     # Find exe
     exe_path = dist_root / f"{APP_NAME}.exe"
     if not exe_path.exists():
@@ -600,15 +584,15 @@ def post_process() -> bool:
         else:
             log_error(f"Eseguibile non trovato in {dist_root}")
             return False
-    
+
     log_success(f"Eseguibile trovato: {exe_path.relative_to(PROJECT_ROOT)}")
-    
+
     # Create README
     readme_content = f"""Intelleo - Gestione Sicurezza sul Lavoro
 ==========================================
 
 Versione: 2.0.0 (Nuitka Build)
-Data Build: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+Data Build: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 
 INSTALLAZIONE
 -------------
@@ -642,11 +626,11 @@ Per assistenza, contatta: support@intelleo.it
 
 (c) {datetime.now().year} Intelleo. Tutti i diritti riservati.
 """
-    
+
     readme_path = dist_root / "README.txt"
-    readme_path.write_text(readme_content, encoding='utf-8')
+    readme_path.write_text(readme_content, encoding="utf-8")
     log_success(f"README creato: {readme_path.name}")
-    
+
     # Copy DLLs if needed
     dll_source = PROJECT_ROOT / "dll"
     if dll_source.exists():
@@ -654,12 +638,12 @@ Per assistenza, contatta: support@intelleo.it
         if not dll_dest.exists():
             shutil.copytree(dll_source, dll_dest)
             log_success("DLL directory copiata")
-    
+
     # Copy license placeholder
     lic_dest = dist_root / "Licenza"
     lic_dest.mkdir(exist_ok=True)
     log_info(f"Directory Licenza creata: {lic_dest.name}")
-    
+
     log_success("Post-processing completato")
     return True
 
@@ -667,19 +651,19 @@ Per assistenza, contatta: support@intelleo.it
 def generate_report(start_time: float, success: bool):
     """
     Genera report finale del build.
-    
+
     Args:
         start_time: Timestamp inizio build
         success: True se build riuscito
     """
     log_section("📊 REPORT BUILD")
-    
+
     elapsed = time.time() - start_time
     elapsed_min = elapsed / 60
-    
+
     print(f"Tempo totale: {elapsed_min:.1f} minuti")
     print(f"Status: {'✅ SUCCESS' if success else '❌ FAILED'}")
-    
+
     if success:
         # Find exe
         exe_path = None
@@ -690,12 +674,12 @@ def generate_report(start_time: float, success: bool):
             if candidate.exists():
                 exe_path = candidate
                 break
-        
+
         if exe_path:
             size_mb = exe_path.stat().st_size / (1024 * 1024)
             print(f"Eseguibile: {exe_path}")
             print(f"Dimensione: {size_mb:.1f} MB")
-            
+
             # Count files
             dist_root = exe_path.parent
             all_files = list(dist_root.rglob("*"))
@@ -703,7 +687,7 @@ def generate_report(start_time: float, success: bool):
             dir_count = len([f for f in all_files if f.is_dir()])
             print(f"File totali: {file_count}")
             print(f"Directory: {dir_count}")
-        
+
         print()
         log_success("Build completato con successo! 🎉")
         print("\nProssimi passi:")
@@ -723,6 +707,7 @@ def generate_report(start_time: float, success: bool):
 # MAIN
 # =============================================================================
 
+
 def main():
     """Entry point principale."""
     parser = argparse.ArgumentParser(
@@ -734,35 +719,23 @@ Esempi:
   python build_nuitka.py --clean      # Pulisce e rebuilda
   python build_nuitka.py --fast       # Build veloce (no LTO)
   python build_nuitka.py --clean --fast  # Pulisce + build veloce
-        """
+        """,
     )
-    parser.add_argument(
-        "--clean", 
-        action="store_true", 
-        help="Pulisce build precedenti"
-    )
-    parser.add_argument(
-        "--fast", 
-        action="store_true", 
-        help="Build veloce (disabilita LTO)"
-    )
-    parser.add_argument(
-        "--skip-checks", 
-        action="store_true", 
-        help="Salta verifica ambiente"
-    )
+    parser.add_argument("--clean", action="store_true", help="Pulisce build precedenti")
+    parser.add_argument("--fast", action="store_true", help="Build veloce (disabilita LTO)")
+    parser.add_argument("--skip-checks", action="store_true", help="Salta verifica ambiente")
     args = parser.parse_args()
-    
+
     # Header
-    print(f"\n{'='*70}")
-    print(f"  🏗️  INTELLEO - NUITKA BUILD PIPELINE")
-    print(f"{'='*70}")
+    print(f"\n{'=' * 70}")
+    print("  🏗️  INTELLEO - NUITKA BUILD PIPELINE")
+    print(f"{'=' * 70}")
     print(f"Build iniziato: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Project root: {PROJECT_ROOT}")
     print()
-    
+
     start_time = time.time()
-    
+
     # Step 1: Verifica ambiente
     if not args.skip_checks:
         if not check_environment():
@@ -770,28 +743,28 @@ Esempi:
             sys.exit(1)
     else:
         log_warning("Verifica ambiente saltata (--skip-checks)")
-    
+
     # Step 2: Clean (opzionale)
     if args.clean:
         clean_build_dir()
-    
+
     # Step 3: Build frontend
     if not build_frontend():
         log_error("Build frontend fallito")
         generate_report(start_time, success=False)
         sys.exit(1)
-    
+
     # Step 4: Compilazione Nuitka (MAIN)
     if not compile_with_nuitka(fast_mode=args.fast):
         generate_report(start_time, success=False)
         sys.exit(1)
-    
+
     # Step 5: Post-processing
     if not post_process():
         log_error("Post-processing fallito")
         generate_report(start_time, success=False)
         sys.exit(1)
-    
+
     # Step 6: Report finale
     generate_report(start_time, success=True)
     sys.exit(0)

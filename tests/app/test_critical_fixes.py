@@ -1,7 +1,7 @@
-import pytest
 from datetime import date
-from io import BytesIO
-from app.db.models import Dipendente, Corso, Certificato, ValidationStatus
+
+from app.db.models import Dipendente
+
 
 def test_duplicate_certificate_conflict(test_client, db_session):
     """
@@ -14,7 +14,7 @@ def test_duplicate_certificate_conflict(test_client, db_session):
         "corso": "Corso A",
         "categoria": "CAT A",
         "data_rilascio": "01/01/2023",
-        "data_scadenza": "01/01/2024"
+        "data_scadenza": "01/01/2024",
     }
     response = test_client.post("/certificati/", json=payload)
     assert response.status_code == 200
@@ -24,13 +24,18 @@ def test_duplicate_certificate_conflict(test_client, db_session):
     assert response2.status_code == 409
     assert "esiste già" in response2.json()["detail"]
 
+
 def test_homonym_resolution(test_client, db_session):
     """
     Test that homonyms are resolved using date of birth.
     """
     # 1. Create two employees with same name but different DOB
-    emp1 = Dipendente(nome="Mario", cognome="Rossi", matricola="M001", data_nascita=date(1980, 1, 1))
-    emp2 = Dipendente(nome="Mario", cognome="Rossi", matricola="M002", data_nascita=date(1990, 5, 5))
+    emp1 = Dipendente(
+        nome="Mario", cognome="Rossi", matricola="M001", data_nascita=date(1980, 1, 1)
+    )
+    emp2 = Dipendente(
+        nome="Mario", cognome="Rossi", matricola="M002", data_nascita=date(1990, 5, 5)
+    )
     db_session.add(emp1)
     db_session.add(emp2)
     db_session.commit()
@@ -42,7 +47,7 @@ def test_homonym_resolution(test_client, db_session):
         "corso": "Corso 1",
         "categoria": "CAT 1",
         "data_rilascio": "01/01/2023",
-        "data_scadenza": "01/01/2024"
+        "data_scadenza": "01/01/2024",
     }
     resp1 = test_client.post("/certificati/", json=payload1)
     assert resp1.status_code == 200
@@ -53,9 +58,9 @@ def test_homonym_resolution(test_client, db_session):
         "nome": "Mario Rossi",
         "data_nascita": "05/05/1990",
         "corso": "Corso 2",
-        "categoria": "CAT 2", # Different category to avoid duplicate check if course name matches
+        "categoria": "CAT 2",  # Different category to avoid duplicate check if course name matches
         "data_rilascio": "01/01/2023",
-        "data_scadenza": "01/01/2024"
+        "data_scadenza": "01/01/2024",
     }
     resp2 = test_client.post("/certificati/", json=payload2)
     assert resp2.status_code == 200
@@ -68,12 +73,13 @@ def test_homonym_resolution(test_client, db_session):
         "corso": "Corso 3",
         "categoria": "CAT 3",
         "data_rilascio": "01/01/2023",
-        "data_scadenza": "01/01/2024"
+        "data_scadenza": "01/01/2024",
     }
     resp3 = test_client.post("/certificati/", json=payload3)
     assert resp3.status_code == 200
     assert resp3.json()["matricola"] is None
     assert "Assegnare" in resp3.json()["nome"] or resp3.json()["matricola"] is None
+
 
 def test_csv_import_latin1(test_client, db_session):
     """
@@ -92,6 +98,7 @@ def test_csv_import_latin1(test_client, db_session):
     assert emp is not None
     assert emp.cognome == "Rossì"  # Should be decoded correctly
 
+
 def test_csv_size_limit(test_client):
     """
     Test that CSV larger than 5MB is rejected.
@@ -103,6 +110,7 @@ def test_csv_size_limit(test_client):
     assert resp.status_code == 413
     assert "5MB" in resp.json()["detail"]
 
+
 def test_pdf_size_limit(test_client):
     """
     Test that PDF larger than 20MB is rejected.
@@ -113,6 +121,7 @@ def test_pdf_size_limit(test_client):
     assert resp.status_code == 413
     assert "20MB" in resp.json()["detail"]
 
+
 def test_pdf_date_correction(test_client, mock_ai_service):
     """
     Test that upload-pdf corrects date formats.
@@ -122,9 +131,9 @@ def test_pdf_date_correction(test_client, mock_ai_service):
         "nome": "Test User",
         "categoria": "TEST",
         "corso": "Test Course",
-        "data_rilascio": "2023-01-31", # YYYY-MM-DD
-        "data_scadenza": "31-01-2024", # DD-MM-YYYY
-        "data_nascita": "31.01.1980"   # DD.MM.YYYY
+        "data_rilascio": "2023-01-31",  # YYYY-MM-DD
+        "data_scadenza": "31-01-2024",  # DD-MM-YYYY
+        "data_nascita": "31.01.1980",  # DD.MM.YYYY
     }
 
     files = {"file": ("test.pdf", b"%PDF-1.4 dummy content", "application/pdf")}

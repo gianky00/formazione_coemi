@@ -1,8 +1,10 @@
 import io
+
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from app.db.models import Certificato, Corso, ValidationStatus
-from datetime import date
+
+from app.db.models import Certificato, Corso
+
 
 def test_csv_import_links_orphaned_certificates(test_client: TestClient, db_session: Session):
     # 1. Create an orphaned certificate
@@ -16,7 +18,7 @@ def test_csv_import_links_orphaned_certificates(test_client: TestClient, db_sess
         "corso": "Corso Test",
         "categoria": "TEST",
         "data_rilascio": "01/01/2023",
-        "data_scadenza": "01/01/2024"
+        "data_scadenza": "01/01/2024",
     }
     response = test_client.post("/certificati/", json=cert_data)
     assert response.status_code == 200

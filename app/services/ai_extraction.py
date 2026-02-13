@@ -1,27 +1,31 @@
-import google.generativeai as genai
-import logging
 import json
+import logging
 import re
 import threading
+from typing import Any, Optional
+
+import google.generativeai as genai  # type: ignore
 from google.api_core import exceptions
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+
+from app.core.ai_lock import ai_global_lock
 from app.core.config import settings
 from app.core.constants import CATEGORIE_STATICHE
-from app.core.ai_lock import ai_global_lock
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
 
 class GeminiClient:
-    _instance = None
-    _model = None
-    _lock = threading.Lock()
+    _instance: Optional["GeminiClient"] = None
+    _model: Any = None
+    _lock: threading.Lock = threading.Lock()
 
-    def __new__(cls):
+    def __new__(cls) -> "GeminiClient":
         if cls._instance is None:
             with cls._lock:
                 # Double-checked locking
                 if cls._instance is None:
-                    cls._instance = super(GeminiClient, cls).__new__(cls)
+                    cls._instance = super().__new__(cls)
                     try:
                         if not settings.GEMINI_API_KEY_ANALYSIS:
                             logging.error("GEMINI_API_KEY_ANALYSIS not found.")
@@ -30,33 +34,37 @@ class GeminiClient:
                         # Configure with lock to prevent race with Chat
                         with ai_global_lock:
                             genai.configure(api_key=settings.GEMINI_API_KEY_ANALYSIS)
-                            cls._model = genai.GenerativeModel('models/gemini-2.5-pro')
+                            cls._model = genai.GenerativeModel("models/gemini-2.5-pro")
 
-                        logging.info("Gemini model 'models/gemini-2.5-pro' initialized successfully.")
+                        logging.info(
+                            "Gemini model 'models/gemini-2.5-pro' initialized successfully."
+                        )
                     except Exception as e:
                         logging.error(f"Failed to initialize Gemini model: {e}")
                         cls._instance = None
                         raise
         return cls._instance
 
-    def get_model(self):
+    def get_model(self) -> Any:
         return self._model
 
-def get_gemini_model():
+
+def get_gemini_model() -> Any:
     try:
         return GeminiClient().get_model()
     except ValueError as e:
         logging.error(f"Error getting Gemini model: {e}")
         return None
 
+
 def _generate_prompt() -> str:
     # Assicuriamo che ATEX sia incluso nelle categorie inviate al prompt
     categorie_list = list(CATEGORIE_STATICHE)
     if "ATEX" not in categorie_list:
         categorie_list.append("ATEX")
-    
+
     categorie_str = ", ".join(f'"{c}"' for c in categorie_list)
-    
+
     esempi_categorie = """
 - ANTINCENDIO: "ADDETTI INCENDIO", "LIVELLO 3", "RISCHIO INCENDIO", "D.M. 2/9/2021", "Corso Antincendio Rischio Medio"
 - PREPOSTO: [SOLO ATTESTATI] "Corso per Preposti alla Sicurezza", "Aggiornamento Preposto"
@@ -139,100 +147,94 @@ Se il documento è VALIDO, estrai le seguenti informazioni:
 JSON:
 """
 
+
 # Bug 10 Fix: Robust Retry Policy
 @retry(
     stop=stop_after_attempt(6),
     wait=wait_exponential(multiplier=2, min=5, max=60),
-    retry=retry_if_exception_type((
-        exceptions.ResourceExhausted,
-        exceptions.ServiceUnavailable,
-        exceptions.InternalServerError
-    )),
-    reraise=True
+    retry=retry_if_exception_type(
+        (
+            exceptions.ResourceExhausted,
+            exceptions.ServiceUnavailable,
+            exceptions.InternalServerError,
+        )
+    ),
+    reraise=True,
 )
-def _generate_content_with_retry(model, pdf_file_part, prompt):
+def _generate_content_with_retry(model: Any, pdf_file_part: dict[str, Any], prompt: str) -> Any:
     """
     Wrapper for model.generate_content with tenacity retry logic.
-    
-    Note: The lock is held briefly only during the API call to prevent
-    race conditions with chat service configuration. The lock is released
-    automatically by the context manager even on exceptions.
     """
     logging.info("Calling AI for entity extraction...")
-    
-    # Acquire lock to prevent race with chat configuration
-    # Lock is released automatically on any exception (context manager)
+
     with ai_global_lock:
-        # Only reconfigure if API key changed (optimization)
         current_key = settings.GEMINI_API_KEY_ANALYSIS
         if current_key:
             genai.configure(api_key=current_key)
         return model.generate_content([pdf_file_part, prompt])
 
-def _check_closing_char(stack, char):
+
+def _check_closing_char(stack: list[str], char: str) -> bool:
     """Helper to check if closing char matches opening char on stack."""
     if not stack:
         return False
     last = stack[-1]
-    if (last == '{' and char == '}') or (last == '[' and char == ']'):
+    if (last == "{" and char == "}") or (last == "[" and char == "]"):
         stack.pop()
         return not stack
     return False
 
-def _find_json_block(text, start_idx, stack):
+
+def _find_json_block(text: str, start_idx: int, stack: list[str]) -> int:
     for i, char in enumerate(text[start_idx:], start=start_idx):
-        if char == '{' or char == '[':
+        if char == "{" or char == "[":
             stack.append(char)
-        elif (char == '}' or char == ']') and _check_closing_char(stack, char):
+        elif (char == "}" or char == "]") and _check_closing_char(stack, char):
             return i + 1
     return -1
 
-def _find_start_index(text):
+
+def _find_start_index(text: str) -> int:
     """Finds the starting index of a JSON object or list."""
     for i, char in enumerate(text):
-        if char == '{' or char == '[':
+        if char == "{" or char == "[":
             return i
     return -1
+
 
 def _extract_json_block(text: str) -> str:
     """
     Robustly extracts the first valid JSON block from text, handling nested structures.
-    Bug 2 & 9 Fix: Handles list/object and nested braces correctly.
     """
-    # S3776: Refactored to reduce complexity
     text = text.strip()
-    
-    # Fast path: checks if wrapped in markdown
-    # S5852 Fix: Limit input length for regex to prevent ReDoS on massive strings
-    # and avoid catastrophic backtracking.
-    if len(text) < 100000: # Reasonable limit for JSON response
-        match = re.search(r'```json\s*(.*?)```', text, re.DOTALL)
+
+    if len(text) < 100000:
+        match = re.search(r"```json\s*(.*?)```", text, re.DOTALL)
         if match:
             text = match.group(1).strip()
     else:
-        # Manual fallback for huge strings
         if text.startswith("```json"):
             end_marker = "```"
             start = 7
             end = text.rfind(end_marker)
             if end != -1:
                 text = text[start:end].strip()
-    
+
     start_idx = _find_start_index(text)
 
     if start_idx == -1:
         return text
 
-    stack = []
+    stack: list[str] = []
     end_idx = _find_json_block(text, start_idx, stack)
 
     if end_idx != -1:
         return text[start_idx:end_idx]
-    
-    # Fallback if stack method fails
+
     return text
 
-def _parse_and_validate_ai_response(text_response):
+
+def _parse_and_validate_ai_response(text_response: str) -> dict[str, Any]:
     """Parses JSON and performs initial validation on the AI response."""
     json_text = _extract_json_block(text_response)
     data = json.loads(json_text)
@@ -240,16 +242,16 @@ def _parse_and_validate_ai_response(text_response):
     if isinstance(data, list):
         if not data:
             raise ValueError("AI returned an empty list.")
-        # Bug 2 Fix: Warn user if multiple certificates are found but only one is processed.
-        first_item = data[0]
+        first_item: dict[str, Any] = data[0]
         if len(data) > 1:
             logging.warning(f"AI returned {len(data)} items. Processing only the first one.")
             first_item["warning"] = "multiple_certificates_found_check_file"
         data = first_item
-        
-    return data
 
-def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
+    return dict(data)
+
+
+def extract_entities_with_ai(pdf_bytes: bytes) -> dict[str, Any]:
     model = get_gemini_model()
     if model is None:
         return {"error": "Modello Gemini non inizializzato."}
@@ -258,16 +260,10 @@ def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
     pdf_file_part = {"mime_type": "application/pdf", "data": pdf_bytes}
 
     try:
-        # Call the decorated function
         response = _generate_content_with_retry(model, pdf_file_part, prompt)
-
-        # Bug 1 Fix: Robust JSON extraction using regex
-        text_response = response.text.strip()
-        
-        # Bug 2 & 9 Fix: Use robust stack-based extraction
+        text_response = str(response.text).strip()
         data = _parse_and_validate_ai_response(text_response)
 
-        # Handle Rejection
         if data.get("status") == "REJECT":
             reason = data.get("reason", "Generic/Syllabus")
             logging.warning(f"Document rejected by AI: {reason}")
@@ -285,7 +281,6 @@ def extract_entities_with_ai(pdf_bytes: bytes) -> dict:
         logging.error(f"Max retries reached for Service Error. Error: {e}")
         return {"error": f"AI service unavailable: {e}"}
     except json.JSONDecodeError as e:
-        # Logging response.text might be dangerous if variable not bound
         logging.error(f"Error parsing JSON from AI response: {e}")
         return {"error": f"Invalid JSON from AI: {e}"}
     except Exception as e:

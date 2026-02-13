@@ -1,9 +1,12 @@
-import pyttsx3
-import threading
 import logging
+import threading
+
+import pyttsx3
+
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
 
 class VoiceService:
     """
@@ -11,6 +14,7 @@ class VoiceService:
     Sostituisce gTTS per evitare latenza di rete e dipendenze API non ufficiali.
     Thread-safe e non bloccante.
     """
+
     _instance = None
     _lock = threading.Lock()
 
@@ -18,22 +22,22 @@ class VoiceService:
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
-                    cls._instance = super(VoiceService, cls).__new__(cls)
+                    cls._instance = super().__new__(cls)
                     cls._instance._init_engine()
         return cls._instance
 
     def _init_engine(self):
         try:
             self.engine = pyttsx3.init()
-            self.engine.setProperty('rate', 150)  # Velocità ottimale per l'italiano
-            
+            self.engine.setProperty("rate", 150)  # Velocità ottimale per l'italiano
+
             # Tenta di selezionare una voce italiana
-            voices = self.engine.getProperty('voices')
+            voices = self.engine.getProperty("voices")
             for voice in voices:
-                if 'it' in voice.id or 'italian' in voice.name.lower():
-                    self.engine.setProperty('voice', voice.id)
+                if "it" in voice.id or "italian" in voice.name.lower():
+                    self.engine.setProperty("voice", voice.id)
                     break
-            
+
             self.enabled = settings.VOICE_ASSISTANT_ENABLED
         except Exception as e:
             logger.error(f"Failed to init TTS engine: {e}")
@@ -45,7 +49,7 @@ class VoiceService:
         """
         # Ricarica setting per consentire toggle a runtime
         self.enabled = settings.VOICE_ASSISTANT_ENABLED
-        
+
         if not self.engine or not self.enabled or not text:
             return
 
@@ -73,6 +77,7 @@ class VoiceService:
     def cleanup(self):
         self.stop()
         # pyttsx3 non ha un metodo quit() esplicito necessario come pygame
+
 
 # Singleton
 voice_service = VoiceService()

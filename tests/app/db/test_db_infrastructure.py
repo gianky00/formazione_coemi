@@ -1,10 +1,10 @@
-import pytest
 from unittest.mock import MagicMock, patch
-from sqlalchemy import create_engine
-from app.db.seeding import seed_database, migrate_schema
-from app.db.session import get_db
-from app.db.models import User, Corso
+
 from app.core import security
+from app.db.models import Corso, User
+from app.db.seeding import migrate_schema, seed_database
+from app.db.session import get_db
+
 
 def test_seed_database_new_admin(db_session):
     # Ensure no admin
@@ -18,6 +18,7 @@ def test_seed_database_new_admin(db_session):
     assert admin is not None
     assert admin.is_admin
 
+
 def test_seed_database_update_admin_password(db_session):
     # Create admin with old password
     old_pw = security.get_password_hash("old")
@@ -26,17 +27,19 @@ def test_seed_database_update_admin_password(db_session):
     db_session.commit()
 
     # Configure new password in settings
-    with patch("app.db.seeding.settings") as mock_settings, \
-         patch("app.db.seeding.SessionLocal", return_value=db_session):
+    with (
+        patch("app.db.seeding.settings") as mock_settings,
+        patch("app.db.seeding.SessionLocal", return_value=db_session),
+    ):
+        mock_settings.FIRST_RUN_ADMIN_USERNAME = "admin"
+        mock_settings.FIRST_RUN_ADMIN_PASSWORD = "new_secret_pw"
 
-         mock_settings.FIRST_RUN_ADMIN_USERNAME = "admin"
-         mock_settings.FIRST_RUN_ADMIN_PASSWORD = "new_secret_pw"
-
-         # Pass db_session explicitly to avoid closure
-         seed_database(db=db_session)
+        # Pass db_session explicitly to avoid closure
+        seed_database(db=db_session)
 
     db_session.refresh(admin)
     assert security.verify_password("new_secret_pw", admin.hashed_password)
+
 
 def test_seed_database_courses(db_session):
     # Pass db_session explicitly
@@ -46,13 +49,14 @@ def test_seed_database_courses(db_session):
     assert len(courses) > 0
     assert any(c.nome_corso == "ANTINCENDIO" for c in courses)
 
+
 def test_migrate_schema_columns():
     mock_db = MagicMock()
     # Mock table_info returning list of existing columns (but missing 'previous_login')
     # Format: (cid, name, type, notnull, dflt_value, pk)
     mock_db.execute.return_value.fetchall.return_value = [
-        (0, 'id', 'INTEGER', 1, None, 1),
-        (1, 'username', 'VARCHAR', 1, None, 0)
+        (0, "id", "INTEGER", 1, None, 1),
+        (1, "username", "VARCHAR", 1, None, 0),
     ]
 
     migrate_schema(mock_db)
@@ -64,6 +68,7 @@ def test_migrate_schema_columns():
             sql_executed.append(str(call.args[0]))
 
     assert any("previous_login" in sql for sql in sql_executed)
+
 
 def test_get_db_yields_session():
     # Verify the generator

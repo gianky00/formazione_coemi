@@ -1,19 +1,24 @@
-import pytest
 import os
 from unittest import mock
-from app.services.file_maintenance import organize_expired_files, clean_all_empty_folders
+
+import pytest
+
 from app.db.models import AuditLog, Certificato
+from app.services.file_maintenance import clean_all_empty_folders, organize_expired_files
+
 
 @pytest.fixture
 def mock_db_session():
     return mock.MagicMock()
+
 
 def test_clean_all_empty_folders(test_dirs):
     # Setup: root/a/b/c (empty), root/x/y/file.txt (not empty)
     root = os.path.join(str(test_dirs), "cleanup_test")
     os.makedirs(os.path.join(root, "a", "b", "c"), exist_ok=True)
     os.makedirs(os.path.join(root, "x", "y"), exist_ok=True)
-    with open(os.path.join(root, "x", "y", "file.txt"), "w") as f: f.write("keep")
+    with open(os.path.join(root, "x", "y", "file.txt"), "w") as f:
+        f.write("keep")
 
     clean_all_empty_folders(root)
 
@@ -23,6 +28,7 @@ def test_clean_all_empty_folders(test_dirs):
     assert os.path.exists(os.path.join(root, "x", "y", "file.txt"))
     # Root stays
     assert os.path.exists(root)
+
 
 def test_daily_maintenance_calls_cleanup(mock_db_session, test_dirs):
     # Setup: No audit log (so it runs)
@@ -39,15 +45,16 @@ def test_daily_maintenance_calls_cleanup(mock_db_session, test_dirs):
 
     mock_db_session.query.side_effect = query_side_effect
 
-    with mock.patch("app.services.file_maintenance.settings") as mock_settings, \
-         mock.patch("app.services.file_maintenance.os.path.exists", return_value=True), \
-         mock.patch("app.services.file_maintenance.clean_all_empty_folders") as mock_clean, \
-         mock.patch("app.services.file_maintenance.log_security_action"):
+    with (
+        mock.patch("app.services.file_maintenance.settings") as mock_settings,
+        mock.patch("app.services.file_maintenance.os.path.exists", return_value=True),
+        mock.patch("app.services.file_maintenance.clean_all_empty_folders") as mock_clean,
+        mock.patch("app.services.file_maintenance.log_security_action"),
+    ):
+        mock_settings.DATABASE_PATH = str(test_dirs)
 
-         mock_settings.DATABASE_PATH = str(test_dirs)
+        organize_expired_files(mock_db_session)
 
-         organize_expired_files(mock_db_session)
-
-         # Assert cleanup called
-         expected_path = os.path.join(str(test_dirs), "DOCUMENTI DIPENDENTI")
-         mock_clean.assert_called_with(expected_path)
+        # Assert cleanup called
+        expected_path = os.path.join(str(test_dirs), "DOCUMENTI DIPENDENTI")
+        mock_clean.assert_called_with(expected_path)

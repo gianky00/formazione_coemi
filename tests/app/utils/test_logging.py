@@ -1,7 +1,7 @@
-import logging
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
+
 from app.utils.logging import setup_logging
+
 
 def test_setup_logging_success(tmp_path):
     # Mock settings or just call it.

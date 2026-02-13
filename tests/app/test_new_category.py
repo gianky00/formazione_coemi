@@ -1,8 +1,8 @@
-import pytest
-from unittest.mock import patch, MagicMock
-from app.db.models import Corso, Base
+from unittest.mock import MagicMock, patch
+
+from app.db.models import Corso
 from app.db.seeding import seed_database
-from app.db.session import engine
+
 
 def test_seed_database_with_nomine(db_session):
     """
@@ -14,7 +14,8 @@ def test_seed_database_with_nomine(db_session):
     assert corso.categoria_corso == "NOMINA"
     assert corso.validita_mesi == 0
 
-@patch('app.services.ai_extraction.get_gemini_model')
+
+@patch("app.services.ai_extraction.get_gemini_model")
 def test_extract_entities_with_ai_for_nomine(mock_get_model):
     """
     Tests that the AI service correctly classifies a 'NOMINA' document.
@@ -27,7 +28,8 @@ def test_extract_entities_with_ai_for_nomine(mock_get_model):
     mock_model.generate_content.return_value = mock_response
 
     from app.services.ai_extraction import extract_entities_with_ai
+
     result = extract_entities_with_ai(b"dummy pdf")
 
-    assert result['categoria'] == 'NOMINA'
-    assert result['corso'] == 'Attribuzione e competenze del ruolo di Preposto'
+    assert result["categoria"] == "NOMINA"
+    assert result["corso"] == "Attribuzione e competenze del ruolo di Preposto"

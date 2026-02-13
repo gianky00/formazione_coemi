@@ -1,43 +1,37 @@
+import base64
+import hashlib
+import logging
 import os
 import shutil
-import hashlib
-import base64
-import time
-import logging
-import sqlite3
 import socket
+import sqlite3
 import threading
+import time
 import uuid
-import psutil
-from typing import Dict, Optional, Tuple
 from pathlib import Path
+from typing import Any
+
+import psutil
 from cryptography.fernet import Fernet
-from app.core.config import settings, get_user_data_dir
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
+
+from app.core.config import get_user_data_dir, settings
 from app.core.lock_manager import LockManager
-from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type, RetryError
 
 logger = logging.getLogger(__name__)
+
 
 class DBSecurityManager:
     """
     Manages the security of the SQLite database using strict In-Memory handling.
-    - Loads encrypted DB into RAM (sqlite3 deserialize).
-    - Saves RAM DB to encrypted disk file (sqlite3 serialize).
-    - Enforces single-user access via Crash-Safe LockManager.
     """
 
-    # SECURITY WARNING: This secret is currently static to allow password resets.
-    # TODO: In v2.0, derive this from the Admin Password using Argon2/PBKDF2.
-    # This prevents DB decryption without the user credentials.
-    # Obfuscated: "INTELLEO_DB_SECRET_KEY_V1_2024_SECURE_ACCESS"
-    _STATIC_SECRET_OBF = "SU5URUxMRU9fREJfU0VDUkVUX0tFWV9WMV8yMDI0X1NFQ1VSRV9BQ0NFU1M=" 
-
-    _HEADER = b"INTELLEO_SEC_V1"
+    _STATIC_SECRET_OBF: str = "SU5URUxMRU9fREJfU0VDUkVUX0tFWV9WMV8yMDI0X1NFQ1VSRV9BQ0NFU1M="
+    _HEADER: bytes = b"INTELLEO_SEC_V1"
 
     def __init__(self, db_name: str = "database_documenti.db"):
-        # Deobfuscate key at runtime
-        self._STATIC_SECRET = base64.b64decode(self._STATIC_SECRET_OBF).decode('utf-8')
-        # Resolve DB path using the custom path from settings if available
+        self._STATIC_SECRET: str = base64.b64decode(self._STATIC_SECRET_OBF).decode("utf-8")
+
         custom_path_str = settings.DATABASE_PATH
         if custom_path_str:
             path_obj = Path(custom_path_str)
@@ -45,23 +39,19 @@ class DBSecurityManager:
                 self.data_dir = path_obj
                 self.db_path = self.data_dir / db_name
             elif path_obj.suffix.lower() == ".db":
-                # User selected the file directly
                 self.db_path = path_obj
                 self.data_dir = path_obj.parent
             else:
-                # Fallback if configured path is invalid or weird
                 self.data_dir = get_user_data_dir()
                 self.db_path = self.data_dir / db_name
         else:
             self.data_dir = get_user_data_dir()
             self.db_path = self.data_dir / db_name
-        self.lock_path = self.data_dir / f".{db_name}.lock"
 
-        # RECOVERY: Check for Stale Locks (Zombie Processes)
+        self.lock_path: Path = self.data_dir / f".{db_name}.lock"
+
         self._check_and_recover_stale_lock()
 
-        # Migration: If DB exists in CWD (Install Dir) but not in Data Dir, copy it.
-        # This handles the case where a DB is shipped with the installer or upgraded.
         cwd_db = Path.cwd() / db_name
         if cwd_db.exists() and not self.db_path.exists():
             try:
@@ -70,28 +60,28 @@ class DBSecurityManager:
             except Exception as e:
                 logger.warning(f"Failed to migrate database: {e}")
 
-        self.key = self._derive_key()
-        self.fernet = Fernet(self.key)
+        self.key: bytes = self._derive_key()
+        self.fernet: Fernet = Fernet(self.key)
 
-        self.active_connection = None
-        self.initial_bytes = None
-        self.is_locked_mode = False # Controls encryption on save
-        self.is_read_only = True    # Controls permission to save (Default: Read-Only until lock acquired)
-        self.read_only_info: Optional[Dict] = None # Stores owner info if read-only
+        self.active_connection: sqlite3.Connection | None = None
+        self.initial_bytes: bytes | None = None
+        self.is_locked_mode: bool = False
+        self.is_read_only: bool = True
+        self.read_only_info: dict[str, Any] | None = None
 
-        # Initialize LockManager
-        self.lock_manager = LockManager(str(self.lock_path))
-        self._heartbeat_timer: Optional[threading.Timer] = None
-        self._autosave_timer: Optional[threading.Timer] = None
+        self.lock_manager: LockManager = LockManager(str(self.lock_path))
+        self._heartbeat_timer: threading.Timer | None = None
+        self._autosave_timer: threading.Timer | None = None
+        self._heartbeat_failures: int = 0
 
     def _derive_key(self) -> bytes:
         digest = hashlib.sha256(self._STATIC_SECRET.encode()).digest()
         return base64.urlsafe_b64encode(digest)
 
-    def _should_remove_lock(self, metadata):
-        """Helper to determine if a lock should be removed."""
+    def _should_remove_lock(self, metadata: dict[str, Any]) -> tuple[bool, str | None]:
         pid = metadata.get("pid")
-        if not pid: return False, "No PID"
+        if not pid:
+            return False, "No PID"
 
         if not psutil.pid_exists(pid):
             return True, f"PID {pid} is DEAD"
@@ -108,13 +98,7 @@ class DBSecurityManager:
         except psutil.NoSuchProcess:
             return True, f"Process {pid} died during check"
 
-    def _check_and_recover_stale_lock(self):
-        """
-        Detects if a lock file exists but belongs to a dead process.
-        Strictly checks if PID exists. If dead, deletes lock immediately.
-        
-        File handle is properly managed using context manager to prevent leaks.
-        """
+    def _check_and_recover_stale_lock(self) -> None:
         if not self.lock_path.exists():
             return
 
@@ -122,16 +106,19 @@ class DBSecurityManager:
         reason = ""
 
         try:
-            with open(self.lock_path, 'rb') as f:
+            with open(self.lock_path, "rb") as f:
                 f.seek(1)
                 data = f.read()
                 if not data:
                     return
 
                 import json
+
                 try:
-                    metadata = json.loads(data.decode('utf-8'))
-                    should_remove, reason = self._should_remove_lock(metadata)
+                    metadata = dict(json.loads(data.decode("utf-8")))
+                    should_remove, reason_val = self._should_remove_lock(metadata)
+                    if reason_val:
+                        reason = reason_val
                 except json.JSONDecodeError:
                     should_remove = True
                     reason = "Corrupt lock file (invalid JSON)"
@@ -140,11 +127,9 @@ class DBSecurityManager:
                     reason = "Corrupt lock file (invalid encoding)"
 
         except PermissionError as e:
-            # File is locked by another process - this is expected, not stale
             logger.debug(f"Lock file is actively held by another process: {e}")
             return
         except FileNotFoundError:
-            # File was deleted between exists() check and open() - that's fine
             return
         except Exception as e:
             logger.error(f"Stale Lock Recovery failed: {e}")
@@ -154,7 +139,7 @@ class DBSecurityManager:
             logger.warning(f"Stale Lock Recovery: {reason}. Removing lock immediately.")
             self._force_remove_lock()
 
-    def _force_remove_lock(self):
+    def _force_remove_lock(self) -> None:
         try:
             if self.lock_path.exists():
                 os.remove(self.lock_path)
@@ -162,99 +147,75 @@ class DBSecurityManager:
         except Exception as e:
             logger.error(f"Failed to remove stale lock: {e}")
 
-    def _start_heartbeat(self):
-        """
-        Starts the background heartbeat mechanism to maintain the lock.
-        """
+    def _start_heartbeat(self) -> None:
         self._stop_heartbeat()
         self._heartbeat_failures = 0
 
-        def _tick():
+        def _tick() -> None:
             if self.is_read_only:
                 return
 
             success = self.lock_manager.update_heartbeat()
             if not success:
                 self._heartbeat_failures += 1
-                logger.warning(f"HEARTBEAT WARNING: Verification failed ({self._heartbeat_failures}/3).")
+                logger.warning(
+                    f"HEARTBEAT WARNING: Verification failed ({self._heartbeat_failures}/3)."
+                )
 
-                # Tolerance: Force Read-Only only after 3 consecutive failures (30 seconds)
                 if self._heartbeat_failures >= 3:
-                    logger.critical("HEARTBEAT FAILED: Lock lost (Network issue or Split Brain). Forcing Read-Only mode.")
+                    logger.critical("HEARTBEAT FAILED: Lock lost. Forcing Read-Only mode.")
                     self.force_read_only_mode()
                     return
             else:
-                self._heartbeat_failures = 0 # Reset counter on success
+                self._heartbeat_failures = 0
 
-            # Schedule next tick (10 seconds)
             self._heartbeat_timer = threading.Timer(10.0, _tick)
             self._heartbeat_timer.daemon = True
             self._heartbeat_timer.start()
 
-        # Start immediately
         _tick()
 
-    def _stop_heartbeat(self):
+    def _stop_heartbeat(self) -> None:
         if self._heartbeat_timer:
             self._heartbeat_timer.cancel()
             self._heartbeat_timer = None
 
-    def _start_autosave(self):
-        """
-        Starts the periodic auto-save mechanism.
-        """
+    def _start_autosave(self) -> None:
         self._stop_autosave()
 
-        def _save_tick():
+        def _save_tick() -> None:
             if self.is_read_only:
                 return
 
             logger.info("Auto-save triggered.")
             self.save_to_disk()
 
-            # Schedule next save (e.g., every 5 minutes = 300 seconds)
             self._autosave_timer = threading.Timer(300.0, _save_tick)
             self._autosave_timer.daemon = True
             self._autosave_timer.start()
 
-        # Start timer (first save after 5 mins)
         self._autosave_timer = threading.Timer(300.0, _save_tick)
         self._autosave_timer.daemon = True
         self._autosave_timer.start()
 
-    def _stop_autosave(self):
+    def _stop_autosave(self) -> None:
         if self._autosave_timer:
             self._autosave_timer.cancel()
             self._autosave_timer = None
 
-    def force_read_only_mode(self):
-        """
-        Emergency method to switch to Read-Only mode if lock is lost.
-        """
+    def force_read_only_mode(self) -> None:
         self.is_read_only = True
         self._stop_heartbeat()
         self._stop_autosave()
         logger.warning("System switched to READ-ONLY mode due to lock instability.")
 
-    def acquire_session_lock(self, user_info: Dict) -> Tuple[bool, Optional[Dict]]:
-        """
-        Attempts to acquire the session lock using LockManager.
-        If successful, this session becomes the Writer.
-        If failed, this session becomes Read-Only.
-
-        Args:
-            user_info: Dict containing context about the user (e.g., username).
-
-        Returns:
-            (success, owner_info)
-        """
-        # Add system info to user_info
+    def acquire_session_lock(self, user_info: dict[str, Any]) -> tuple[bool, dict[str, Any] | None]:
         metadata = {
-            "uuid": str(uuid.uuid4()), # Unique Session ID
+            "uuid": str(uuid.uuid4()),
             "pid": os.getpid(),
             "hostname": socket.gethostname(),
             "timestamp": time.time(),
-            **user_info
+            **user_info,
         }
 
         success, owner_info = self.lock_manager.acquire(metadata)
@@ -272,28 +233,19 @@ class DBSecurityManager:
 
         return success, owner_info
 
-    def release_lock(self):
-        """
-        Releases the lock via LockManager.
-        """
+    def release_lock(self) -> None:
         self._stop_heartbeat()
         self._stop_autosave()
         self.lock_manager.release()
-        self.is_read_only = False # Reset state, though usually app is closing.
+        self.is_read_only = True
 
-    def load_memory_db(self):
-        """
-        Reads the DB from disk into memory.
-        Crucially, this NO LONGER fails if the lock exists.
-        It simply loads the current state of the disk file (Snapshot).
-        """
+    def load_memory_db(self) -> None:
         if not self.db_path.exists():
             logger.info("Database missing. Initializing new in-memory DB.")
             self.is_locked_mode = True
-            self.initial_bytes = None # Will create empty in get_connection
+            self.initial_bytes = None
             return
 
-        # BACKUP ON STARTUP (Rolling Backup)
         self.create_backup()
 
         try:
@@ -306,7 +258,7 @@ class DBSecurityManager:
             logger.info("Loading ENCRYPTED database into memory.")
             self.is_locked_mode = True
             try:
-                self.initial_bytes = self.fernet.decrypt(content[len(self._HEADER):])
+                self.initial_bytes = self.fernet.decrypt(content[len(self._HEADER) :])
             except Exception as e:
                 raise ValueError(f"Failed to decrypt database: {e}")
         else:
@@ -314,16 +266,9 @@ class DBSecurityManager:
             self.is_locked_mode = True
             self.initial_bytes = content
 
-    def get_connection(self):
-        """
-        Factory for SQLAlchemy to create the connection.
-        Deserializes the initial bytes into the new connection's memory.
-        """
+    def get_connection(self) -> sqlite3.Connection:
         if self.active_connection is None:
-            # Create fresh memory connection
-            conn = sqlite3.connect(':memory:', check_same_thread=False)
-
-            # --- SECURITY & PERFORMANCE HARDENING ---
+            conn = sqlite3.connect(":memory:", check_same_thread=False)
             try:
                 conn.execute("PRAGMA journal_mode=WAL;")
                 conn.execute("PRAGMA synchronous=FULL;")
@@ -334,7 +279,7 @@ class DBSecurityManager:
                 try:
                     conn.deserialize(self.initial_bytes)
                 except AttributeError:
-                    raise RuntimeError("Your Python/SQLite version does not support 'deserialize'. Upgrade required.")
+                    raise RuntimeError("Upgrade required for 'deserialize'.")
                 except Exception as e:
                     raise RuntimeError(f"Failed to deserialize database: {e}")
 
@@ -342,27 +287,26 @@ class DBSecurityManager:
 
         return self.active_connection
 
-    @retry(stop=stop_after_attempt(5), wait=wait_fixed(2), retry=retry_if_exception_type(PermissionError))
-    def _safe_write(self, data: bytes):
+    @retry(
+        stop=stop_after_attempt(5),
+        wait=wait_fixed(2),
+        retry=retry_if_exception_type(PermissionError),
+    )
+    def _safe_write(self, data: bytes) -> None:
         swp_path = self.db_path.with_suffix(".swp")
         with open(swp_path, "wb") as f:
             f.write(data)
 
-        if os.name == 'nt' and self.db_path.exists():
+        if os.name == "nt" and self.db_path.exists():
             try:
                 os.replace(swp_path, self.db_path)
             except PermissionError:
-                # S2737: Added logging before re-raise
                 logger.warning(f"PermissionError replacing DB file {self.db_path}. Retrying...")
                 raise
         else:
             os.replace(swp_path, self.db_path)
 
     def save_to_disk(self) -> bool:
-        """
-        Serializes the memory DB, Encrypts it, and writes to disk.
-        CRITICAL: Only executes if this session holds the lock (is NOT Read-Only).
-        """
         if not self.active_connection:
             return True
 
@@ -389,8 +333,7 @@ class DBSecurityManager:
             logger.error(f"Failed to save database: {e}")
             return False
 
-    def create_backup(self):
-        """Creates a timestamped backup of the database file."""
+    def create_backup(self) -> None:
         if not self.db_path.exists():
             return
 
@@ -408,13 +351,11 @@ class DBSecurityManager:
         except Exception as e:
             logger.error(f"Backup failed: {e}")
 
-    def rotate_backups(self, backup_dir: Path, keep: int = 5):
-        """Keeps only the recent N backups."""
+    def rotate_backups(self, backup_dir: Path, keep: int = 5) -> None:
         try:
-            # Find all .bak files matching the pattern
-            backups = sorted(backup_dir.glob("*.bak"), key=lambda f: f.stat().st_mtime, reverse=True)
-
-            # Remove older ones
+            backups = sorted(
+                backup_dir.glob("*.bak"), key=lambda f: f.stat().st_mtime, reverse=True
+            )
             for old_backup in backups[keep:]:
                 try:
                     old_backup.unlink()
@@ -422,13 +363,9 @@ class DBSecurityManager:
                 except Exception as e:
                     logger.warning(f"Failed to delete old backup {old_backup.name}: {e}")
         except Exception as e:
-             logger.error(f"Rotation failed: {e}")
+            logger.error(f"Rotation failed: {e}")
 
-    def verify_integrity(self, file_path: Path = None) -> bool:
-        """
-        Verifies the integrity of a database file (encrypted or plain).
-        If encrypted, it attempts to decrypt first.
-        """
+    def verify_integrity(self, file_path: Path | None = None) -> bool:
         target = file_path or self.db_path
         if not target.exists():
             return False
@@ -438,17 +375,15 @@ class DBSecurityManager:
                 content = f.read()
 
             if content.startswith(self._HEADER):
-                # Decrypt
                 try:
-                    raw_data = self.fernet.decrypt(content[len(self._HEADER):])
+                    raw_data = self.fernet.decrypt(content[len(self._HEADER) :])
                 except Exception:
                     logger.warning(f"Integrity Check: Decryption failed for {target.name}")
                     return False
             else:
                 raw_data = content
 
-            # Test SQLite Integrity
-            conn = sqlite3.connect(':memory:')
+            conn = sqlite3.connect(":memory:")
             try:
                 conn.deserialize(raw_data)
                 cursor = conn.cursor()
@@ -470,8 +405,7 @@ class DBSecurityManager:
             logger.error(f"Integrity verification error: {e}")
             return False
 
-    def optimize_database(self):
-        """Runs VACUUM and ANALYZE on the in-memory database."""
+    def optimize_database(self) -> None:
         if not self.active_connection:
             return
 
@@ -481,24 +415,18 @@ class DBSecurityManager:
 
         try:
             logger.info("Starting database optimization (VACUUM)...")
-            # VACUUM in sqlite usually requires no active transaction.
-            # We execute on the raw connection.
             self.active_connection.execute("VACUUM")
             self.active_connection.execute("ANALYZE")
             logger.info("Database optimization completed.")
-
-            # Save the optimized DB to disk
             self.save_to_disk()
         except Exception as e:
             logger.error(f"Optimization failed: {e}")
             raise
 
-    def restore_from_backup(self, backup_path: Path):
-        """Restores the database from a backup file."""
+    def restore_from_backup(self, backup_path: Path) -> None:
         if not backup_path.exists():
             raise FileNotFoundError(f"Backup not found: {backup_path}")
 
-        # Backup current state before overwriting (Safety net)
         self.create_backup()
 
         try:
@@ -508,34 +436,25 @@ class DBSecurityManager:
             logger.error(f"Restore failed: {e}")
             raise
 
-    def cleanup(self):
-        """
-        Shutdown handler. Saves state (if writer) and releases lock.
-        """
+    def cleanup(self) -> None:
         self.save_to_disk()
         self.release_lock()
 
-    def toggle_security_mode(self, enable_encryption: bool):
+    def toggle_security_mode(self, enable_encryption: bool) -> None:
         self.is_locked_mode = enable_encryption
         self.save_to_disk()
 
-    def move_database(self, new_dir_or_path: Path):
-        """
-        Moves the database file to a new directory or specific file path.
-        Updates settings and internal paths.
-        """
+    def move_database(self, new_dir_or_path: Path) -> None:
         if self.is_read_only:
             raise PermissionError("Cannot move database in read-only mode.")
 
         current_path = self.db_path
         target_path = Path(new_dir_or_path)
 
-        # Check if target is a file (ends with .db) or directory
         if target_path.suffix.lower() == ".db":
             new_path = target_path
             new_data_dir = target_path.parent
         else:
-            # Assume directory
             new_path = target_path / current_path.name
             new_data_dir = target_path
 
@@ -543,46 +462,33 @@ class DBSecurityManager:
             logger.info("New database path is the same as the current one. No action taken.")
             return
 
-        # Ensure parent dir exists
         new_data_dir.mkdir(parents=True, exist_ok=True)
-
-        # 1. Save current state to disk before moving
         self.save_to_disk()
 
-        # 2. Move the file
         try:
             shutil.move(str(current_path), str(new_path))
             logger.info(f"Successfully moved database from {current_path} to {new_path}")
-        except (IOError, OSError) as e:
+        except OSError as e:
             logger.error(f"Failed to move database file: {e}")
             raise
 
-        # 3. Update internal state and settings
         self.data_dir = new_data_dir
         self.db_path = new_path
-        # Save the full path if it was a file selection, otherwise the dir
         save_val = str(new_path) if target_path.suffix.lower() == ".db" else str(new_data_dir)
         settings.save_mutable_settings({"DATABASE_PATH": save_val})
 
-
-    # Alias for backward compatibility if needed, or just for main.py
-    def sync_db(self):
+    def sync_db(self) -> bool:
         return self.save_to_disk()
 
-    # Deprecated/Legacy method to satisfy old tests if any call it directly
-    # Can be removed if we update all callsites.
-    def create_lock(self):
-        # Fallback implementation
+    def create_lock(self) -> None:
         self.acquire_session_lock({"user": "system"})
 
     def check_lock_exists(self) -> bool:
-        # Legacy compatibility
-        return os.path.exists(self.lock_path)
+        return self.lock_path.exists()
 
     @property
     def has_lock(self) -> bool:
-        # Compatibility property
-        return not self.is_read_only and self.lock_manager._is_locked
+        return not self.is_read_only
 
-# Singleton
-db_security = DBSecurityManager()
+
+db_security: DBSecurityManager = DBSecurityManager()

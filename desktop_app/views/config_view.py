@@ -1,10 +1,11 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
-from desktop_app.utils import TaskRunner
-from app.core.config import settings as local_settings
-from desktop_app.views.audit_view import AuditView
+from tkinter import messagebox, ttk
+
 import requests
-import threading
+
+from app.core.config import settings as local_settings
+from desktop_app.utils import TaskRunner
+from desktop_app.views.audit_view import AuditView
 
 
 class ConfigView(tk.Frame):
@@ -43,13 +44,12 @@ class SettingsTab(tk.Frame):
 
         # Bind resizing
         self.scrollable_frame.bind(
-            "<Configure>",
-            lambda e: self.canvas.configure(
-                scrollregion=self.canvas.bbox("all")
-            )
+            "<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         )
 
-        self.canvas_window = self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        self.canvas_window = self.canvas.create_window(
+            (0, 0), window=self.scrollable_frame, anchor="nw"
+        )
 
         self.canvas.bind("<Configure>", self._on_canvas_configure)
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
@@ -104,13 +104,23 @@ class SettingsTab(tk.Frame):
         # --- AI ---
         self._add_header(parent, "Integrazione AI", row)
         row += 1
-        self.entry_gemini_analysis = self._add_grid_field(parent, "Gemini API Key (Analisi):", row, show="*")
+        self.entry_gemini_analysis = self._add_grid_field(
+            parent, "Gemini API Key (Analisi):", row, show="*"
+        )
         row += 1
-        self.entry_gemini_chat = self._add_grid_field(parent, "Gemini API Key (Chat):", row, show="*")
+        self.entry_gemini_chat = self._add_grid_field(
+            parent, "Gemini API Key (Chat):", row, show="*"
+        )
         row += 1
 
         self.var_voice = tk.BooleanVar(value=True)
-        tk.Checkbutton(parent, text="Abilita Assistente Vocale", variable=self.var_voice, bg="white", activebackground="white").grid(row=row, column=0, columnspan=2, sticky="w", padx=10, pady=5)
+        tk.Checkbutton(
+            parent,
+            text="Abilita Assistente Vocale",
+            variable=self.var_voice,
+            bg="white",
+            activebackground="white",
+        ).grid(row=row, column=0, columnspan=2, sticky="w", padx=10, pady=5)
         row += 1
 
         # --- EMAIL ---
@@ -118,11 +128,17 @@ class SettingsTab(tk.Frame):
         row += 1
 
         # Presets
-        tk.Label(parent, text="Preset:", bg="white", font=("Segoe UI", 10)).grid(row=row, column=0, sticky="w", padx=10, pady=5)
+        tk.Label(parent, text="Preset:", bg="white", font=("Segoe UI", 10)).grid(
+            row=row, column=0, sticky="w", padx=10, pady=5
+        )
         f_pre = tk.Frame(parent, bg="white")
         f_pre.grid(row=row, column=1, sticky="w", padx=10, pady=5)
-        tk.Button(f_pre, text="Gmail", command=lambda: self.apply_preset("gmail")).pack(side="left", padx=(0, 5))
-        tk.Button(f_pre, text="Outlook", command=lambda: self.apply_preset("outlook")).pack(side="left", padx=5)
+        tk.Button(f_pre, text="Gmail", command=lambda: self.apply_preset("gmail")).pack(
+            side="left", padx=(0, 5)
+        )
+        tk.Button(f_pre, text="Outlook", command=lambda: self.apply_preset("outlook")).pack(
+            side="left", padx=5
+        )
         row += 1
 
         self.entry_server = self._add_grid_field(parent, "Server SMTP:", row)
@@ -134,7 +150,9 @@ class SettingsTab(tk.Frame):
         self.entry_password = self._add_grid_field(parent, "Password (App Pwd):", row, show="*")
         row += 1
 
-        tk.Button(parent, text="Invia Email di Prova", command=self.test_email).grid(row=row, column=0, columnspan=2, sticky="w", padx=10, pady=10)
+        tk.Button(parent, text="Invia Email di Prova", command=self.test_email).grid(
+            row=row, column=0, columnspan=2, sticky="w", padx=10, pady=10
+        )
         row += 1
 
         # --- THRESHOLDS ---
@@ -148,21 +166,38 @@ class SettingsTab(tk.Frame):
         # --- MAINTENANCE ---
         self._add_header(parent, "Manutenzione", row)
         row += 1
-        tk.Button(parent, text="Esegui Backup e Manutenzione", command=self.trigger_maintenance, bg="#F59E0B", fg="white", font=("Segoe UI", 10, "bold")).grid(row=row, column=0, columnspan=2, sticky="w", padx=10, pady=10)
+        tk.Button(
+            parent,
+            text="Esegui Backup e Manutenzione",
+            command=self.trigger_maintenance,
+            bg="#F59E0B",
+            fg="white",
+            font=("Segoe UI", 10, "bold"),
+        ).grid(row=row, column=0, columnspan=2, sticky="w", padx=10, pady=10)
         row += 1
 
         # --- SAVE ---
-        tk.Button(parent, text="SALVA TUTTO", bg="#1D4ED8", fg="white", font=("Segoe UI", 10, "bold"),
-                  command=self.save_settings).grid(row=row, column=0, columnspan=2, sticky="ew", padx=10, pady=30)
+        tk.Button(
+            parent,
+            text="SALVA TUTTO",
+            bg="#1D4ED8",
+            fg="white",
+            font=("Segoe UI", 10, "bold"),
+            command=self.save_settings,
+        ).grid(row=row, column=0, columnspan=2, sticky="ew", padx=10, pady=30)
 
     def _add_header(self, parent, text, row):
         f = tk.Frame(parent, bg="white")
         f.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(20, 10))
-        tk.Label(f, text=text, font=("Segoe UI", 11, "bold"), bg="white", fg="#1E3A8A").pack(anchor="w", padx=10)
-        ttk.Separator(f, orient='horizontal').pack(fill='x', padx=10, pady=(5, 0))
+        tk.Label(f, text=text, font=("Segoe UI", 11, "bold"), bg="white", fg="#1E3A8A").pack(
+            anchor="w", padx=10
+        )
+        ttk.Separator(f, orient="horizontal").pack(fill="x", padx=10, pady=(5, 0))
 
     def _add_grid_field(self, parent, label_text, row, show=None, readonly=False):
-        tk.Label(parent, text=label_text, bg="white", font=("Segoe UI", 10), anchor="w").grid(row=row, column=0, sticky="w", padx=10, pady=5)
+        tk.Label(parent, text=label_text, bg="white", font=("Segoe UI", 10), anchor="w").grid(
+            row=row, column=0, sticky="w", padx=10, pady=5
+        )
         e = tk.Entry(parent, show=show, font=("Segoe UI", 10))
         e.grid(row=row, column=1, sticky="ew", padx=10, pady=5)
         if readonly:
@@ -224,8 +259,12 @@ class SettingsTab(tk.Frame):
             "SMTP_PORT": int(self.entry_port.get()) if self.entry_port.get().isdigit() else 587,
             "SMTP_USERNAME": self.entry_email.get(),
             "SMTP_PASSWORD": self.entry_password.get(),
-            "ALERT_THRESHOLD_DAYS": int(self.entry_alert_days.get()) if self.entry_alert_days.get().isdigit() else 60,
-            "ALERT_THRESHOLD_DAYS_VISITE": int(self.entry_alert_visite.get()) if self.entry_alert_visite.get().isdigit() else 30
+            "ALERT_THRESHOLD_DAYS": int(self.entry_alert_days.get())
+            if self.entry_alert_days.get().isdigit()
+            else 60,
+            "ALERT_THRESHOLD_DAYS_VISITE": int(self.entry_alert_visite.get())
+            if self.entry_alert_visite.get().isdigit()
+            else 30,
         }
 
         def save_task():
@@ -244,7 +283,11 @@ class SettingsTab(tk.Frame):
     def test_email(self):
         try:
             url = f"{self.controller.api_client.base_url}/notifications/test-email"
-            requests.post(url, json={"email": self.entry_email.get()}, headers=self.controller.api_client._get_headers())
+            requests.post(
+                url,
+                json={"email": self.entry_email.get()},
+                headers=self.controller.api_client._get_headers(),
+            )
             messagebox.showinfo("Inviata", "Email di prova inviata.")
         except Exception as e:
             messagebox.showerror("Errore", str(e))
@@ -269,7 +312,9 @@ class UsersTab(tk.Frame):
         # Toolbar
         toolbar = tk.Frame(self, bg="white")
         toolbar.pack(fill="x", pady=10)
-        tk.Button(toolbar, text="Nuovo Utente", bg="#10B981", fg="white", command=self.add_user).pack(side="left")
+        tk.Button(
+            toolbar, text="Nuovo Utente", bg="#10B981", fg="white", command=self.add_user
+        ).pack(side="left")
         tk.Button(toolbar, text="Aggiorna", command=self.refresh_users).pack(side="left", padx=10)
 
         # List
@@ -296,7 +341,9 @@ class UsersTab(tk.Frame):
 
             for u in users:
                 role = "Admin" if u.get("is_admin") else "User"
-                self.tree.insert("", "end", values=(u["id"], u["username"], role, u.get("last_login", "")))
+                self.tree.insert(
+                    "", "end", values=(u["id"], u["username"], role, u.get("last_login", ""))
+                )
         except Exception:
             pass
 
@@ -309,7 +356,9 @@ class UsersTab(tk.Frame):
             return
         vals = self.tree.item(item, "values")
         user_id = vals[0]
-        UserDialog(self, self.controller, user_id=user_id, username=vals[1], is_admin=(vals[2] == "Admin"))
+        UserDialog(
+            self, self.controller, user_id=user_id, username=vals[1], is_admin=(vals[2] == "Admin")
+        )
 
 
 class UserDialog(tk.Toplevel):
@@ -341,10 +390,7 @@ class UserDialog(tk.Toplevel):
             tk.Button(self, text="ELIMINA", bg="red", fg="white", command=self.delete).pack()
 
     def save(self):
-        data = {
-            "username": self.entry_user.get(),
-            "is_admin": self.var_admin.get()
-        }
+        data = {"username": self.entry_user.get(), "is_admin": self.var_admin.get()}
         pwd = self.entry_pass.get()
 
         try:
@@ -356,7 +402,9 @@ class UserDialog(tk.Toplevel):
                 if not pwd:
                     messagebox.showerror("Errore", "Password richiesta")
                     return
-                self.controller.api_client.create_user(data["username"], pwd, is_admin=data["is_admin"])
+                self.controller.api_client.create_user(
+                    data["username"], pwd, is_admin=data["is_admin"]
+                )
 
             self.parent_view.refresh_users()
             self.destroy()

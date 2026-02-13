@@ -1,10 +1,23 @@
-import sys
+import math
 import os
 import random
-import math
-from PyQt6.QtGui import QImage, QPainter, QColor, QPixmap, QLinearGradient, QPen, QBrush, QRadialGradient, QPainterPath, QFont, QConicalGradient
-from PyQt6.QtCore import Qt, QSize, QPointF, QRectF, QRect
+import sys
+
+from PyQt6.QtCore import QPointF, QRect, QRectF, QSize, Qt
+from PyQt6.QtGui import (
+    QBrush,
+    QColor,
+    QFont,
+    QImage,
+    QLinearGradient,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+    QRadialGradient,
+)
 from PyQt6.QtWidgets import QApplication
+
 
 def draw_spectacular_background(painter, width, height, is_dark=True):
     """
@@ -13,15 +26,15 @@ def draw_spectacular_background(painter, width, height, is_dark=True):
     if is_dark:
         # 1. Deep Space Base
         grad = QLinearGradient(0, 0, width, height)
-        grad.setColorAt(0.0, QColor("#050A14")) # Almost Black Blue
-        grad.setColorAt(0.5, QColor("#0F172A")) # Slate 900
-        grad.setColorAt(1.0, QColor("#172554")) # Blue 950
+        grad.setColorAt(0.0, QColor("#050A14"))  # Almost Black Blue
+        grad.setColorAt(0.5, QColor("#0F172A"))  # Slate 900
+        grad.setColorAt(1.0, QColor("#172554"))  # Blue 950
         painter.fillRect(0, 0, width, height, grad)
 
         # 2. Nebula / Glow Effects (Enhanced)
         # Intense Blue Core
         rad1 = QRadialGradient(width * 0.2, height * 0.8, width * 0.9)
-        rad1.setColorAt(0.0, QColor(29, 78, 216, 50)) # Blue 700
+        rad1.setColorAt(0.0, QColor(29, 78, 216, 50))  # Blue 700
         rad1.setColorAt(0.5, QColor(30, 64, 175, 20))
         rad1.setColorAt(1.0, QColor(0, 0, 0, 0))
         painter.setBrush(QBrush(rad1))
@@ -30,14 +43,14 @@ def draw_spectacular_background(painter, width, height, is_dark=True):
 
         # Cosmic Purple/Pink Highlight
         rad2 = QRadialGradient(width * 0.9, height * 0.2, width * 0.8)
-        rad2.setColorAt(0.0, QColor(126, 34, 206, 40)) # Purple 700
+        rad2.setColorAt(0.0, QColor(126, 34, 206, 40))  # Purple 700
         rad2.setColorAt(1.0, QColor(0, 0, 0, 0))
         painter.setBrush(QBrush(rad2))
         painter.drawRect(0, 0, width, height)
 
         # Cyan Tech Glow (Center)
         rad3 = QRadialGradient(width * 0.5, height * 0.5, width * 0.6)
-        rad3.setColorAt(0.0, QColor(6, 182, 212, 15)) # Cyan 500
+        rad3.setColorAt(0.0, QColor(6, 182, 212, 15))  # Cyan 500
         rad3.setColorAt(1.0, QColor(0, 0, 0, 0))
         painter.setBrush(QBrush(rad3))
         painter.drawRect(0, 0, width, height)
@@ -46,12 +59,12 @@ def draw_spectacular_background(painter, width, height, is_dark=True):
         random.seed(999)
         painter.setPen(Qt.PenStyle.NoPen)
         for _ in range(150):
-            x = random.uniform(0, width) # NOSONAR
-            y = random.uniform(0, height) # NOSONAR
-            s = random.uniform(0.5, 2.5) # NOSONAR
-            opacity = random.randint(100, 255) # NOSONAR
+            x = random.uniform(0, width)  # NOSONAR
+            y = random.uniform(0, height)  # NOSONAR
+            s = random.uniform(0.5, 2.5)  # NOSONAR
+            opacity = random.randint(100, 255)  # NOSONAR
             # Some stars are blueish, some white
-            if random.random() > 0.8: # NOSONAR
+            if random.random() > 0.8:  # NOSONAR
                 painter.setBrush(QColor(147, 197, 253, opacity))
             else:
                 painter.setBrush(QColor(255, 255, 255, opacity))
@@ -67,6 +80,7 @@ def draw_spectacular_background(painter, width, height, is_dark=True):
     if is_dark:
         # 5. Neural Network
         draw_neural_network(painter, width, height)
+
 
 def draw_tech_grid(painter, width, height, is_dark):
     """Draws a subtle hexagonal grid."""
@@ -92,6 +106,7 @@ def draw_tech_grid(painter, width, height, is_dark):
 
             _draw_hexagon(painter, x, y, size)
 
+
 def _draw_hexagon(painter, x, y, size):
     path = QPainterPath()
     for k in range(6):
@@ -106,6 +121,7 @@ def _draw_hexagon(painter, x, y, size):
     path.closeSubpath()
     painter.drawPath(path)
 
+
 def draw_neural_network(painter, width, height):
     """Draws glowing nodes and connections."""
     random.seed(55)
@@ -118,15 +134,16 @@ def draw_neural_network(painter, width, height):
         nodes.append(QPointF(x, y))
 
     # Connections
-    pen = QPen(QColor(56, 189, 248, 40)) # Light Blue
+    pen = QPen(QColor(56, 189, 248, 40))  # Light Blue
     painter.setPen(pen)
 
     for i, p1 in enumerate(nodes):
         for j, p2 in enumerate(nodes):
-            if i >= j: continue
-            dist = math.sqrt((p1.x()-p2.x())**2 + (p1.y()-p2.y())**2)
+            if i >= j:
+                continue
+            dist = math.sqrt((p1.x() - p2.x()) ** 2 + (p1.y() - p2.y()) ** 2)
             if dist < 90:
-                opacity = int((1 - dist/90) * 90)
+                opacity = int((1 - dist / 90) * 90)
                 pen.setColor(QColor(56, 189, 248, opacity))
                 painter.setPen(pen)
                 painter.drawLine(p1, p2)
@@ -136,9 +153,10 @@ def draw_neural_network(painter, width, height):
     for p in nodes:
         rad = QRadialGradient(p, 5)
         rad.setColorAt(0, QColor(255, 255, 255, 220))
-        rad.setColorAt(1, QColor(14, 165, 233, 0)) # Sky 500
+        rad.setColorAt(1, QColor(14, 165, 233, 0))  # Sky 500
         painter.setBrush(QBrush(rad))
         painter.drawEllipse(p, 5, 5)
+
 
 def create_slide(filepath, text, subtext, width=800, height=600, logo_pixmap=None):
     image = QImage(width, height, QImage.Format.Format_ARGB32)
@@ -151,7 +169,9 @@ def create_slide(filepath, text, subtext, width=800, height=600, logo_pixmap=Non
     # Logo Watermark with WHITE BACKGROUND
     if logo_pixmap:
         target_w = 140
-        scaled_logo = logo_pixmap.scaledToWidth(target_w, Qt.TransformationMode.SmoothTransformation)
+        scaled_logo = logo_pixmap.scaledToWidth(
+            target_w, Qt.TransformationMode.SmoothTransformation
+        )
 
         # Position top right
         margin_right = 40
@@ -161,7 +181,12 @@ def create_slide(filepath, text, subtext, width=800, height=600, logo_pixmap=Non
 
         # Draw White Rounded Box
         padding = 15
-        box_rect = QRectF(x - padding, y - padding, scaled_logo.width() + padding*2, scaled_logo.height() + padding*2)
+        box_rect = QRectF(
+            x - padding,
+            y - padding,
+            scaled_logo.width() + padding * 2,
+            scaled_logo.height() + padding * 2,
+        )
 
         # Shadow
         painter.setPen(Qt.PenStyle.NoPen)
@@ -176,7 +201,7 @@ def create_slide(filepath, text, subtext, width=800, height=600, logo_pixmap=Non
         painter.drawPixmap(x, y, scaled_logo)
 
     # Text Styling
-    font_main = QFont("Segoe UI", 48, QFont.Weight.Bold) # Reduced slightly for better wrapping
+    font_main = QFont("Segoe UI", 48, QFont.Weight.Bold)  # Reduced slightly for better wrapping
     font_sub = QFont("Segoe UI", 24, QFont.Weight.Light)
 
     # Define Areas
@@ -185,11 +210,13 @@ def create_slide(filepath, text, subtext, width=800, height=600, logo_pixmap=Non
 
     # Main Text Area
     painter.setFont(font_main)
-    rect_main = QRect(40, center_y - 120, width - 80, 240) # Large band in middle
+    rect_main = QRect(40, center_y - 120, width - 80, 240)  # Large band in middle
 
     # Draw Shadow
     painter.setPen(QColor(0, 0, 0, 150))
-    painter.drawText(rect_main.translated(4, 4), Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap, text)
+    painter.drawText(
+        rect_main.translated(4, 4), Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap, text
+    )
 
     # Draw Main Text
     painter.setPen(QColor(255, 255, 255))
@@ -198,13 +225,14 @@ def create_slide(filepath, text, subtext, width=800, height=600, logo_pixmap=Non
     # Subtext (Below Main Text)
     # We need to measure where the main text ended, but for simplicity, we put subtext lower
     painter.setFont(font_sub)
-    painter.setPen(QColor(125, 211, 252)) # Light sky blue
+    painter.setPen(QColor(125, 211, 252))  # Light sky blue
     rect_sub = QRect(40, center_y + 80, width - 80, 100)
     painter.drawText(rect_sub, Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap, subtext)
 
     painter.end()
     image.save(filepath, "BMP")
     print(f"Created {filepath}")
+
 
 def create_assets():
     # S1481: Unused variable app removed, but QApplication must be instantiated
@@ -239,7 +267,9 @@ def create_assets():
         painter.setPen(Qt.PenStyle.NoPen)
         # Add shadow
         painter.setBrush(QColor(0, 0, 0, 80))
-        painter.drawRoundedRect(x - 20 + 4, y - 20 + 6, scaled.width() + 40, scaled.height() + 40, 20, 20)
+        painter.drawRoundedRect(
+            x - 20 + 4, y - 20 + 6, scaled.width() + 40, scaled.height() + 40, 20, 20
+        )
         # White Box
         painter.setBrush(QColor(255, 255, 255, 255))
         painter.drawRoundedRect(x - 20, y - 20, scaled.width() + 40, scaled.height() + 40, 20, 20)
@@ -266,7 +296,12 @@ def create_assets():
     if logo:
         # Maximize logo within the new size
         # Keep aspect ratio, margin 5px
-        scaled = logo.scaled(small_size.width() - 10, small_size.height() - 10, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        scaled = logo.scaled(
+            small_size.width() - 10,
+            small_size.height() - 10,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
         x = (small_size.width() - scaled.width()) // 2
         y = (small_size.height() - scaled.height()) // 2
 
@@ -282,11 +317,12 @@ def create_assets():
         ("slide_3.bmp", "VALIDAZIONE DATI", "Controllo Conformità"),
         ("slide_4.bmp", "ARCHIVIAZIONE", "Salvataggio Sicuro"),
         ("slide_5.bmp", "NOTIFICHE", "Avvisi di Scadenza"),
-        ("slide_6.bmp", "FLUSSO DI LAVORO", "Gestione Semplificata")
+        ("slide_6.bmp", "FLUSSO DI LAVORO", "Gestione Semplificata"),
     ]
 
     for filename, title, subtitle in slides_data:
         create_slide(os.path.join(assets_dir, filename), title, subtitle, logo_pixmap=logo)
+
 
 if __name__ == "__main__":
     create_assets()

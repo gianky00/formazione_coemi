@@ -1,10 +1,12 @@
-import tkinter as tk
-from tkinter import ttk, messagebox, Menu
-import threading
 import os
-from desktop_app.utils import open_file, format_date_to_ui
-from app.services.document_locator import find_document
+import threading
+import tkinter as tk
+from tkinter import Menu, messagebox, ttk
+
 from app.core.config import settings
+from app.services.document_locator import find_document
+from desktop_app.utils import format_date_to_ui, open_file
+
 
 class DipendentiView(tk.Frame):
     def __init__(self, parent, controller):
@@ -20,13 +22,25 @@ class DipendentiView(tk.Frame):
         toolbar.pack(fill="x")
 
         tk.Button(toolbar, text="Aggiorna", command=self.refresh_data).pack(side="left", padx=10)
-        tk.Button(toolbar, text="Nuovo Dipendente", bg="#10B981", fg="white", command=self.add_dipendente).pack(side="left", padx=10)
+        tk.Button(
+            toolbar, text="Nuovo Dipendente", bg="#10B981", fg="white", command=self.add_dipendente
+        ).pack(side="left", padx=10)
 
         # Bulk action buttons
-        tk.Button(toolbar, text="Assegna Mansione", bg="#2563EB", fg="white",
-                  command=self._bulk_assign_mansione).pack(side="left", padx=5)
-        tk.Button(toolbar, text="Assegna Reparto", bg="#7C3AED", fg="white",
-                  command=self._bulk_assign_reparto).pack(side="left", padx=5)
+        tk.Button(
+            toolbar,
+            text="Assegna Mansione",
+            bg="#2563EB",
+            fg="white",
+            command=self._bulk_assign_mansione,
+        ).pack(side="left", padx=5)
+        tk.Button(
+            toolbar,
+            text="Assegna Reparto",
+            bg="#7C3AED",
+            fg="white",
+            command=self._bulk_assign_reparto,
+        ).pack(side="left", padx=5)
 
         # Search
         tk.Label(toolbar, text="Cerca:", bg="#F3F4F6").pack(side="left", padx=10)
@@ -67,12 +81,20 @@ class DipendentiView(tk.Frame):
 
         # Context Menu
         self.context_menu = Menu(self, tearoff=0)
-        self.context_menu.add_command(label="Visualizza Storico Certificati", command=self.show_storico)
+        self.context_menu.add_command(
+            label="Visualizza Storico Certificati", command=self.show_storico
+        )
         self.context_menu.add_separator()
-        self.context_menu.add_command(label="Modifica Dati", command=lambda: self.on_double_click(None))
+        self.context_menu.add_command(
+            label="Modifica Dati", command=lambda: self.on_double_click(None)
+        )
         self.context_menu.add_separator()
-        self.context_menu.add_command(label="Assegna Mansione (Selezione)", command=self._bulk_assign_mansione)
-        self.context_menu.add_command(label="Assegna Reparto (Selezione)", command=self._bulk_assign_reparto)
+        self.context_menu.add_command(
+            label="Assegna Mansione (Selezione)", command=self._bulk_assign_mansione
+        )
+        self.context_menu.add_command(
+            label="Assegna Reparto (Selezione)", command=self._bulk_assign_reparto
+        )
 
         self.tree.bind("<Button-3>", self.show_context_menu)
 
@@ -124,10 +146,12 @@ class DipendentiView(tk.Frame):
                 new_data = self.controller.api_client.get_dipendenti_list()
                 if self.winfo_exists():
                     self.after(0, lambda: self._update_data(new_data))
-            except Exception as e:
+            except Exception:
                 if self.winfo_exists():
-                    self.after(0, lambda: messagebox.showerror("Errore", f"Errore caricamento: {e}"))
-        
+                    self.after(
+                        0, lambda: messagebox.showerror("Errore", f"Errore caricamento: {e}")
+                    )
+
         threading.Thread(target=fetch, daemon=True).start()
 
     def _update_data(self, new_data):
@@ -156,17 +180,18 @@ class DipendentiView(tk.Frame):
                     display_name,
                     dob,
                     d.get("mansione") or "",
-                    reparto
+                    reparto,
                 )
                 self.tree.insert("", "end", values=values)
 
     def show_storico(self):
         selected = self.tree.selection()
-        if not selected: return
-        
+        if not selected:
+            return
+
         dip_id = self.tree.item(selected[0], "values")[0]
         dip_obj = next((x for x in self.data if str(x["id"]) == str(dip_id)), None)
-        
+
         if dip_obj:
             StoricoCertificatiDialog(self, self.controller, dip_obj)
 
@@ -175,12 +200,14 @@ class DipendentiView(tk.Frame):
 
     def on_double_click(self, event):
         item = self.tree.selection()
-        if not item: return
+        if not item:
+            return
         vals = self.tree.item(item, "values")
         dip_id = vals[0]
         dip_obj = next((x for x in self.data if str(x["id"]) == str(dip_id)), None)
         if dip_obj:
             DipendenteDialog(self, self.controller, dip_obj)
+
 
 class StoricoCertificatiDialog(tk.Toplevel):
     def __init__(self, parent, controller, dipendente):
@@ -191,18 +218,22 @@ class StoricoCertificatiDialog(tk.Toplevel):
         self.geometry("900x500")
         self.transient(parent)
         self.grab_set()
-        
+
         self.setup_ui()
         self.load_data()
 
     def setup_ui(self):
         frame = tk.Frame(self, padx=10, pady=10)
         frame.pack(fill="both", expand=True)
-        
-        lbl_info = tk.Label(frame, text=f"Certificati legati a: {self.dipendente['cognome']} {self.dipendente['nome']} (Matricola: {self.dipendente.get('matricola', 'N/D')})", 
-                            font=("Segoe UI", 11, "bold"), pady=10)
+
+        lbl_info = tk.Label(
+            frame,
+            text=f"Certificati legati a: {self.dipendente['cognome']} {self.dipendente['nome']} (Matricola: {self.dipendente.get('matricola', 'N/D')})",
+            font=("Segoe UI", 11, "bold"),
+            pady=10,
+        )
         lbl_info.pack(fill="x")
-        
+
         columns = ("corso", "categoria", "rilascio", "scadenza", "stato")
         self.tree = ttk.Treeview(frame, columns=columns, show="headings")
         self.tree.heading("corso", text="Documento / Corso")
@@ -210,18 +241,18 @@ class StoricoCertificatiDialog(tk.Toplevel):
         self.tree.heading("rilascio", text="Emissione")
         self.tree.heading("scadenza", text="Scadenza")
         self.tree.heading("stato", text="Stato")
-        
+
         self.tree.column("corso", width=250)
         self.tree.column("categoria", width=150)
         self.tree.column("rilascio", width=100)
         self.tree.column("scadenza", width=100)
         self.tree.column("stato", width=100)
-        
+
         scrollbar = ttk.Scrollbar(frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscroll=scrollbar.set)
         scrollbar.pack(side="right", fill="y")
         self.tree.pack(fill="both", expand=True)
-        
+
         self.tree.bind("<Double-1>", self.open_pdf)
 
     def load_data(self):
@@ -229,7 +260,7 @@ class StoricoCertificatiDialog(tk.Toplevel):
             # Fetch detailed dipendente info which includes certificates
             details = self.controller.api_client.get_dipendente_detail(self.dipendente["id"])
             certs = details.get("certificati", [])
-            
+
             for c in certs:
                 scad = c.get("data_scadenza") or "NESSUNA"
                 stato = c.get("stato_certificato") or "N/D"
@@ -238,47 +269,53 @@ class StoricoCertificatiDialog(tk.Toplevel):
                     c.get("categoria"),
                     c.get("data_rilascio"),
                     scad,
-                    stato.upper()
+                    stato.upper(),
                 )
                 self.tree.insert("", "end", values=values, tags=(c.get("stato_certificato"),))
-            
+
             self.tree.tag_configure("scaduto", foreground="red")
             self.tree.tag_configure("in_scadenza", foreground="orange")
             self.tree.tag_configure("attivo", foreground="green")
-            
+
         except Exception as e:
             messagebox.showerror("Errore", str(e))
 
     def open_pdf(self, event):
         selected = self.tree.selection()
-        if not selected: return
-        
+        if not selected:
+            return
+
         vals = self.tree.item(selected[0], "values")
         corso = vals[0]
         categoria = vals[1]
         scadenza = vals[3]
-        if scadenza == "NESSUNA": scadenza = None
+        if scadenza == "NESSUNA":
+            scadenza = None
 
         try:
             db_path = settings.DATABASE_PATH
             if not db_path:
-                 messagebox.showerror("Errore", "Percorso documenti non configurato.")
-                 return
+                messagebox.showerror("Errore", "Percorso documenti non configurato.")
+                return
 
             search_data = {
-                'nome': f"{self.dipendente['cognome']} {self.dipendente['nome']}",
-                'matricola': self.dipendente.get('matricola'),
-                'categoria': categoria,
-                'data_scadenza': scadenza
+                "nome": f"{self.dipendente['cognome']} {self.dipendente['nome']}",
+                "matricola": self.dipendente.get("matricola"),
+                "categoria": categoria,
+                "data_scadenza": scadenza,
             }
 
             path = find_document(db_path, search_data)
             if path and os.path.exists(path):
                 open_file(path)
             else:
-                messagebox.showwarning("File non trovato", f"Non è stato possibile localizzare il PDF.\nDati: {search_data}")
+                messagebox.showwarning(
+                    "File non trovato",
+                    f"Non è stato possibile localizzare il PDF.\nDati: {search_data}",
+                )
         except Exception as e:
             messagebox.showerror("Errore", f"Impossibile aprire il file: {e}")
+
 
 class DipendenteDialog(tk.Toplevel):
     def __init__(self, parent, controller, dip_data=None):
@@ -310,12 +347,22 @@ class DipendenteDialog(tk.Toplevel):
             raw_date = self.dip_data.get("data_nascita")
             data_nascita = format_date_to_ui(raw_date)
 
-        self.entry_cognome = self._add_field(main_frame, "Cognome:", self.dip_data.get("cognome") if self.dip_data else "")
-        self.entry_nome = self._add_field(main_frame, "Nome:", self.dip_data.get("nome") if self.dip_data else "")
-        self.entry_matricola = self._add_field(main_frame, "Matricola:", self.dip_data.get("matricola") if self.dip_data else "")
+        self.entry_cognome = self._add_field(
+            main_frame, "Cognome:", self.dip_data.get("cognome") if self.dip_data else ""
+        )
+        self.entry_nome = self._add_field(
+            main_frame, "Nome:", self.dip_data.get("nome") if self.dip_data else ""
+        )
+        self.entry_matricola = self._add_field(
+            main_frame, "Matricola:", self.dip_data.get("matricola") if self.dip_data else ""
+        )
         self.entry_nascita = self._add_field(main_frame, "Data Nascita (GG/MM/AAAA):", data_nascita)
-        self.entry_mansione = self._add_field(main_frame, "Mansione:", self.dip_data.get("mansione") if self.dip_data else "")
-        self.entry_reparto = self._add_field(main_frame, "Reparto:", self.dip_data.get("categoria_reparto") if self.dip_data else "")
+        self.entry_mansione = self._add_field(
+            main_frame, "Mansione:", self.dip_data.get("mansione") if self.dip_data else ""
+        )
+        self.entry_reparto = self._add_field(
+            main_frame, "Reparto:", self.dip_data.get("categoria_reparto") if self.dip_data else ""
+        )
 
         # Spacer
         tk.Frame(main_frame, height=20).pack()
@@ -325,14 +372,29 @@ class DipendenteDialog(tk.Toplevel):
         btn_frame.pack(fill="x", pady=10)
 
         if self.dip_data:
-            tk.Button(btn_frame, text="ELIMINA", bg="#DC2626", fg="white", font=("Segoe UI", 10, "bold"),
-                      command=self.delete, width=12).pack(side="left", padx=5)
+            tk.Button(
+                btn_frame,
+                text="ELIMINA",
+                bg="#DC2626",
+                fg="white",
+                font=("Segoe UI", 10, "bold"),
+                command=self.delete,
+                width=12,
+            ).pack(side="left", padx=5)
 
-        tk.Button(btn_frame, text="SALVA", bg="#1D4ED8", fg="white", font=("Segoe UI", 10, "bold"),
-                  command=self.save, width=12).pack(side="right", padx=5)
+        tk.Button(
+            btn_frame,
+            text="SALVA",
+            bg="#1D4ED8",
+            fg="white",
+            font=("Segoe UI", 10, "bold"),
+            command=self.save,
+            width=12,
+        ).pack(side="right", padx=5)
 
-        tk.Button(btn_frame, text="ANNULLA", font=("Segoe UI", 10),
-                  command=self.destroy, width=12).pack(side="right", padx=5)
+        tk.Button(
+            btn_frame, text="ANNULLA", font=("Segoe UI", 10), command=self.destroy, width=12
+        ).pack(side="right", padx=5)
 
     def _add_field(self, parent, label, value):
         tk.Label(parent, text=label, anchor="w").pack(fill="x", pady=(10, 0))
@@ -349,6 +411,7 @@ class DipendenteDialog(tk.Toplevel):
         if data_nascita_raw:
             try:
                 from datetime import datetime
+
                 # Try DD/MM/YYYY format
                 if "/" in data_nascita_raw:
                     dt = datetime.strptime(data_nascita_raw, "%d/%m/%Y")
@@ -368,7 +431,7 @@ class DipendenteDialog(tk.Toplevel):
             "matricola": self.entry_matricola.get(),
             "data_nascita": data_nascita_formatted,
             "mansione": self.entry_mansione.get(),
-            "categoria_reparto": self.entry_reparto.get()
+            "categoria_reparto": self.entry_reparto.get(),
         }
 
         if not data["nome"] or not data["cognome"]:
@@ -430,8 +493,11 @@ class BulkAssignDialog(tk.Toplevel):
         api_field = "mansione" if self.field_type == "mansione" else "categoria_reparto"
 
         # Info
-        tk.Label(frame, text=f"Dipendenti selezionati: {len(self.selected_items)}",
-                 font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 10))
+        tk.Label(
+            frame,
+            text=f"Dipendenti selezionati: {len(self.selected_items)}",
+            font=("Segoe UI", 11, "bold"),
+        ).pack(anchor="w", pady=(0, 10))
 
         # Show list of selected employees
         list_frame = tk.Frame(frame, bg="#E5E7EB", relief="solid", bd=1)
@@ -439,12 +505,22 @@ class BulkAssignDialog(tk.Toplevel):
 
         for i, sel in enumerate(self.selected_items[:8]):  # Show max 8
             vals = self.parent_view.tree.item(sel, "values")
-            tk.Label(list_frame, text=f"  \u2022 {vals[2]}",
-                     bg="#E5E7EB", font=("Segoe UI", 9), anchor="w").pack(fill="x")
+            tk.Label(
+                list_frame,
+                text=f"  \u2022 {vals[2]}",
+                bg="#E5E7EB",
+                font=("Segoe UI", 9),
+                anchor="w",
+            ).pack(fill="x")
 
         if len(self.selected_items) > 8:
-            tk.Label(list_frame, text=f"  ... e altri {len(self.selected_items) - 8}",
-                     bg="#E5E7EB", font=("Segoe UI", 9, "italic"), anchor="w").pack(fill="x")
+            tk.Label(
+                list_frame,
+                text=f"  ... e altri {len(self.selected_items) - 8}",
+                bg="#E5E7EB",
+                font=("Segoe UI", 9, "italic"),
+                anchor="w",
+            ).pack(fill="x")
 
         # Separator
         tk.Frame(frame, height=10).pack()
@@ -457,8 +533,9 @@ class BulkAssignDialog(tk.Toplevel):
                 existing_values.add(val)
 
         # Input section
-        tk.Label(frame, text=f"Nuovo valore per {field_label}:",
-                 font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(10, 5))
+        tk.Label(
+            frame, text=f"Nuovo valore per {field_label}:", font=("Segoe UI", 10, "bold")
+        ).pack(anchor="w", pady=(10, 5))
 
         # Entry with autocomplete from existing values
         self.entry_value = ttk.Combobox(frame, values=sorted(existing_values), width=35)
@@ -467,19 +544,30 @@ class BulkAssignDialog(tk.Toplevel):
 
         # Hint
         if existing_values:
-            tk.Label(frame, text=f"Valori esistenti: {', '.join(sorted(existing_values)[:5])}{'...' if len(existing_values) > 5 else ''}",
-                     font=("Segoe UI", 8), fg="#6B7280").pack(anchor="w")
+            tk.Label(
+                frame,
+                text=f"Valori esistenti: {', '.join(sorted(existing_values)[:5])}{'...' if len(existing_values) > 5 else ''}",
+                font=("Segoe UI", 8),
+                fg="#6B7280",
+            ).pack(anchor="w")
 
         # Buttons
         btn_frame = tk.Frame(frame)
         btn_frame.pack(fill="x", pady=20)
 
-        tk.Button(btn_frame, text="Annulla", command=self.destroy,
-                  font=("Segoe UI", 10), width=12).pack(side="left")
+        tk.Button(
+            btn_frame, text="Annulla", command=self.destroy, font=("Segoe UI", 10), width=12
+        ).pack(side="left")
 
-        tk.Button(btn_frame, text="Applica a Tutti", bg="#10B981", fg="white",
-                  font=("Segoe UI", 10, "bold"), width=15,
-                  command=self._apply).pack(side="right")
+        tk.Button(
+            btn_frame,
+            text="Applica a Tutti",
+            bg="#10B981",
+            fg="white",
+            font=("Segoe UI", 10, "bold"),
+            width=15,
+            command=self._apply,
+        ).pack(side="right")
 
     def _apply(self):
         """Apply the value to all selected employees."""
@@ -498,8 +586,9 @@ class BulkAssignDialog(tk.Toplevel):
             dip_ids.append(vals[0])
 
         count = len(dip_ids)
-        if not messagebox.askyesno("Conferma",
-                                    f"Assegnare {field_label} = '{new_value}' a {count} dipendenti?"):
+        if not messagebox.askyesno(
+            "Conferma", f"Assegnare {field_label} = '{new_value}' a {count} dipendenti?"
+        ):
             return
 
         success = 0
@@ -517,7 +606,9 @@ class BulkAssignDialog(tk.Toplevel):
         if success == count:
             messagebox.showinfo("Completato", f"{field_label} assegnata a {success} dipendenti.")
         else:
-            messagebox.showwarning("Parziale", f"Aggiornati {success}/{count}.\nErrori: {len(errors)}")
+            messagebox.showwarning(
+                "Parziale", f"Aggiornati {success}/{count}.\nErrori: {len(errors)}"
+            )
 
         self.parent_view.refresh_data()
         self.destroy()

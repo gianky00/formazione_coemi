@@ -1,14 +1,17 @@
-import os
 import json
 import logging
-from cryptography.fernet import Fernet
-from app.core.license_security import get_license_secret_key
-from desktop_app.services.path_service import get_license_dir, get_app_install_dir
+import os
 from datetime import datetime, timedelta
+
+from cryptography.fernet import Fernet
+
+from app.core.license_security import get_license_secret_key
+from desktop_app.services.path_service import get_app_install_dir, get_license_dir
 from desktop_app.services.time_service import get_secure_date
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
 
 class LicenseManager:
     LICENSE_FILENAME = "config.dat"
@@ -31,7 +34,7 @@ class LicenseManager:
             cipher = Fernet(get_license_secret_key())
             decrypted_data = cipher.decrypt(encrypted_data)
 
-            data = json.loads(decrypted_data.decode('utf-8'))
+            data = json.loads(decrypted_data.decode("utf-8"))
             return data
 
         except Exception as e:

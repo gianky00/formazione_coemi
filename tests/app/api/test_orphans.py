@@ -1,7 +1,7 @@
-
-import pytest
-from app.db.models import Certificato, ValidationStatus, Corso, Dipendente
 import datetime
+
+from app.db.models import Certificato, Corso, Dipendente, ValidationStatus
+
 
 def test_orphans_visibility(test_client, db_session):
     """
@@ -19,7 +19,7 @@ def test_orphans_visibility(test_client, db_session):
         data_nascita_raw="01/01/1980",
         corso_id=course.id,
         data_rilascio=datetime.date(2023, 1, 1),
-        stato_validazione=ValidationStatus.AUTOMATIC
+        stato_validazione=ValidationStatus.AUTOMATIC,
     )
     db_session.add(orphan_cert)
     db_session.commit()
@@ -36,10 +36,14 @@ def test_orphans_visibility(test_client, db_session):
     for cert in data:
         if cert["nome"] == "GIUSEPPE ROSSI" and cert["matricola"] is None:
             found = True
-            assert cert["assegnazione_fallita_ragione"] == "Non trovato in anagrafica (matricola mancante)."
+            assert (
+                cert["assegnazione_fallita_ragione"]
+                == "Non trovato in anagrafica (matricola mancante)."
+            )
             assert cert["categoria"] == "ATEX"
 
     assert found, "Orphan certificate not found in validated=false list"
+
 
 def test_csv_import_links_orphans(test_client, db_session):
     """
@@ -57,7 +61,7 @@ def test_csv_import_links_orphans(test_client, db_session):
         data_nascita_raw="15/05/1985",
         corso_id=course.id,
         data_rilascio=datetime.date(2022, 5, 15),
-        stato_validazione=ValidationStatus.AUTOMATIC
+        stato_validazione=ValidationStatus.AUTOMATIC,
     )
     db_session.add(orphan)
     db_session.commit()
@@ -66,11 +70,8 @@ def test_csv_import_links_orphans(test_client, db_session):
     assert orphan.dipendente_id is None
 
     # 3. Import CSV with BIANCHI PAOLO
-    csv_content = (
-        "Cognome;Nome;Badge;Data_nascita\n"
-        "Bianchi;Paolo;B001;15/05/1985\n"
-    )
-    content_bytes = csv_content.encode('utf-8')
+    csv_content = "Cognome;Nome;Badge;Data_nascita\nBianchi;Paolo;B001;15/05/1985\n"
+    content_bytes = csv_content.encode("utf-8")
     files = {"file": ("dipendenti.csv", content_bytes, "text/csv")}
     response = test_client.post("/dipendenti/import-csv", files=files)
     assert response.status_code == 200
@@ -82,12 +83,15 @@ def test_csv_import_links_orphans(test_client, db_session):
     assert orphan.dipendente_id is not None
     assert orphan.dipendente.matricola == "B001"
 
+
 def test_csv_import_upsert(test_client, db_session):
     """
     Test that CSV import updates existing employees and doesn't delete them.
     """
     # 1. Create an existing employee
-    emp = Dipendente(nome="Mario", cognome="Rossi", matricola="001", data_nascita=datetime.date(1980, 1, 1))
+    emp = Dipendente(
+        nome="Mario", cognome="Rossi", matricola="001", data_nascita=datetime.date(1980, 1, 1)
+    )
     db_session.add(emp)
     db_session.commit()
 
@@ -97,7 +101,7 @@ def test_csv_import_upsert(test_client, db_session):
         "Rossi;Mario Updated;001;01/01/1980\n"
         "Verdi;Luigi;002;02/02/1990\n"
     )
-    content_bytes = csv_content.encode('utf-8')
+    content_bytes = csv_content.encode("utf-8")
 
     # 3. Upload CSV
     files = {"file": ("test.csv", content_bytes, "text/csv")}

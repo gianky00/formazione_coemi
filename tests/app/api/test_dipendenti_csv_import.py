@@ -1,5 +1,7 @@
 from sqlalchemy.orm import Session
+
 from app.db.models import Dipendente
+
 
 def test_csv_import_with_hiring_date(test_client, db_session: Session):
     client = test_client

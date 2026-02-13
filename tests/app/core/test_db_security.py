@@ -1,22 +1,27 @@
-import pytest
-import os
-import time
-import sqlite3
 import json
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+import os
+import sqlite3
+from unittest.mock import patch
+
+import pytest
+
 from app.core.db_security import DBSecurityManager
+
 
 @pytest.fixture
 def temp_workspace(tmp_path):
     return tmp_path
 
+
 @pytest.fixture
 def mock_user_data_dir(temp_workspace, monkeypatch):
-    with patch('app.core.db_security.get_user_data_dir', return_value=temp_workspace) as m:
+    with patch("app.core.db_security.get_user_data_dir", return_value=temp_workspace) as m:
         # Patch settings to use the temporary workspace for DB location
-        monkeypatch.setattr('app.core.config.settings.mutable._data', {"DATABASE_PATH": str(temp_workspace)})
+        monkeypatch.setattr(
+            "app.core.config.settings.mutable._data", {"DATABASE_PATH": str(temp_workspace)}
+        )
         yield m
+
 
 def create_dummy_db(path):
     conn = sqlite3.connect(path)
@@ -25,6 +30,7 @@ def create_dummy_db(path):
     c.execute("INSERT INTO test (data) VALUES ('secret_data')")
     conn.commit()
     conn.close()
+
 
 def test_in_memory_lifecycle(temp_workspace, mock_user_data_dir):
     db_name = "database_documenti.db"
@@ -44,7 +50,7 @@ def test_in_memory_lifecycle(temp_workspace, mock_user_data_dir):
     conn = manager.get_connection()
     cur = conn.cursor()
     cur.execute("SELECT data FROM test")
-    assert cur.fetchone()[0] == 'secret_data'
+    assert cur.fetchone()[0] == "secret_data"
 
     # 3. Lock (Simulate Login)
     success, _ = manager.acquire_session_lock({"user": "test_user"})
@@ -86,7 +92,8 @@ def test_in_memory_lifecycle(temp_workspace, mock_user_data_dir):
     conn2 = manager2.get_connection()
     cur2 = conn2.cursor()
     cur2.execute("SELECT data FROM test WHERE data='new_ram_data'")
-    assert cur2.fetchone()[0] == 'new_ram_data'
+    assert cur2.fetchone()[0] == "new_ram_data"
+
 
 def test_lock_enables_read_only(temp_workspace, mock_user_data_dir):
     """
@@ -106,8 +113,8 @@ def test_lock_enables_read_only(temp_workspace, mock_user_data_dir):
 
     # Instance 2: Startup
     manager2 = DBSecurityManager(db_name=db_name)
-    manager2.load_memory_db() # Should succeed now
-    conn2 = manager2.get_connection() # Initialize connection
+    manager2.load_memory_db()  # Should succeed now
+    conn2 = manager2.get_connection()  # Initialize connection
 
     # Try to acquire lock
     success2, owner_info = manager2.acquire_session_lock({"user": "admin_2"})
@@ -126,6 +133,7 @@ def test_lock_enables_read_only(temp_workspace, mock_user_data_dir):
     manager1.cleanup()
     manager2.cleanup()
 
+
 def test_pre_login_safety(temp_workspace, mock_user_data_dir):
     """Verify that data is NOT saved if lock is not acquired (Pre-Login state)"""
     db_name = "database_documenti.db"
@@ -143,7 +151,7 @@ def test_pre_login_safety(temp_workspace, mock_user_data_dir):
 
     # Try to save without lock
     result = manager.save_to_disk()
-    assert result is False # Should refuse to save
+    assert result is False  # Should refuse to save
 
     # Check that disk file was not modified (timestamp or content)
     # Since it failed, the original Plain DB should remain plain and not include unsafe_data.
@@ -151,6 +159,7 @@ def test_pre_login_safety(temp_workspace, mock_user_data_dir):
     cur_disk = conn_disk.cursor()
     cur_disk.execute("SELECT data FROM test WHERE data='unsafe_data'")
     assert cur_disk.fetchone() is None
+
 
 def test_stale_lock_recovery(temp_workspace, mock_user_data_dir):
     """
@@ -164,8 +173,8 @@ def test_stale_lock_recovery(temp_workspace, mock_user_data_dir):
     stale_info = {"user": "zombie_process", "pid": 9999}
     os.makedirs(os.path.dirname(manager.lock_path), exist_ok=True)
     with open(manager.lock_path, "wb") as f:
-        f.write(b'\0')
-        f.write(json.dumps(stale_info).encode('utf-8'))
+        f.write(b"\0")
+        f.write(json.dumps(stale_info).encode("utf-8"))
 
     # Now try to acquire
     success, _ = manager.acquire_session_lock({"user": "live_process"})
@@ -176,7 +185,7 @@ def test_stale_lock_recovery(temp_workspace, mock_user_data_dir):
     # Verify metadata was overwritten (checked by acquiring successfully)
     # Since release() removes the file on success, we check it before releasing
     # or verify removal.
-    
+
     # We verify that we hold the lock and it's ours
     assert manager.lock_manager.current_metadata["user"] == "live_process"
 

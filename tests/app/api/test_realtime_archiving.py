@@ -1,10 +1,11 @@
-import pytest
 import os
-from datetime import datetime, date, timedelta
-from app.db.models import Certificato, Corso, Dipendente, AuditLog
+from datetime import datetime, timedelta
+from unittest.mock import patch
+
+from app.db.models import AuditLog, Certificato, Corso, Dipendente
 from app.services.file_maintenance import cleanup_audit_logs
 from app.utils.file_security import sanitize_filename
-from unittest.mock import patch
+
 
 def test_realtime_archiving_on_create(test_client, db_session, test_dirs):
     # Setup Data
@@ -16,10 +17,13 @@ def test_realtime_archiving_on_create(test_client, db_session, test_dirs):
         dipendente=dip,
         corso=corso,
         data_rilascio=datetime.strptime("01/01/2020", "%d/%m/%Y").date(),
-        data_scadenza_calcolata=datetime.strptime("01/01/2025", "%d/%m/%Y").date()
+        data_scadenza_calcolata=datetime.strptime("01/01/2025", "%d/%m/%Y").date(),
     )
-    db_session.add(dip); db_session.add(corso); db_session.add(cert_old)
-    db_session.commit(); db_session.refresh(cert_old)
+    db_session.add(dip)
+    db_session.add(corso)
+    db_session.add(cert_old)
+    db_session.commit()
+    db_session.refresh(cert_old)
 
     # Create Old File (in ATTIVO because > today? Or expired?)
     # Assume 2025 is future.
@@ -28,7 +32,8 @@ def test_realtime_archiving_on_create(test_client, db_session, test_dirs):
     os.makedirs(folder, exist_ok=True)
     old_filename = f"{nome_fs} (123) - {cat} - 01_01_2025.pdf"
     old_path = os.path.join(folder, old_filename)
-    with open(old_path, "w") as f: f.write("old")
+    with open(old_path, "w") as f:
+        f.write("old")
 
     # Create New Cert via API
     # 2024. New cert release 2024.
@@ -38,7 +43,7 @@ def test_realtime_archiving_on_create(test_client, db_session, test_dirs):
         "corso": "Corso A",
         "categoria": cat,
         "data_rilascio": "01/01/2024",
-        "data_scadenza": "01/01/2029"
+        "data_scadenza": "01/01/2029",
     }
 
     # Patch shutil.move
@@ -52,6 +57,7 @@ def test_realtime_archiving_on_create(test_client, db_session, test_dirs):
     args = mock_move.call_args[0]
     # Check that destination has STORICO
     assert "STORICO" in args[1]
+
 
 def test_audit_cleanup(db_session):
     # Setup logs

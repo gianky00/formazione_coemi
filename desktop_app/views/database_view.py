@@ -1,12 +1,13 @@
-import tkinter as tk
-from tkinter import ttk, messagebox, Menu
-import threading
 import os
-from desktop_app.utils import TaskRunner, ProgressTaskRunner, open_file
-from desktop_app.widgets.advanced_filter import setup_filterable_treeview
-from app.services.document_locator import find_document
+import threading
+import tkinter as tk
+from tkinter import Menu, messagebox, ttk
+
 from app.core.config import settings
+from app.services.document_locator import find_document
+from desktop_app.utils import ProgressTaskRunner, open_file
 from desktop_app.views.edit_certificato_dialog import EditCertificatoDialog
+from desktop_app.widgets.advanced_filter import setup_filterable_treeview
 
 
 class DatabaseView(tk.Frame):
@@ -39,7 +40,12 @@ class DatabaseView(tk.Frame):
 
         # Status Filter - increased width
         tk.Label(toolbar, text="Stato:", bg="#F3F4F6").pack(side="left", padx=(15, 5))
-        self.combo_status = ttk.Combobox(toolbar, values=["Tutti", "Attivo", "In Scadenza", "Scaduto"], state="readonly", width=15)
+        self.combo_status = ttk.Combobox(
+            toolbar,
+            values=["Tutti", "Attivo", "In Scadenza", "Scaduto"],
+            state="readonly",
+            width=15,
+        )
         self.combo_status.set("Tutti")
         self.combo_status.pack(side="left", padx=5)
         self.combo_status.bind("<<ComboboxSelected>>", lambda e: self.filter_data())
@@ -85,10 +91,14 @@ class DatabaseView(tk.Frame):
 
         # Context Menu
         self.context_menu = Menu(self, tearoff=0)
-        self.context_menu.add_command(label="Apri File PDF", command=self.open_file, accelerator="Enter")
+        self.context_menu.add_command(
+            label="Apri File PDF", command=self.open_file, accelerator="Enter"
+        )
         self.context_menu.add_command(label="Apri Cartella", command=self.open_folder)
         self.context_menu.add_separator()
-        self.context_menu.add_command(label="Modifica Dati", command=self.edit_item, accelerator="F2")
+        self.context_menu.add_command(
+            label="Modifica Dati", command=self.edit_item, accelerator="F2"
+        )
         self.context_menu.add_command(label="Elimina", command=self.delete_item, accelerator="Del")
 
         self.tree.bind("<Button-3>", self.show_context_menu)
@@ -108,7 +118,7 @@ class DatabaseView(tk.Frame):
             "categoria": "Categoria",
             "emissione": "Data Rilascio",
             "scadenza": "Data Scadenza",
-            "stato": "Stato"
+            "stato": "Stato",
         }
         setup_filterable_treeview(self.tree, column_names)
         self.tree.bind("<<FilterChanged>>", lambda e: self.filter_data())
@@ -120,7 +130,9 @@ class DatabaseView(tk.Frame):
         self.tree.bind("<F2>", lambda e: self.edit_item())  # F2 to edit
         self.tree.bind("<F5>", lambda e: self.refresh_data())  # F5 to refresh
         self.tree.bind("<Control-a>", self.select_all)  # Ctrl+A select all
-        self.tree.bind("<Control-f>", lambda e: self.entry_search.focus_set())  # Ctrl+F focus search
+        self.tree.bind(
+            "<Control-f>", lambda e: self.entry_search.focus_set()
+        )  # Ctrl+F focus search
 
     def sort_by_column(self, col):
         """Sort treeview by column."""
@@ -137,7 +149,10 @@ class DatabaseView(tk.Frame):
         col_idx = list(self.tree["columns"]).index(col)
 
         # Sort
-        items.sort(key=lambda x: str(x[0][col_idx]).lower() if x[0][col_idx] else "", reverse=self.sort_reverse)
+        items.sort(
+            key=lambda x: str(x[0][col_idx]).lower() if x[0][col_idx] else "",
+            reverse=self.sort_reverse,
+        )
 
         # Rearrange items
         for idx, (vals, item) in enumerate(items):
@@ -145,9 +160,15 @@ class DatabaseView(tk.Frame):
 
         # Update heading to show sort direction
         arrow = " ▼" if self.sort_reverse else " ▲"
-        headings = {"id": "ID", "dipendente": "Dipendente", "corso": "Documento",
-                   "categoria": "Categoria", "emissione": "Data Rilascio",
-                   "scadenza": "Data Scadenza", "stato": "Stato"}
+        headings = {
+            "id": "ID",
+            "dipendente": "Dipendente",
+            "corso": "Documento",
+            "categoria": "Categoria",
+            "emissione": "Data Rilascio",
+            "scadenza": "Data Scadenza",
+            "stato": "Stato",
+        }
         for c in self.tree["columns"]:
             heading_text = headings.get(c, c)
             if c == col:
@@ -176,10 +197,12 @@ class DatabaseView(tk.Frame):
     def refresh_data(self):
         def fetch():
             try:
-                new_data = self.controller.api_client.get("certificati", params={"validated": "true"})
+                new_data = self.controller.api_client.get(
+                    "certificati", params={"validated": "true"}
+                )
                 if self.winfo_exists():
                     self.after(0, lambda: self._update_data(new_data))
-            except Exception as e:
+            except Exception:
                 if self.winfo_exists():
                     self.after(0, lambda: messagebox.showerror("Errore", f"Errore: {e}"))
 
@@ -235,7 +258,10 @@ class DatabaseView(tk.Frame):
             stato = str(item.get("stato_certificato") or "").lower()
 
             # Apply Category Filter
-            if cat_filter != "Tutte" and (item.get("categoria") or "").upper() != cat_filter.upper():
+            if (
+                cat_filter != "Tutte"
+                and (item.get("categoria") or "").upper() != cat_filter.upper()
+            ):
                 continue
 
             # Apply Status Filter
@@ -263,12 +289,20 @@ class DatabaseView(tk.Frame):
                 item.get("categoria") or "ALTRO",
                 item.get("data_rilascio") or "",
                 scad,
-                stato.replace("_", " ").upper()
+                stato.replace("_", " ").upper(),
             )
 
             # Check advanced column filters
-            if hasattr(self.tree, 'check_filter'):
-                columns = ["id", "dipendente", "corso", "categoria", "emissione", "scadenza", "stato"]
+            if hasattr(self.tree, "check_filter"):
+                columns = [
+                    "id",
+                    "dipendente",
+                    "corso",
+                    "categoria",
+                    "emissione",
+                    "scadenza",
+                    "stato",
+                ]
                 skip = False
                 for col_idx, col in enumerate(columns):
                     if not self.tree.check_filter(col, values[col_idx]):
@@ -307,10 +341,10 @@ class DatabaseView(tk.Frame):
 
             # Helper for find_document
             search_data = {
-                'nome': cert.get('nome'),
-                'matricola': cert.get('matricola'),
-                'categoria': cert.get('categoria'),
-                'data_scadenza': cert.get('data_scadenza')
+                "nome": cert.get("nome"),
+                "matricola": cert.get("matricola"),
+                "categoria": cert.get("categoria"),
+                "data_scadenza": cert.get("data_scadenza"),
             }
 
             path = find_document(db_path, search_data)
@@ -348,10 +382,10 @@ class DatabaseView(tk.Frame):
                 return
 
             search_data = {
-                'nome': cert.get('nome'),
-                'matricola': cert.get('matricola'),
-                'categoria': cert.get('categoria'),
-                'data_scadenza': cert.get('data_scadenza')
+                "nome": cert.get("nome"),
+                "matricola": cert.get("matricola"),
+                "categoria": cert.get("categoria"),
+                "data_scadenza": cert.get("data_scadenza"),
             }
 
             path = find_document(db_path, search_data)
@@ -388,7 +422,11 @@ class DatabaseView(tk.Frame):
             return
 
         count = len(selected)
-        msg = f"Eliminare {count} certificato/i selezionato/i?" if count > 1 else "Eliminare il certificato selezionato?"
+        msg = (
+            f"Eliminare {count} certificato/i selezionato/i?"
+            if count > 1
+            else "Eliminare il certificato selezionato?"
+        )
 
         if not messagebox.askyesno("Conferma", msg):
             return
@@ -409,9 +447,7 @@ class DatabaseView(tk.Frame):
         else:
             # Batch delete with progress bar
             runner = ProgressTaskRunner(
-                self,
-                "Eliminazione in corso",
-                f"Eliminazione di {count} certificati..."
+                self, "Eliminazione in corso", f"Eliminazione di {count} certificati..."
             )
 
             try:

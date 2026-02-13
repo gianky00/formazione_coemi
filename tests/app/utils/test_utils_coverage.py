@@ -1,7 +1,8 @@
-import pytest
 from datetime import date
-from app.utils import date_parser, file_security, security, audit
 from unittest.mock import MagicMock, patch
+
+from app.utils import audit, date_parser, file_security, security
+
 
 class TestUtils:
     def test_parse_date_flexible(self):
@@ -41,10 +42,11 @@ class TestUtils:
         request.headers.get.return_value = "Agent"
 
         # Patch GeoLocationService and Notification Service import inside the function
-        with patch("app.utils.audit.GeoLocationService.get_location", return_value="Localhost"), \
-             patch("threading.Thread") as MockThread, \
-             patch("app.services.notification_service.send_security_alert_email"):
-
+        with (
+            patch("app.utils.audit.GeoLocationService.get_location", return_value="Localhost"),
+            patch("threading.Thread") as MockThread,
+            patch("app.services.notification_service.send_security_alert_email"),
+        ):
             audit.log_security_action(db, user, "TEST", severity="CRITICAL", request=request)
 
             db.add.assert_called()

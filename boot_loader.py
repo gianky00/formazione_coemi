@@ -1,8 +1,8 @@
-import sys
-import os
-import traceback
 import ctypes
 import datetime
+import os
+import sys
+import traceback
 
 # --- BLACK BOX BOOT LOADER ---
 # Questo script funge da wrapper di sicurezza per l'avvio dell'applicazione.
@@ -10,17 +10,19 @@ import datetime
 # e lo mostra all'utente tramite una MessageBox nativa di Windows,
 # oltre a scriverlo su un file di log sul Desktop.
 
+
 def show_error(title, message):
     """Mostra una MessageBox nativa Windows senza dipendenze PyQt."""
-    if os.name == 'nt':
+    if os.name == "nt":
         try:
             # 0x10 = MB_ICONHAND (Error icon)
             ctypes.windll.user32.MessageBoxW(0, message, title, 0x10)
-        except Exception: # S5754: Specify exception to avoid catching SystemExit
-            pass # Se fallisce anche questo, non possiamo farci nulla.
+        except Exception:  # S5754: Specify exception to avoid catching SystemExit
+            pass  # Se fallisce anche questo, non possiamo farci nulla.
     else:
         # Fallback per Linux/Mac (solo print)
         print(f"CRITICAL ERROR [{title}]: {message}", file=sys.stderr)
+
 
 def log_crash(error_msg):
     """Scrive il log dell'errore su file."""
@@ -45,23 +47,27 @@ Traceback:
     try:
         with open("CRASH_LOG.txt", "a", encoding="utf-8") as f:
             f.write(log_content)
-    except Exception: # S5754: Specify exception
+    except Exception:  # S5754: Specify exception
         pass
 
     # 2. Scrivi sul Desktop dell'utente (per massima visibilità)
-    if os.name == 'nt':
+    if os.name == "nt":
         try:
-            desktop = os.path.join(os.path.join(os.environ['USERPROFILE']), 'Desktop')
+            desktop = os.path.join(os.path.join(os.environ["USERPROFILE"]), "Desktop")
             if os.path.exists(desktop):
-                with open(os.path.join(desktop, "INTELLEO_CRASH_LOG.txt"), "a", encoding="utf-8") as f:
+                with open(
+                    os.path.join(desktop, "INTELLEO_CRASH_LOG.txt"), "a", encoding="utf-8"
+                ) as f:
                     f.write(log_content)
-        except Exception: # S5754: Specify exception
+        except Exception:  # S5754: Specify exception
             pass
+
 
 def main():
     try:
         # Tenta di importare e avviare il launcher principale
         import launcher
+
         launcher.main()
 
     except Exception as e:
@@ -75,6 +81,7 @@ def main():
         show_error("Intelleo - Errore Fatale", user_msg)
 
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

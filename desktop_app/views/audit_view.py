@@ -1,6 +1,6 @@
-import tkinter as tk
-from tkinter import ttk, messagebox
 import threading
+import tkinter as tk
+from tkinter import messagebox, ttk
 
 
 class AuditView(tk.Frame):
@@ -20,7 +20,9 @@ class AuditView(tk.Frame):
         tk.Button(toolbar, text="Aggiorna", command=self.refresh_data).pack(side="left", padx=10)
 
         tk.Label(toolbar, text="Filtra:", bg="#F3F4F6").pack(side="left", padx=5)
-        self.combo_cat = ttk.Combobox(toolbar, values=["TUTTI", "AUTH", "DATA", "CERTIFICATE", "SECURITY"], state="readonly")
+        self.combo_cat = ttk.Combobox(
+            toolbar, values=["TUTTI", "AUTH", "DATA", "CERTIFICATE", "SECURITY"], state="readonly"
+        )
         self.combo_cat.set("TUTTI")
         self.combo_cat.pack(side="left", padx=5)
         self.combo_cat.bind("<<ComboboxSelected>>", lambda e: self.filter_data())
@@ -68,14 +70,18 @@ class AuditView(tk.Frame):
 
     def refresh_data(self):
         """Refresh audit logs using background thread (no popup dialog)."""
+
         def fetch():
             try:
                 data = self.controller.api_client.get_audit_logs(limit=500)
                 if self.winfo_exists():
                     self.after(0, lambda: self._update_data(data))
-            except Exception as e:
+            except Exception:
                 if self.winfo_exists():
-                    self.after(0, lambda: messagebox.showerror("Errore", f"Impossibile caricare i log: {e}"))
+                    self.after(
+                        0,
+                        lambda: messagebox.showerror("Errore", f"Impossibile caricare i log: {e}"),
+                    )
 
         threading.Thread(target=fetch, daemon=True).start()
 
@@ -101,7 +107,7 @@ class AuditView(tk.Frame):
                 log.get("action"),
                 log.get("details"),
                 log.get("ip_address"),
-                severity
+                severity,
             )
             tag = severity if severity in ["CRITICAL", "MEDIUM"] else ""
             self.tree.insert("", "end", values=values, tags=(tag,))

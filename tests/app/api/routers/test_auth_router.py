@@ -1,9 +1,9 @@
-import pytest
-from app.main import app
-from app.db.session import get_db
-from app.core import security
-from app.db.models import User, AuditLog, BlacklistedToken
 from app.api import deps
+from app.core import security
+from app.db.models import AuditLog, BlacklistedToken, User
+from app.db.session import get_db
+from app.main import app
+
 
 def test_login_success(test_client, db_session):
     # Remove auth overrides to test real login
@@ -27,6 +27,7 @@ def test_login_success(test_client, db_session):
     log = db_session.query(AuditLog).filter_by(action="LOGIN", username="testuser").first()
     assert log is not None
 
+
 def test_login_failure(test_client, db_session):
     app.dependency_overrides = {}
     app.dependency_overrides[get_db] = lambda: db_session
@@ -38,6 +39,7 @@ def test_login_failure(test_client, db_session):
     # Verify audit log for failure
     log = db_session.query(AuditLog).filter_by(action="LOGIN_FAILED").first()
     assert log is not None
+
 
 def test_login_brute_force_detection(test_client, db_session):
     app.dependency_overrides = {}
@@ -53,6 +55,7 @@ def test_login_brute_force_detection(test_client, db_session):
     # Check for critical log
     logs = db_session.query(AuditLog).filter_by(action="LOGIN_FAILED", severity="CRITICAL").all()
     assert len(logs) >= 1
+
 
 def test_logout(test_client, db_session):
     # Use default overrides which simulate authenticated user (admin)
@@ -72,6 +75,7 @@ def test_logout(test_client, db_session):
     token = db_session.query(BlacklistedToken).filter_by(token="fake-token").first()
     assert token is not None
 
+
 def test_change_password_success(test_client, db_session):
     # Setup: override current user with a known one
     hashed = security.get_password_hash("oldpass")
@@ -83,16 +87,16 @@ def test_change_password_success(test_client, db_session):
     app.dependency_overrides[deps.check_write_permission] = lambda: None
     app.dependency_overrides[get_db] = lambda: db_session
 
-    response = test_client.post("/auth/change-password", json={
-        "old_password": "oldpass",
-        "new_password": "newpass",
-        "confirm_password": "newpass"
-    })
+    response = test_client.post(
+        "/auth/change-password",
+        json={"old_password": "oldpass", "new_password": "newpass", "confirm_password": "newpass"},
+    )
 
     assert response.status_code == 200
 
     db_session.refresh(user)
     assert security.verify_password("newpass", user.hashed_password)
+
 
 def test_change_password_wrong_old(test_client, db_session):
     hashed = security.get_password_hash("oldpass")
@@ -104,11 +108,10 @@ def test_change_password_wrong_old(test_client, db_session):
     app.dependency_overrides[deps.check_write_permission] = lambda: None
     app.dependency_overrides[get_db] = lambda: db_session
 
-    response = test_client.post("/auth/change-password", json={
-        "old_password": "wrong",
-        "new_password": "newpass",
-        "confirm_password": "newpass"
-    })
+    response = test_client.post(
+        "/auth/change-password",
+        json={"old_password": "wrong", "new_password": "newpass", "confirm_password": "newpass"},
+    )
 
     assert response.status_code == 400
     assert "password attuale non è corretta" in response.json()["detail"]

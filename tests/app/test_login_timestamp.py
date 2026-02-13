@@ -1,6 +1,6 @@
-import pytest
-from app.db.models import User
 from app.core import security
+from app.db.models import User
+
 
 def test_login_previous_timestamp(test_client, db_session):
     # 1. Create user
@@ -24,6 +24,7 @@ def test_login_previous_timestamp(test_client, db_session):
     # 4. Login 3
     # Small delay to ensure timestamp difference if fast execution
     import time
+
     time.sleep(0.1)
 
     resp3 = test_client.post("/auth/login", data={"username": "login_test", "password": "pass"})

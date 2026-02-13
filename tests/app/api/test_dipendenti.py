@@ -1,6 +1,5 @@
 from sqlalchemy.orm import Session
-from app.db.models import Dipendente
-from datetime import date
+
 
 def test_dipendenti_crud(test_client, db_session: Session):
     client = test_client
@@ -12,7 +11,7 @@ def test_dipendenti_crud(test_client, db_session: Session):
         "email": "mario.rossi@test.com",
         "categoria_reparto": "IT",
         "data_assunzione": "2023-01-01",
-        "data_nascita": "1990-01-01"
+        "data_nascita": "1990-01-01",
     }
     # Note: test_client base_url includes /api/v1, so we should just use /dipendenti/
     # But let's check conftest base_url. "http://testserver/api/v1".

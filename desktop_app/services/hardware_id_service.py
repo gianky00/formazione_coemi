@@ -1,11 +1,12 @@
+import logging
 import os
 import uuid
-import logging
 
 logger = logging.getLogger(__name__)
 
 # Cache the machine ID to avoid repeated expensive WMI calls and log spam
 _cached_machine_id = None
+
 
 def _get_windows_disk_serial():
     """
@@ -13,7 +14,7 @@ def _get_windows_disk_serial():
     This is a common and reliable binding target for licensing.
     """
     try:
-        import pythoncom # pylint: disable=no-member
+        import pythoncom  # pylint: disable=no-member
 
         # Initialize COM for the current thread
         pythoncom.CoInitialize()
@@ -23,18 +24,19 @@ def _get_windows_disk_serial():
             # all WMI objects are garbage collected BEFORE CoUninitialize is called.
             def _query_wmi():
                 import wmi
+
                 c = wmi.WMI()
                 # Find the primary physical disk (usually DeviceID \\.\PHYSICALDRIVE0)
                 for disk in c.Win32_DiskDrive():
                     if "PHYSICALDRIVE0" in disk.DeviceID:
-                        serial = disk.SerialNumber.strip().rstrip('.')
+                        serial = disk.SerialNumber.strip().rstrip(".")
                         logger.debug(f"Found disk serial for PHYSICALDRIVE0: {serial}")
                         return serial
 
                 # Fallback if specific device not found, return the first one found
                 if len(c.Win32_DiskDrive()) > 0:
                     first_disk = c.Win32_DiskDrive()[0]
-                    serial = first_disk.SerialNumber.strip().rstrip('.')
+                    serial = first_disk.SerialNumber.strip().rstrip(".")
                     logger.warning("PHYSICALDRIVE0 not found, using first disk serial as fallback.")
                     return serial
                 return None
@@ -52,6 +54,7 @@ def _get_windows_disk_serial():
         logger.error(f"Failed to get disk serial number via WMI: {e}")
         return None
 
+
 def _get_mac_address():
     """
     Returns the MAC address as a string. Serves as a universal fallback.
@@ -59,10 +62,11 @@ def _get_mac_address():
     try:
         mac = uuid.getnode()
         # Format MAC to a standard hex string
-        return ':'.join(('%012X' % mac)[i:i+2] for i in range(0, 12, 2))
+        return ":".join(("%012X" % mac)[i : i + 2] for i in range(0, 12, 2))
     except Exception as e:
         logger.error(f"Failed to get MAC address: {e}")
-        return "00:00:00:00:00:00" # Ultimate fallback
+        return "00:00:00:00:00:00"  # Ultimate fallback
+
 
 def get_machine_id():
     """
@@ -72,13 +76,13 @@ def get_machine_id():
     - Results are cached to avoid repeated expensive WMI calls.
     """
     global _cached_machine_id
-    
+
     # Return cached value if available
     if _cached_machine_id is not None:
         return _cached_machine_id
-    
+
     machine_id = None
-    if os.name == 'nt':
+    if os.name == "nt":
         logger.debug("Windows OS detected. Attempting to get disk serial number.")
         machine_id = _get_windows_disk_serial()
 

@@ -1,8 +1,10 @@
 from sqlalchemy.orm import Session
+
+from app.core.config import settings
+from app.core.security import get_password_hash, verify_password
 from app.db.models import User
 from app.db.seeding import seed_database
-from app.core.config import settings
-from app.core.security import verify_password, get_password_hash
+
 
 def test_seeding_updates_admin_password(db_session: Session):
     # 1. Create admin user with WRONG password
@@ -11,7 +13,7 @@ def test_seeding_updates_admin_password(db_session: Session):
         username=settings.FIRST_RUN_ADMIN_USERNAME,
         hashed_password=get_password_hash(wrong_pass),
         account_name="Old Admin",
-        is_admin=True
+        is_admin=True,
     )
     db_session.add(admin_user)
     db_session.commit()

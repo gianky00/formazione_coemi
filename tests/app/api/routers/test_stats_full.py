@@ -1,13 +1,11 @@
-import pytest
-from unittest.mock import MagicMock
-from app.db.models import User
-
 # We will implement real tests using the DB session rather than mocking everything,
 # as it's more robust for "integration" style router tests.
 
-from app.db.models import Certificato, Dipendente, Corso, ValidationStatus
 from datetime import date, timedelta
+
 from app.core.config import settings
+from app.db.models import Certificato, Corso, Dipendente, ValidationStatus
+
 
 def create_stats_data(db):
     # Dipendenti
@@ -27,30 +25,34 @@ def create_stats_data(db):
 
     # 1. Valid (Active)
     cert1 = Certificato(
-        dipendente_id=d1.id, corso_id=c1.id,
+        dipendente_id=d1.id,
+        corso_id=c1.id,
         data_rilascio=date(2023, 1, 1),
         data_scadenza_calcolata=today + timedelta(days=365),
-        stato_validazione=ValidationStatus.MANUAL
+        stato_validazione=ValidationStatus.MANUAL,
     )
 
     # 2. Expiring (In Scadenza)
     cert2 = Certificato(
-        dipendente_id=d2.id, corso_id=c1.id,
+        dipendente_id=d2.id,
+        corso_id=c1.id,
         data_rilascio=date(2023, 1, 1),
         data_scadenza_calcolata=today + timedelta(days=5),
-        stato_validazione=ValidationStatus.MANUAL
+        stato_validazione=ValidationStatus.MANUAL,
     )
 
     # 3. Expired (Scaduto)
     cert3 = Certificato(
-        dipendente_id=d1.id, corso_id=c1.id,
+        dipendente_id=d1.id,
+        corso_id=c1.id,
         data_rilascio=date(2020, 1, 1),
         data_scadenza_calcolata=today - timedelta(days=1),
-        stato_validazione=ValidationStatus.MANUAL
+        stato_validazione=ValidationStatus.MANUAL,
     )
 
     db.add_all([cert1, cert2, cert3])
     db.commit()
+
 
 def test_get_stats_summary_logic(test_client, db_session, admin_token_headers):
     create_stats_data(db_session)
@@ -63,9 +65,10 @@ def test_get_stats_summary_logic(test_client, db_session, admin_token_headers):
     assert data["total_certificati"] == 3
     assert data["scaduti"] == 1
     assert data["in_scadenza"] == 1
-    assert data["validi"] == 1 # cert1
+    assert data["validi"] == 1  # cert1
     # Compliance: (3 - 1) / 3 = 66%
     assert data["compliance_percent"] == 66
+
 
 def test_get_compliance_by_category_logic(test_client, db_session, admin_token_headers):
     create_stats_data(db_session)

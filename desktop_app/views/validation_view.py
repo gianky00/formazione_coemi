@@ -1,13 +1,15 @@
-import tkinter as tk
-from tkinter import ttk, messagebox, Menu
-from desktop_app.utils import TaskRunner, ProgressTaskRunner, open_file
-from desktop_app.widgets.advanced_filter import setup_filterable_treeview
-import requests
 import os
 import threading
-from app.services.document_locator import find_document
+import tkinter as tk
+from tkinter import Menu, messagebox, ttk
+
+import requests
+
 from app.core.config import settings
 from app.core.constants import CATEGORIE_STATICHE  # Used in ValidationDialog
+from app.services.document_locator import find_document
+from desktop_app.utils import ProgressTaskRunner, open_file
+from desktop_app.widgets.advanced_filter import setup_filterable_treeview
 
 
 class ValidationView(tk.Frame):
@@ -46,7 +48,12 @@ class ValidationView(tk.Frame):
         toolbar.pack(fill="x")
 
         tk.Button(toolbar, text="Aggiorna", command=self.refresh_data).pack(side="left", padx=10)
-        tk.Label(toolbar, text="Certificati in attesa di convalida", bg="#F3F4F6", font=("Segoe UI", 10, "italic")).pack(side="left", padx=10)
+        tk.Label(
+            toolbar,
+            text="Certificati in attesa di convalida",
+            bg="#F3F4F6",
+            font=("Segoe UI", 10, "italic"),
+        ).pack(side="left", padx=10)
 
         # Search
         tk.Label(toolbar, text="Cerca:", bg="#F3F4F6").pack(side="left", padx=(20, 5))
@@ -67,7 +74,9 @@ class ValidationView(tk.Frame):
 
         # Treeview
         columns = ("id", "dipendente", "corso", "categoria", "emissione", "scadenza")
-        self.tree = ttk.Treeview(self.tab_validate, columns=columns, show="headings", selectmode="extended")
+        self.tree = ttk.Treeview(
+            self.tab_validate, columns=columns, show="headings", selectmode="extended"
+        )
 
         self.tree.heading("id", text="ID")
         self.tree.heading("dipendente", text="Dipendente")
@@ -96,12 +105,18 @@ class ValidationView(tk.Frame):
 
         # Context Menu
         self.context_menu = Menu(self, tearoff=0)
-        self.context_menu.add_command(label="Apri File PDF", command=self.open_file, accelerator="Enter")
+        self.context_menu.add_command(
+            label="Apri File PDF", command=self.open_file, accelerator="Enter"
+        )
         self.context_menu.add_command(label="Apri Cartella", command=self.open_folder)
         self.context_menu.add_separator()
-        self.context_menu.add_command(label="Convalida", command=lambda: self.on_double_click(None), accelerator="F2")
+        self.context_menu.add_command(
+            label="Convalida", command=lambda: self.on_double_click(None), accelerator="F2"
+        )
         self.context_menu.add_separator()
-        self.context_menu.add_command(label="Elimina", command=self.delete_selected, accelerator="Del")
+        self.context_menu.add_command(
+            label="Elimina", command=self.delete_selected, accelerator="Del"
+        )
 
         self.tree.bind("<Button-3>", self.show_context_menu)
         self.tree.bind("<Double-1>", self.on_double_click)
@@ -119,7 +134,7 @@ class ValidationView(tk.Frame):
             "corso": "Documento",
             "categoria": "Categoria",
             "emissione": "Data Rilascio",
-            "scadenza": "Data Scadenza"
+            "scadenza": "Data Scadenza",
         }
         setup_filterable_treeview(self.tree, column_names)
         self.tree.bind("<<FilterChanged>>", lambda e: self.filter_data())
@@ -133,14 +148,31 @@ class ValidationView(tk.Frame):
         tk.Button(toolbar, text="Aggiorna", command=self.refresh_data).pack(side="left", padx=10)
 
         # Warning message
-        tk.Label(toolbar, text="\u26A0 Certificati non associati a nessun dipendente",
-                 bg="#FEF3C7", fg="#92400E", font=("Segoe UI", 10, "bold")).pack(side="left", padx=10)
+        tk.Label(
+            toolbar,
+            text="\u26a0 Certificati non associati a nessun dipendente",
+            bg="#FEF3C7",
+            fg="#92400E",
+            font=("Segoe UI", 10, "bold"),
+        ).pack(side="left", padx=10)
 
         # Action buttons
-        tk.Button(toolbar, text="Assegna a Dipendente", bg="#2563EB", fg="white",
-                  font=("Segoe UI", 9), command=self._assign_orphan).pack(side="right", padx=10)
-        tk.Button(toolbar, text="Elimina Selezionati", bg="#DC2626", fg="white",
-                  font=("Segoe UI", 9), command=self._delete_orphans).pack(side="right", padx=5)
+        tk.Button(
+            toolbar,
+            text="Assegna a Dipendente",
+            bg="#2563EB",
+            fg="white",
+            font=("Segoe UI", 9),
+            command=self._assign_orphan,
+        ).pack(side="right", padx=10)
+        tk.Button(
+            toolbar,
+            text="Elimina Selezionati",
+            bg="#DC2626",
+            fg="white",
+            font=("Segoe UI", 9),
+            command=self._delete_orphans,
+        ).pack(side="right", padx=5)
 
         # Count label
         self.lbl_orphan_count = tk.Label(toolbar, text="", bg="#FEF3C7", font=("Segoe UI", 9))
@@ -148,7 +180,9 @@ class ValidationView(tk.Frame):
 
         # Treeview for orphans
         columns = ("id", "nome_raw", "corso", "categoria", "emissione", "scadenza")
-        self.tree_orphans = ttk.Treeview(self.tab_orphans, columns=columns, show="headings", selectmode="extended")
+        self.tree_orphans = ttk.Treeview(
+            self.tab_orphans, columns=columns, show="headings", selectmode="extended"
+        )
 
         self.tree_orphans.heading("id", text="ID")
         self.tree_orphans.heading("nome_raw", text="Nome Rilevato (PDF)")
@@ -167,7 +201,9 @@ class ValidationView(tk.Frame):
         # Tag for orphan rows
         self.tree_orphans.tag_configure("orphan", background="#FEF3C7")
 
-        scrollbar = ttk.Scrollbar(self.tab_orphans, orient="vertical", command=self.tree_orphans.yview)
+        scrollbar = ttk.Scrollbar(
+            self.tab_orphans, orient="vertical", command=self.tree_orphans.yview
+        )
         self.tree_orphans.configure(yscroll=scrollbar.set)
 
         scrollbar.pack(side="right", fill="y")
@@ -184,7 +220,9 @@ class ValidationView(tk.Frame):
         """Open dialog to assign orphan certificate to an employee."""
         selected = self.tree_orphans.selection()
         if not selected:
-            messagebox.showwarning("Attenzione", "Seleziona almeno un certificato orfano da assegnare.")
+            messagebox.showwarning(
+                "Attenzione", "Seleziona almeno un certificato orfano da assegnare."
+            )
             return
 
         # Get list of employees for selection
@@ -215,7 +253,10 @@ class ValidationView(tk.Frame):
 
         try:
             from desktop_app.utils import ProgressTaskRunner
-            runner = ProgressTaskRunner(self, "Eliminazione", f"Eliminazione di {count} certificati...")
+
+            runner = ProgressTaskRunner(
+                self, "Eliminazione", f"Eliminazione di {count} certificati..."
+            )
             runner.run(self._delete_single_cert, cert_ids)
             self.refresh_data()
             messagebox.showinfo("Completato", f"Eliminati {count} certificati orfani.")
@@ -246,7 +287,10 @@ class ValidationView(tk.Frame):
         col_idx = list(self.tree["columns"]).index(col)
 
         # Sort
-        items.sort(key=lambda x: str(x[0][col_idx]).lower() if x[0][col_idx] else "", reverse=self.sort_reverse)
+        items.sort(
+            key=lambda x: str(x[0][col_idx]).lower() if x[0][col_idx] else "",
+            reverse=self.sort_reverse,
+        )
 
         # Rearrange items
         for idx, (vals, item) in enumerate(items):
@@ -255,8 +299,14 @@ class ValidationView(tk.Frame):
         # Update heading to show sort direction
         arrow = " ▼" if self.sort_reverse else " ▲"
         for c in self.tree["columns"]:
-            heading_text = {"id": "ID", "dipendente": "Dipendente", "corso": "Documento",
-                           "categoria": "Categoria", "emissione": "Data Rilascio", "scadenza": "Data Scadenza"}.get(c, c)
+            heading_text = {
+                "id": "ID",
+                "dipendente": "Dipendente",
+                "corso": "Documento",
+                "categoria": "Categoria",
+                "emissione": "Data Rilascio",
+                "scadenza": "Data Scadenza",
+            }.get(c, c)
             if c == col:
                 self.tree.heading(c, text=heading_text + arrow)
             else:
@@ -297,13 +347,13 @@ class ValidationView(tk.Frame):
                 messagebox.showerror("Errore", "Percorso Database non configurato.")
                 return
 
-            search_name = cert.get('nome') or cert.get('nome_dipendente_raw')
+            search_name = cert.get("nome") or cert.get("nome_dipendente_raw")
 
             search_data = {
-                'nome': search_name,
-                'matricola': cert.get('matricola'),
-                'categoria': cert.get('categoria'),
-                'data_scadenza': cert.get('data_scadenza')
+                "nome": search_name,
+                "matricola": cert.get("matricola"),
+                "categoria": cert.get("categoria"),
+                "data_scadenza": cert.get("data_scadenza"),
             }
 
             path = find_document(db_path, search_data)
@@ -340,13 +390,13 @@ class ValidationView(tk.Frame):
                 messagebox.showerror("Errore", "Percorso Database non configurato.")
                 return
 
-            search_name = cert.get('nome') or cert.get('nome_dipendente_raw')
+            search_name = cert.get("nome") or cert.get("nome_dipendente_raw")
 
             search_data = {
-                'nome': search_name,
-                'matricola': cert.get('matricola'),
-                'categoria': cert.get('categoria'),
-                'data_scadenza': cert.get('data_scadenza')
+                "nome": search_name,
+                "matricola": cert.get("matricola"),
+                "categoria": cert.get("categoria"),
+                "data_scadenza": cert.get("data_scadenza"),
             }
 
             path = find_document(db_path, search_data)
@@ -370,7 +420,11 @@ class ValidationView(tk.Frame):
             return
 
         count = len(selected)
-        msg = f"Eliminare {count} certificato/i selezionato/i?" if count > 1 else "Eliminare il certificato selezionato?"
+        msg = (
+            f"Eliminare {count} certificato/i selezionato/i?"
+            if count > 1
+            else "Eliminare il certificato selezionato?"
+        )
 
         if not messagebox.askyesno("Conferma", msg):
             return
@@ -389,9 +443,7 @@ class ValidationView(tk.Frame):
                 messagebox.showerror("Errore", str(e))
         else:
             runner = ProgressTaskRunner(
-                self,
-                "Eliminazione in corso",
-                f"Eliminazione di {count} certificati..."
+                self, "Eliminazione in corso", f"Eliminazione di {count} certificati..."
             )
 
             try:
@@ -418,10 +470,12 @@ class ValidationView(tk.Frame):
     def refresh_data(self):
         def fetch():
             try:
-                new_data = self.controller.api_client.get("certificati", params={"validated": "false"})
+                new_data = self.controller.api_client.get(
+                    "certificati", params={"validated": "false"}
+                )
                 if self.winfo_exists():
                     self.after(0, lambda: self._update_data(new_data))
-            except Exception as e:
+            except Exception:
                 if self.winfo_exists():
                     self.after(0, lambda: messagebox.showerror("Errore", str(e)))
 
@@ -430,7 +484,9 @@ class ValidationView(tk.Frame):
     def _update_data(self, new_data):
         # Separate orphans from regular pending certificates
         self.data = [c for c in new_data if c.get("dipendente_id") or c.get("matricola")]
-        self.orphan_data = [c for c in new_data if not c.get("dipendente_id") and not c.get("matricola")]
+        self.orphan_data = [
+            c for c in new_data if not c.get("dipendente_id") and not c.get("matricola")
+        ]
 
         self._update_filter_options()
         self.filter_data()
@@ -467,7 +523,10 @@ class ValidationView(tk.Frame):
             categoria = str(item.get("categoria") or "").lower()
 
             # Apply Category Filter
-            if cat_filter != "Tutte" and (item.get("categoria") or "").upper() != cat_filter.upper():
+            if (
+                cat_filter != "Tutte"
+                and (item.get("categoria") or "").upper() != cat_filter.upper()
+            ):
                 continue
 
             # Apply Search Filter
@@ -485,11 +544,11 @@ class ValidationView(tk.Frame):
                 item.get("corso") or "N/D",
                 item.get("categoria") or "ALTRO",
                 item.get("data_rilascio") or "",
-                scad
+                scad,
             )
 
             # Check column filters
-            if hasattr(self.tree, 'check_filter'):
+            if hasattr(self.tree, "check_filter"):
                 columns = ["id", "dipendente", "corso", "categoria", "emissione", "scadenza"]
                 skip = False
                 for col_idx, col in enumerate(columns):
@@ -525,7 +584,7 @@ class ValidationView(tk.Frame):
                 item.get("corso") or "",
                 item.get("categoria") or "ALTRO",
                 item.get("data_rilascio") or "",
-                scad
+                scad,
             )
             self.tree_orphans.insert("", "end", values=values, tags=("orphan",))
             count += 1
@@ -565,9 +624,7 @@ class ValidationView(tk.Frame):
             cert_ids.append(vals[0])
 
         runner = ProgressTaskRunner(
-            self,
-            "Convalida in corso",
-            f"Convalida di {count} certificati..."
+            self, "Convalida in corso", f"Convalida di {count} certificati..."
         )
 
         try:
@@ -632,7 +689,9 @@ class ValidationDialog(tk.Toplevel):
         frame.pack(fill="both", expand=True)
 
         # Fields
-        tk.Label(frame, text="Dipendente (Cognome Nome):", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        tk.Label(frame, text="Dipendente (Cognome Nome):", font=("Segoe UI", 9, "bold")).pack(
+            anchor="w"
+        )
         self.entry_dip = tk.Entry(frame, width=40)
         self.entry_dip.insert(0, self.cert.get("nome") or "")
         self.entry_dip.pack(anchor="w", pady=(0, 10))
@@ -644,7 +703,9 @@ class ValidationDialog(tk.Toplevel):
 
         # Categoria as Dropdown
         tk.Label(frame, text="Categoria:", font=("Segoe UI", 9, "bold")).pack(anchor="w")
-        self.combo_categoria = ttk.Combobox(frame, values=sorted(CATEGORIE_STATICHE), state="readonly", width=37)
+        self.combo_categoria = ttk.Combobox(
+            frame, values=sorted(CATEGORIE_STATICHE), state="readonly", width=37
+        )
         current_cat = self.cert.get("categoria") or "ALTRO"
         if current_cat in CATEGORIE_STATICHE:
             self.combo_categoria.set(current_cat)
@@ -652,12 +713,16 @@ class ValidationDialog(tk.Toplevel):
             self.combo_categoria.set("ALTRO")
         self.combo_categoria.pack(anchor="w", pady=(0, 10))
 
-        tk.Label(frame, text="Data Rilascio (DD/MM/YYYY):", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        tk.Label(frame, text="Data Rilascio (DD/MM/YYYY):", font=("Segoe UI", 9, "bold")).pack(
+            anchor="w"
+        )
         self.entry_ril = tk.Entry(frame, width=40)
         self.entry_ril.insert(0, self.cert.get("data_rilascio") or "")
         self.entry_ril.pack(anchor="w", pady=(0, 10))
 
-        tk.Label(frame, text="Data Scadenza (DD/MM/YYYY):", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        tk.Label(frame, text="Data Scadenza (DD/MM/YYYY):", font=("Segoe UI", 9, "bold")).pack(
+            anchor="w"
+        )
         self.entry_scad = tk.Entry(frame, width=40)
         self.entry_scad.insert(0, self.cert.get("data_scadenza") or "")
         self.entry_scad.pack(anchor="w", pady=(0, 10))
@@ -666,11 +731,23 @@ class ValidationDialog(tk.Toplevel):
         btn_frame = tk.Frame(frame, pady=20)
         btn_frame.pack(fill="x", side="bottom")
 
-        tk.Button(btn_frame, text="CONVALIDA", bg="#10B981", fg="white", font=("Segoe UI", 10, "bold"),
-                  command=self.validate).pack(side="right", padx=5)
+        tk.Button(
+            btn_frame,
+            text="CONVALIDA",
+            bg="#10B981",
+            fg="white",
+            font=("Segoe UI", 10, "bold"),
+            command=self.validate,
+        ).pack(side="right", padx=5)
 
-        tk.Button(btn_frame, text="ELIMINA", bg="#DC2626", fg="white", font=("Segoe UI", 10, "bold"),
-                  command=self.delete).pack(side="left", padx=5)
+        tk.Button(
+            btn_frame,
+            text="ELIMINA",
+            bg="#DC2626",
+            fg="white",
+            font=("Segoe UI", 10, "bold"),
+            command=self.delete,
+        ).pack(side="left", padx=5)
 
     def validate(self):
         # Prepare data
@@ -679,12 +756,12 @@ class ValidationDialog(tk.Toplevel):
             "corso": self.entry_corso.get(),
             "categoria": self.combo_categoria.get(),
             "data_rilascio": self.entry_ril.get(),
-            "data_scadenza": self.entry_scad.get()
+            "data_scadenza": self.entry_scad.get(),
         }
 
         try:
             # 1. Update
-            self.controller.api_client.update_certificato(self.cert['id'], update_data)
+            self.controller.api_client.update_certificato(self.cert["id"], update_data)
 
             # 2. Validate Endpoint (Using PUT as per backend)
             url_val = f"{self.controller.api_client.base_url}/certificati/{self.cert['id']}/valida"
@@ -700,7 +777,7 @@ class ValidationDialog(tk.Toplevel):
     def delete(self):
         if messagebox.askyesno("Conferma", "Eliminare definitivamente questo certificato?"):
             try:
-                self.controller.api_client.delete_certificato(self.cert['id'])
+                self.controller.api_client.delete_certificato(self.cert["id"])
                 messagebox.showinfo("Eliminato", "Certificato eliminato.")
                 self.parent_view.refresh_data()
                 self.destroy()
@@ -738,8 +815,11 @@ class AssignOrphanDialog(tk.Toplevel):
         frame.pack(fill="both", expand=True)
 
         # Info about selected certificates
-        tk.Label(frame, text=f"Certificati selezionati: {len(self.selected_items)}",
-                 font=("Segoe UI", 10, "bold")).pack(anchor="w")
+        tk.Label(
+            frame,
+            text=f"Certificati selezionati: {len(self.selected_items)}",
+            font=("Segoe UI", 10, "bold"),
+        ).pack(anchor="w")
 
         # List of selected certs (summary)
         cert_list = tk.Frame(frame, bg="#FEF3C7", relief="solid", bd=1)
@@ -747,12 +827,22 @@ class AssignOrphanDialog(tk.Toplevel):
 
         for i, sel in enumerate(self.selected_items[:5]):  # Show max 5
             vals = self.parent_view.tree_orphans.item(sel, "values")
-            tk.Label(cert_list, text=f"  \u2022 {vals[1]} - {vals[2]}",
-                     bg="#FEF3C7", font=("Segoe UI", 9), anchor="w").pack(fill="x")
+            tk.Label(
+                cert_list,
+                text=f"  \u2022 {vals[1]} - {vals[2]}",
+                bg="#FEF3C7",
+                font=("Segoe UI", 9),
+                anchor="w",
+            ).pack(fill="x")
 
         if len(self.selected_items) > 5:
-            tk.Label(cert_list, text=f"  ... e altri {len(self.selected_items) - 5}",
-                     bg="#FEF3C7", font=("Segoe UI", 9, "italic"), anchor="w").pack(fill="x")
+            tk.Label(
+                cert_list,
+                text=f"  ... e altri {len(self.selected_items) - 5}",
+                bg="#FEF3C7",
+                font=("Segoe UI", 9, "italic"),
+                anchor="w",
+            ).pack(fill="x")
 
         # Separator
         ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=10)
@@ -765,14 +855,18 @@ class AssignOrphanDialog(tk.Toplevel):
 
         self.search_var = tk.StringVar()
         self.search_var.trace("w", self._filter_employees)
-        tk.Entry(search_frame, textvariable=self.search_var, width=40).pack(side="left", fill="x", expand=True)
+        tk.Entry(search_frame, textvariable=self.search_var, width=40).pack(
+            side="left", fill="x", expand=True
+        )
 
         # Employee listbox
         list_frame = tk.Frame(frame)
         list_frame.pack(fill="both", expand=True, pady=10)
 
         self.employee_listbox = tk.Listbox(list_frame, font=("Segoe UI", 10), selectmode="single")
-        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.employee_listbox.yview)
+        scrollbar = ttk.Scrollbar(
+            list_frame, orient="vertical", command=self.employee_listbox.yview
+        )
         self.employee_listbox.configure(yscrollcommand=scrollbar.set)
 
         scrollbar.pack(side="right", fill="y")
@@ -785,12 +879,19 @@ class AssignOrphanDialog(tk.Toplevel):
         btn_frame = tk.Frame(frame)
         btn_frame.pack(fill="x", pady=10)
 
-        tk.Button(btn_frame, text="Annulla", command=self.destroy,
-                  font=("Segoe UI", 10), width=12).pack(side="left")
+        tk.Button(
+            btn_frame, text="Annulla", command=self.destroy, font=("Segoe UI", 10), width=12
+        ).pack(side="left")
 
-        tk.Button(btn_frame, text="Assegna", bg="#10B981", fg="white",
-                  font=("Segoe UI", 10, "bold"), width=15,
-                  command=self._assign).pack(side="right")
+        tk.Button(
+            btn_frame,
+            text="Assegna",
+            bg="#10B981",
+            fg="white",
+            font=("Segoe UI", 10, "bold"),
+            width=15,
+            command=self._assign,
+        ).pack(side="right")
 
     def _populate_employees(self, filter_text=""):
         """Populate employee listbox."""
@@ -830,8 +931,7 @@ class AssignOrphanDialog(tk.Toplevel):
 
         # Confirm
         count = len(self.selected_items)
-        if not messagebox.askyesno("Conferma",
-                                    f"Assegnare {count} certificato/i a:\n{dip_name}?"):
+        if not messagebox.askyesno("Conferma", f"Assegnare {count} certificato/i a:\n{dip_name}?"):
             return
 
         # Get cert IDs
@@ -846,10 +946,7 @@ class AssignOrphanDialog(tk.Toplevel):
         for cert_id in cert_ids:
             try:
                 # Update the certificate with the dipendente_id
-                update_data = {
-                    "dipendente_id": dip_id,
-                    "nome": dip_name
-                }
+                update_data = {"dipendente_id": dip_id, "nome": dip_name}
                 self.controller.api_client.update_certificato(cert_id, update_data)
                 success += 1
             except Exception as e:
@@ -859,7 +956,9 @@ class AssignOrphanDialog(tk.Toplevel):
         if success == count:
             messagebox.showinfo("Completato", f"Assegnati {success} certificati a {dip_name}.")
         else:
-            messagebox.showwarning("Parziale", f"Assegnati {success}/{count}.\nErrori: {len(errors)}")
+            messagebox.showwarning(
+                "Parziale", f"Assegnati {success}/{count}.\nErrori: {len(errors)}"
+            )
 
         self.parent_view.refresh_data()
         self.destroy()

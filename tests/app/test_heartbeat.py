@@ -1,9 +1,9 @@
-import pytest
-import time
 import json
-import sys
+import time
+
 from app.core.db_security import db_security
 from app.core.lock_manager import LockManager
+
 
 def test_heartbeat_mechanism(mocker, tmp_path):
     # Mock LockManager for isolation
@@ -30,7 +30,8 @@ def test_heartbeat_mechanism(mocker, tmp_path):
 
     db_security.force_read_only_mode()
     assert db_security.is_read_only
-    assert db_security._heartbeat_timer is None # Should be cancelled
+    assert db_security._heartbeat_timer is None  # Should be cancelled
+
 
 def test_lock_manager_heartbeat(tmp_path):
     lock_file = tmp_path / ".heartbeat.lock"
@@ -41,10 +42,10 @@ def test_lock_manager_heartbeat(tmp_path):
     assert lm._is_locked
 
     # Initial timestamp
-    with open(lock_file, 'rb') as f:
+    with open(lock_file, "rb") as f:
         f.seek(1)
-        data = json.loads(f.read().decode('utf-8'))
-        ts1 = data.get('timestamp')
+        data = json.loads(f.read().decode("utf-8"))
+        ts1 = data.get("timestamp")
 
     time.sleep(0.1)
 
@@ -53,19 +54,20 @@ def test_lock_manager_heartbeat(tmp_path):
     assert res
 
     # Verify timestamp changed
-    with open(lock_file, 'rb') as f:
+    with open(lock_file, "rb") as f:
         f.seek(1)
-        data = json.loads(f.read().decode('utf-8'))
-        ts2 = data.get('timestamp')
+        data = json.loads(f.read().decode("utf-8"))
+        ts2 = data.get("timestamp")
 
     assert ts2 > ts1 if ts1 else True
 
     # Release
     lm.release()
 
+
 def test_zombie_prevention(tmp_path, mocker):
     # Mock _lock_byte_0 to bypass OS lock, allowing overwrites
-    mocker.patch.object(LockManager, '_lock_byte_0')
+    mocker.patch.object(LockManager, "_lock_byte_0")
 
     lock_file = tmp_path / ".zombie.lock"
     lm = LockManager(str(lock_file))
@@ -75,10 +77,10 @@ def test_zombie_prevention(tmp_path, mocker):
     assert lm._is_locked
 
     # 2. Simulate "Split Brain" - Another process overwrites the file
-    with open(lock_file, 'wb') as f:
-        f.write(b'\0')
+    with open(lock_file, "wb") as f:
+        f.write(b"\0")
         other_metadata = {"pid": 999, "hostname": "other", "timestamp": 200}
-        f.write(json.dumps(other_metadata).encode('utf-8'))
+        f.write(json.dumps(other_metadata).encode("utf-8"))
 
     # 3. Heartbeat should FAIL because identity mismatch
     success = lm.update_heartbeat()
@@ -86,8 +88,9 @@ def test_zombie_prevention(tmp_path, mocker):
 
     lm.release()
 
+
 def test_uuid_mismatch(tmp_path, mocker):
-    mocker.patch.object(LockManager, '_lock_byte_0')
+    mocker.patch.object(LockManager, "_lock_byte_0")
 
     lock_file = tmp_path / ".uuid_zombie.lock"
     lm = LockManager(str(lock_file))
@@ -96,26 +99,27 @@ def test_uuid_mismatch(tmp_path, mocker):
     lm.acquire({"uuid": "my-uuid-1", "pid": 100})
 
     # 2. Overwrite with different UUID
-    with open(lock_file, 'wb') as f:
-        f.write(b'\0')
+    with open(lock_file, "wb") as f:
+        f.write(b"\0")
         other_metadata = {"uuid": "stolen-uuid-2", "pid": 100}
-        f.write(json.dumps(other_metadata).encode('utf-8'))
+        f.write(json.dumps(other_metadata).encode("utf-8"))
 
     # 3. Heartbeat Fail
     assert not lm.update_heartbeat()
     lm.release()
 
+
 def test_read_failure_protection(tmp_path, mocker):
-    mocker.patch.object(LockManager, '_lock_byte_0')
+    mocker.patch.object(LockManager, "_lock_byte_0")
 
     lock_file = tmp_path / ".corrupt.lock"
     lm = LockManager(str(lock_file))
     lm.acquire({"uuid": "safe", "pid": 1})
 
     # 2. Corrupt the file (Invalid JSON)
-    with open(lock_file, 'wb') as f:
-        f.write(b'\0')
-        f.write(b'{invalid_json')
+    with open(lock_file, "wb") as f:
+        f.write(b"\0")
+        f.write(b"{invalid_json")
 
     # 3. Heartbeat should FAIL because it cannot verify identity
     assert not lm.update_heartbeat()

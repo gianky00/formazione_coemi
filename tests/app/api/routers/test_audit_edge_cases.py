@@ -1,6 +1,7 @@
-import pytest
-from app.db.models import AuditLog
 from datetime import datetime
+
+from app.db.models import AuditLog
+
 
 def test_export_audit_logs_empty(test_client, admin_token_headers, db_session):
     db_session.query(AuditLog).delete()
@@ -9,7 +10,8 @@ def test_export_audit_logs_empty(test_client, admin_token_headers, db_session):
     res = test_client.get("/audit/export", headers=admin_token_headers)
     assert res.status_code == 200
     # If empty, pandas writes BOM + newline (utf-8-sig) but no headers if columns not inferred
-    assert res.content.startswith(b'\xef\xbb\xbf')
+    assert res.content.startswith(b"\xef\xbb\xbf")
+
 
 def test_read_audit_logs_end_date_midnight(test_client, admin_token_headers, db_session):
     # Create log at 23:00 today

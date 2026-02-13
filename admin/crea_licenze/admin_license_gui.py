@@ -1,16 +1,18 @@
-import tkinter as tk
-from tkinter import ttk, messagebox
-import subprocess
-import sys
-from datetime import date, timedelta
+import hashlib
+import json
 import os
 import shutil
-import json
-import hashlib
+import subprocess
+import sys
+import tkinter as tk
+from datetime import date, timedelta
+from tkinter import messagebox, ttk
+
 from cryptography.fernet import Fernet
 
 # SECURITY WARNING: Keep this key secret!
-LICENSE_SECRET_KEY = b'8kHs_rmwqaRUk1AQLGX65g4AEkWUDapWVsMFUQpN9Ek='
+LICENSE_SECRET_KEY = b"8kHs_rmwqaRUk1AQLGX65g4AEkWUDapWVsMFUQpN9Ek="
+
 
 def _calculate_sha256(filepath):
     """Calculates the SHA256 hash of a file."""
@@ -20,6 +22,7 @@ def _calculate_sha256(filepath):
             sha256_hash.update(byte_block)
     return sha256_hash.hexdigest()
 
+
 class LicenseAdminApp:
     def __init__(self, root):
         self.root = root
@@ -28,14 +31,16 @@ class LicenseAdminApp:
         self.root.resizable(False, False)
 
         style = ttk.Style()
-        style.theme_use('clam')
+        style.theme_use("clam")
         # S1192: Use constant
         FONT_FAMILY = "Segoe UI"
         font_style = (FONT_FAMILY, 10)
         style.configure("TLabel", font=font_style)
         style.configure("TButton", font=(FONT_FAMILY, 10, "bold"))
 
-        ttk.Label(root, text="Generatore Licenza Cliente", font=(FONT_FAMILY, 14, "bold")).pack(pady=15)
+        ttk.Label(root, text="Generatore Licenza Cliente", font=(FONT_FAMILY, 14, "bold")).pack(
+            pady=15
+        )
 
         # Container
         frm = ttk.LabelFrame(root, text="Dati Cliente", padding=20)
@@ -45,10 +50,14 @@ class LicenseAdminApp:
         ttk.Label(frm, text="Seriale Disco Cliente (Hardware ID):").pack(anchor="w")
         self.ent_disk = ttk.Entry(frm, width=60)
         self.ent_disk.pack(pady=5)
-        ttk.Button(frm, text="Incolla dagli appunti", command=self.paste_disk).pack(anchor="e", pady=5)
+        ttk.Button(frm, text="Incolla dagli appunti", command=self.paste_disk).pack(
+            anchor="e", pady=5
+        )
 
         # Nome Cliente (solo per organizzazione cartelle)
-        ttk.Label(frm, text="Nome Riferimento Cliente (es. AziendaX):").pack(anchor="w", pady=(10, 0))
+        ttk.Label(frm, text="Nome Riferimento Cliente (es. AziendaX):").pack(
+            anchor="w", pady=(10, 0)
+        )
         self.ent_name = ttk.Entry(frm, width=60)
         self.ent_name.pack(pady=5)
 
@@ -56,7 +65,7 @@ class LicenseAdminApp:
         ttk.Label(frm, text="Data Scadenza (YYYY-MM-DD):").pack(anchor="w", pady=(15, 0))
         self.ent_date = ttk.Entry(frm, width=20)
         self.ent_date.pack(anchor="w", pady=5)
-        
+
         # Default 60 giorni
         scadenza_default = (date.today() + timedelta(days=60)).strftime("%Y-%m-%d")
         self.ent_date.insert(0, scadenza_default)
@@ -71,16 +80,18 @@ class LicenseAdminApp:
             self.ent_disk.delete(0, tk.END)
             self.ent_disk.insert(0, self.root.clipboard_get().strip())
         except tk.TclError:
-            pass # Clipboard empty or unavailable
+            pass  # Clipboard empty or unavailable
 
     def _prepare_paths(self, client_name, disk_serial):
         """Helper to prepare output paths."""
         if not client_name:
-            client_name = disk_serial # Fallback se non c'è nome
+            client_name = disk_serial  # Fallback se non c'è nome
 
         # Pulisci il nome cliente per usarlo come cartella
-        folder_name = "".join([c for c in client_name if c.isalnum() or c in (' ', '_', '-')]).strip()
-        
+        folder_name = "".join(
+            [c for c in client_name if c.isalnum() or c in (" ", "_", "-")]
+        ).strip()
+
         # Cartella di output organizzata
         base_output = os.path.dirname(os.path.abspath(__file__))
         client_dir = os.path.join(base_output, folder_name)
@@ -92,21 +103,21 @@ class LicenseAdminApp:
         # Format dates to DD/MM/YYYY
         try:
             expiry_obj = date.fromisoformat(expiry)
-            expiry_str = expiry_obj.strftime('%d/%m/%Y')
+            expiry_str = expiry_obj.strftime("%d/%m/%Y")
         except ValueError:
-            expiry_str = expiry # Fallback if invalid format
+            expiry_str = expiry  # Fallback if invalid format
 
-        gen_date_str = date.today().strftime('%d/%m/%Y')
-        clean_disk_serial = disk_serial.rstrip('.')
+        gen_date_str = date.today().strftime("%d/%m/%Y")
+        clean_disk_serial = disk_serial.rstrip(".")
 
         payload = {
             "Hardware ID": clean_disk_serial,
             "Scadenza Licenza": expiry_str,
             "Generato il": gen_date_str,
-            "Cliente": client_name
+            "Cliente": client_name,
         }
 
-        json_payload = json.dumps(payload).encode('utf-8')
+        json_payload = json.dumps(payload).encode("utf-8")
         cipher = Fernet(LICENSE_SECRET_KEY)
         encrypted_data = cipher.encrypt(json_payload)
 
@@ -129,9 +140,7 @@ class LicenseAdminApp:
         client_name, target_dir = self._prepare_paths(raw_client_name, disk_serial)
 
         # Comando PyArmor (genera in cartella temporanea 'dist' locale allo script)
-        cmd = [sys.executable, "-m", "pyarmor.cli", "gen", "key", 
-               "-e", expiry, 
-               "-b", disk_serial] 
+        cmd = [sys.executable, "-m", "pyarmor.cli", "gen", "key", "-e", expiry, "-b", disk_serial]
 
         try:
             # Esegui comando
@@ -159,7 +168,8 @@ class LicenseAdminApp:
 
         # 1. Sposta il file di licenza
         dst_lic = os.path.join(target_dir, key_filename)
-        if os.path.exists(dst_lic): os.remove(dst_lic)
+        if os.path.exists(dst_lic):
+            os.remove(dst_lic)
         shutil.move(src_default, dst_lic)
 
         if os.path.exists("dist"):
@@ -176,24 +186,28 @@ class LicenseAdminApp:
     def _generate_manifest(self, target_dir, dst_lic, config_path, key_filename):
         manifest = {
             key_filename: _calculate_sha256(dst_lic),
-            "config.dat": _calculate_sha256(config_path)
+            "config.dat": _calculate_sha256(config_path),
         }
         manifest_path = os.path.join(target_dir, "manifest.json")
         with open(manifest_path, "w") as f:
             json.dump(manifest, f, indent=4)
 
     def _show_success_message(self, client_name, disk_serial, target_dir, key_filename):
-        msg = (f"Licenza GENERATA con successo!\n\n"
-                f"Cliente: {client_name}\n"
-                f"Hardware ID: {disk_serial}\n\n"
-                f"FILE SALVATI IN:\n{target_dir}\n"
-                f"(Troverai '{key_filename}', 'config.dat' e 'manifest.json')\n\n"
-                f"ISTRUZIONI PER L'AUTO-UPDATE:\n"
-                f"1. Apri il repository GitHub privato delle licenze.\n"
-                f"2. Crea una nuova cartella nominandola ESATTAMENTE come l'Hardware ID del cliente.\n"
-                f"3. Carica i 3 file generati ('{key_filename}', 'config.dat', 'manifest.json') in questa nuova cartella.")
+        msg = (
+            f"Licenza GENERATA con successo!\n\n"
+            f"Cliente: {client_name}\n"
+            f"Hardware ID: {disk_serial}\n\n"
+            f"FILE SALVATI IN:\n{target_dir}\n"
+            f"(Troverai '{key_filename}', 'config.dat' e 'manifest.json')\n\n"
+            f"ISTRUZIONI PER L'AUTO-UPDATE:\n"
+            f"1. Apri il repository GitHub privato delle licenze.\n"
+            f"2. Crea una nuova cartella nominandola ESATTAMENTE come l'Hardware ID del cliente.\n"
+            f"3. Carica i 3 file generati ('{key_filename}', 'config.dat', 'manifest.json') in questa nuova cartella."
+        )
+
 
 import platform
+
 
 def open_file(path):
     if platform.system() == "Windows":
@@ -203,9 +217,10 @@ def open_file(path):
     else:
         subprocess.Popen(["xdg-open", path])
 
-# ... inside _show_success_message
+        # ... inside _show_success_message
         messagebox.showinfo("Successo", msg)
         open_file(target_dir)
+
 
 if __name__ == "__main__":
     root = tk.Tk()

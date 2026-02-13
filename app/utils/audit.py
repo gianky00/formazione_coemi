@@ -1,18 +1,23 @@
-import threading
 import logging
-from sqlalchemy.orm import Session
-from typing import Optional
+import threading
+from datetime import datetime
+
 from fastapi import Request
+from sqlalchemy.orm import Session
+
 from app.db.models import AuditLog, User
 from app.services.geo_service import GeoLocationService
 
 logger = logging.getLogger(__name__)
 
-def _extract_request_info(request):
-    ip_address = None
-    user_agent = None
-    geolocation = None
-    device_id = None
+
+def _extract_request_info(
+    request: Request | None,
+) -> tuple[str | None, str | None, str | None, str | None]:
+    ip_address: str | None = None
+    user_agent: str | None = None
+    geolocation: str | None = None
+    device_id: str | None = None
 
     if request:
         try:
@@ -26,7 +31,15 @@ def _extract_request_info(request):
 
     return ip_address, user_agent, geolocation, device_id
 
-def _send_alert(user, action, details, ip_address, geolocation, timestamp):
+
+def _send_alert(
+    user: User | None,
+    action: str,
+    details: str | None,
+    ip_address: str | None,
+    geolocation: str | None,
+    timestamp: datetime,
+) -> None:
     try:
         from app.services.notification_service import send_security_alert_email
 
@@ -35,7 +48,7 @@ def _send_alert(user, action, details, ip_address, geolocation, timestamp):
         <h3>Critical Security Event Detected</h3>
         <p><strong>Action:</strong> {action}</p>
         <p><strong>Severity:</strong> <span style="color:red;">CRITICAL</span></p>
-        <p><strong>User:</strong> {user.username if user else 'SYSTEM'}</p>
+        <p><strong>User:</strong> {user.username if user else "SYSTEM"}</p>
         <p><strong>IP:</strong> {ip_address} ({geolocation})</p>
         <p><strong>Details:</strong> {details}</p>
         <p><strong>Timestamp:</strong> {timestamp}</p>
@@ -44,12 +57,21 @@ def _send_alert(user, action, details, ip_address, geolocation, timestamp):
     except Exception as e:
         logger.error(f"Failed to trigger alert email: {e}")
 
-def log_security_action(db: Session, user: Optional[User], action: str, details: str = None, category: str = None, request: Request = None, severity: str = "LOW", changes: str = None, device_id: str = None):
+
+def log_security_action(
+    db: Session,
+    user: User | None,
+    action: str,
+    details: str | None = None,
+    category: str | None = None,
+    request: Request | None = None,
+    severity: str = "LOW",
+    changes: str | None = None,
+    device_id: str | None = None,
+) -> None:
     """
     Logs a security-critical action to the database.
-    If user is None, it's logged as 'SYSTEM'.
     """
-    # S3776: Refactored to reduce complexity
     ip_address, user_agent, geolocation, req_device_id = _extract_request_info(request)
 
     # Prioritize explicitly passed device_id
@@ -66,11 +88,14 @@ def log_security_action(db: Session, user: Optional[User], action: str, details:
         geolocation=geolocation,
         severity=severity,
         device_id=final_device_id,
-        changes=changes
+        changes=changes,
     )
     db.add(log_entry)
     db.commit()
 
     if severity == "CRITICAL":
-        t = threading.Thread(target=_send_alert, args=(user, action, details, ip_address, geolocation, log_entry.timestamp))
+        t = threading.Thread(
+            target=_send_alert,
+            args=(user, action, details, ip_address, geolocation, log_entry.timestamp),
+        )
         t.start()

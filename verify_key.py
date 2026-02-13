@@ -1,5 +1,7 @@
 import sys
+
 from app.utils.security import obfuscate_string, reveal_string
+
 
 def main():
     print("Intelleo Key Obfuscation Utility")
@@ -23,6 +25,7 @@ def main():
         print("Verification: SUCCESS (Decoded matches original)")
     else:
         print("Verification: FAILED")
+
 
 if __name__ == "__main__":
     main()

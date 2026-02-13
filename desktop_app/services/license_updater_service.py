@@ -1,12 +1,15 @@
-import os
-import requests
-import json
 import hashlib
+import json
+import os
 import shutil
 import tempfile
-from typing import Optional, Dict, Any
+from typing import Any
+
+import requests
+
+from desktop_app.constants import FILE_CONFIG_DAT, FILE_MANIFEST, FILE_PYARMOR_KEY
 from desktop_app.services.path_service import get_license_dir
-from desktop_app.constants import FILE_MANIFEST, FILE_PYARMOR_KEY, FILE_CONFIG_DAT
+
 
 class LicenseUpdaterService:
     """
@@ -15,7 +18,8 @@ class LicenseUpdaterService:
     1. API-Dependent: Uses an `api_client` to fetch configuration from the running backend.
     2. Standalone (Headless): Uses a provided `config` dictionary, suitable for startup/launcher.
     """
-    def __init__(self, api_client=None, config: Optional[Dict[str, Any]] = None):
+
+    def __init__(self, api_client=None, config: dict[str, Any] | None = None):
         self.api_client = api_client
         self.config = config
 
@@ -25,7 +29,9 @@ class LicenseUpdaterService:
             return self.config
 
         if not self.api_client:
-            raise RuntimeError("Nessun client API e nessuna configurazione fornita. Impossibile aggiornare.")
+            raise RuntimeError(
+                "Nessun client API e nessuna configurazione fornita. Impossibile aggiornare."
+            )
 
         try:
             response = self.api_client.get("/app_config/config/updater")
@@ -40,6 +46,7 @@ class LicenseUpdaterService:
         Gets the definitive hardware ID from the centralized service.
         """
         from .hardware_id_service import get_machine_id
+
         return get_machine_id()
 
     @staticmethod
@@ -57,23 +64,23 @@ class LicenseUpdaterService:
         meta_res.raise_for_status()
         remote_manifest_data = meta_res.json()
 
-        if 'download_url' not in remote_manifest_data:
+        if "download_url" not in remote_manifest_data:
             raise ValueError(f"URL di download non trovato per {FILE_MANIFEST}.")
 
-        content_res = requests.get(remote_manifest_data['download_url'], timeout=30)
+        content_res = requests.get(remote_manifest_data["download_url"], timeout=30)
         content_res.raise_for_status()
         remote_manifest = content_res.json()
 
         # Confronta con il manifest locale, se esiste
         local_manifest_path = os.path.join(get_license_dir(), FILE_MANIFEST)
         if os.path.exists(local_manifest_path):
-            with open(local_manifest_path, 'r') as f:
+            with open(local_manifest_path) as f:
                 local_manifest = json.load(f)
             if local_manifest == remote_manifest:
                 return True, "La licenza è già aggiornata all'ultima versione."
 
         # Salva il manifest remoto già scaricato
-        with open(os.path.join(temp_dir, FILE_MANIFEST), 'w') as f:
+        with open(os.path.join(temp_dir, FILE_MANIFEST), "w") as f:
             json.dump(remote_manifest, f)
 
         # Scarica gli altri file
@@ -85,10 +92,10 @@ class LicenseUpdaterService:
             meta_res.raise_for_status()
             file_meta = meta_res.json()
 
-            if 'download_url' not in file_meta:
+            if "download_url" not in file_meta:
                 raise ValueError(f"URL di download non trovato per {filename}.")
 
-            content_res = requests.get(file_meta['download_url'], timeout=30)
+            content_res = requests.get(file_meta["download_url"], timeout=30)
             content_res.raise_for_status()
 
             with open(os.path.join(temp_dir, filename), "wb") as f:
@@ -103,7 +110,7 @@ class LicenseUpdaterService:
         if remote_manifest[FILE_CONFIG_DAT] != self._calculate_sha256(config_path):
             raise ValueError(f"Checksum per '{FILE_CONFIG_DAT}' non valido.")
 
-        return False, None # Continue update
+        return False, None  # Continue update
 
     def update_license(self, hardware_id):
         try:
@@ -111,14 +118,14 @@ class LicenseUpdaterService:
         except RuntimeError as e:
             return False, str(e)
 
-        if not all([config.get('repo_owner'), config.get('repo_name')]):
+        if not all([config.get("repo_owner"), config.get("repo_name")]):
             return False, "La configurazione per l'aggiornamento ricevuta dal server è incompleta."
 
-        if not all([config.get('repo_owner'), config.get('repo_name'), config.get('github_token')]):
+        if not all([config.get("repo_owner"), config.get("repo_name"), config.get("github_token")]):
             return False, "La configurazione per l'aggiornamento ricevuta dal server è incompleta."
 
         api_url = f"https://api.github.com/repos/{config['repo_owner']}/{config['repo_name']}/contents/licenses/{hardware_id}"
-        headers = {'Authorization': f"token {config['github_token']}"}
+        headers = {"Authorization": f"token {config['github_token']}"}
 
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -130,26 +137,44 @@ class LicenseUpdaterService:
                 target_license_dir = get_license_dir()
                 os.makedirs(target_license_dir, exist_ok=True)
 
-                shutil.move(os.path.join(temp_dir, FILE_PYARMOR_KEY), os.path.join(target_license_dir, FILE_PYARMOR_KEY))
-                shutil.move(os.path.join(temp_dir, FILE_CONFIG_DAT), os.path.join(target_license_dir, FILE_CONFIG_DAT))
-                shutil.move(os.path.join(temp_dir, FILE_MANIFEST), os.path.join(target_license_dir, FILE_MANIFEST))
+                shutil.move(
+                    os.path.join(temp_dir, FILE_PYARMOR_KEY),
+                    os.path.join(target_license_dir, FILE_PYARMOR_KEY),
+                )
+                shutil.move(
+                    os.path.join(temp_dir, FILE_CONFIG_DAT),
+                    os.path.join(target_license_dir, FILE_CONFIG_DAT),
+                )
+                shutil.move(
+                    os.path.join(temp_dir, FILE_MANIFEST),
+                    os.path.join(target_license_dir, FILE_MANIFEST),
+                )
 
-                return True, "Licenza aggiornata con successo. È necessario riavviare l'applicazione."
+                return (
+                    True,
+                    "Licenza aggiornata con successo. È necessario riavviare l'applicazione.",
+                )
 
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 404:
                 return False, f"Nessuna licenza trovata per questo ID hardware ({hardware_id})."
             elif e.response.status_code == 401 or e.response.status_code == 403:
-                return False, "Errore di autenticazione: Accesso non autorizzato. Contattare il supporto."
+                return (
+                    False,
+                    "Errore di autenticazione: Accesso non autorizzato. Contattare il supporto.",
+                )
             # S3457: Use generic string without f-string if no placeholders
-            return False, "Errore di rete durante il download della licenza. Verificare la connessione."
+            return (
+                False,
+                "Errore di rete durante il download della licenza. Verificare la connessione.",
+            )
         except (ValueError, KeyError) as e:
             return False, f"Errore di validazione: {e}"
         except Exception as e:
             return False, f"Errore imprevisto: {e}"
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # For testing purposes
     hw_id = LicenseUpdaterService.get_hardware_id()
     print(f"Detected Hardware ID: {hw_id}")

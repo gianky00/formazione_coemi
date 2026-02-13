@@ -1,6 +1,7 @@
-from fastapi.testclient import TestClient
 from unittest.mock import patch
-from app.main import app
+
+from fastapi.testclient import TestClient
+
 
 def test_send_manual_alert_success(test_client: TestClient):
     with patch("app.api.routers.notifications.check_and_send_alerts") as mock_check:

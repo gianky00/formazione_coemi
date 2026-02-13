@@ -1,5 +1,6 @@
 from playwright.sync_api import sync_playwright
 
+
 def verify_frontend():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -13,8 +14,8 @@ def verify_frontend():
             page.screenshot(path="/home/jules/verification/home_page.png", full_page=True)
             print("Home Page verified.")
         except Exception as e:
-             print(f"Home Page Failed: {e}")
-             page.screenshot(path="/home/jules/verification/home_fail.png", full_page=True)
+            print(f"Home Page Failed: {e}")
+            page.screenshot(path="/home/jules/verification/home_fail.png", full_page=True)
 
         # 2. Import Guide
         print("Navigating to Import Guide...")
@@ -29,6 +30,7 @@ def verify_frontend():
             page.screenshot(path="/home/jules/verification/import_fail.png", full_page=True)
 
         browser.close()
+
 
 if __name__ == "__main__":
     verify_frontend()

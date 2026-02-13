@@ -1,6 +1,8 @@
 import pytest
 from pydantic import ValidationError
-from app.api.main import CertificatoCreazioneSchema as CertificatoCreateSchema
+
+from app.schemas.schemas import CertificatoCreazioneSchema as CertificatoCreateSchema
+
 
 def test_certificato_create_schema_valid():
     """
@@ -11,11 +13,12 @@ def test_certificato_create_schema_valid():
         "corso": "ANTINCENDIO",
         "categoria": "ANTINCENDIO",
         "data_rilascio": "14/11/2025",
-        "data_scadenza": "14/11/2030"
+        "data_scadenza": "14/11/2030",
     }
     schema = CertificatoCreateSchema(**data)
     assert schema.nome == "Mario Rossi"
     assert schema.corso == "ANTINCENDIO"
+
 
 def test_certificato_create_schema_missing_fields():
     """
@@ -23,6 +26,7 @@ def test_certificato_create_schema_missing_fields():
     """
     with pytest.raises(ValidationError):
         CertificatoCreateSchema(nome="Mario Rossi", corso="ANTINCENDIO")
+
 
 def test_certificato_create_schema_invalid_date_format():
     """
@@ -34,5 +38,5 @@ def test_certificato_create_schema_invalid_date_format():
             corso="ANTINCENDIO",
             categoria="ANTINCENDIO",
             data_rilascio="2025-11-14",  # Formato non valido
-            data_scadenza="14/11/2030"
+            data_scadenza="14/11/2030",
         )

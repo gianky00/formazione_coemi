@@ -1,7 +1,7 @@
-import tkinter as tk
-from tkinter import ttk, scrolledtext
 import threading
-from desktop_app.utils import TaskRunner
+import tkinter as tk
+from tkinter import scrolledtext
+
 
 class ChatView(tk.Frame):
     def __init__(self, parent, controller):
@@ -16,10 +16,18 @@ class ChatView(tk.Frame):
         # Header
         header = tk.Frame(self, bg="#1E3A8A", height=50)
         header.pack(fill="x")
-        tk.Label(header, text="Lyra - Assistente Virtuale", bg="#1E3A8A", fg="white", font=("Segoe UI", 12, "bold")).pack(pady=10)
+        tk.Label(
+            header,
+            text="Lyra - Assistente Virtuale",
+            bg="#1E3A8A",
+            fg="white",
+            font=("Segoe UI", 12, "bold"),
+        ).pack(pady=10)
 
         # Chat History
-        self.txt_history = scrolledtext.ScrolledText(self, state='disabled', wrap='word', font=("Segoe UI", 10))
+        self.txt_history = scrolledtext.ScrolledText(
+            self, state="disabled", wrap="word", font=("Segoe UI", 10)
+        )
         self.txt_history.pack(fill="both", expand=True, padx=10, pady=10)
 
         # Input Area
@@ -30,26 +38,33 @@ class ChatView(tk.Frame):
         self.entry_msg.pack(side="left", fill="x", expand=True, padx=(0, 10))
         self.entry_msg.bind("<Return>", lambda e: self.send_message())
 
-        btn_send = tk.Button(input_frame, text="Invia", bg="#1D4ED8", fg="white", command=self.send_message)
+        btn_send = tk.Button(
+            input_frame, text="Invia", bg="#1D4ED8", fg="white", command=self.send_message
+        )
         btn_send.pack(side="right")
 
     def append_message(self, sender, text):
-        self.txt_history.config(state='normal')
+        self.txt_history.config(state="normal")
         tag = "user" if sender == "Tu" else "bot"
 
         self.txt_history.insert("end", f"{sender}: ", (tag + "_label",))
         self.txt_history.insert("end", f"{text}\n\n", (tag,))
 
         # Styling
-        self.txt_history.tag_config("user_label", foreground="#1D4ED8", font=("Segoe UI", 10, "bold"))
-        self.txt_history.tag_config("bot_label", foreground="#059669", font=("Segoe UI", 10, "bold"))
+        self.txt_history.tag_config(
+            "user_label", foreground="#1D4ED8", font=("Segoe UI", 10, "bold")
+        )
+        self.txt_history.tag_config(
+            "bot_label", foreground="#059669", font=("Segoe UI", 10, "bold")
+        )
 
         self.txt_history.see("end")
-        self.txt_history.config(state='disabled')
+        self.txt_history.config(state="disabled")
 
     def send_message(self):
         msg = self.entry_msg.get().strip()
-        if not msg: return
+        if not msg:
+            return
 
         self.entry_msg.delete(0, "end")
         self.append_message("Tu", msg)
@@ -81,8 +96,8 @@ class ChatView(tk.Frame):
             self.after(0, lambda: self.append_message("Lyra", reply))
 
             # Voice feedback (optional)
-            if hasattr(self.controller, 'voice_service') and self.controller.voice_service:
+            if hasattr(self.controller, "voice_service") and self.controller.voice_service:
                 self.after(0, lambda: self.controller.voice_service.speak(reply))
 
-        except Exception as e:
+        except Exception:
             self.after(0, lambda: self.append_message("Sistema", f"Errore: {e}"))

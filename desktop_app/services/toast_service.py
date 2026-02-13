@@ -2,9 +2,8 @@
 Toast Notification Service for Intelleo.
 Provides non-intrusive notifications that appear in the corner of the screen.
 """
+
 import tkinter as tk
-from tkinter import ttk
-import threading
 from collections import deque
 
 
@@ -19,7 +18,16 @@ class ToastNotification(tk.Toplevel):
         "alert": {"bg": "#8B5CF6", "icon": "!"},
     }
 
-    def __init__(self, parent, title, message, toast_type="info", duration=5000, on_click=None, position_offset=0):
+    def __init__(
+        self,
+        parent,
+        title,
+        message,
+        toast_type="info",
+        duration=5000,
+        on_click=None,
+        position_offset=0,
+    ):
         super().__init__(parent)
         self.on_click = on_click
         self.duration = duration
@@ -27,8 +35,8 @@ class ToastNotification(tk.Toplevel):
 
         # Window configuration
         self.overrideredirect(True)  # No window decorations
-        self.attributes('-topmost', True)
-        self.attributes('-alpha', 0.0)  # Start invisible for fade-in
+        self.attributes("-topmost", True)
+        self.attributes("-alpha", 0.0)  # Start invisible for fade-in
 
         config = self.TYPES.get(toast_type, self.TYPES["info"])
 
@@ -41,8 +49,9 @@ class ToastNotification(tk.Toplevel):
         content.pack(fill="both", expand=True)
 
         # Icon
-        icon_label = tk.Label(content, text=config["icon"], font=("Segoe UI", 16, "bold"),
-                              bg=config["bg"], fg="white")
+        icon_label = tk.Label(
+            content, text=config["icon"], font=("Segoe UI", 16, "bold"), bg=config["bg"], fg="white"
+        )
         icon_label.pack(side="left", padx=(0, 10))
 
         # Text container
@@ -50,19 +59,38 @@ class ToastNotification(tk.Toplevel):
         text_frame.pack(side="left", fill="both", expand=True)
 
         # Title
-        title_label = tk.Label(text_frame, text=title, font=("Segoe UI", 10, "bold"),
-                               bg=config["bg"], fg="white", anchor="w")
+        title_label = tk.Label(
+            text_frame,
+            text=title,
+            font=("Segoe UI", 10, "bold"),
+            bg=config["bg"],
+            fg="white",
+            anchor="w",
+        )
         title_label.pack(fill="x")
 
         # Message (wrap text)
-        msg_label = tk.Label(text_frame, text=message, font=("Segoe UI", 9),
-                             bg=config["bg"], fg="white", anchor="w", justify="left",
-                             wraplength=280)
+        msg_label = tk.Label(
+            text_frame,
+            text=message,
+            font=("Segoe UI", 9),
+            bg=config["bg"],
+            fg="white",
+            anchor="w",
+            justify="left",
+            wraplength=280,
+        )
         msg_label.pack(fill="x")
 
         # Close button
-        close_btn = tk.Label(content, text="×", font=("Segoe UI", 14, "bold"),
-                             bg=config["bg"], fg="white", cursor="hand2")
+        close_btn = tk.Label(
+            content,
+            text="×",
+            font=("Segoe UI", 14, "bold"),
+            bg=config["bg"],
+            fg="white",
+            cursor="hand2",
+        )
         close_btn.pack(side="right", padx=(10, 0))
         close_btn.bind("<Button-1>", lambda e: self.close())
 
@@ -88,17 +116,17 @@ class ToastNotification(tk.Toplevel):
 
     def _fade_in(self, alpha=0.0):
         if alpha < 0.95:
-            self.attributes('-alpha', alpha)
+            self.attributes("-alpha", alpha)
             self.after(20, lambda: self._fade_in(alpha + 0.1))
         else:
-            self.attributes('-alpha', 0.95)
+            self.attributes("-alpha", 0.95)
             # Schedule auto-close
             if self.duration > 0:
                 self._fade_id = self.after(self.duration, self._fade_out)
 
     def _fade_out(self, alpha=0.95):
         if alpha > 0.05:
-            self.attributes('-alpha', alpha)
+            self.attributes("-alpha", alpha)
             self._fade_id = self.after(30, lambda: self._fade_out(alpha - 0.1))
         else:
             self.close()
@@ -133,6 +161,7 @@ class ToastManager:
     def show(self, title, message, toast_type="info", duration=5000, on_click=None):
         """Show a toast notification."""
         import time
+
         current_time = int(time.time() * 1000)
 
         if len(self.active_toasts) >= self.max_visible:
@@ -145,7 +174,9 @@ class ToastManager:
         if time_since_last < self.min_delay_between_toasts and self.active_toasts:
             # Queue it to be shown after delay
             delay = self.min_delay_between_toasts - time_since_last
-            self.parent.after(delay, lambda: self.show(title, message, toast_type, duration, on_click))
+            self.parent.after(
+                delay, lambda: self.show(title, message, toast_type, duration, on_click)
+            )
             return
 
         self.last_show_time = current_time

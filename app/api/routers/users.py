@@ -1,141 +1,113 @@
-import os
-from typing import Any, List
-from fastapi import APIRouter, Body, Depends, HTTPException
-from fastapi.encoders import jsonable_encoder
+from typing import Annotated, Any
+
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.db.session import get_db
-from app.core import security
-from app.schemas.schemas import User, UserCreate, UserUpdate
+
 from app.api import deps
-from app.db.models import User as UserModel
+from app.core import security
+from app.db.models import User
+from app.db.session import get_db
+from app.schemas.schemas import UserCreateSchema, UserSchema, UserUpdateSchema
 from app.utils.audit import log_security_action
 
-router = APIRouter()
+router = APIRouter(prefix="/users", tags=["users"])
 
-@router.get("/", response_model=List[User])
+
+@router.get("/", response_model=list[UserSchema])
 def read_users(
-    db: Session = Depends(get_db),
-    skip: int = 0,
-    limit: int = 100,
-    current_user: UserModel = Depends(deps.get_current_active_admin),
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(deps.get_current_active_admin)],
 ) -> Any:
-    """
-    Retrieve users.
-    """
-    users = db.query(UserModel).offset(skip).limit(limit).all()
-    return users
+    """Ritorna l'elenco di tutti gli utenti (solo admin)."""
+    return db.query(User).all()
 
-@router.post("/", response_model=User, dependencies=[Depends(deps.check_write_permission)])
+
+@router.post("/", response_model=UserSchema)
 def create_user(
     *,
-    db: Session = Depends(get_db),
-    user_in: UserCreate,
-    current_user: UserModel = Depends(deps.get_current_active_admin),
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(deps.get_current_active_admin)],
+    user_in: UserCreateSchema,
 ) -> Any:
-    """
-    Create new user.
-    """
-    user = db.query(UserModel).filter(UserModel.username == user_in.username).first()
+    """Crea un nuovo utente (solo admin)."""
+    user = db.query(User).filter(User.username == user_in.username).first()
     if user:
         raise HTTPException(
             status_code=400,
             detail="The user with this username already exists in the system.",
         )
 
-    # Use provided password or fallback to default
-    default_password = os.getenv("DEFAULT_USER_PASSWORD", "primoaccesso") # NOSONAR
-    password_to_use = user_in.password if user_in.password else default_password
-
-    user = UserModel(
+    new_user = User(
         username=user_in.username,
-        hashed_password=security.get_password_hash(password_to_use),
-        account_name=user_in.account_name,
-        gender=user_in.gender,
+        hashed_password=security.get_password_hash(user_in.password),
         is_admin=user_in.is_admin,
+        account_name=user_in.account_name,
     )
-    db.add(user)
+    db.add(new_user)
     db.commit()
-    db.refresh(user)
+    db.refresh(new_user)
 
-    log_security_action(db, current_user, "USER_CREATE", f"Creato utente: {user.username} (Admin: {user.is_admin})", category="USER_MGMT")
+    log_security_action(
+        db, current_user, "USER_CREATE", f"Creato utente {new_user.username}", category="ADMIN"
+    )
+    return new_user
 
-    return user
 
-@router.put("/{user_id}", response_model=User, dependencies=[Depends(deps.check_write_permission)])
+@router.put("/{user_id}", response_model=UserSchema)
 def update_user(
     *,
-    db: Session = Depends(get_db),
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(deps.get_current_active_admin)],
     user_id: int,
-    user_in: UserUpdate,
-    current_user: UserModel = Depends(deps.get_current_active_admin),
+    user_in: UserUpdateSchema,
 ) -> Any:
-    """
-    Update a user.
-    """
-    user = db.query(UserModel).filter(UserModel.id == user_id).first()
+    """Aggiorna un utente esistente (solo admin)."""
+    user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(
             status_code=404,
             detail="The user with this id does not exist in the system",
         )
 
-    update_data = user_in.model_dump(exclude_unset=True)
+    if user_in.password:
+        user.hashed_password = security.get_password_hash(user_in.password)
+    if user_in.is_admin is not None:
+        user.is_admin = user_in.is_admin
+    if user_in.account_name:
+        user.account_name = user_in.account_name
 
-    if "username" in update_data and update_data["username"] != user.username:
-        existing_user = db.query(UserModel).filter(UserModel.username == update_data["username"]).first()
-        if existing_user:
-            raise HTTPException(
-                status_code=400,
-                detail="The user with this username already exists in the system.",
-            )
-
-    password_changed = False
-    if update_data.get("password"):
-        hashed_password = security.get_password_hash(update_data["password"])
-        del update_data["password"]
-        user.hashed_password = hashed_password
-        password_changed = True
-
-    for field, value in update_data.items():
-        setattr(user, field, value)
-
-    db.add(user)
     db.commit()
     db.refresh(user)
 
-    if password_changed:
-        log_security_action(db, current_user, "PASSWORD_CHANGE", f"Cambiata password per utente: {user.username}", category="USER_MGMT")
-    else:
-        log_security_action(db, current_user, "USER_UPDATE", f"Aggiornato utente: {user.username}. Campi: {', '.join(update_data.keys())}", category="USER_MGMT")
-
+    log_security_action(
+        db, current_user, "USER_UPDATE", f"Aggiornato utente {user.username}", category="ADMIN"
+    )
     return user
 
-@router.delete("/{user_id}", response_model=User, dependencies=[Depends(deps.check_write_permission)])
+
+@router.delete("/{user_id}", response_model=UserSchema)
 def delete_user(
     *,
-    db: Session = Depends(get_db),
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(deps.get_current_active_admin)],
     user_id: int,
-    current_user: UserModel = Depends(deps.get_current_active_admin),
 ) -> Any:
-    """
-    Delete a user.
-    """
-    user = db.query(UserModel).filter(UserModel.id == user_id).first()
+    """Elimina un utente (solo admin)."""
+    user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(
             status_code=404,
             detail="The user with this id does not exist in the system",
         )
-    if user.id == current_user.id:
-        raise HTTPException(
-            status_code=400,
-            detail="You cannot delete your own account.",
-        )
 
-    username_snapshot = user.username
+    if user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="Users cannot delete themselves")
+
+    username = user.username
     db.delete(user)
     db.commit()
 
-    log_security_action(db, current_user, "USER_DELETE", f"Eliminato utente: {username_snapshot}", category="USER_MGMT")
-
+    log_security_action(
+        db, current_user, "USER_DELETE", f"Eliminato utente {username}", category="ADMIN"
+    )
     return user

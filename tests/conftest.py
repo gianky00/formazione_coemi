@@ -1,9 +1,7 @@
-import sys
-import os
-import shutil
-from pathlib import Path
-from unittest.mock import MagicMock
 import asyncio
+import os
+import sys
+from unittest.mock import MagicMock
 
 # --- GLOBAL KILL SWITCH (MUST BE BEFORE ANY APP IMPORTS) ---
 # Prevent external services (Sentry, PostHog, WMI) from starting background threads or making network calls.
@@ -37,28 +35,30 @@ sys.modules["wandb"] = MagicMock()
 # 5. Disable 'atexit' handlers
 # This prevents launcher.py's 'track_exit' from running after pytest closes the loop.
 import atexit
+
 atexit.register = MagicMock()
 
 # --- APP IMPORTS (Now safe to import) ---
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from contextlib import asynccontextmanager
 
-from app.main import app
-from app.db.session import get_db, engine
-from app.db.models import Base, User
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import sessionmaker
+
 from app.api import deps
-from app.core.db_security import db_security
 from app.core.config import settings
+from app.core.db_security import db_security
+from app.db.models import Base, User
+from app.db.session import engine, get_db
+from app.main import app
 
 # Env setup
 os.environ["GEMINI_API_KEY"] = "test_key"
 os.environ["GOOGLE_CLOUD_PROJECT"] = "test-project"
 os.environ["GCS_BUCKET_NAME"] = "test-bucket"
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 
 @pytest.fixture(scope="session")
 def event_loop():
@@ -75,11 +75,13 @@ def event_loop():
     yield loop
     loop.close()
 
+
 @pytest.fixture(scope="session")
 def test_dirs(tmp_path_factory):
     """Creates a temporary directory for data storage."""
     d = tmp_path_factory.mktemp("data")
     return d
+
 
 @pytest.fixture(scope="session", autouse=True)
 def mock_settings(test_dirs):
@@ -90,7 +92,7 @@ def mock_settings(test_dirs):
     # Mock data to match what SettingsManager expects
     mock_data = {
         "DATABASE_PATH": str(test_dirs),
-        "GEMINI_API_KEY_ANALYSIS": "obf:test_key_123", # Obfuscated format
+        "GEMINI_API_KEY_ANALYSIS": "obf:test_key_123",  # Obfuscated format
         "GEMINI_API_KEY_CHAT": "obf:test_chat_key_123",
         "SMTP_HOST": "localhost",
         "SMTP_PORT": 1025,
@@ -101,12 +103,13 @@ def mock_settings(test_dirs):
         "ALERT_THRESHOLD_DAYS": 60,
         "ALERT_THRESHOLD_DAYS_VISITE": 30,
         "FIRST_RUN_ADMIN_USERNAME": "admin",
-        "FIRST_RUN_ADMIN_PASSWORD": "prova"
+        "FIRST_RUN_ADMIN_PASSWORD": "prova",
     }
-    
+
     # Patch the mutable settings object
     settings.mutable._data = mock_data
     return mock_data
+
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_security_manager(test_dirs):
@@ -118,7 +121,7 @@ def setup_security_manager(test_dirs):
     db_security.data_dir = test_dirs
     db_security.db_path = test_dirs / "database_documenti.db"
     db_security.lock_path = test_dirs / ".database_documenti.db.lock"
-    
+
     # 2. Mock Encryption (Fernet) - Passthrough
     mock_fernet = MagicMock()
     mock_fernet.encrypt.side_effect = lambda x: x
@@ -130,8 +133,9 @@ def setup_security_manager(test_dirs):
     db_security.lock_manager.acquire.return_value = (True, {"user": "test_runner"})
     db_security.lock_manager.update_heartbeat.return_value = True
     db_security.lock_manager.release.return_value = True
-    
+
     return db_security
+
 
 @pytest.fixture(scope="function")
 def db_session(setup_security_manager):
@@ -143,25 +147,25 @@ def db_session(setup_security_manager):
     db_security.active_connection = None
     db_security.initial_bytes = None
     db_security.is_read_only = False
-    
+
     # 2. Clean up disk (mocked disk)
     if db_security.db_path.exists():
         os.remove(db_security.db_path)
-        
+
     # 3. Dispose Engine (Clear StaticPool)
     engine.dispose()
-    
+
     # 4. Initialize Connection (This triggers load_memory_db, which will find no file and start empty)
     # We call get_connection explicitly to ensure the global 'active_connection' is set
     connection = db_security.get_connection()
-    
+
     # 5. Create Tables
     Base.metadata.create_all(bind=engine)
-    
+
     # 6. Create Session
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
-    
+
     try:
         yield session
     finally:
@@ -171,33 +175,39 @@ def db_session(setup_security_manager):
             db_security.active_connection.close()
         db_security.active_connection = None
 
+
 @pytest.fixture(scope="function")
 def test_client(db_session):
     """
     FastAPI TestClient with overridden DB dependency.
     """
+
     def override_get_db():
         yield db_session
-        
+
     def override_get_current_user():
         return User(id=1, username="admin", is_admin=True, hashed_password="hashed_secret")
 
     app.dependency_overrides[get_db] = override_get_db
-    app.dependency_overrides[deps.check_write_permission] = lambda: None # Always allow write in basic tests
-    app.dependency_overrides[deps.verify_license] = lambda: True # Bypass license check in tests
+    app.dependency_overrides[deps.check_write_permission] = lambda: (
+        None
+    )  # Always allow write in basic tests
+    app.dependency_overrides[deps.verify_license] = lambda: True  # Bypass license check in tests
     app.dependency_overrides[deps.get_current_user] = override_get_current_user
-    
+
     # Disable lifespan to prevent startup errors from invalid config/env
     @asynccontextmanager
     async def no_lifespan(app):
         yield
+
     app.router.lifespan_context = no_lifespan
-    
+
     # Set base_url to include the API prefix so tests using relative paths work
     with TestClient(app, base_url="http://testserver/api/v1") as client:
         yield client
-        
+
     app.dependency_overrides = {}
+
 
 @pytest.fixture
 def mock_ai_service(mocker):
@@ -206,13 +216,16 @@ def mock_ai_service(mocker):
     """
     return mocker.patch("app.services.ai_extraction.extract_entities_with_ai")
 
+
 @pytest.fixture(scope="session")
 def admin_token_headers():
     return {"Authorization": "Bearer admin-token"}
 
+
 @pytest.fixture(scope="session")
 def user_token_headers():
     return {"Authorization": "Bearer user-token"}
+
 
 @pytest.fixture
 def override_user_auth(db_session):
@@ -223,14 +236,15 @@ def override_user_auth(db_session):
     user = User(username="admin", is_admin=True, hashed_password="hashed_secret")
     db_session.add(user)
     db_session.commit()
-    
+
     def override():
         return user
-        
+
     app.dependency_overrides[deps.get_current_user] = override
     yield
     # Clean up handled by db_session rollback/close
 
+
 @pytest.fixture
 def anyio_backend():
-    return 'asyncio'
+    return "asyncio"

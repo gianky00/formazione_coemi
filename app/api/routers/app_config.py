@@ -1,37 +1,43 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
-from typing import Dict, Any, Optional
-from app.api.deps import get_current_active_admin, check_write_permission, get_current_user
-from app.core.config import settings, get_user_data_dir
 import logging
 from pathlib import Path
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
+
+from app.api.deps import check_write_permission, get_current_active_admin, get_current_user
+from app.core.config import get_user_data_dir, settings
 
 router = APIRouter()
+
 
 class AppConfigSchema(BaseModel):
     github_token: str
     repo_owner: str
     repo_name: str
 
+
 class MutableSettingsSchema(BaseModel):
     """Pydantic model for validating incoming mutable settings updates."""
-    FIRST_RUN_ADMIN_PASSWORD: Optional[str] = Field(None, min_length=4)
-    GEMINI_API_KEY_ANALYSIS: Optional[str] = None
-    GEMINI_API_KEY_CHAT: Optional[str] = None
-    VOICE_ASSISTANT_ENABLED: Optional[bool] = None
-    SMTP_HOST: Optional[str] = None
-    SMTP_PORT: Optional[int] = Field(None, gt=0, le=65535)
-    SMTP_USER: Optional[str] = None
-    SMTP_PASSWORD: Optional[str] = None
-    EMAIL_RECIPIENTS_TO: Optional[str] = None
-    EMAIL_RECIPIENTS_CC: Optional[str] = None
-    ALERT_THRESHOLD_DAYS: Optional[int] = Field(None, ge=1)
-    ALERT_THRESHOLD_DAYS_VISITE: Optional[int] = Field(None, ge=1)
+
+    FIRST_RUN_ADMIN_PASSWORD: str | None = Field(None, min_length=4)
+    GEMINI_API_KEY_ANALYSIS: str | None = None
+    GEMINI_API_KEY_CHAT: str | None = None
+    VOICE_ASSISTANT_ENABLED: bool | None = None
+    SMTP_HOST: str | None = None
+    SMTP_PORT: int | None = Field(None, gt=0, le=65535)
+    SMTP_USER: str | None = None
+    SMTP_PASSWORD: str | None = None
+    EMAIL_RECIPIENTS_TO: str | None = None
+    EMAIL_RECIPIENTS_CC: str | None = None
+    ALERT_THRESHOLD_DAYS: int | None = Field(None, ge=1)
+    ALERT_THRESHOLD_DAYS_VISITE: int | None = Field(None, ge=1)
 
     # Extra fields sent by frontend that we must ignore to avoid 400 Bad Request
     # The frontend "ConfigView" mistakenly sends user profile data to this endpoint
-    account_name: Optional[str] = None
-    gender: Optional[str] = None
+    account_name: str | None = None
+    gender: str | None = None
+
 
 @router.get("/config/updater", response_model=AppConfigSchema)
 async def get_updater_config():
@@ -42,13 +48,12 @@ async def get_updater_config():
     return AppConfigSchema(
         github_token=settings.LICENSE_GITHUB_TOKEN,
         repo_owner=settings.LICENSE_REPO_OWNER,
-        repo_name=settings.LICENSE_REPO_NAME
+        repo_name=settings.LICENSE_REPO_NAME,
     )
 
-@router.get("/config/paths", response_model=Dict[str, str])
-async def get_config_paths(
-    current_user: dict = Depends(get_current_user)
-):
+
+@router.get("/config/paths", response_model=dict[str, str])
+async def get_config_paths(current_user: dict = Depends(get_current_user)):
     """
     Returns the configured database path and the default user data directory.
     Accessible to any authenticated user.
@@ -66,26 +71,23 @@ async def get_config_paths(
         elif db_path_obj.is_file() or db_path_obj.suffix:
             final_path = db_path_obj.parent
 
-    return {
-        "database_path": str(final_path),
-        "default_path": str(default_dir)
-    }
+    return {"database_path": str(final_path), "default_path": str(default_dir)}
 
-@router.get("/config", response_model=Dict[str, Any])
-async def get_mutable_config(
-    current_user: dict = Depends(get_current_active_admin)
-):
+
+@router.get("/config", response_model=dict[str, Any])
+async def get_mutable_config(current_user: dict = Depends(get_current_active_admin)):
     """
     Retrieves the current user-configurable settings.
     Requires admin privileges.
     """
     return settings.mutable.as_dict()
 
+
 @router.put("/config", status_code=status.HTTP_204_NO_CONTENT)
 async def update_mutable_config(
     new_settings: MutableSettingsSchema,
     current_user: dict = Depends(get_current_active_admin),
-    write_permission: None = Depends(check_write_permission)
+    write_permission: None = Depends(check_write_permission),
 ):
     """
     Updates user-configurable settings and saves them.
@@ -98,25 +100,28 @@ async def update_mutable_config(
         # Filter out ignored fields (account_name, gender) so they don't get saved to settings.json
         # These fields are currently not handled here (should be in /users/),
         # but we must accept them to prevent 400 errors.
-        filtered_data = {k: v for k, v in update_data.items() if k not in ["account_name", "gender"]}
+        filtered_data = {
+            k: v for k, v in update_data.items() if k not in ["account_name", "gender"]
+        }
 
         if not filtered_data:
             # If the request ONLY contained ignored fields, we just return success (noop)
             # instead of raising 400, to satisfy the frontend.
             if "account_name" in update_data or "gender" in update_data:
-                 return None
+                return None
 
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Request body cannot be empty."
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Request body cannot be empty."
             )
 
-        logging.info(f"User '{current_user.username}' updating settings with: {filtered_data.keys()}")
+        logging.info(
+            f"User '{current_user.username}' updating settings with: {filtered_data.keys()}"
+        )
 
         # Save the updated settings
         settings.save_mutable_settings(filtered_data)
 
-        return None # Return 204 No Content on success
+        return None  # Return 204 No Content on success
 
     except HTTPException:
         # Re-raise HTTPException to let FastAPI handle it
@@ -125,5 +130,5 @@ async def update_mutable_config(
         logging.error(f"Failed to update settings: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred while saving the settings."
+            detail="An unexpected error occurred while saving the settings.",
         )

@@ -2,10 +2,11 @@
 Advanced Column Filter Widget for Intelleo.
 Provides Excel-like filtering with multi-select, search, and date tree grouping.
 """
+
 import tkinter as tk
-from tkinter import ttk
-from datetime import datetime
 from collections import defaultdict
+from datetime import datetime
+from tkinter import ttk
 
 
 class AdvancedFilterPopup(tk.Toplevel):
@@ -34,7 +35,7 @@ class AdvancedFilterPopup(tk.Toplevel):
         self.transient(parent)
 
         # Make it stay on top
-        self.attributes('-topmost', True)
+        self.attributes("-topmost", True)
 
         self.setup_ui()
         self.load_values()
@@ -51,7 +52,7 @@ class AdvancedFilterPopup(tk.Toplevel):
 
     def _detect_date_column(self):
         """Detect if this column contains dates."""
-        date_keywords = ['data', 'date', 'scadenza', 'rilascio', 'nascita', 'emissione']
+        date_keywords = ["data", "date", "scadenza", "rilascio", "nascita", "emissione"]
         return any(kw in self.column.lower() for kw in date_keywords)
 
     def setup_ui(self):
@@ -62,8 +63,7 @@ class AdvancedFilterPopup(tk.Toplevel):
         search_frame = tk.Frame(main_frame, bg="#FFFFFF")
         search_frame.pack(fill="x", pady=(0, 10))
 
-        tk.Label(search_frame, text="Cerca:", bg="#FFFFFF",
-                 font=("Segoe UI", 9)).pack(side="left")
+        tk.Label(search_frame, text="Cerca:", bg="#FFFFFF", font=("Segoe UI", 9)).pack(side="left")
 
         self.search_var = tk.StringVar()
         self.search_var.trace("w", self._on_search_change)
@@ -74,27 +74,52 @@ class AdvancedFilterPopup(tk.Toplevel):
         btn_frame = tk.Frame(main_frame, bg="#FFFFFF")
         btn_frame.pack(fill="x", pady=(0, 5))
 
-        tk.Button(btn_frame, text="Seleziona tutto", command=self._select_all,
-                  bg="#3B82F6", fg="white", font=("Segoe UI", 8), relief="flat").pack(side="left", padx=2)
-        tk.Button(btn_frame, text="Deseleziona tutto", command=self._deselect_all,
-                  bg="#6B7280", fg="white", font=("Segoe UI", 8), relief="flat").pack(side="left", padx=2)
-        tk.Button(btn_frame, text="Inverti", command=self._invert_selection,
-                  bg="#9CA3AF", fg="white", font=("Segoe UI", 8), relief="flat").pack(side="left", padx=2)
+        tk.Button(
+            btn_frame,
+            text="Seleziona tutto",
+            command=self._select_all,
+            bg="#3B82F6",
+            fg="white",
+            font=("Segoe UI", 8),
+            relief="flat",
+        ).pack(side="left", padx=2)
+        tk.Button(
+            btn_frame,
+            text="Deseleziona tutto",
+            command=self._deselect_all,
+            bg="#6B7280",
+            fg="white",
+            font=("Segoe UI", 8),
+            relief="flat",
+        ).pack(side="left", padx=2)
+        tk.Button(
+            btn_frame,
+            text="Inverti",
+            command=self._invert_selection,
+            bg="#9CA3AF",
+            fg="white",
+            font=("Segoe UI", 8),
+            relief="flat",
+        ).pack(side="left", padx=2)
 
         # Checkbox list container
         list_container = tk.Frame(main_frame, bg="#FFFFFF")
         list_container.pack(fill="both", expand=True, pady=5)
 
         # Canvas for scrolling
-        self.canvas = tk.Canvas(list_container, bg="#FFFFFF", highlightthickness=1,
-                                highlightbackground="#E5E7EB")
+        self.canvas = tk.Canvas(
+            list_container, bg="#FFFFFF", highlightthickness=1, highlightbackground="#E5E7EB"
+        )
         scrollbar = ttk.Scrollbar(list_container, orient="vertical", command=self.canvas.yview)
 
         self.checkbox_frame = tk.Frame(self.canvas, bg="#FFFFFF")
-        self.checkbox_frame.bind("<Configure>",
-                                  lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+        self.checkbox_frame.bind(
+            "<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        )
 
-        self.canvas_window = self.canvas.create_window((0, 0), window=self.checkbox_frame, anchor="nw")
+        self.canvas_window = self.canvas.create_window(
+            (0, 0), window=self.checkbox_frame, anchor="nw"
+        )
         self.canvas.configure(yscrollcommand=scrollbar.set)
 
         # Expand checkbox frame width
@@ -111,15 +136,36 @@ class AdvancedFilterPopup(tk.Toplevel):
         action_frame = tk.Frame(main_frame, bg="#FFFFFF")
         action_frame.pack(fill="x", pady=(10, 0))
 
-        tk.Button(action_frame, text="Applica", command=self._apply_filter,
-                  bg="#10B981", fg="white", font=("Segoe UI", 9, "bold"),
-                  relief="flat", width=10).pack(side="right", padx=5)
-        tk.Button(action_frame, text="Cancella filtro", command=self._clear_filter,
-                  bg="#EF4444", fg="white", font=("Segoe UI", 9),
-                  relief="flat", width=12).pack(side="right", padx=5)
-        tk.Button(action_frame, text="Annulla", command=self.destroy,
-                  bg="#6B7280", fg="white", font=("Segoe UI", 9),
-                  relief="flat", width=8).pack(side="left")
+        tk.Button(
+            action_frame,
+            text="Applica",
+            command=self._apply_filter,
+            bg="#10B981",
+            fg="white",
+            font=("Segoe UI", 9, "bold"),
+            relief="flat",
+            width=10,
+        ).pack(side="right", padx=5)
+        tk.Button(
+            action_frame,
+            text="Cancella filtro",
+            command=self._clear_filter,
+            bg="#EF4444",
+            fg="white",
+            font=("Segoe UI", 9),
+            relief="flat",
+            width=12,
+        ).pack(side="right", padx=5)
+        tk.Button(
+            action_frame,
+            text="Annulla",
+            command=self.destroy,
+            bg="#6B7280",
+            fg="white",
+            font=("Segoe UI", 9),
+            relief="flat",
+            width=8,
+        ).pack(side="left")
 
     def _on_canvas_configure(self, event):
         self.canvas.itemconfig(self.canvas_window, width=event.width - 4)
@@ -158,8 +204,9 @@ class AdvancedFilterPopup(tk.Toplevel):
         self.checkboxes = {}
         for value in unique_values:
             var = tk.BooleanVar(value=True)
-            cb = ttk.Checkbutton(self.checkbox_frame, text=value, variable=var,
-                                 style="Filter.TCheckbutton")
+            cb = ttk.Checkbutton(
+                self.checkbox_frame, text=value, variable=var, style="Filter.TCheckbutton"
+            )
             cb.pack(anchor="w", pady=1, padx=5)
             self.checkboxes[value] = var
             self.selected_values.add(value)
@@ -196,9 +243,12 @@ class AdvancedFilterPopup(tk.Toplevel):
             year_frame = tk.Frame(self.checkbox_frame, bg="#FFFFFF")
             year_frame.pack(anchor="w", fill="x")
 
-            year_cb = ttk.Checkbutton(year_frame, text=f"\u25BC {year}",
-                                       variable=year_var,
-                                       command=lambda y=year: self._toggle_year(y))
+            year_cb = ttk.Checkbutton(
+                year_frame,
+                text=f"\u25bc {year}",
+                variable=year_var,
+                command=lambda y=year: self._toggle_year(y),
+            )
             year_cb.pack(anchor="w", padx=5)
 
             # Month container (collapsible)
@@ -214,9 +264,12 @@ class AdvancedFilterPopup(tk.Toplevel):
                 month_frame = tk.Frame(month_container, bg="#FFFFFF")
                 month_frame.pack(anchor="w", fill="x")
 
-                month_cb = ttk.Checkbutton(month_frame, text=f"\u25B8 {month_name}",
-                                            variable=month_var,
-                                            command=lambda mk=month_key: self._toggle_month(mk))
+                month_cb = ttk.Checkbutton(
+                    month_frame,
+                    text=f"\u25b8 {month_name}",
+                    variable=month_var,
+                    command=lambda mk=month_key: self._toggle_month(mk),
+                )
                 month_cb.pack(anchor="w", padx=5)
 
                 # Days container
@@ -228,9 +281,12 @@ class AdvancedFilterPopup(tk.Toplevel):
                     day_var = tk.BooleanVar(value=True)
                     self.day_vars[day_key] = day_var
 
-                    day_cb = ttk.Checkbutton(day_container, text=f"{day:02d}",
-                                              variable=day_var,
-                                              command=lambda dk=day_key: self._on_day_toggle(dk))
+                    day_cb = ttk.Checkbutton(
+                        day_container,
+                        text=f"{day:02d}",
+                        variable=day_var,
+                        command=lambda dk=day_key: self._on_day_toggle(dk),
+                    )
                     day_cb.pack(anchor="w", padx=5)
 
                     self.checkboxes[day_key] = day_var
@@ -259,8 +315,21 @@ class AdvancedFilterPopup(tk.Toplevel):
 
     def _get_month_name(self, month):
         """Get Italian month name."""
-        months = ["", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
-                  "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"]
+        months = [
+            "",
+            "Gennaio",
+            "Febbraio",
+            "Marzo",
+            "Aprile",
+            "Maggio",
+            "Giugno",
+            "Luglio",
+            "Agosto",
+            "Settembre",
+            "Ottobre",
+            "Novembre",
+            "Dicembre",
+        ]
         return months[month] if 1 <= month <= 12 else str(month)
 
     def _toggle_year(self, year):
@@ -314,22 +383,22 @@ class AdvancedFilterPopup(tk.Toplevel):
         """Select all visible checkboxes."""
         for var in self.checkboxes.values():
             var.set(True)
-        for var in getattr(self, 'year_vars', {}).values():
+        for var in getattr(self, "year_vars", {}).values():
             var.set(True)
-        for var in getattr(self, 'month_vars', {}).values():
+        for var in getattr(self, "month_vars", {}).values():
             var.set(True)
-        for var in getattr(self, 'day_vars', {}).values():
+        for var in getattr(self, "day_vars", {}).values():
             var.set(True)
 
     def _deselect_all(self):
         """Deselect all checkboxes."""
         for var in self.checkboxes.values():
             var.set(False)
-        for var in getattr(self, 'year_vars', {}).values():
+        for var in getattr(self, "year_vars", {}).values():
             var.set(False)
-        for var in getattr(self, 'month_vars', {}).values():
+        for var in getattr(self, "month_vars", {}).values():
             var.set(False)
-        for var in getattr(self, 'day_vars', {}).values():
+        for var in getattr(self, "day_vars", {}).values():
             var.set(False)
 
     def _invert_selection(self):
@@ -415,7 +484,7 @@ class FilterableTreeview(ttk.Treeview):
             self,
             column,
             display_name,
-            on_filter_change=self._on_filter_change
+            on_filter_change=self._on_filter_change,
         )
 
     def _on_filter_change(self, column, filter_type, filter_data):
@@ -521,7 +590,7 @@ def setup_filterable_treeview(tree, column_names):
                             tree,
                             col_name,
                             display_name,
-                            on_filter_change=on_filter
+                            on_filter_change=on_filter,
                         )
 
     tree.bind("<Button-3>", on_header_right_click)

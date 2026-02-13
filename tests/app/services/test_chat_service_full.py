@@ -1,8 +1,9 @@
-import pytest
-from unittest.mock import MagicMock, patch
 from datetime import date
+from unittest.mock import MagicMock, patch
+
+from app.db.models import Certificato, User
 from app.services.chat_service import chat_service
-from app.db.models import User, Certificato, Dipendente, Corso
+
 
 def test_get_rag_context_empty_db():
     mock_db = MagicMock()
@@ -20,26 +21,27 @@ def test_get_rag_context_empty_db():
     assert "Totale Documenti: 0" in context
     assert "DOCUMENTI SCADUTI (Top 0)" in context
 
+
 def test_get_rag_context_with_data():
     mock_db = MagicMock()
     mock_user = User(username="test", account_name="Tester")
 
     # Mock counts
     # Code calls Certificato count first, then Dipendente count using scalar()
-    mock_db.query.return_value.scalar.side_effect = [50, 10] # Certs=50, Employees=10
+    mock_db.query.return_value.scalar.side_effect = [50, 10]  # Certs=50, Employees=10
     # We need to simulate the objects structure
     cert_expired = MagicMock(spec=Certificato)
     cert_expired.id = 1
     cert_expired.dipendente.nome = "ROSSI MARIO"
     cert_expired.corso.nome_corso = "ANTINCENDIO"
-    cert_expired.data_scadenza_calcolata = date(2020, 1, 1) # Expired
+    cert_expired.data_scadenza_calcolata = date(2020, 1, 1)  # Expired
     cert_expired.dipendente_id = 1
 
     cert_expiring = MagicMock(spec=Certificato)
     cert_expiring.id = 2
     cert_expiring.dipendente.nome = "BIANCHI LUIGI"
     cert_expiring.corso.nome_corso = "HLO"
-    cert_expiring.data_scadenza_calcolata = date(2025, 12, 31) # Expiring soon (assuming threshold)
+    cert_expiring.data_scadenza_calcolata = date(2025, 12, 31)  # Expiring soon (assuming threshold)
     cert_expiring.dipendente_id = 2
 
     # Mock Orphans
@@ -54,18 +56,20 @@ def test_get_rag_context_with_data():
     # First query is for relevant_certs (expired/expiring)
     # The code calls: db.query(...).join(...).filter(...).limit(50).all()
     # So we must mock limit()
-    mock_db.query.return_value.join.return_value.filter.return_value.limit.return_value.all.return_value = [cert_expired, cert_expiring]
+    mock_db.query.return_value.join.return_value.filter.return_value.limit.return_value.all.return_value = [
+        cert_expired,
+        cert_expiring,
+    ]
 
     # Second query is for orphans
     # Code calls: db.query(...).filter(...).limit(20).all()
-    mock_db.query.return_value.filter.return_value.limit.return_value.all.return_value = [cert_orphan]
+    mock_db.query.return_value.filter.return_value.limit.return_value.all.return_value = [
+        cert_orphan
+    ]
 
     # Mock status calculation
     with patch("app.services.chat_service.get_bulk_certificate_statuses") as mock_statuses:
-        mock_statuses.return_value = {
-            1: "scaduto",
-            2: "in_scadenza"
-        }
+        mock_statuses.return_value = {1: "scaduto", 2: "in_scadenza"}
 
         context = chat_service.get_rag_context(mock_db, mock_user)
 
@@ -81,10 +85,12 @@ def test_get_rag_context_with_data():
     assert "DOCUMENTI DA VALIDARE/ORFANI (Top 1)" in context
     assert "ATEX" in context
 
-def test_chat_with_intelleo_success():
-    with patch("app.services.chat_service.settings") as mock_settings, \
-         patch("app.services.chat_service.genai") as mock_genai:
 
+def test_chat_with_intelleo_success():
+    with (
+        patch("app.services.chat_service.settings") as mock_settings,
+        patch("app.services.chat_service.genai") as mock_genai,
+    ):
         mock_settings.GEMINI_API_KEY_CHAT = "valid_key"
 
         mock_model = MagicMock()
@@ -98,6 +104,7 @@ def test_chat_with_intelleo_success():
         assert reply == "Risposta AI"
         mock_genai.configure.assert_called_with(api_key="valid_key")
 
+
 def test_chat_with_intelleo_missing_key():
     with patch("app.services.chat_service.settings") as mock_settings:
         mock_settings.GEMINI_API_KEY_CHAT = ""
@@ -105,10 +112,12 @@ def test_chat_with_intelleo_missing_key():
         reply = chat_service.chat_with_intelleo("Ciao", [], "Context")
         assert "Errore: Chiave API Chat non configurata" in reply
 
-def test_chat_with_intelleo_init_error():
-    with patch("app.services.chat_service.settings") as mock_settings, \
-         patch("app.services.chat_service.genai") as mock_genai:
 
+def test_chat_with_intelleo_init_error():
+    with (
+        patch("app.services.chat_service.settings") as mock_settings,
+        patch("app.services.chat_service.genai") as mock_genai,
+    ):
         mock_settings.GEMINI_API_KEY_CHAT = "valid_key"
         mock_genai.GenerativeModel.side_effect = Exception("Init Fail")
 
@@ -116,10 +125,12 @@ def test_chat_with_intelleo_init_error():
         # Updated to match actual error message structure
         assert "Init Fail" in reply
 
-def test_chat_with_intelleo_runtime_error():
-    with patch("app.services.chat_service.settings") as mock_settings, \
-         patch("app.services.chat_service.genai") as mock_genai:
 
+def test_chat_with_intelleo_runtime_error():
+    with (
+        patch("app.services.chat_service.settings") as mock_settings,
+        patch("app.services.chat_service.genai") as mock_genai,
+    ):
         mock_settings.GEMINI_API_KEY_CHAT = "valid_key"
 
         mock_model = MagicMock()

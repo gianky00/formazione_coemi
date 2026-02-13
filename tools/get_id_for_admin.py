@@ -1,6 +1,7 @@
 import os
-import uuid
 import sys
+import uuid
+
 
 def _get_windows_disk_serial():
     """
@@ -9,20 +10,25 @@ def _get_windows_disk_serial():
     """
     try:
         import wmi
+
         c = wmi.WMI()
         # Find the primary physical disk (usually DeviceID \\.\PHYSICALDRIVE0)
         for disk in c.Win32_DiskDrive():
             if "PHYSICALDRIVE0" in disk.DeviceID:
-                return disk.SerialNumber.strip().rstrip('.')
+                return disk.SerialNumber.strip().rstrip(".")
 
         # Fallback if specific device not found, return the first one found
-        return c.Win32_DiskDrive()[0].SerialNumber.strip().rstrip('.')
+        return c.Win32_DiskDrive()[0].SerialNumber.strip().rstrip(".")
     except ImportError:
-        print("Error: The 'WMI' module is not installed. Please run 'pip install wmi'.", file=sys.stderr)
+        print(
+            "Error: The 'WMI' module is not installed. Please run 'pip install wmi'.",
+            file=sys.stderr,
+        )
         return None
     except Exception as e:
         print(f"Error: Failed to get disk serial number via WMI: {e}", file=sys.stderr)
         return None
+
 
 def _get_mac_address():
     """
@@ -31,22 +37,24 @@ def _get_mac_address():
     try:
         mac = uuid.getnode()
         # Format MAC to a standard hex string
-        return ':'.join(('%012X' % mac)[i:i+2] for i in range(0, 12, 2))
+        return ":".join(("%012X" % mac)[i : i + 2] for i in range(0, 12, 2))
     except Exception:
         return None
+
 
 def get_machine_id():
     """
     Gets the most reliable and consistent hardware ID for the current OS.
     """
     machine_id = None
-    if os.name == 'nt':
+    if os.name == "nt":
         machine_id = _get_windows_disk_serial()
 
     if not machine_id:
         machine_id = _get_mac_address()
 
     return machine_id
+
 
 if __name__ == "__main__":
     """

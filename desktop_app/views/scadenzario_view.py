@@ -1,9 +1,9 @@
+import threading
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import filedialog, messagebox, ttk
+
 from desktop_app.utils import TaskRunner, open_file
 from desktop_app.widgets.advanced_filter import setup_filterable_treeview
-import os
-import threading
 
 
 class ScadenzarioView(tk.Frame):
@@ -23,8 +23,12 @@ class ScadenzarioView(tk.Frame):
         tk.Button(toolbar, text="Aggiorna", command=self.refresh_data).pack(side="left", padx=10)
 
         # Actions
-        tk.Button(toolbar, text="Esporta PDF", bg="#2563EB", fg="white", command=self.export_pdf).pack(side="left", padx=10)
-        tk.Button(toolbar, text="Invia Email Report", bg="#2563EB", fg="white", command=self.send_email).pack(side="left", padx=10)
+        tk.Button(
+            toolbar, text="Esporta PDF", bg="#2563EB", fg="white", command=self.export_pdf
+        ).pack(side="left", padx=10)
+        tk.Button(
+            toolbar, text="Invia Email Report", bg="#2563EB", fg="white", command=self.send_email
+        ).pack(side="left", padx=10)
 
         # Search
         tk.Label(toolbar, text="Cerca:", bg="#F3F4F6").pack(side="left", padx=(20, 5))
@@ -47,8 +51,14 @@ class ScadenzarioView(tk.Frame):
         self.combo_status.bind("<<ComboboxSelected>>", lambda e: self.filter_data())
 
         # Reset filters button
-        self.btn_reset = tk.Button(toolbar, text="Reset Filtri", bg="#6B7280", fg="white",
-                                    font=("Segoe UI", 8), command=self._reset_filters)
+        self.btn_reset = tk.Button(
+            toolbar,
+            text="Reset Filtri",
+            bg="#6B7280",
+            fg="white",
+            font=("Segoe UI", 8),
+            command=self._reset_filters,
+        )
         self.btn_reset.pack(side="left", padx=10)
         self.btn_reset.config(state="disabled")  # Initially disabled
 
@@ -57,10 +67,17 @@ class ScadenzarioView(tk.Frame):
         self.lbl_count.pack(side="right", padx=10)
 
         # Active filter indicator
-        self.lbl_filter_indicator = tk.Label(toolbar, text="", bg="#F3F4F6", fg="#DC2626", font=("Segoe UI", 8, "bold"))
+        self.lbl_filter_indicator = tk.Label(
+            toolbar, text="", bg="#F3F4F6", fg="#DC2626", font=("Segoe UI", 8, "bold")
+        )
         self.lbl_filter_indicator.pack(side="right", padx=5)
 
-        tk.Label(toolbar, text="Rosso=Scaduto | Arancio=In Scadenza | Verde=Valido", bg="#F3F4F6", font=("Segoe UI", 8)).pack(side="right", padx=20)
+        tk.Label(
+            toolbar,
+            text="Rosso=Scaduto | Arancio=In Scadenza | Verde=Valido",
+            bg="#F3F4F6",
+            font=("Segoe UI", 8),
+        ).pack(side="right", padx=20)
 
         # Treeview
         columns = ("dipendente", "corso", "categoria", "scadenza", "giorni_rimanenti")
@@ -102,7 +119,7 @@ class ScadenzarioView(tk.Frame):
             "corso": "Documento",
             "categoria": "Categoria",
             "scadenza": "Data Scadenza",
-            "giorni_rimanenti": "Giorni Rimanenti"
+            "giorni_rimanenti": "Giorni Rimanenti",
         }
         setup_filterable_treeview(self.tree, column_names)
         self.tree.bind("<<FilterChanged>>", lambda e: self._on_filter_changed())
@@ -122,7 +139,7 @@ class ScadenzarioView(tk.Frame):
 
     def _update_filter_indicator(self):
         """Update the filter indicator and reset button state."""
-        has_filters = hasattr(self.tree, 'has_filters') and self.tree.has_filters()
+        has_filters = hasattr(self.tree, "has_filters") and self.tree.has_filters()
         has_search = bool(self.entry_search.get())
         has_cat = self.combo_categoria.get() != "Tutte"
         has_status = self.combo_status.get() != "Tutti"
@@ -153,7 +170,7 @@ class ScadenzarioView(tk.Frame):
         self.combo_status.set("Tutti")
 
         # Reset column filters
-        if hasattr(self.tree, 'clear_filters'):
+        if hasattr(self.tree, "clear_filters"):
             self.tree.clear_filters()
 
         # Refresh display
@@ -178,23 +195,33 @@ class ScadenzarioView(tk.Frame):
 
         # Special sorting for numeric days column
         if col == "giorni_rimanenti":
+
             def sort_key(x):
                 val = x[0][col_idx]
                 try:
                     return int(val) if val != "N/D" else 99999
                 except:
                     return 99999
+
             items.sort(key=sort_key, reverse=self.sort_reverse)
         else:
-            items.sort(key=lambda x: str(x[0][col_idx]).lower() if x[0][col_idx] else "", reverse=self.sort_reverse)
+            items.sort(
+                key=lambda x: str(x[0][col_idx]).lower() if x[0][col_idx] else "",
+                reverse=self.sort_reverse,
+            )
 
         for idx, (vals, item) in enumerate(items):
             self.tree.move(item, "", idx)
 
         # Update heading to show sort direction
         arrow = " ▼" if self.sort_reverse else " ▲"
-        headings = {"dipendente": "Dipendente", "corso": "Documento",
-                   "categoria": "Categoria", "scadenza": "Scadenza", "giorni_rimanenti": "Giorni Rimanenti"}
+        headings = {
+            "dipendente": "Dipendente",
+            "corso": "Documento",
+            "categoria": "Categoria",
+            "scadenza": "Scadenza",
+            "giorni_rimanenti": "Giorni Rimanenti",
+        }
         for c in self.tree["columns"]:
             heading_text = headings.get(c, c)
             if c == col:
@@ -205,10 +232,12 @@ class ScadenzarioView(tk.Frame):
     def refresh_data(self):
         def fetch():
             try:
-                new_data = self.controller.api_client.get("certificati", params={"validated": "true"})
+                new_data = self.controller.api_client.get(
+                    "certificati", params={"validated": "true"}
+                )
                 if self.winfo_exists():
                     self.after(0, lambda: self._update_data(new_data))
-            except Exception as e:
+            except Exception:
                 if self.winfo_exists():
                     self.after(0, lambda: messagebox.showerror("Errore", str(e)))
 
@@ -262,6 +291,7 @@ class ScadenzarioView(tk.Frame):
         sorted_data = sorted(self.data, key=get_date_key)
 
         from datetime import datetime
+
         today = datetime.now().date()
 
         count = 0
@@ -271,7 +301,10 @@ class ScadenzarioView(tk.Frame):
             categoria = str(item.get("categoria") or "").lower()
 
             # Apply Category Filter
-            if cat_filter != "Tutte" and (item.get("categoria") or "").upper() != cat_filter.upper():
+            if (
+                cat_filter != "Tutte"
+                and (item.get("categoria") or "").upper() != cat_filter.upper()
+            ):
                 continue
 
             scadenza_str = item.get("data_scadenza")
@@ -314,7 +347,7 @@ class ScadenzarioView(tk.Frame):
                 item.get("corso"),
                 item.get("categoria") or "ALTRO",
                 scadenza_str,
-                days_str
+                days_str,
             )
             self.tree.insert("", "end", values=values, tags=(tag,))
             count += 1
@@ -322,14 +355,18 @@ class ScadenzarioView(tk.Frame):
         self.lbl_count.config(text=f"{count} certificati")
 
     def export_pdf(self):
-        file_path = filedialog.asksaveasfilename(defaultextension=".pdf", filetypes=[("PDF Files", "*.pdf")])
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".pdf", filetypes=[("PDF Files", "*.pdf")]
+        )
         if not file_path:
             return
 
         runner = TaskRunner(self, "Esportazione", "Generazione PDF in corso...")
         try:
+
             def task():
                 import requests
+
                 url = f"{self.controller.api_client.base_url}/notifications/export-report"
                 res = requests.get(url, headers=self.controller.api_client._get_headers())
                 res.raise_for_status()
@@ -344,11 +381,15 @@ class ScadenzarioView(tk.Frame):
             messagebox.showerror("Errore", f"Errore esportazione: {e}")
 
     def send_email(self):
-        if messagebox.askyesno("Conferma", "Inviare il report scadenze via email agli indirizzi configurati?"):
+        if messagebox.askyesno(
+            "Conferma", "Inviare il report scadenze via email agli indirizzi configurati?"
+        ):
             runner = TaskRunner(self, "Invio Email", "Invio in corso...")
             try:
+
                 def task():
                     import requests
+
                     url = f"{self.controller.api_client.base_url}/notifications/send-manual-alert"
                     res = requests.post(url, headers=self.controller.api_client._get_headers())
                     res.raise_for_status()

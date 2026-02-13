@@ -1,8 +1,8 @@
-import pytest
-from app.db.models import AuditLog, User
-from app.core import security
-from app.main import app as fastapi_app
 from app.api import deps
+from app.core import security
+from app.db.models import AuditLog, User
+from app.main import app as fastapi_app
+
 
 def test_brute_force_detection(test_client, db_session):
     # 1. Create a user
@@ -14,11 +14,18 @@ def test_brute_force_detection(test_client, db_session):
     # 2. Fail login 6 times
     # Note: TestClient uses 'testclient' as host usually, or 127.0.0.1
     for _ in range(6):
-        response = test_client.post("/auth/login", data={"username": "victim", "password": "wrongpassword"})
+        response = test_client.post(
+            "/auth/login", data={"username": "victim", "password": "wrongpassword"}
+        )
         assert response.status_code == 400
 
     # 3. Check logs
-    logs = db_session.query(AuditLog).filter(AuditLog.action == "LOGIN_FAILED").order_by(AuditLog.timestamp).all()
+    logs = (
+        db_session.query(AuditLog)
+        .filter(AuditLog.action == "LOGIN_FAILED")
+        .order_by(AuditLog.timestamp)
+        .all()
+    )
     assert len(logs) == 6
 
     # First should be MEDIUM
@@ -35,6 +42,7 @@ def test_brute_force_detection(test_client, db_session):
 
     assert logs[5].severity == "CRITICAL"
 
+
 def test_unauthorized_admin_access_logging(test_client, db_session):
     # Override get_current_user to return non-admin
     # We need to save the original override to restore it (though pytest fixture scope might handle it if we are careful)
@@ -50,7 +58,7 @@ def test_unauthorized_admin_access_logging(test_client, db_session):
     try:
         # Try to access an admin endpoint (e.g., GET /audit/)
         response = test_client.get("/audit/")
-        assert response.status_code == 400 # get_current_active_admin raises 400
+        assert response.status_code == 400  # get_current_active_admin raises 400
 
         # Check logs
         log = db_session.query(AuditLog).filter(AuditLog.action == "UNAUTHORIZED_ACCESS").first()
@@ -61,6 +69,6 @@ def test_unauthorized_admin_access_logging(test_client, db_session):
     finally:
         # Restore
         if original_override:
-             fastapi_app.dependency_overrides[deps.get_current_user] = original_override
+            fastapi_app.dependency_overrides[deps.get_current_user] = original_override
         else:
-             del fastapi_app.dependency_overrides[deps.get_current_user]
+            del fastapi_app.dependency_overrides[deps.get_current_user]
