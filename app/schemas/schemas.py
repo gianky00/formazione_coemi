@@ -148,16 +148,16 @@ class UserBase(BaseModel):
     is_admin: bool = False
 
 
-class UserCreate(UserBase):
+class UserCreateSchema(UserBase):
     password: Optional[str] = None
 
 
-class UserPasswordUpdate(BaseModel):
+class UserPasswordUpdateSchema(BaseModel):
     old_password: str
     new_password: str
 
 
-class UserUpdate(BaseModel):
+class UserUpdateSchema(BaseModel):
     username: Optional[str] = None
     account_name: Optional[str] = None
     password: Optional[str] = None
@@ -165,7 +165,7 @@ class UserUpdate(BaseModel):
     is_admin: Optional[bool] = None
 
 
-class User(UserBase):
+class UserSchema(UserBase):
     id: int
     last_login: Optional[datetime] = None
     previous_login: Optional[datetime] = None
