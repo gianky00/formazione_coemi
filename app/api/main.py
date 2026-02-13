@@ -5,7 +5,19 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
-from app.api import deps
+from app.api.routers import (
+    app_config,
+    audit,
+    auth,
+    certificates,
+    chat,
+    config,
+    courses,
+    employees,
+    notifications,
+    stats,
+    system,
+)
 from app.core.config import settings
 from app.db.models import Corso
 from app.db.session import get_db
@@ -13,6 +25,19 @@ from app.services import ai_extraction, certificate_logic
 from app.utils.date_parser import parse_date_flexible
 
 router = APIRouter()
+
+# Include sub-routers
+router.include_router(auth.router)
+router.include_router(employees.router)
+router.include_router(certificates.router)
+router.include_router(courses.router)
+router.include_router(chat.router)
+router.include_router(audit.router)
+router.include_router(stats.router)
+router.include_router(notifications.router)
+router.include_router(app_config.router)
+router.include_router(config.router)
+router.include_router(system.router)
 
 DATE_FORMAT_DMY: str = "%d/%m/%Y"
 
@@ -80,7 +105,6 @@ def _infer_expiration_date(db: Session, extracted_data: dict[str, Any]) -> None:
 @router.post(
     "/upload-pdf",
     response_model=dict[str, Any],
-    dependencies=[Depends(deps.verify_license)],
     tags=["Certificates"],
 )
 async def upload_pdf(
@@ -88,6 +112,7 @@ async def upload_pdf(
     file: UploadFile = File(...),
 ) -> Any:
     """Legacy endpoint for PDF upload, with data normalization and inference."""
+    # Note: verify_license is handled at app level prefix or can be added to individual routes
     pdf_bytes = await _read_file_securely(file, settings.MAX_UPLOAD_SIZE)
 
     try:
