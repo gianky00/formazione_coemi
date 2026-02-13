@@ -2,14 +2,14 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 def handle_file_rename(
     database_path: Path, status: str, old_file_path: str, new_cert_data: dict[str, Any]
-) -> tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """Rinomina o sposta il file fisico basandosi sui nuovi dati del certificato."""
     if not old_file_path or not os.path.exists(old_file_path):
         return False, None
@@ -39,7 +39,7 @@ def handle_file_rename(
 
 
 def rollback_file_move(
-    file_moved: bool, old_file_path: str, new_file_path: Optional[str], certificato_id: int
+    file_moved: bool, old_file_path: str, new_file_path: str | None, certificato_id: int
 ) -> None:
     """Annulla lo spostamento del file in caso di errore nel database."""
     if not file_moved or not new_file_path or not os.path.exists(new_file_path):

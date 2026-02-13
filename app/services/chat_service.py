@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import google.generativeai as genai
 from sqlalchemy import or_

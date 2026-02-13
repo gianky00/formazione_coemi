@@ -18,9 +18,9 @@ def move_database(
 ) -> Any:
     """Sposta il database in una nuova posizione (solo admin)."""
     # Logic is implemented in db_security but we need to expose it
-    from app.core.db_security import db_security
-
     from pathlib import Path
+
+    from app.core.db_security import db_security
 
     try:
         db_security.move_database(Path(new_path))

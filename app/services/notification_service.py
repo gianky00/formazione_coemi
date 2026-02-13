@@ -1,7 +1,4 @@
 import logging
-import os
-import tempasyncio
-from collections import defaultdict
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -9,7 +6,7 @@ from fpdf import FPDF
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.models import Certificato, Dipendente, ValidationStatus
+from app.db.models import Certificato, ValidationStatus
 from app.db.session import SessionLocal
 
 logger = logging.getLogger(__name__)
@@ -70,8 +67,8 @@ def _draw_table_rows(
         matricola = ""
         if cert.dipendente and cert.dipendente.matricola:
             matricola = str(cert.dipendente.matricola)
-        elif hasattr(cert, "matricola_raw") and getattr(cert, "matricola_raw"):
-            matricola = str(getattr(cert, "matricola_raw"))
+        elif hasattr(cert, "matricola_raw") and cert.matricola_raw:
+            matricola = str(cert.matricola_raw)
         if not matricola:
             matricola = "-"
 
@@ -81,8 +78,8 @@ def _draw_table_rows(
             cognome = cert.dipendente.cognome or ""
             nome = cert.dipendente.nome or ""
             dipendente_nome = f"{cognome} {nome}".strip()
-        if not dipendente_nome and hasattr(cert, "nome_dipendente_raw") and getattr(cert, "nome_dipendente_raw"):
-            dipendente_nome = str(getattr(cert, "nome_dipendente_raw"))
+        if not dipendente_nome and hasattr(cert, "nome_dipendente_raw") and cert.nome_dipendente_raw:
+            dipendente_nome = str(cert.nome_dipendente_raw)
         if not dipendente_nome:
             dipendente_nome = "-"
 

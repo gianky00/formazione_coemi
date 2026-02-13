@@ -1,9 +1,7 @@
 import os
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.config import get_user_data_dir, settings

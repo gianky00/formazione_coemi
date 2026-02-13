@@ -1,9 +1,7 @@
 import logging
-import os
 import shutil
-import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
@@ -132,7 +130,7 @@ def _move_deprecated_file(cert: Any, database_path: Path, trash_dir: Path) -> No
         pass
 
 
-def seed_database(db: Optional[Session] = None) -> None:
+def seed_database(db: Session | None = None) -> None:
     """
     Main entry point for database seeding and migration.
     """

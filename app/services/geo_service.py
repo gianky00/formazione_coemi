@@ -1,5 +1,4 @@
 import logging
-from typing import Any, Optional
 
 import geoip2.database
 from geoip2.models import City
@@ -10,10 +9,10 @@ logger = logging.getLogger(__name__)
 
 
 class GeoLocationService:
-    _reader: Optional[geoip2.database.Reader] = None
+    _reader: geoip2.database.Reader | None = None
 
     @classmethod
-    def get_reader(cls) -> Optional[geoip2.database.Reader]:
+    def get_reader(cls) -> geoip2.database.Reader | None:
         """Inizializza e ritorna il database GeoLite2."""
         if cls._reader is None:
             db_path = settings.GEOLITE_DB_PATH
