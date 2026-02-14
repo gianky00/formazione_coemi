@@ -147,10 +147,6 @@ if __name__ == "__main__":
 
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
-    print("\n" + "=" * 60)
-    print("🔐 STRING OBFUSCATION TEST")
-    print("=" * 60)
-
     # Test con segreti reali
     test_secrets = [
         "8kHs_rmwqaRUk1AQLGX65g4AEkWUDapWVsMFUQpN9Ek=",  # Fernet key
@@ -168,31 +164,14 @@ if __name__ == "__main__":
         match = secret == recovered
         not_plaintext = secret not in obfuscated
 
-        print(f"\n📝 Original:    {secret[:40]}{'...' if len(secret) > 40 else ''}")
-        print(f"🔒 Obfuscated:  {obfuscated[:50]}{'...' if len(obfuscated) > 50 else ''}")
-        print(f"🔓 Recovered:   {recovered[:40]}{'...' if len(recovered) > 40 else ''}")
-        print(f"✓  Match:       {'✅ YES' if match else '❌ NO'}")
-        print(
-            f"✓  Not Visible: {'✅ YES' if not_plaintext else '❌ NO (secret visible in obfuscated!)'}"
-        )
-
         if not match or not not_plaintext:
             all_passed = False
 
-    print("\n" + "=" * 60)
-
     # Genera output per copy-paste
-    print("\n📋 COPY-PASTE OUTPUT PER FERNET KEY:")
-    print("-" * 60)
     fernet_key = "8kHs_rmwqaRUk1AQLGX65g4AEkWUDapWVsMFUQpN9Ek="
     fernet_obfuscated = obfuscate_string(fernet_key)
-    print(f"\n# FERNET_KEY (Obfuscated with XOR key 0x{_XOR_KEY:02X})")
-    print(f'_FERNET_KEY_OBFUSCATED = "{fernet_obfuscated}"')
-    print("# To decode: deobfuscate_string(_FERNET_KEY_OBFUSCATED)")
 
-    print("\n" + "=" * 60)
     if all_passed:
-        print("✅ ALL TESTS PASSED")
+        pass
     else:
-        print("❌ SOME TESTS FAILED")
-    print("=" * 60 + "\n")
+        pass

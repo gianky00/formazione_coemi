@@ -69,7 +69,7 @@ L'algoritmo XOR con chiave statica `0x7B` protegge solo da `strings` command bas
 **Codice Vulnerabile:**
 ```python
 # app/core/string_obfuscation.py
-_XOR_KEY = 0x7B 
+_XOR_KEY = 0x7B
 def deobfuscate_string(obfuscated, key=_XOR_KEY): ...
 ```
 

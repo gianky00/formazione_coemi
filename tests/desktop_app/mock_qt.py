@@ -1,4 +1,5 @@
 import builtins
+import contextlib
 import datetime
 import traceback
 from unittest.mock import MagicMock
@@ -278,15 +279,11 @@ class DummyQRect:
             self._w = 100
             self._h = 100
             if hasattr(y, "width"):
-                try:
+                with contextlib.suppress(BaseException):
                     self._w = int(y.width())
-                except:
-                    pass
             if hasattr(y, "height"):
-                try:
+                with contextlib.suppress(BaseException):
                     self._h = int(y.height())
-                except:
-                    pass
         else:
             self._x = int(x)
             self._y = int(y)
@@ -501,7 +498,7 @@ class DummyQWidget(DummyQObject):
         # Mock implementation
         pass
 
-    def setContentsMargins(self, l, t, r, b):  # NOSONAR
+    def setContentsMargins(self, left, t, r, b):  # NOSONAR
         # Mock implementation
         pass
 
@@ -1035,7 +1032,7 @@ class DummyQDate:
             if "dd/MM/yyyy" in f:
                 d = datetime.datetime.strptime(s, "%d/%m/%Y").date()
                 return DummyQDate(d)
-        except:
+        except ValueError:
             pass
         return DummyQDate()
 

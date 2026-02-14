@@ -3,11 +3,13 @@ Notification Center Service for Intelleo.
 Manages all notifications with persistence and retrieval for the notification bell.
 """
 
+import contextlib
 import threading
 import tkinter as tk
 from collections import deque
 from datetime import datetime
 from tkinter import ttk
+from typing import ClassVar
 
 
 class Notification:
@@ -145,10 +147,8 @@ class NotificationCenter:
     def _notify_change(self):
         """Notify all listeners of changes."""
         for callback in self.on_change_callbacks:
-            try:
+            with contextlib.suppress(BaseException):
                 self.controller.root.after(0, callback)
-            except:
-                pass
 
 
 class NotificationBell(tk.Frame):
@@ -183,7 +183,7 @@ class NotificationBell(tk.Frame):
         # Use a bell character
         try:
             self.btn_bell.config(text="\U0001f514")  # Bell emoji
-        except:
+        except Exception:
             self.btn_bell.config(text="[N]")  # Fallback
 
         # Badge (count)
@@ -236,7 +236,7 @@ class NotificationPanel(tk.Toplevel):
     Dropdown panel showing all notifications.
     """
 
-    ICONS = {
+    ICONS: ClassVar[dict] = {
         "info": ("i", "#3B82F6"),
         "success": ("\u2713", "#10B981"),
         "warning": ("\u26a0", "#F59E0B"),
@@ -341,7 +341,7 @@ class NotificationPanel(tk.Toplevel):
         try:
             if self.winfo_exists():
                 self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-        except:
+        except Exception:
             pass
 
     def load_notifications(self):
@@ -479,7 +479,7 @@ class NotificationPanel(tk.Toplevel):
                 x = screen_width - panel_width - 10
 
             self.geometry(f"{panel_width}x400+{x}+{y}")
-        except:
+        except Exception:
             self.geometry("400x400+100+100")
 
     def _check_focus(self):
@@ -488,7 +488,7 @@ class NotificationPanel(tk.Toplevel):
             focused = self.focus_get()
             if focused is None or (focused != self and not str(focused).startswith(str(self))):
                 self.destroy()
-        except:
+        except Exception:
             pass
 
 
@@ -497,7 +497,7 @@ class NotificationsWindow(tk.Toplevel):
     Full notifications view window with detailed list and suggestions.
     """
 
-    ICONS = {
+    ICONS: ClassVar[dict] = {
         "info": ("i", "#3B82F6"),
         "success": ("\u2713", "#10B981"),
         "warning": ("\u26a0", "#F59E0B"),
@@ -505,7 +505,7 @@ class NotificationsWindow(tk.Toplevel):
         "alert": ("!", "#8B5CF6"),
     }
 
-    CATEGORY_LABELS = {
+    CATEGORY_LABELS: ClassVar[dict] = {
         "certificates": "Certificati",
         "employees": "Dipendenti",
         "system": "Sistema",
@@ -589,7 +589,7 @@ class NotificationsWindow(tk.Toplevel):
             ("info", "Info", "#3B82F6"),
         ]
 
-        for value, label, color in filters:
+        for value, label, _color in filters:
             rb = tk.Radiobutton(
                 sidebar,
                 text=label,
@@ -638,7 +638,7 @@ class NotificationsWindow(tk.Toplevel):
         try:
             if self.winfo_exists():
                 self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-        except:
+        except Exception:
             pass
 
     def load_notifications(self):

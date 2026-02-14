@@ -79,9 +79,7 @@ def test_organize_expired_files_move_success(mock_settings, mock_db_session):
             path = os.path.normpath(path)
             if path == os.path.normpath(base_path):
                 return True
-            if "STORICO" in path:
-                return False
-            return True
+            return "STORICO" not in path
 
         mock_exists.side_effect = exists_side_effect
 

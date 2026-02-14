@@ -329,12 +329,12 @@ begin
   begin
     AppDataDir := ExpandConstant('{localappdata}\Intelleo');
     if not DirExists(AppDataDir) then ForceDirectories(AppDataDir);
-    
+
     // Show post-install message
     MsgBox('Installazione completata!' + #13#10 + #13#10 +
            'Al primo avvio, Intelleo potrebbe richiedere la licenza.' + #13#10 +
            'Seguire le istruzioni a schermo.' + #13#10 + #13#10 +
-           'Versione: {#MyAppVersion} (Nuitka Build)', 
+           'Versione: {#MyAppVersion} (Nuitka Build)',
            mbInformation, MB_OK);
 
     EnvPath := AppDataDir + '\.env';

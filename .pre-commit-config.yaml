@@ -35,6 +35,9 @@ repos:
     rev: 0.24.0
     hooks:
       - id: deptry
+        entry: python -m deptry
+        pass_filenames: false
+        args: ["."]
 
   - repo: https://github.com/PyCQA/bandit
     rev: 1.9.3

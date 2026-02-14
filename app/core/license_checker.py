@@ -32,7 +32,4 @@ class LicenseChecker:
         cwd = os.getcwd()
         if os.path.exists(os.path.join(cwd, "pyarmor.rkey")):
             return True
-        if os.path.exists(os.path.join(cwd, "Licenza", "pyarmor.rkey")):
-            return True
-
-        return False
+        return bool(os.path.exists(os.path.join(cwd, "Licenza", "pyarmor.rkey")))

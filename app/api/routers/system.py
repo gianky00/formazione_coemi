@@ -102,7 +102,7 @@ def open_action(action_request: SystemAction) -> Any:
         return {"status": "success", "message": f"Action {action_request.action} dispatched"}
     except ImportError:
         logger.error("IPCBridge not found. Is desktop_app installed?")
-        raise HTTPException(status_code=500, detail="IPC Bridge unavailable")
+        raise HTTPException(status_code=500, detail="IPC Bridge unavailable") from None
     except Exception as e:
         logger.error(f"Error dispatching action: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e

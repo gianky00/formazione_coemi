@@ -10,6 +10,8 @@ import traceback as tb
 
 import uvicorn
 
+from app.core.path_resolver import get_base_path, get_license_path
+
 # REMOVED: sys.setrecursionlimit(5000) - Code smell removed.
 # If RecursionError occurs, investigate infinite loops in sync_service or UI tree.
 
@@ -20,7 +22,7 @@ LICENSE_FILE_CONFIG = "config.dat"
 
 
 # --- PHASE 2: LOGGING CONFIGURATION ---
-def setup_global_logging():
+def setup_global_logging() -> None:
     try:
         from desktop_app.services.path_service import get_user_data_dir
 
@@ -83,14 +85,14 @@ def setup_global_logging():
 
         logging.info("Global logging initialized.")
 
-    except Exception as e:
-        print(f"[CRITICAL] Failed to setup logging: {e}")
+    except Exception:
+        pass
 
 
 setup_global_logging()
 
 # --- CONFIGURAZIONE AMBIENTE (Nuitka-Compatible) ---
-from app.core.path_resolver import get_base_path, get_license_path
+
 
 if getattr(sys, "frozen", False):
     BASE_DIR = get_base_path()
@@ -123,7 +125,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 # --- UTILS ---
-def find_free_port(start_port=8000, max_port=8010):
+def find_free_port(start_port: int = 8000, max_port: int = 8010) -> int | None:
     for port in range(start_port, max_port + 1):
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -134,7 +136,7 @@ def find_free_port(start_port=8000, max_port=8010):
     return None
 
 
-def start_server(port):
+def start_server(port: int) -> None:
     from app.main import app
 
     log_config = {
@@ -162,7 +164,7 @@ def start_server(port):
     )
 
 
-def check_port(host, port):
+def check_port(host: str, port: int) -> bool:
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(0.1)
@@ -173,7 +175,7 @@ def check_port(host, port):
         return False
 
 
-def verify_license_files():
+def verify_license_files() -> bool:
     """Verifica la presenza dei file di licenza minimi necessari per l'avvio."""
     lic_dir = get_license_path()
     # config.dat è obbligatorio, pyarmor.rkey è consigliato ma obbligatorio per licenze attive
@@ -181,22 +183,20 @@ def verify_license_files():
     return all((lic_dir / f).exists() for f in required)
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--analyze", help="Path")
     parser.add_argument("--import-csv", help="Path")
     parser.add_argument("--view", help="View")
-    args, _ = parser.parse_known_args()
+    _args, _ = parser.parse_known_args()
 
     # 0. Verify License
     if not verify_license_files():
-        print("[CRITICAL] File di licenza mancanti o corrotti.")
         sys.exit(1)
 
     # 1. Start Backend in separate thread
     server_port = find_free_port()
     if not server_port:
-        print("[CRITICAL] Nessuna porta libera.")
         sys.exit(1)
 
     os.environ["API_URL"] = f"http://localhost:{server_port}/api/v1"
@@ -205,7 +205,6 @@ def main():
     server_thread.start()
 
     # 2. Wait for server (Blocking wait, simple)
-    print("Avvio server in corso...")
     t0 = time.time()
     ready = False
     while time.time() - t0 < 60:
@@ -215,7 +214,6 @@ def main():
         time.sleep(0.1)
 
     if not ready:
-        print("[CRITICAL] Timeout avvio server.")
         sys.exit(1)
 
     # 3. Start Tkinter Frontend
@@ -224,8 +222,7 @@ def main():
 
         app = ApplicationController()
         app.start()
-    except Exception as e:
-        print(f"[CRITICAL] Errore avvio interfaccia: {e}")
+    except Exception:
         tb.print_exc()
         sys.exit(1)
 

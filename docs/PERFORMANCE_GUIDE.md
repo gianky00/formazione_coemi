@@ -238,16 +238,16 @@ graph TD
     User[Utente] -->|Interazione UI| Tkinter[Desktop App]
     Tkinter -->|TaskRunner Thread| APIClient
     APIClient -->|HTTP Request| FastAPI[Backend Server]
-    
+
     subgraph Backend Performance
         FastAPI -->|Auth Check| Security
         FastAPI -->|CRUD| DBSession[DB Session]
         DBSession -->|Read/Write (Fast)| SQLiteRAM[(SQLite In-Memory)]
-        
+
         SQLiteRAM -.->|Serialize & Encrypt (Slow)| SaveDisk[Save to Disk]
         SaveDisk -->|Write File| EncryptedDB[database.db Encrypted]
     end
-    
+
     subgraph External Services
         FastAPI -->|Upload PDF| AIService[AI Extraction]
         AIService -->|Network Call (Slow)| Gemini[Google Gemini API]

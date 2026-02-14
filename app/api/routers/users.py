@@ -75,6 +75,17 @@ def update_user(
             detail="The user with this id does not exist in the system",
         )
 
+    if user_in.username:
+        duplicate = (
+            db.query(User).filter(User.username == user_in.username, User.id != user_id).first()
+        )
+        if duplicate:
+            raise HTTPException(
+                status_code=400,
+                detail="The user with this username already exists in the system.",
+            )
+        user.username = user_in.username
+
     if user_in.password:
         user.hashed_password = security.get_password_hash(user_in.password)
     if user_in.is_admin is not None:
@@ -107,7 +118,7 @@ def delete_user(
         )
 
     if user.id == current_user.id:
-        raise HTTPException(status_code=400, detail="Users cannot delete themselves")
+        raise HTTPException(status_code=400, detail="You cannot delete your own account")
 
     username = user.username
     db.delete(user)

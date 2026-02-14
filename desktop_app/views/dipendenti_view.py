@@ -146,10 +146,11 @@ class DipendentiView(tk.Frame):
                 new_data = self.controller.api_client.get_dipendenti_list()
                 if self.winfo_exists():
                     self.after(0, lambda: self._update_data(new_data))
-            except Exception:
+            except Exception as e:
                 if self.winfo_exists():
                     self.after(
-                        0, lambda: messagebox.showerror("Errore", f"Errore caricamento: {e}")
+                        0,
+                        lambda e=str(e): messagebox.showerror("Errore", f"Errore caricamento: {e}"),
                     )
 
         threading.Thread(target=fetch, daemon=True).start()
@@ -286,7 +287,7 @@ class StoricoCertificatiDialog(tk.Toplevel):
             return
 
         vals = self.tree.item(selected[0], "values")
-        corso = vals[0]
+        vals[0]
         categoria = vals[1]
         scadenza = vals[3]
         if scadenza == "NESSUNA":
@@ -503,7 +504,7 @@ class BulkAssignDialog(tk.Toplevel):
         list_frame = tk.Frame(frame, bg="#E5E7EB", relief="solid", bd=1)
         list_frame.pack(fill="x", pady=5)
 
-        for i, sel in enumerate(self.selected_items[:8]):  # Show max 8
+        for _i, sel in enumerate(self.selected_items[:8]):  # Show max 8
             vals = self.parent_view.tree.item(sel, "values")
             tk.Label(
                 list_frame,

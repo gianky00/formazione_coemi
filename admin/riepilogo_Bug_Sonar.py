@@ -55,13 +55,13 @@ if not TOKEN:
     print(
         "   Per evitare di inserirlo ogni volta, puoi impostare la variabile d'ambiente SONAR_TOKEN sul tuo OS."
     )
-    try:
+    import contextlib
+
+    with contextlib.suppress(Exception):
         # getpass nasconde quello che scrivi per sicurezza
         TOKEN = getpass.getpass(
             "🔑 Inserisci ora il tuo SonarCloud Token (invio per confermare): "
         ).strip()
-    except Exception:
-        pass
 
 # 3. Controllo finale
 if not TOKEN:
@@ -71,8 +71,8 @@ if not TOKEN:
 # In questo modo salverà sempre in formazione_coemi/docs/bug
 OUTPUT_SALVATAGGIO = os.path.join(PROJECT_ROOT, "docs", "bug")
 
-# Cerca junit.xml nella root del progetto (dove lo crea pytest)
-JUNIT_XML_PATH = os.path.join(PROJECT_ROOT, "junit.xml")
+# Cerca junit.xml nella cartella reports (dove lo crea pytest)
+JUNIT_XML_PATH = os.path.join(PROJECT_ROOT, "reports", "junit.xml")
 
 # Tipi di issues da esportare
 SOFTWARE_QUALITIES = ["RELIABILITY", "SECURITY", "MAINTAINABILITY"]
@@ -1734,9 +1734,7 @@ def generate_compact(issues, output_file):
     }
 
     md = ["# 📋 Quick Fix List", "", f"**Totale:** {len(issues)} issues", ""]
-    for q in SOFTWARE_QUALITIES:
-        if counts[q]:
-            md.append(f"- {get_quality_emoji(q)} {q}: {counts[q]}")
+    md.extend(f"- {get_quality_emoji(q)} {q}: {counts[q]}" for q in SOFTWARE_QUALITIES if counts[q])
     md.append("")
     md.append("---")
     md.append("")

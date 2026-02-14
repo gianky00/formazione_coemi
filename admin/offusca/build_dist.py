@@ -1,4 +1,5 @@
 import ast
+import contextlib
 import logging
 import os
 import platform
@@ -88,10 +89,8 @@ def kill_existing_process():
 
 def get_std_libs():
     libs = set(sys.builtin_module_names)
-    try:
+    with contextlib.suppress(AttributeError):
         libs.update(sys.stdlib_module_names)
-    except AttributeError:
-        pass
     return libs
 
 
@@ -124,10 +123,8 @@ def _gather_files_to_scan(source_dirs):
         full_source_dir = os.path.join(ROOT_DIR, source_dir)
         if not os.path.exists(full_source_dir):
             continue
-        for root, _, files in os.walk(full_source_dir):
-            for file in files:
-                if file.endswith(".py"):
-                    files_to_scan.append(os.path.join(root, file))
+        for root, _dirs, files in os.walk(full_source_dir):
+            files_to_scan.extend(os.path.join(root, file) for file in files if file.endswith(".py"))
     return files_to_scan
 
 
@@ -172,7 +169,7 @@ def _check_dlls():
     ]
     system_dlls_found = {}
     if os.name == "nt":
-        sys32 = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "System32")
+        sys32 = os.path.join(os.environ.get("SYSTEMROOT", "C:\\Windows"), "System32")
         for dll in dlls_to_check:
             path = os.path.join(sys32, dll)
             if os.path.exists(path):

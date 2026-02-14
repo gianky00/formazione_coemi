@@ -223,6 +223,10 @@ class SettingsManager:
         settings_file_path: Path = get_user_data_dir() / SETTINGS_FILENAME
         self.mutable: MutableSettings = MutableSettings(settings_file_path)
 
+    def _get_config_value(self, key: str, default: Any = None) -> Any:
+        """Helper to get value from mutable settings or environment."""
+        return self.mutable.get(key, default)
+
     # Convenience properties to access mutable settings directly
     @property
     def LICENSE_GITHUB_TOKEN(self) -> str:  # NOSONAR
@@ -252,11 +256,12 @@ class SettingsManager:
 
     @property
     def GEOLITE_DB_PATH(self) -> str | None:
-        return self._get_config_value("GEOLITE_DB_PATH", None)
+        val = self._get_config_value("GEOLITE_DB_PATH", None)
+        return str(val) if val is not None else None
 
     @property
     def SMTP_HOST(self) -> str:  # NOSONAR
-        return str(self.mutable.get("SMTP_HOST"))
+        return str(self.mutable.get("SMTP_HOST", ""))
 
     @property
     def SMTP_PORT(self) -> int:  # NOSONAR

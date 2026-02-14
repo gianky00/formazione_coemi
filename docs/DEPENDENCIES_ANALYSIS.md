@@ -80,21 +80,21 @@ graph TD
     App --> SQLAlchemy
     App --> GenAI[Google GenAI]
     App --> Security[Security Layer]
-    
+
     FastAPI --> Starlette
     FastAPI --> Pydantic
-    
+
     GenAI --> GRPC
     GenAI --> Protobuf
-    
+
     Security --> Cryptography
     Security --> PyArmor
     Security --> Jose[Python-Jose]
-    
+
     App --> Audio[Voice Service]
     Audio --> gTTS[Google TTS]
     Audio --> Pygame
-    
+
     App --> Sys[System]
     Sys --> WMI[WMI (Win32)]
     Sys --> PsUtil

@@ -48,6 +48,4 @@ async def chat_endpoint(
         return ChatResponse(response=reply)
 
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
-        ) from e
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e

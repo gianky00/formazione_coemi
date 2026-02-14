@@ -252,7 +252,7 @@ class DBSecurityManager:
             with open(self.db_path, "rb") as f:
                 content = f.read()
         except Exception as e:
-            raise RuntimeError(f"Could not read database file: {e}")
+            raise RuntimeError(f"Could not read database file: {e}") from e
 
         if content.startswith(self._HEADER):
             logger.info("Loading ENCRYPTED database into memory.")
@@ -260,7 +260,7 @@ class DBSecurityManager:
             try:
                 self.initial_bytes = self.fernet.decrypt(content[len(self._HEADER) :])
             except Exception as e:
-                raise ValueError(f"Failed to decrypt database: {e}")
+                raise ValueError(f"Failed to decrypt database: {e}") from e
         else:
             logger.info("Loading PLAIN database into memory. Security upgrade enforced.")
             self.is_locked_mode = True
@@ -279,15 +279,15 @@ class DBSecurityManager:
                 try:
                     conn.deserialize(self.initial_bytes)
                 except AttributeError:
-                    raise RuntimeError("Upgrade required for 'deserialize'.")
+                    raise RuntimeError("SQLite version does not support 'deserialize'.") from None
                 except Exception as e:
-                    raise RuntimeError(f"Failed to deserialize database: {e}")
+                    raise RuntimeError(f"Failed to deserialize database: {e}") from e
 
             self.active_connection = conn
 
         return self.active_connection
 
-    @retry(
+    @retry(  # type: ignore
         stop=stop_after_attempt(5),
         wait=wait_fixed(2),
         retry=retry_if_exception_type(PermissionError),

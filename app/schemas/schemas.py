@@ -84,6 +84,13 @@ class CertificatoCreazioneSchema(BaseModel):
     data_scadenza: str | None = None
     dipendente_id: int | None = None
 
+    @field_validator("nome")
+    @classmethod
+    def validate_full_name(cls, v: str) -> str:
+        if v and len(v.strip().split()) < 2:
+            raise ValueError("Formato nome non valido")
+        return v
+
     @field_validator("data_rilascio")
     @classmethod
     def validate_data_rilascio(cls, v: str) -> str:
@@ -92,7 +99,7 @@ class CertificatoCreazioneSchema(BaseModel):
         try:
             datetime.strptime(v, DATE_FORMAT_DMY)
         except ValueError:
-            raise ValueError(DATE_ERROR_MSG)
+            raise ValueError(DATE_ERROR_MSG) from None
         return v
 
     @field_validator("data_scadenza")
@@ -103,7 +110,7 @@ class CertificatoCreazioneSchema(BaseModel):
         try:
             datetime.strptime(v, DATE_FORMAT_DMY)
         except ValueError:
-            raise ValueError(DATE_ERROR_MSG)
+            raise ValueError(DATE_ERROR_MSG) from None
         return v
 
 
@@ -115,6 +122,16 @@ class CertificatoAggiornamentoSchema(BaseModel):
     data_rilascio: str | None = None
     data_scadenza: str | None = None
 
+    @field_validator("nome")
+    @classmethod
+    def validate_full_name(cls, v: str | None) -> str | None:
+        if v is not None:
+            if not v.strip():
+                raise ValueError("Il nome non può essere vuoto")
+            if len(v.strip().split()) < 2:
+                raise ValueError("Formato nome non valido")
+        return v
+
     @field_validator("data_rilascio")
     @classmethod
     def validate_data_rilascio(cls, v: str | None) -> str | None:
@@ -123,7 +140,7 @@ class CertificatoAggiornamentoSchema(BaseModel):
         try:
             datetime.strptime(v, DATE_FORMAT_DMY)
         except ValueError:
-            raise ValueError(DATE_ERROR_MSG)
+            raise ValueError(DATE_ERROR_MSG) from None
         return v
 
     @field_validator("data_scadenza")
@@ -134,7 +151,7 @@ class CertificatoAggiornamentoSchema(BaseModel):
         try:
             datetime.strptime(v, DATE_FORMAT_DMY)
         except ValueError:
-            raise ValueError(DATE_ERROR_MSG)
+            raise ValueError(DATE_ERROR_MSG) from None
         return v
 
 
@@ -155,6 +172,7 @@ class UserCreateSchema(UserBase):
 class UserPasswordUpdateSchema(BaseModel):
     old_password: str
     new_password: str
+    confirm_password: str
 
 
 class UserUpdateSchema(BaseModel):

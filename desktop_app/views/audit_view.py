@@ -76,11 +76,13 @@ class AuditView(tk.Frame):
                 data = self.controller.api_client.get_audit_logs(limit=500)
                 if self.winfo_exists():
                     self.after(0, lambda: self._update_data(data))
-            except Exception:
+            except Exception as e:
                 if self.winfo_exists():
                     self.after(
                         0,
-                        lambda: messagebox.showerror("Errore", f"Impossibile caricare i log: {e}"),
+                        lambda e=str(e): messagebox.showerror(
+                            "Errore", f"Impossibile caricare i log: {e}"
+                        ),
                     )
 
         threading.Thread(target=fetch, daemon=True).start()

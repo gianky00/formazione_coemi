@@ -47,7 +47,7 @@ class TestDBSecurityFailures(unittest.TestCase):
             # Patch os.remove on the module to ensure we catch the call
             with patch.object(db_security_module.os, "remove") as m_remove:
                 # Initialize manager (triggering the check)
-                mgr = DBSecurityManager()
+                DBSecurityManager()
 
                 # Verify removal was attempted
                 m_remove.assert_called()
@@ -61,7 +61,7 @@ class TestDBSecurityFailures(unittest.TestCase):
         with patch("builtins.open", mock_open(read_data=mock_file_content)):
             with patch.object(db_security_module.psutil, "pid_exists", return_value=False):
                 with patch.object(db_security_module.os, "remove") as m_remove:
-                    mgr = DBSecurityManager()
+                    DBSecurityManager()
                     m_remove.assert_called()
 
     def test_stale_lock_recovery_unrelated_process(self):
@@ -75,7 +75,7 @@ class TestDBSecurityFailures(unittest.TestCase):
                 with patch.object(db_security_module.psutil, "Process") as m_proc:
                     m_proc.return_value.name.return_value = "chrome.exe"
                     with patch.object(db_security_module.os, "remove") as m_remove:
-                        mgr = DBSecurityManager()
+                        DBSecurityManager()
                         m_remove.assert_called()
 
     def test_stale_lock_recovery_valid_process(self):
@@ -88,7 +88,7 @@ class TestDBSecurityFailures(unittest.TestCase):
                 with patch.object(db_security_module.psutil, "Process") as m_proc:
                     m_proc.return_value.name.return_value = "python.exe"
                     with patch.object(db_security_module.os, "remove") as m_remove:
-                        mgr = DBSecurityManager()
+                        DBSecurityManager()
                         m_remove.assert_not_called()
 
     def test_heartbeat_failure_triggers_readonly(self):
@@ -158,7 +158,7 @@ class TestDBSecurityFailures(unittest.TestCase):
         mgr.active_connection.serialize.return_value = b"db_data"
         mgr.db_path = Path("/tmp/mock_data/db.db")
 
-        with patch("builtins.open", mock_open()) as m_open:
+        with patch("builtins.open", mock_open()):
             with patch.object(db_security_module.os, "replace") as m_replace:
                 # First 2 calls fail, 3rd succeeds
                 m_replace.side_effect = [PermissionError, PermissionError, None]

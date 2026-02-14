@@ -30,7 +30,7 @@ class EditCertificatoDialog(tk.Toplevel):
             x = parent.winfo_rootx() + (parent.winfo_width() // 2) - (250)
             y = parent.winfo_rooty() + (parent.winfo_height() // 2) - (275)
             self.geometry(f"+{x}+{y}")
-        except:
+        except Exception:
             pass  # Fallback if parent not fully drawn
 
     def setup_ui(self):

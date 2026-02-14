@@ -28,6 +28,6 @@ def test_normal_execution():
     with patch("app.services.notification_service.get_report_data") as mock_data:
         mock_data.return_value = ([], [], [])
         # Mock SessionLocal to avoid DB connection
-        with patch("app.services.notification_service.SessionLocal") as MockSession:
+        with patch("app.services.notification_service.SessionLocal"):
             check_and_send_alerts()
             mock_data.assert_called_once()

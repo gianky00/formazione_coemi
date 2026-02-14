@@ -57,7 +57,7 @@ def test_audit_log_filtering(test_client: TestClient, db_session: Session):
     assert resp.status_code == 200
     data = resp.json()
     assert len(data) == 2
-    assert all(l["username"] == "user1" for l in data)
+    assert all(log["username"] == "user1" for log in data)
 
     # 3. Filter by Date Range (User 1 only recent)
     start = (datetime.now(UTC) - timedelta(days=1)).isoformat()
@@ -72,7 +72,7 @@ def test_audit_log_filtering(test_client: TestClient, db_session: Session):
     assert resp.status_code == 200
     data = resp.json()
     assert len(data) == 2
-    assert all(l["category"] == "AUTH" for l in data)
+    assert all(log["category"] == "AUTH" for log in data)
 
     # 5. Create Log via POST
     resp = test_client.post(

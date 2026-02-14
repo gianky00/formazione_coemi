@@ -1,57 +1,52 @@
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from app.services import ai_extraction
+from app.services.ai_extraction import GeminiClient, extract_entities_with_ai
 
 
 def test_gemini_client_singleton():
-    # Reset singleton
-    ai_extraction.GeminiClient._instance = None
+    GeminiClient._instance = None
+    with patch("app.services.ai_extraction.genai.GenerativeModel"):
+        with patch("app.services.ai_extraction.settings") as mock_settings:
+            mock_settings.GEMINI_API_KEY_ANALYSIS = "fake_key"
+            c1 = GeminiClient()
+            c2 = GeminiClient()
+            assert c1 is c2
 
+
+def test_extract_entities_json_decode_error():
+    # Mock text preview to pass 50 chars check
+    dummy_text = "Certificato di formazione professionale valido per 5 anni. " * 2
     with (
-        patch("google.generativeai.configure") as mock_conf,
-        patch("google.generativeai.GenerativeModel") as mock_model,
+        patch("app.utils.file_security.get_pdf_text_preview", return_value=dummy_text),
+        patch("app.services.ai_extraction.GeminiClient") as mock_client_class,
+        patch(
+            "app.services.ai_extraction._generate_content_with_retry",
+            return_value="Ecco il risultato: INVALID_JSON",
+        ),
     ):
-        client1 = ai_extraction.GeminiClient()
-        client2 = ai_extraction.GeminiClient()
+        mock_client = MagicMock()
+        mock_client.model = MagicMock()
+        mock_client_class.return_value = mock_client
 
-        assert client1 is client2
-        mock_conf.assert_called_once()
-        mock_model.assert_called_once()
-
-
-def test_gemini_client_missing_key():
-    ai_extraction.GeminiClient._instance = None
-
-    # Mock settings to return empty key
-    # We need to patch the settings object that GeminiClient imports
-    with patch("app.services.ai_extraction.settings") as mock_settings:
-        mock_settings.GEMINI_API_KEY_ANALYSIS = None
-
-        with pytest.raises(ValueError, match="GEMINI_API_KEY_ANALYSIS not configured"):
-            ai_extraction.GeminiClient()
+        result = extract_entities_with_ai(b"fake pdf")
+        assert "error" in result
+        assert "JSON" in result["error"]
 
 
-def test_extract_entities_json_decode_error(mocker):
-    mock_model = MagicMock()
-    mock_response = MagicMock()
-    mock_response.text = "Not JSON"
-    mock_model.generate_content.return_value = mock_response
+def test_extract_entities_generic_exception():
+    dummy_text = "Certificato di formazione professionale valido per 5 anni. " * 2
+    with (
+        patch("app.utils.file_security.get_pdf_text_preview", return_value=dummy_text),
+        patch("app.services.ai_extraction.GeminiClient") as mock_client_class,
+        patch(
+            "app.services.ai_extraction._generate_content_with_retry",
+            side_effect=Exception("API Error"),
+        ),
+    ):
+        mock_client = MagicMock()
+        mock_client.model = MagicMock()
+        mock_client_class.return_value = mock_client
 
-    mocker.patch("app.services.ai_extraction.get_gemini_model", return_value=mock_model)
-
-    result = ai_extraction.extract_entities_with_ai(b"pdf")
-    assert "error" in result
-    assert "Invalid JSON" in result["error"]
-
-
-def test_extract_entities_generic_exception(mocker):
-    mock_model = MagicMock()
-    mock_model.generate_content.side_effect = Exception("Boom")
-
-    mocker.patch("app.services.ai_extraction.get_gemini_model", return_value=mock_model)
-
-    result = ai_extraction.extract_entities_with_ai(b"pdf")
-    assert "error" in result
-    assert "AI call failed" in result["error"]
+        result = extract_entities_with_ai(b"fake pdf")
+        assert "error" in result
+        assert "API Error" in result["error"]

@@ -273,9 +273,11 @@ def test_no_critical_errors() -> bool:
 
         # Check for critical errors
         errors_found = []
-        for error_pattern in CRITICAL_ERRORS:
-            if error_pattern.lower() in combined.lower():
-                errors_found.append(error_pattern)
+        errors_found = [
+            error_pattern
+            for error_pattern in CRITICAL_ERRORS
+            if error_pattern.lower() in combined.lower()
+        ]
 
         if errors_found:
             print("   ❌ FAIL: Errori critici trovati:")

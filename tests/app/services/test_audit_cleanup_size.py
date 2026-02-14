@@ -30,8 +30,13 @@ def test_audit_cleanup_size_limit(db_session):
     assert count == 11
 
     # Verify oldest removed.
-    # The first one should be LOG_5 (since 0-4 removed).
-    ordered = db_session.query(AuditLog).order_by(AuditLog.timestamp.asc(), AuditLog.id.asc()).all()
+    # We ignore LOG_CLEANUP because it's added during cleanup
+    ordered = (
+        db_session.query(AuditLog)
+        .filter(AuditLog.action != "LOG_CLEANUP")
+        .order_by(AuditLog.timestamp.asc())
+        .all()
+    )
 
     assert ordered[0].action == "LOG_5"
-    assert ordered[-1].action == "LOG_CLEANUP"
+    assert ordered[-1].action == "LOG_14"

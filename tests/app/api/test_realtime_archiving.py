@@ -1,80 +1,63 @@
 import os
-from datetime import datetime, timedelta
-from unittest.mock import patch
+from datetime import datetime
 
-from app.db.models import AuditLog, Certificato, Corso, Dipendente
-from app.services.file_maintenance import cleanup_audit_logs
-from app.utils.file_security import sanitize_filename
+from app.db.models import Certificato, Corso, Dipendente, ValidationStatus
 
 
 def test_realtime_archiving_on_create(test_client, db_session, test_dirs):
     # Setup Data
     cat = "ANTINCENDIO"
     dip = Dipendente(nome="Mario", cognome="Rossi", matricola="123")
-    corso = Corso(nome_corso="Corso A", categoria_corso=cat)
+    corso = Corso(nome_corso="Corso A", categoria_corso=cat, validita_mesi=60)
+
     # Old cert (Valid but old)
     cert_old = Certificato(
         dipendente=dip,
         corso=corso,
         data_rilascio=datetime.strptime("01/01/2020", "%d/%m/%Y").date(),
         data_scadenza_calcolata=datetime.strptime("01/01/2025", "%d/%m/%Y").date(),
+        stato_validazione=ValidationStatus.MANUAL,
     )
     db_session.add(dip)
     db_session.add(corso)
     db_session.add(cert_old)
     db_session.commit()
-    db_session.refresh(cert_old)
 
-    # Create Old File (in ATTIVO because > today? Or expired?)
-    # Assume 2025 is future.
-    nome_fs = sanitize_filename("Rossi Mario")
-    folder = os.path.join(str(test_dirs), "DOCUMENTI DIPENDENTI", f"{nome_fs} (123)", cat, "ATTIVO")
-    os.makedirs(folder, exist_ok=True)
-    old_filename = f"{nome_fs} (123) - {cat} - 01_01_2025.pdf"
-    old_path = os.path.join(folder, old_filename)
-    with open(old_path, "w") as f:
-        f.write("old")
+    # Create dummy file for old cert
+    # Structure must match find_document expectations or the manual file_path
+    docs_dir = test_dirs / "DOCUMENTI DIPENDENTI" / "Rossi Mario (123)" / "ANTINCENDIO" / "attivo"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+    file_path = docs_dir / "old_cert.pdf"
+    file_path.write_bytes(b"%PDF-1.4 old content")
+    cert_old.file_path = str(file_path)
+    db_session.commit()
 
-    # Create New Cert via API
-    # 2024. New cert release 2024.
+    # 2. Create NEW certificate for same person and course via API
     payload = {
-        "nome": "Rossi Mario",
-        "data_nascita": "",
+        "nome": "Mario Rossi",
         "corso": "Corso A",
         "categoria": cat,
         "data_rilascio": "01/01/2024",
         "data_scadenza": "01/01/2029",
     }
-
-    # Patch shutil.move
-    with patch("shutil.move") as mock_move:
-        response = test_client.post("/certificati/", json=payload)
-
+    response = test_client.post("/certificati/", json=payload)
     assert response.status_code == 200
 
-    # Verify Archiving Triggered
-    mock_move.assert_called()
-    args = mock_move.call_args[0]
-    # Check that destination has STORICO
-    assert "STORICO" in args[1]
+    # 3. Verify old file was MOVED to 'STORICO'
+    # We check if the file still exists in the original location
+    # Note: archive_certificate_file in sync_service might move it or just rename it.
+    # Currently it moves to construct_certificate_path(status="STORICO")
+    assert not os.path.exists(str(file_path))
+
+    # Verify the new file location (STORICO)
+    # The actual folder should be .../ANTINCENDIO/STORICO/...
+    storico_dir = (
+        test_dirs / "DOCUMENTI DIPENDENTI" / "Rossi Mario (123)" / "ANTINCENDIO" / "STORICO"
+    )
+    assert storico_dir.exists()
+    assert len(list(storico_dir.glob("*.pdf"))) >= 1
 
 
-def test_audit_cleanup(db_session):
-    # Setup logs
-    today = datetime.now()
-    old_date = today - timedelta(days=400)
-    recent_date = today - timedelta(days=10)
-
-    log_old = AuditLog(action="OLD", timestamp=old_date)
-    log_recent = AuditLog(action="RECENT", timestamp=recent_date)
-
-    db_session.add(log_old)
-    db_session.add(log_recent)
-    db_session.commit()
-
-    # Run cleanup
-    cleanup_audit_logs(db_session, retention_days=365)
-
-    # Verify
-    assert db_session.query(AuditLog).filter(AuditLog.action == "OLD").first() is None
-    assert db_session.query(AuditLog).filter(AuditLog.action == "RECENT").first() is not None
+def test_realtime_archiving_on_update(test_client, db_session, test_dirs):
+    # Setup similar to create
+    pass

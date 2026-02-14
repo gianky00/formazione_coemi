@@ -39,12 +39,8 @@ def test_base_path_contains_project_structure():
     required_files = ["launcher.py", "requirements.txt"]
 
     missing = []
-    for d in required_dirs:
-        if not (base / d).exists():
-            missing.append(f"dir:{d}")
-    for f in required_files:
-        if not (base / f).exists():
-            missing.append(f"file:{f}")
+    missing.extend([f"dir:{d}" for d in required_dirs if not (base / d).exists()])
+    missing.extend([f"file:{f}" for f in required_files if not (base / f).exists()])
 
     if missing:
         print(f"   ❌ FAIL: Mancanti: {missing}")

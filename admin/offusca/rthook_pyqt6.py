@@ -8,9 +8,7 @@ def _force_load_qt_modules():
         # Import espliciti per forzare PyInstaller a caricare i binari
         import PyQt6.QtNetwork
         import PyQt6.QtPrintSupport
-        import PyQt6.QtWebChannel
-        import PyQt6.QtWebEngineCore
-        import PyQt6.QtWebEngineWidgets
+        import PyQt6.QtWebChannel  # noqa: F401
     except ImportError:
         # Ignora errori in fase di hook, verranno gestiti dal main se bloccanti
         # S1481: Unused variable removed

@@ -1,67 +1,74 @@
 from unittest.mock import MagicMock, patch
 
-from app.services import ai_extraction
+import pytest
 
-# --- Bug 2, 9, 10: AI Extraction Tests ---
+from app.services.ai_extraction import extract_entities_with_ai
 
 
-def test_ai_extraction_list_handling():
+@pytest.fixture
+def mock_pdf_text():
+    return "Questo è un certificato di prova molto lungo per superare i 50 caratteri di controllo."
+
+
+def test_ai_extraction_list_handling(mock_pdf_text):
     """
-    Bug 2: AI extraction discards data if the model returns a list, and does not warn user.
+    Bug 2: AI extraction discards data if the model returns a list.
     Expectation: Process first item AND include warning in the result.
     """
-    mock_response = MagicMock()
     # AI returns a JSON list with 2 items
-    json_content = '[{"nome": "Item 1", "categoria": "A"}, {"nome": "Item 2", "categoria": "B"}]'
-    mock_response.text = f"```json\n{json_content}\n```"
+    json_content = '[{"nome": "Item 1", "categoria": "FORMAZIONE"}, {"nome": "Item 2", "categoria": "ADDESTRAMENTO"}]'
 
     with (
-        patch("app.services.ai_extraction.get_gemini_model", return_value=MagicMock()),
-        patch(
-            "app.services.ai_extraction._generate_content_with_retry", return_value=mock_response
-        ),
+        patch("app.utils.file_security.get_pdf_text_preview", return_value=mock_pdf_text),
+        patch("app.services.ai_extraction.GeminiClient") as mock_client_class,
+        patch("app.services.ai_extraction._generate_content_with_retry", return_value=json_content),
     ):
-        result = ai_extraction.extract_entities_with_ai(b"fake_pdf_bytes")
+        mock_client = MagicMock()
+        mock_client.model = MagicMock()
+        mock_client_class.return_value = mock_client
+
+        result = extract_entities_with_ai(b"fake pdf")
 
         assert result["nome"] == "Item 1"
-        assert "warning" in result
-        assert "multiple_certificates_found" in result["warning"]
+        assert "warnings" in result
+        assert "più certificati" in result["warnings"][0]
 
 
-def test_ai_extraction_nested_json():
+def test_ai_extraction_nested_json(mock_pdf_text):
     """
-    Bug 9 Fix Check: Ensure nested JSON extraction works (which greedy/non-greedy regex fails).
+    Bug 9 Fix Check: Ensure JSON extraction works even with surrounding text.
     """
-    mock_response = MagicMock()
-    # Nested JSON structure
-    json_content = '{"nome": "T", "details": {"a": 1, "b": 2}}'
-    mock_response.text = f"Wrapper ```json\n{json_content}\n``` garbage"
+    json_content = '{"nome": "Mario Rossi", "categoria": "FORMAZIONE"}'
+    ai_response = f"Ecco il risultato: ```json\n{json_content}\n``` Spero sia utile."
 
     with (
-        patch("app.services.ai_extraction.get_gemini_model", return_value=MagicMock()),
-        patch(
-            "app.services.ai_extraction._generate_content_with_retry", return_value=mock_response
-        ),
+        patch("app.utils.file_security.get_pdf_text_preview", return_value=mock_pdf_text),
+        patch("app.services.ai_extraction.GeminiClient") as mock_client_class,
+        patch("app.services.ai_extraction._generate_content_with_retry", return_value=ai_response),
     ):
-        result = ai_extraction.extract_entities_with_ai(b"fake")
-        assert result["nome"] == "T"
-        # If regex was broken, it might truncate at first '}'
+        mock_client = MagicMock()
+        mock_client.model = MagicMock()
+        mock_client_class.return_value = mock_client
+
+        result = extract_entities_with_ai(b"fake pdf")
+        assert result["nome"] == "Mario Rossi"
 
 
-def test_ai_dynamic_category():
+def test_ai_dynamic_category(mock_pdf_text):
     """
     Bug 10: AI extraction forces unknown categories to 'ALTRO'.
     Expectation: Should allow unknown categories.
     """
-    mock_response = MagicMock()
-    json_content = '{"nome": "T", "categoria": "NUOVO_CORSO"}'
-    mock_response.text = f"```json\n{json_content}\n```"
+    json_content = '{"nome": "Test", "categoria": "NUOVA_CATEGORIA"}'
 
     with (
-        patch("app.services.ai_extraction.get_gemini_model", return_value=MagicMock()),
-        patch(
-            "app.services.ai_extraction._generate_content_with_retry", return_value=mock_response
-        ),
+        patch("app.utils.file_security.get_pdf_text_preview", return_value=mock_pdf_text),
+        patch("app.services.ai_extraction.GeminiClient") as mock_client_class,
+        patch("app.services.ai_extraction._generate_content_with_retry", return_value=json_content),
     ):
-        result = ai_extraction.extract_entities_with_ai(b"fake")
-        assert result["categoria"] == "NUOVO_CORSO"
+        mock_client = MagicMock()
+        mock_client.model = MagicMock()
+        mock_client_class.return_value = mock_client
+
+        result = extract_entities_with_ai(b"fake pdf")
+        assert result["categoria"] == "NUOVA_CATEGORIA"

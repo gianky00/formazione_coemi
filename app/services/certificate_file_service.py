@@ -17,10 +17,40 @@ def handle_file_rename(
     try:
         old_path = Path(old_file_path)
         ext = old_path.suffix
-        new_name = f"{new_cert_data.get('nome', 'certificato')}_{new_cert_data.get('corso', 'corso')}{ext}"
-        new_name = "".join(c for h in new_name if (c := h if h.isalnum() or h in "._-" else "_"))
 
-        target_dir = database_path / status
+        # Build a descriptive name
+        matricola = new_cert_data.get("matricola") or "N-A"
+        nome = new_cert_data.get("nome", "certificato")
+        categoria = new_cert_data.get("categoria", "corso")
+        scadenza = new_cert_data.get("data_scadenza", "").replace("/", "")
+
+        parts = []
+        if matricola != "N-A":
+            parts.append(str(matricola))
+        parts.append(nome)
+        parts.append(categoria)
+        if scadenza:
+            parts.append(scadenza)
+
+        new_name = "_".join(parts) + ext
+
+        # Sanitize filename
+        from app.utils.file_security import sanitize_filename
+
+        new_name = sanitize_filename(new_name).replace(" ", "_")
+
+        # Organize in DOCUMENTI DIPENDENTI / Nome (Matricola) / Categoria / Stato
+        # Standardize status to uppercase for folder consistency
+        status_dir_name = status.upper()
+
+        employee_folder = f"{sanitize_filename(nome)} ({sanitize_filename(str(matricola))})"
+        target_dir = (
+            database_path
+            / "DOCUMENTI DIPENDENTI"
+            / employee_folder
+            / sanitize_filename(categoria)
+            / status_dir_name
+        )
         target_dir.mkdir(parents=True, exist_ok=True)
 
         new_path = target_dir / new_name

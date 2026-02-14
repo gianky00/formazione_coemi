@@ -99,5 +99,5 @@ class ChatView(tk.Frame):
             if hasattr(self.controller, "voice_service") and self.controller.voice_service:
                 self.after(0, lambda: self.controller.voice_service.speak(reply))
 
-        except Exception:
-            self.after(0, lambda: self.append_message("Sistema", f"Errore: {e}"))
+        except Exception as e:
+            self.after(0, lambda e=str(e): self.append_message("Sistema", f"Errore: {e}"))

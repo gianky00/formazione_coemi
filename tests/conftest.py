@@ -1,50 +1,14 @@
 import asyncio
 import os
 import sys
-from unittest.mock import MagicMock
-
-# --- GLOBAL KILL SWITCH (MUST BE BEFORE ANY APP IMPORTS) ---
-# Prevent external services (Sentry, PostHog, WMI) from starting background threads or making network calls.
-# This prevents "Access Violation" and "I/O operation on closed file" crashes during teardown.
-
-# 1. Mock 'wmi' to prevent OS calls (Hardware ID)
-mock_wmi = MagicMock()
-mock_wmi.WMI.return_value = MagicMock()
-sys.modules["wmi"] = mock_wmi
-
-# 2. Mock 'posthog' to prevent analytics threads
-mock_ph = MagicMock()
-mock_ph.capture.return_value = None
-mock_ph.flush.return_value = None
-sys.modules["posthog"] = mock_ph
-
-# 3. Mock 'sentry_sdk' and its integrations to prevent error tracking threads
-mock_sentry = MagicMock()
-mock_sentry.init.return_value = None
-mock_sentry.is_initialized.return_value = False
-mock_sentry.capture_exception.return_value = None
-mock_sentry.capture_message.return_value = None
-sys.modules["sentry_sdk"] = mock_sentry
-sys.modules["sentry_sdk.integrations"] = MagicMock()
-sys.modules["sentry_sdk.integrations.fastapi"] = MagicMock()
-sys.modules["sentry_sdk.integrations.starlette"] = MagicMock()
-
-# 4. Mock 'wandb' (if present)
-sys.modules["wandb"] = MagicMock()
-
-# 5. Disable 'atexit' handlers
-# This prevents launcher.py's 'track_exit' from running after pytest closes the loop.
-import atexit
-
-atexit.register = MagicMock()
-
-# --- APP IMPORTS (Now safe to import) ---
 from contextlib import asynccontextmanager
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
 
+# --- GLOBAL KILL SWITCH (MUST BE BEFORE ANY APP IMPORTS) ---
 from app.api import deps
 from app.core.config import settings
 from app.core.db_security import db_security
@@ -92,6 +56,7 @@ def mock_settings(test_dirs):
     # Mock data to match what SettingsManager expects
     mock_data = {
         "DATABASE_PATH": str(test_dirs),
+        "DOCUMENTS_FOLDER": str(test_dirs),
         "GEMINI_API_KEY_ANALYSIS": "obf:test_key_123",  # Obfuscated format
         "GEMINI_API_KEY_CHAT": "obf:test_chat_key_123",
         "SMTP_HOST": "localhost",
@@ -157,7 +122,7 @@ def db_session(setup_security_manager):
 
     # 4. Initialize Connection (This triggers load_memory_db, which will find no file and start empty)
     # We call get_connection explicitly to ensure the global 'active_connection' is set
-    connection = db_security.get_connection()
+    db_security.get_connection()
 
     # 5. Create Tables
     Base.metadata.create_all(bind=engine)
@@ -186,7 +151,15 @@ def test_client(db_session):
         yield db_session
 
     def override_get_current_user():
-        return User(id=1, username="admin", is_admin=True, hashed_password="hashed_secret")
+        from datetime import UTC, datetime
+
+        return User(
+            id=1,
+            username="admin",
+            is_admin=True,
+            hashed_password="hashed_secret",
+            created_at=datetime.now(UTC),
+        )
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[deps.check_write_permission] = lambda: (

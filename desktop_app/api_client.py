@@ -81,7 +81,7 @@ class APIClient:
             return response.json()
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
             # S112: Replaced generic Exception/return with specific exception handling
-            raise ConnectionError(f"Offline: {e}")
+            raise ConnectionError(f"Offline: {e}") from e
 
     def login(self, username, password):
         url = f"{self.base_url}/auth/login"
@@ -93,7 +93,9 @@ class APIClient:
             return response.json()
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
             # S112: Raise more specific ConnectionError instead of generic Exception
-            raise ConnectionError("Impossibile connettersi al server (Rete irraggiungibile).")
+            raise ConnectionError(
+                "Impossibile connettersi al server (Rete irraggiungibile)."
+            ) from None
 
     def change_password(self, old_password, new_password):
         url = f"{self.base_url}/auth/change-password"

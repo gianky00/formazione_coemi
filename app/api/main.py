@@ -17,9 +17,9 @@ from app.api.routers import (
     notifications,
     stats,
     system,
+    users,
 )
 from app.core.config import settings
-from app.db.models import Corso
 from app.db.session import get_db
 from app.services import ai_extraction, certificate_logic
 from app.utils.date_parser import parse_date_flexible
@@ -38,6 +38,7 @@ router.include_router(notifications.router)
 router.include_router(app_config.router)
 router.include_router(config.router)
 router.include_router(system.router)
+router.include_router(users.router)
 
 DATE_FORMAT_DMY: str = "%d/%m/%Y"
 
@@ -79,7 +80,11 @@ def _infer_expiration_date(db: Session, extracted_data: dict[str, Any]) -> None:
     if extracted_data.get("data_scadenza") or not extracted_data.get("data_rilascio"):
         return
 
-    try:
+    from contextlib import suppress
+
+    from app.db.models import Corso
+
+    with suppress(Exception):
         corso_nome = str(extracted_data.get("corso") or "")
         categoria = str(extracted_data.get("categoria") or "")
 
@@ -98,8 +103,6 @@ def _infer_expiration_date(db: Session, extracted_data: dict[str, Any]) -> None:
             scadenza = certificate_logic.calculate_expiration_date(rilascio, course.validita_mesi)
             if scadenza:
                 extracted_data["data_scadenza"] = scadenza.strftime(DATE_FORMAT_DMY)
-    except Exception:
-        pass
 
 
 @router.post(
@@ -119,13 +122,13 @@ async def upload_pdf(
         extracted_data = ai_extraction.extract_entities_with_ai(pdf_bytes)
 
         if "error" in extracted_data:
-            return extracted_data
+            raise HTTPException(status_code=500, detail=extracted_data["error"])
 
         # Data normalization
         _normalize_extracted_dates(extracted_data)
         _infer_expiration_date(db, extracted_data)
 
-        return extracted_data
+        return {"entities": extracted_data}
 
     except Exception as e:
         logging.error(f"AI extraction failed: {e}", exc_info=True)

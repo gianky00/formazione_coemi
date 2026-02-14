@@ -155,7 +155,7 @@ class DatabaseView(tk.Frame):
         )
 
         # Rearrange items
-        for idx, (vals, item) in enumerate(items):
+        for idx, (_vals, item) in enumerate(items):
             self.tree.move(item, "", idx)
 
         # Update heading to show sort direction
@@ -202,9 +202,9 @@ class DatabaseView(tk.Frame):
                 )
                 if self.winfo_exists():
                     self.after(0, lambda: self._update_data(new_data))
-            except Exception:
+            except Exception as e:
                 if self.winfo_exists():
-                    self.after(0, lambda: messagebox.showerror("Errore", f"Errore: {e}"))
+                    self.after(0, lambda e=str(e): messagebox.showerror("Errore", f"Errore: {e}"))
 
         threading.Thread(target=fetch, daemon=True).start()
 
@@ -229,7 +229,7 @@ class DatabaseView(tk.Frame):
 
         # Update category combobox
         current_cat = self.combo_categoria.get()
-        cat_values = ["Tutte"] + sorted(categories)
+        cat_values = ["Tutte", *sorted(categories)]
         self.combo_categoria["values"] = cat_values
         if current_cat not in cat_values:
             self.combo_categoria.set("Tutte")

@@ -82,7 +82,7 @@ class TestLauncherCoverage(unittest.TestCase):
 
             # Verify server thread was started
             mock_thread.assert_called_once()
-            args, kwargs = mock_thread.call_args
+            _args, kwargs = mock_thread.call_args
             self.assertEqual(kwargs.get("target"), launcher.start_server)
 
             # Verify controller was started

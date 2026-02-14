@@ -44,7 +44,7 @@ def test_move_database_exception(test_client, admin_token_headers):
         # Need mock path check too, otherwise 400 "invalid folder"
         with patch("pathlib.Path.is_dir", return_value=True):
             res = test_client.post(
-                "/config/move-database", json={"new_path": "/tmp/new"}, headers=admin_token_headers
+                "/system-config/move-database?new_path=/tmp/new", headers=admin_token_headers
             )
 
         assert res.status_code == 500

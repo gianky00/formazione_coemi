@@ -1,0 +1,302 @@
+[WARNING] Unstaged files detected.
+[INFO] Stashing unstaged files to C:\Users\gianc\.cache\pre-commit\patch1771087241-428.
+trim trailing whitespace.................................................Passed
+fix end of files.........................................................Failed
+- hook id: end-of-file-fixer
+- exit code: 1
+- files were modified by this hook
+
+Fixing pre_commit_output.txt
+
+check yaml...............................................................Passed
+check for added large files..............................................Passed
+check for merge conflicts................................................Passed
+debug statements (python)................................................Passed
+ruff (legacy alias)......................................................Failed
+- hook id: ruff
+- exit code: 1
+- files were modified by this hook
+
+SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements
+  --> tests\app\core\test_db_security_advanced.py:90:5
+   |
+88 |       """Test that cleanup releases the lock."""
+89 |       # We mock save_to_disk to avoid complexity
+90 | /     with patch.object(db_manager, "save_to_disk") as mock_save:
+91 | |         with patch.object(db_manager, "release_lock") as mock_release:
+   | |______________________________________________________________________^
+92 |               db_manager.cleanup()
+   |
+help: Combine `with` statements
+
+SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements
+   --> tests\app\core\test_db_security_advanced.py:132:5
+    |
+130 |       mock_file.__enter__.return_value = mock_file
+131 |
+132 | /     with (
+133 | |         patch("pathlib.Path.exists", return_value=True),
+134 | |         patch("builtins.open", return_value=mock_file),
+135 | |         patch("psutil.pid_exists", return_value=False),
+136 | |     ):
+137 | |         with patch.object(db_manager, "_force_remove_lock") as mock_remove:
+    | |___________________________________________________________________________^
+138 |               db_manager._check_and_recover_stale_lock()
+    |
+help: Combine `with` statements
+
+SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements
+  --> tests\app\core\test_db_security_failures.py:46:9
+   |
+45 |           # Mock opening the lock file with corrupt JSON
+46 | /         with patch("builtins.open", mock_open(read_data=b"L{invalid_json")):
+47 | |             # Patch os.remove on the module to ensure we catch the call
+48 | |             with patch.object(db_security_module.os, "remove") as m_remove:
+   | |___________________________________________________________________________^
+49 |                   # Initialize manager (triggering the check)
+50 |                   DBSecurityManager()
+   |
+help: Combine `with` statements
+
+SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements
+  --> tests\app\core\test_db_security_failures.py:61:9
+   |
+59 |           mock_file_content = b"L" + lock_data
+60 |
+61 | /         with patch("builtins.open", mock_open(read_data=mock_file_content)):
+62 | |             with patch.object(db_security_module.psutil, "pid_exists", return_value=False):
+   | |___________________________________________________________________________________________^
+63 |                   with patch.object(db_security_module.os, "remove") as m_remove:
+64 |                       DBSecurityManager()
+   |
+help: Combine `with` statements
+
+SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements
+  --> tests\app\core\test_db_security_failures.py:73:9
+   |
+71 |           mock_file_content = b"L" + lock_data
+72 |
+73 | /         with patch("builtins.open", mock_open(read_data=mock_file_content)):
+74 | |             with patch.object(db_security_module.psutil, "pid_exists", return_value=True):
+   | |__________________________________________________________________________________________^
+75 |                   with patch.object(db_security_module.psutil, "Process") as m_proc:
+76 |                       m_proc.return_value.name.return_value = "chrome.exe"
+   |
+help: Combine `with` statements
+
+SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements
+  --> tests\app\core\test_db_security_failures.py:86:9
+   |
+84 |           mock_file_content = b"L" + lock_data
+85 |
+86 | /         with patch("builtins.open", mock_open(read_data=mock_file_content)):
+87 | |             with patch.object(db_security_module.psutil, "pid_exists", return_value=True):
+   | |__________________________________________________________________________________________^
+88 |                   with patch.object(db_security_module.psutil, "Process") as m_proc:
+89 |                       m_proc.return_value.name.return_value = "python.exe"
+   |
+help: Combine `with` statements
+
+SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements
+   --> tests\app\core\test_db_security_failures.py:125:9
+    |
+123 |           mgr.db_path = MagicMock(exists=lambda: True)
+124 |
+125 | /         with patch("builtins.open", side_effect=PermissionError("Access Denied")):
+126 | |             with self.assertRaises(RuntimeError):
+    | |_________________________________________________^
+127 |                   mgr.load_memory_db()
+    |
+help: Combine `with` statements
+
+SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements
+   --> tests\app\core\test_db_security_failures.py:161:9
+    |
+159 |           mgr.db_path = Path("/tmp/mock_data/db.db")
+160 |
+161 | /         with patch("builtins.open", mock_open()):
+162 | |             with patch.object(db_security_module.os, "replace") as m_replace:
+    | |_____________________________________________________________________________^
+163 |                   # First 2 calls fail, 3rd succeeds
+164 |                   m_replace.side_effect = [PermissionError, PermissionError, None]
+    |
+help: Combine `with` statements
+
+SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements
+   --> tests\app\core\test_db_security_failures.py:175:9
+    |
+173 |           mgr = DBSecurityManager()
+174 |
+175 | /         with patch("builtins.open", mock_open(read_data=b"NOT_A_DB_HEADER")):
+176 | |             with patch("sqlite3.connect") as m_connect:
+    | |_______________________________________________________^
+177 |                   mock_conn = MagicMock()
+178 |                   mock_cursor = MagicMock()
+    |
+help: Combine `with` statements
+
+PERF401 Use a list comprehension to create a transformed list
+  --> tests\app\db\test_db_infrastructure.py:69:13
+   |
+67 |     for call in mock_db.execute.mock_calls:
+68 |         if call.args:
+69 |             sql_executed.append(str(call.args[0]))
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+70 |
+71 |     assert any("previous_login" in sql for sql in sql_executed)
+   |
+help: Replace for loop with list comprehension
+
+SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements
+  --> tests\app\services\test_ai_extraction_extended.py:8:5
+   |
+ 6 |   def test_gemini_client_singleton():
+ 7 |       GeminiClient._instance = None
+ 8 | /     with patch("app.services.ai_extraction.genai.GenerativeModel"):
+ 9 | |         with patch("app.services.ai_extraction.settings") as mock_settings:
+   | |___________________________________________________________________________^
+10 |               mock_settings.GEMINI_API_KEY_ANALYSIS = "fake_key"
+11 |               c1 = GeminiClient()
+   |
+help: Combine `with` statements
+
+SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements
+  --> tests\app\services\test_ai_extraction_robustness.py:16:5
+   |
+14 |   def test_gemini_client_singleton():
+15 |       GeminiClient._instance = None
+16 | /     with patch("app.services.ai_extraction.genai.GenerativeModel"):
+17 | |         with patch("app.services.ai_extraction.settings") as mock_settings:
+   | |___________________________________________________________________________^
+18 |               mock_settings.GEMINI_API_KEY_ANALYSIS = "key"
+19 |               c1 = GeminiClient()
+   |
+help: Combine `with` statements
+
+E721 Use `is` and `is not` for type comparisons, or `isinstance()` for isinstance checks
+  --> tests\app\services\test_certificate_logic.py:28:12
+   |
+26 |     expiration_date = calculate_expiration_date(issue_date, validity_months)
+27 |     # This assertion should fail before the fix because it will return a datetime object
+28 |     assert type(expiration_date) == date
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+
+B018 Found useless attribute access. Either assign it to a variable or remove it.
+   --> tests\app\services\test_certificate_logic.py:247:5
+    |
+245 |     # Per sicurezza, usiamo date relative a 'today' per il test robusto,
+246 |     # ma per seguire lo scenario utente usiamo date fisse future per l'ultimo.
+247 |     date.today().year
+    |     ^^^^^^^^^^^^^^^^^
+248 |     # Se siamo nel 2025 o dopo, questo funziona. Se siamo nel 2024, 2025 ├¿ futuro.
+249 |     # Forziamo date relative per garantire il test passi sempre.
+    |
+
+SIM103 Return the condition directly
+  --> tests\app\services\test_sync_service_orphans.py:32:9
+   |
+31 |       def side_effect_exists(path):
+32 | /         if path == orphan_path:
+33 | |             return True
+34 | |         return False  # Destination does not exist
+   | |____________________^
+35 |
+36 |       with (
+   |
+help: Inline condition
+
+SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements
+  --> tests\app\test_main_full.py:69:5
+   |
+67 |   @pytest.mark.anyio
+68 |   async def test_lifespan_seeding_failure():
+69 | /     with patch("app.main.db_security"):
+70 | |         with patch("app.main.seed_database", side_effect=Exception("Seed Fail")):
+   | |_________________________________________________________________________________^
+71 |               with patch("app.main.AsyncIOScheduler"):
+72 |                   async with lifespan(app):
+   |
+help: Combine `with` statements
+
+SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements
+   --> tests\app\test_main_full.py:99:5
+    |
+ 97 |   def test_maintenance_task_failure():
+ 98 |       # If SessionLocal fails, it should propagate (or handle if we added handling)
+ 99 | /     with patch("app.main.SessionLocal", side_effect=Exception("DB Fail")):
+100 | |         with pytest.raises(Exception, match="DB Fail"):
+    | |_______________________________________________________^
+101 |               run_maintenance_task()
+    |
+help: Combine `with` statements
+
+SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements
+  --> tests\app\test_new_category.py:24:5
+   |
+22 |       # Mock content preview (must be > 50 chars)
+23 |       dummy_text = "Questo ├¿ un documento di nomina ufficiale per la sicurezza sul lavoro. " * 5
+24 | /     with patch("app.utils.file_security.get_pdf_text_preview", return_value=dummy_text):
+25 | |         # Mock the singleton instance return
+26 | |         with patch("app.services.ai_extraction.GeminiClient") as mock_client_class:
+   | |___________________________________________________________________________________^
+27 |               mock_client = MagicMock()
+28 |               mock_client.model = MagicMock()  # Ensure not None
+   |
+help: Combine `with` statements
+
+SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements
+  --> tests\core\test_path_resolver.py:21:5
+   |
+20 |   def test_get_base_path_pyinstaller():
+21 | /     with patch.object(sys, "frozen", True, create=True):
+22 | |         with patch.object(sys, "_MEIPASS", "/tmp/fake_meipass", create=True):
+   | |_____________________________________________________________________________^
+23 |               base = path_resolver.get_base_path()
+24 |               assert base == Path("/tmp/fake_meipass")
+   |
+help: Combine `with` statements
+
+SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements
+  --> tests\core\test_path_resolver.py:40:5
+   |
+39 |   def test_get_user_data_path_windows():
+40 | /     with patch("sys.platform", "win32"):
+41 | |         with patch.dict(os.environ, {"LOCALAPPDATA": r"C:\FakeAppData"}):
+   | |_________________________________________________________________________^
+42 |               # Mock mkdir to avoid creating real folders
+43 |               with patch("pathlib.Path.mkdir"):
+   |
+help: Combine `with` statements
+
+SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements
+  --> tests\core\test_path_resolver.py:57:5
+   |
+55 |       (base_path / "Licenza").mkdir(parents=True)
+56 |
+57 | /     with patch("app.core.path_resolver.get_user_data_path", return_value=user_data):
+58 | |         with patch("app.core.path_resolver.get_base_path", return_value=base_path):
+   | |___________________________________________________________________________________^
+59 |               # 1. Neither has config.dat -> returns user_data/Licenza (default)
+60 |               res = path_resolver.get_license_path()
+   |
+help: Combine `with` statements
+
+Found 23 errors (2 fixed, 21 remaining).
+
+ruff format..............................................................Failed
+- hook id: ruff-format
+- files were modified by this hook
+
+4 files reformatted, 132 files left unchanged
+
+mypy.....................................................................Passed
+deptry...................................................................Failed
+- hook id: deptry
+- exit code: 1
+
+Executable `deptry` not found
+
+bandit...................................................................Passed
+[WARNING] Stashed changes conflicted with hook auto-fixes... Rolling back fixes...
+[INFO] Restored changes from C:\Users\gianc\.cache\pre-commit\patch1771087241-428.

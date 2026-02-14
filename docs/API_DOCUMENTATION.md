@@ -251,7 +251,7 @@ Recupera le impostazioni configurabili dall'utente (SMTP, API Keys, Soglie).
   "SMTP_PORT": 465,
   "VOICE_ASSISTANT_ENABLED": true,
   "ALERT_THRESHOLD_DAYS": 60,
-  "GEMINI_API_KEY_ANALYSIS": "obf:..." 
+  "GEMINI_API_KEY_ANALYSIS": "obf:..."
 }
 ```
 *Nota: Le chiavi sensibili sono restituite offuscate (`obf:...`).*
@@ -404,7 +404,7 @@ sequenceDiagram
     API->>API: Verifica Firma PDF & Size
     API->>AI: Invia Bytes PDF + Prompt
     AI-->>API: JSON Response (Dati Estratti)
-    
+
     alt Dati Validi
         API->>API: Normalizza Date
         API->>DB: Inferisci Scadenza (se mancante)
@@ -412,7 +412,7 @@ sequenceDiagram
     else Errore/Reject
         API-->>Client: 422 Unprocessable Entity
     end
-    
+
     Client->>API: POST /certificati/ (Salva Dati)
     API->>DB: INSERT Certificato
     API-->>Client: 200 OK (Certificato Creato)

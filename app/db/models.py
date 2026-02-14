@@ -25,7 +25,7 @@ def utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-class ValidationStatus(str, enum.Enum):
+class ValidationStatus(enum.StrEnum):
     """
     An enumeration for the validation status of a certificate.
     - AUTOMATIC: The certificate was created automatically from a PDF.
@@ -140,9 +140,12 @@ class Certificato(Base):
     data_nascita_raw: Mapped[str | None] = mapped_column(String, nullable=True)
     corso_id: Mapped[int] = mapped_column(Integer, ForeignKey("corsi.id"))
     data_rilascio: Mapped[date] = mapped_column(Date)
+    data_scadenza_manuale: Mapped[date | None] = mapped_column(Date, nullable=True)
     data_scadenza_calcolata: Mapped[date | None] = mapped_column(Date, nullable=True)
     file_path: Mapped[str | None] = mapped_column(String, nullable=True)
-    stato_validazione: Mapped[ValidationStatus] = mapped_column(Enum(ValidationStatus))
+    stato_validazione: Mapped[ValidationStatus] = mapped_column(
+        Enum(ValidationStatus), default=ValidationStatus.AUTOMATIC
+    )
 
     dipendente: Mapped["Dipendente"] = relationship("Dipendente", back_populates="certificati")
     corso: Mapped["Corso"] = relationship("Corso", back_populates="certificati")

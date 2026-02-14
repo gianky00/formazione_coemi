@@ -479,10 +479,9 @@ def test_8_security_strings_not_exposed() -> TestResult:
         all_strings = strings_result.stdout
 
         # Check for forbidden secrets
-        found_secrets = []
-        for secret in FORBIDDEN_SECRETS:
-            if secret in all_strings:
-                found_secrets.append(secret[:20] + "...")
+        found_secrets = [
+            secret[:20] + "..." for secret in FORBIDDEN_SECRETS if secret in all_strings
+        ]
 
         if not found_secrets:
             result.passed = True
@@ -539,7 +538,7 @@ def test_9_performance_startup_time() -> TestResult:
                 if response.status_code == 200:
                     backend_ready = True
                     break
-            except:
+            except Exception:
                 pass
             time.sleep(0.3)
 
@@ -735,7 +734,7 @@ Esempi:
 
     # Check requests installed
     try:
-        import requests
+        import requests  # noqa: F401
     except ImportError:
         print("❌ Modulo 'requests' non installato!")
         print("   pip install requests")

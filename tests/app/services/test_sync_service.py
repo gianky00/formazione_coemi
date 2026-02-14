@@ -42,9 +42,7 @@ def test_sync_service_calls_bulk():
         # The target path logic checks existence to rename.
         # If we return True always, it loops forever looking for unique name.
         # Return True once then False
-        if "_1" in str(path):
-            return False
-        return True
+        return "_1" not in str(path)
 
     with (
         patch(
@@ -86,9 +84,7 @@ def test_file_move_permission_error():
             return True
         # Allow destination dir/file checks
         # Prevent infinite loop in get_unique_filename by saying the *unique* one doesn't exist
-        if "_1" in str(path):
-            return False
-        return True
+        return "_1" not in str(path)
 
     with (
         patch(
@@ -115,7 +111,7 @@ def test_remove_empty_folders_safety():
     with (
         patch("os.rmdir") as mock_rmdir,
         patch("os.path.isdir", return_value=True),
-        patch("os.listdir") as mock_listdir,
+        patch("os.listdir"),
     ):
         # Setup mocks
         root_path = "/root/db"

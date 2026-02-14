@@ -17,6 +17,11 @@ import sys
 import time
 from pathlib import Path
 
+try:
+    import requests
+except ImportError:
+    requests = None  # type: ignore
+
 # Fix Windows console encoding
 if sys.platform == "win32":
     import io
@@ -51,9 +56,7 @@ DEFAULT_RUNS = 5
 
 def wait_for_backend(timeout: int = 30) -> bool:
     """Wait for backend to respond."""
-    try:
-        import requests
-    except ImportError:
+    if requests is None:
         return False
 
     start = time.time()
@@ -62,7 +65,7 @@ def wait_for_backend(timeout: int = 30) -> bool:
             response = requests.get(API_HEALTH, timeout=1)
             if response.status_code == 200:
                 return True
-        except:
+        except Exception:
             pass
         time.sleep(0.3)
     return False
@@ -117,9 +120,7 @@ def main():
     parser.add_argument("--runs", type=int, default=DEFAULT_RUNS, help="Number of runs")
     args = parser.parse_args()
 
-    try:
-        import requests
-    except ImportError:
+    if requests is None:
         print("❌ Modulo 'requests' richiesto: pip install requests")
         return 1
 

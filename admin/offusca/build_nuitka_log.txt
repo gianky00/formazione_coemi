@@ -26,14 +26,14 @@
 2025-12-11 10:18:27,896 - INFO - [NUITKA] Unexpected output from this command:
 2025-12-11 10:18:28,104 - INFO - [NUITKA] <clcache> /Fomodule.sqlalchemy.orm.persistence.obj /c "module.sqlalchemy.orm.persistence.c" /std:c11 /nologo /wd5105 /wd4391 /Ox /GF /Gy /MD /EHsc /J /Gd /bigobj /D_NUITKA_STANDALONE_MODE /D_NUITKA_EXE_MODE /D_WIN32_WINNT=0x0601 /D__NUITKA_NO_ASSERT__ /D_NUITKA_WINMAIN_ENTRY_POINT /D_NUITKA_DISABLE_CONSOLE_WINDOW /D_NUITKA_CONSTANTS_FROM_RESOURCE /D_NUITKA_FROZEN=155 /D_NUITKA_PLUGIN_MULTIPROCESSING_ENABLED=1 /IC:\Users\Coemi\Desktop\SCRIPT\FORMAZ~1\Lib\SITE-P~1\nuitka\build\inline_copy\zlib /IC:\PROGRA~1\PYTHON~1\include /I. /IC:\Users\Coemi\Desktop\SCRIPT\FORMAZ~1\Lib\SITE-P~1\nuitka\build\include /IC:\Users\Coemi\Desktop\SCRIPT\FORMAZ~1\Lib\SITE-P~1\nuitka\build\static_src /IC:\Users\Coemi\Desktop\SCRIPT\FORMAZ~1\Lib\SITE-P~1\nuitka\build\inline_copy\libbacktrace
 2025-12-11 10:18:28,241 - INFO - [NUITKA] C:\Users\Coemi\Desktop\SCRIPT\formazione_coemi\dist\nuitka\launcher.build\module.sqlalchemy.orm.persistence.c(23400) : fatal error C1002: Il compilatore ha esaurito lo spazio dell'heap durante il passaggio 2
-2025-12-11 10:18:28,392 - INFO - [NUITKA] 
+2025-12-11 10:18:28,392 - INFO - [NUITKA]
 2025-12-11 10:18:28,512 - INFO - [NUITKA] C:\Users\Coemi\Desktop\SCRIPT\formazione_coemi\Lib\site-packages\nuitka\build\include\nuitka\helper\iterators.h(264) : fatal error C1002: Il compilatore ha esaurito lo spazio dell'heap durante il passaggio 2
-2025-12-11 10:18:28,616 - INFO - [NUITKA] 
+2025-12-11 10:18:28,616 - INFO - [NUITKA]
 2025-12-11 10:18:28,761 - INFO - [NUITKA] scons: *** [module.sqlalchemy.orm.persistence.obj] Error 2
 2025-12-11 10:18:30,300 - INFO - [NUITKA] Unexpected output from this command:
 2025-12-11 10:18:30,365 - INFO - [NUITKA] <clcache> /Fomodule.sqlalchemy.dialects.oracle.dictionary.obj /c "module.sqlalchemy.dialects.oracle.dictionary.c" /std:c11 /nologo /wd5105 /wd4391 /Ox /GF /Gy /MD /EHsc /J /Gd /bigobj /D_NUITKA_STANDALONE_MODE /D_NUITKA_EXE_MODE /D_WIN32_WINNT=0x0601 /D__NUITKA_NO_ASSERT__ /D_NUITKA_WINMAIN_ENTRY_POINT /D_NUITKA_DISABLE_CONSOLE_WINDOW /D_NUITKA_CONSTANTS_FROM_RESOURCE /D_NUITKA_FROZEN=155 /D_NUITKA_PLUGIN_MULTIPROCESSING_ENABLED=1 /IC:\Users\Coemi\Desktop\SCRIPT\FORMAZ~1\Lib\SITE-P~1\nuitka\build\inline_copy\zlib /IC:\PROGRA~1\PYTHON~1\include /I. /IC:\Users\Coemi\Desktop\SCRIPT\FORMAZ~1\Lib\SITE-P~1\nuitka\build\include /IC:\Users\Coemi\Desktop\SCRIPT\FORMAZ~1\Lib\SITE-P~1\nuitka\build\static_src /IC:\Users\Coemi\Desktop\SCRIPT\FORMAZ~1\Lib\SITE-P~1\nuitka\build\inline_copy\libbacktrace
 2025-12-11 10:18:30,407 - INFO - [NUITKA] C:\Users\Coemi\Desktop\SCRIPT\formazione_coemi\dist\nuitka\launcher.build\module.sqlalchemy.dialects.oracle.dictionary.c(1178) : fatal error C1002: Il compilatore ha esaurito lo spazio dell'heap durante il passaggio 2
-2025-12-11 10:18:30,429 - INFO - [NUITKA] 
+2025-12-11 10:18:30,429 - INFO - [NUITKA]
 2025-12-11 10:18:30,455 - INFO - [NUITKA] scons: *** [module.sqlalchemy.dialects.oracle.dictionary.obj] Error 1
 2025-12-11 10:18:51,990 - INFO - [NUITKA] FATAL: Failed unexpectedly in Scons C backend compilation.
 2025-12-11 10:18:51,997 - INFO - [NUITKA] Nuitka:WARNING:     Complex topic! More information can be found at https://nuitka.net/info/scons-backend-failure.html

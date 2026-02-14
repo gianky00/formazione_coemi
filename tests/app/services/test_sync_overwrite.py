@@ -13,9 +13,7 @@ def test_get_unique_filename_conflict():
     def exists_side_effect(path):
         if path.endswith("file.txt"):
             return True
-        if path.endswith("file_1.txt"):
-            return True
-        return False
+        return bool(path.endswith("file_1.txt"))
 
     with patch("os.path.exists", side_effect=exists_side_effect):
         assert get_unique_filename("/tmp", "file.txt") == "file_2.txt"

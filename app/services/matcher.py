@@ -3,7 +3,31 @@ from datetime import date
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.db.models import Dipendente
+from app.db.models import Certificato, Dipendente
+from app.utils.date_parser import parse_date_flexible
+
+
+def match_certificate_to_employee(db: Session, cert: Certificato) -> None:
+    """
+    Tenta di collegare un certificato a un dipendente basandosi sul nome grezzo.
+    """
+    from app.services.matcher import find_employee_by_name
+
+    # Parse date of birth if available
+    dob: date | None = None
+    if cert.data_nascita_raw:
+        dob = parse_date_flexible(cert.data_nascita_raw)
+
+    nome_raw = cert.nome_dipendente_raw
+    if not nome_raw:
+        cert.dipendente_id = None
+        return
+
+    employee = find_employee_by_name(db, nome_raw, data_nascita=dob)
+    if employee:
+        cert.dipendente_id = employee.id
+    else:
+        cert.dipendente_id = None
 
 
 def find_employee_by_name(
@@ -67,7 +91,7 @@ def find_employee_by_name(
     # Se non abbiamo data di nascita, o se dopo il filtro ne rimangono > 1 (improbabile con data esatta),
     # controlliamo se ne avevamo trovato solo uno all'inizio.
     if len(found_employees) == 1:
-        return list(found_employees.values())[0]
+        return next(iter(found_employees.values()))
 
     # Troppi candidati e nessuna data per risolvere, oppure data non corrispondente
     return None

@@ -293,7 +293,7 @@ class ValidationView(tk.Frame):
         )
 
         # Rearrange items
-        for idx, (vals, item) in enumerate(items):
+        for idx, (_vals, item) in enumerate(items):
             self.tree.move(item, "", idx)
 
         # Update heading to show sort direction
@@ -475,9 +475,9 @@ class ValidationView(tk.Frame):
                 )
                 if self.winfo_exists():
                     self.after(0, lambda: self._update_data(new_data))
-            except Exception:
+            except Exception as e:
                 if self.winfo_exists():
-                    self.after(0, lambda: messagebox.showerror("Errore", str(e)))
+                    self.after(0, lambda e=str(e): messagebox.showerror("Errore", str(e)))
 
         threading.Thread(target=fetch, daemon=True).start()
 
@@ -504,7 +504,7 @@ class ValidationView(tk.Frame):
 
         # Update category combobox
         current_cat = self.combo_categoria.get()
-        cat_values = ["Tutte"] + sorted(categories)
+        cat_values = ["Tutte", *sorted(categories)]
         self.combo_categoria["values"] = cat_values
         if current_cat not in cat_values:
             self.combo_categoria.set("Tutte")
@@ -517,7 +517,7 @@ class ValidationView(tk.Frame):
             self.tree.delete(item)
 
         count = 0
-        for idx, item in enumerate(self.data):
+        for _idx, item in enumerate(self.data):
             nome = str(item.get("nome") or "").lower()
             corso = str(item.get("corso") or "").lower()
             categoria = str(item.get("categoria") or "").lower()
@@ -825,7 +825,7 @@ class AssignOrphanDialog(tk.Toplevel):
         cert_list = tk.Frame(frame, bg="#FEF3C7", relief="solid", bd=1)
         cert_list.pack(fill="x", pady=10)
 
-        for i, sel in enumerate(self.selected_items[:5]):  # Show max 5
+        for _i, sel in enumerate(self.selected_items[:5]):  # Show max 5
             vals = self.parent_view.tree_orphans.item(sel, "values")
             tk.Label(
                 cert_list,

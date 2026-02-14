@@ -121,11 +121,11 @@ Il ponte tra Frontend e Backend.
 ```mermaid
 graph TD
     User[Utente] --> GUI[Desktop App (Tkinter)]
-    
+
     subgraph "Processo Locale (Intelleo.exe)"
         GUI -- "HTTP Requests (JSON)" --> API_Client
         API_Client -- "Localhost:8000" --> FastAPI[FastAPI Server]
-        
+
         subgraph "Backend Core"
             FastAPI --> Auth[Auth Service]
             FastAPI --> Logic[Business Logic]
@@ -133,14 +133,14 @@ graph TD
             Logic --> EmailService[Notification Service]
             Logic --> DB_Mgr[DB Security Manager]
         end
-        
+
         subgraph "Data Layer"
             DB_Mgr -- "Deserialize/Decrypt" --> InMemoryDB[(SQLite In-Memory)]
             DB_Mgr -- "Serialize/Encrypt" --> EncryptedFile[database.db (Encrypted)]
             Lock[File Lock (.lock)] -.-> DB_Mgr
         end
     end
-    
+
     subgraph "External Services"
         AIService -- "API Call" --> Gemini[Google Gemini API]
         EmailService -- "SMTP" --> MailServer[SMTP Server (Gmail/Aruba)]

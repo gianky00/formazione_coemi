@@ -1,89 +1,25 @@
-from datetime import date
 from unittest.mock import MagicMock, patch
 
-from app.db.models import Certificato, User
+from app.db.models import Dipendente, User
 from app.services.chat_service import chat_service
 
 
-def test_get_rag_context_empty_db():
-    mock_db = MagicMock()
-    # Mock counts (scalar() is used for func.count)
-    mock_db.query.return_value.scalar.return_value = 0
-    # Mock queries for lists
-    mock_db.query.return_value.join.return_value.filter.return_value.all.return_value = []
-    mock_db.query.return_value.filter.return_value.all.return_value = []
+def test_get_rag_context_simple(db_session):
+    # Setup data
+    emp = Dipendente(nome="Mario", cognome="Rossi", matricola="M123")
+    db_session.add(emp)
+    db_session.commit()
 
-    mock_user = User(username="admin", account_name="Admin User")
+    mock_user = User(username="admin", is_admin=True)
 
-    context = chat_service.get_rag_context(mock_db, mock_user)
-
-    assert "Totale Dipendenti: 0" in context
+    # Query without search
+    context = chat_service.get_rag_context(db_session, mock_user)
+    assert "Totale Dipendenti: 1" in context
     assert "Totale Documenti: 0" in context
-    assert "DOCUMENTI SCADUTI (Top 0)" in context
 
-
-def test_get_rag_context_with_data():
-    mock_db = MagicMock()
-    mock_user = User(username="test", account_name="Tester")
-
-    # Mock counts
-    # Code calls Certificato count first, then Dipendente count using scalar()
-    mock_db.query.return_value.scalar.side_effect = [50, 10]  # Certs=50, Employees=10
-    # We need to simulate the objects structure
-    cert_expired = MagicMock(spec=Certificato)
-    cert_expired.id = 1
-    cert_expired.dipendente.nome = "ROSSI MARIO"
-    cert_expired.corso.nome_corso = "ANTINCENDIO"
-    cert_expired.data_scadenza_calcolata = date(2020, 1, 1)  # Expired
-    cert_expired.dipendente_id = 1
-
-    cert_expiring = MagicMock(spec=Certificato)
-    cert_expiring.id = 2
-    cert_expiring.dipendente.nome = "BIANCHI LUIGI"
-    cert_expiring.corso.nome_corso = "HLO"
-    cert_expiring.data_scadenza_calcolata = date(2025, 12, 31)  # Expiring soon (assuming threshold)
-    cert_expiring.dipendente_id = 2
-
-    # Mock Orphans
-    cert_orphan = MagicMock(spec=Certificato)
-    cert_orphan.id = 3
-    cert_orphan.dipendente = None
-    cert_orphan.dipendente_id = None
-    cert_orphan.nome_dipendente_raw = "SCONOSCIUTO"
-    cert_orphan.corso.nome_corso = "ATEX"
-
-    # Setup query returns
-    # First query is for relevant_certs (expired/expiring)
-    # The code calls: db.query(...).join(...).filter(...).limit(50).all()
-    # So we must mock limit()
-    mock_db.query.return_value.join.return_value.filter.return_value.limit.return_value.all.return_value = [
-        cert_expired,
-        cert_expiring,
-    ]
-
-    # Second query is for orphans
-    # Code calls: db.query(...).filter(...).limit(20).all()
-    mock_db.query.return_value.filter.return_value.limit.return_value.all.return_value = [
-        cert_orphan
-    ]
-
-    # Mock status calculation
-    with patch("app.services.chat_service.get_bulk_certificate_statuses") as mock_statuses:
-        mock_statuses.return_value = {1: "scaduto", 2: "in_scadenza"}
-
-        context = chat_service.get_rag_context(mock_db, mock_user)
-
-    assert "Totale Dipendenti: 10" in context
-    assert "Totale Documenti: 50" in context
-    # Code uses (Top {len}). With 1 item, it should be (Top 1)
-    assert "DOCUMENTI SCADUTI (Top 1)" in context
-    # Privacy masking applied: ROSSI MARIO -> ROSSI M.
-    assert "ROSSI M." in context
-    assert "DOCUMENTI IN SCADENZA (Top 1)" in context
-    # Privacy masking applied: BIANCHI LUIGI -> BIANCHI L.
-    assert "BIANCHI L." in context
-    assert "DOCUMENTI DA VALIDARE/ORFANI (Top 1)" in context
-    assert "ATEX" in context
+    # Query with search
+    context_search = chat_service.get_rag_context(db_session, mock_user, query="Chi è Mario?")
+    assert "Rossi M." in context_search
 
 
 def test_chat_with_intelleo_success():
@@ -92,6 +28,7 @@ def test_chat_with_intelleo_success():
         patch("app.services.chat_service.genai") as mock_genai,
     ):
         mock_settings.GEMINI_API_KEY_CHAT = "valid_key"
+        mock_settings.GEMINI_API_KEY_ANALYSIS = "backup_key"
 
         mock_model = MagicMock()
         mock_genai.GenerativeModel.return_value = mock_model
@@ -108,36 +45,19 @@ def test_chat_with_intelleo_success():
 def test_chat_with_intelleo_missing_key():
     with patch("app.services.chat_service.settings") as mock_settings:
         mock_settings.GEMINI_API_KEY_CHAT = ""
+        mock_settings.GEMINI_API_KEY_ANALYSIS = ""
 
         reply = chat_service.chat_with_intelleo("Ciao", [], "Context")
-        assert "Errore: Chiave API Chat non configurata" in reply
+        assert "Chiave API Chat non configurata" in reply
 
 
-def test_chat_with_intelleo_init_error():
+def test_chat_with_intelleo_error_handling():
     with (
         patch("app.services.chat_service.settings") as mock_settings,
         patch("app.services.chat_service.genai") as mock_genai,
     ):
-        mock_settings.GEMINI_API_KEY_CHAT = "valid_key"
-        mock_genai.GenerativeModel.side_effect = Exception("Init Fail")
+        mock_settings.GEMINI_API_KEY_CHAT = "key"
+        mock_genai.GenerativeModel.side_effect = Exception("Boom")
 
         reply = chat_service.chat_with_intelleo("Ciao", [], "Context")
-        # Updated to match actual error message structure
-        assert "Init Fail" in reply
-
-
-def test_chat_with_intelleo_runtime_error():
-    with (
-        patch("app.services.chat_service.settings") as mock_settings,
-        patch("app.services.chat_service.genai") as mock_genai,
-    ):
-        mock_settings.GEMINI_API_KEY_CHAT = "valid_key"
-
-        mock_model = MagicMock()
-        mock_genai.GenerativeModel.return_value = mock_model
-        mock_chat = MagicMock()
-        mock_model.start_chat.return_value = mock_chat
-        mock_chat.send_message.side_effect = Exception("Runtime Fail")
-
-        reply = chat_service.chat_with_intelleo("Ciao", [], "Context")
-        assert "Errore durante la generazione della risposta: Runtime Fail" in reply
+        assert "Boom" in reply

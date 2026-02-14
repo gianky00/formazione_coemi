@@ -10,13 +10,13 @@ from app.core.config import settings
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verifies a plain password against its hash."""
     # bcrypt.checkpw expects bytes. hashed_password from DB is str.
-    return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+    return bool(bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8")))
 
 
 def get_password_hash(password: str) -> str:
     """Generates a bcrypt hash for a password."""
     # bcrypt.hashpw returns bytes. Decode to str for storage.
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    return str(bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8"))
 
 
 def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:

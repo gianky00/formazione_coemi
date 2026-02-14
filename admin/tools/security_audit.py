@@ -17,16 +17,18 @@ Author: Migration Team
 Version: 1.0.0 (Nuitka Migration - Security Hardening)
 """
 
+import contextlib
+import io
 import os
+import re
 import shutil
 import subprocess
 import sys
 
 # Fix Windows console encoding for emoji support
 if sys.platform == "win32":
-    import io
-
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    with contextlib.suppress(Exception):
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 
 # Stringhe che NON devono apparire nel binario compilato
@@ -52,7 +54,7 @@ ALLOWED_PATTERNS = [
 ]
 
 
-def find_strings_tool() -> str:
+def find_strings_tool() -> str | None:
     """
     Trova il tool `strings` disponibile nel sistema.
 
@@ -96,6 +98,7 @@ def extract_strings(binary_path: str, min_length: int = 6) -> str:
             capture_output=True,
             text=True,
             errors="replace",
+            check=False,
         )
         return result.stdout
     else:
@@ -108,8 +111,6 @@ def _extract_strings_manual(binary_path: str, min_length: int = 6) -> str:
     """
     Estrazione manuale di stringhe (fallback se `strings` non disponibile).
     """
-    import re
-
     with open(binary_path, "rb") as f:
         data = f.read()
 
@@ -120,7 +121,7 @@ def _extract_strings_manual(binary_path: str, min_length: int = 6) -> str:
     return "\n".join(m.decode("ascii", errors="replace") for m in matches)
 
 
-def check_strings_in_binary(binary_path: str, forbidden_strings: list) -> dict:
+def check_strings_in_binary(binary_path: str, forbidden_strings: list[str]) -> dict[str, bool]:
     """
     Cerca stringhe proibite nel binario compilato.
 
@@ -153,13 +154,13 @@ def check_strings_in_binary(binary_path: str, forbidden_strings: list) -> dict:
     return findings
 
 
-def audit_source_code(project_root: str) -> dict:
+def audit_source_code(project_root: str) -> dict[str, list[str]]:
     """
     Audit del codice sorgente per stringhe hardcoded.
     """
     print("\n📝 Auditing source code...")
 
-    findings = {}
+    findings: dict[str, list[str]] = {}
     sensitive_patterns = [
         ("Fernet key", "8kHs_rmwqaRUk1AQLGX65g4AEkWUDapWVsMFUQpN9Ek="),
     ]
@@ -201,22 +202,19 @@ def audit_source_code(project_root: str) -> dict:
             filepath = os.path.join(root, file)
             rel_path = os.path.relpath(filepath, project_root)
 
-            try:
+            with contextlib.suppress(Exception):
                 with open(filepath, encoding="utf-8") as f:
                     content = f.read()
 
                 for name, pattern in sensitive_patterns:
-                    if pattern in content:
+                    if pattern in content and (
+                        f'"{pattern}"' in content or f"'{pattern}'" in content
+                    ):
                         # Check if it's in obfuscated form (OK) or plaintext (BAD)
-                        # If it appears as a simple string literal, it's bad
-                        if f'"{pattern}"' in content or f"'{pattern}'" in content:
-                            if rel_path not in findings:
-                                findings[rel_path] = []
-                            findings[rel_path].append(name)
-                            print(f"   ⚠️  {rel_path}: {name} found as plaintext!")
-
-            except Exception:
-                pass
+                        if rel_path not in findings:
+                            findings[rel_path] = []
+                        findings[rel_path].append(name)
+                        print(f"   ⚠️  {rel_path}: {name} found as plaintext!")
 
     if not findings:
         print("   ✅ No plaintext secrets found in source code")
@@ -224,7 +222,7 @@ def audit_source_code(project_root: str) -> dict:
     return findings
 
 
-def main():
+def main() -> None:
     print("\n" + "=" * 70)
     print("🔐 SECURITY AUDIT TOOL - Intelleo")
     print("=" * 70)

@@ -1,10 +1,10 @@
 import glob
 import os
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from app.utils.file_security import sanitize_filename
-from desktop_app.constants import DATE_FORMAT_FILE, DIR_ANALYSIS_ERRORS
+from desktop_app.constants import DIR_ANALYSIS_ERRORS
 
 # Python-compatible date format for backend parsing (Qt uses 'dd/MM/yyyy')
 DATE_FORMAT_PYTHON: str = "%d/%m/%Y"
@@ -17,9 +17,13 @@ def _format_file_scadenza(data_scadenza_str: Any) -> str:
         and str(data_scadenza_str).strip() != ""
     ):
         try:
-            date_obj = datetime.strptime(str(data_scadenza_str), DATE_FORMAT_PYTHON)
-            return date_obj.strftime(DATE_FORMAT_FILE)
-        except ValueError:
+            # Handle both string and date objects
+            if isinstance(data_scadenza_str, date):
+                date_obj = data_scadenza_str
+            else:
+                date_obj = datetime.strptime(str(data_scadenza_str), DATE_FORMAT_PYTHON).date()
+            return date_obj.strftime("%d_%m_%Y")  # Use standard with underscore for industrial
+        except (ValueError, TypeError):
             pass
     return "no scadenza"
 
@@ -27,9 +31,11 @@ def _format_file_scadenza(data_scadenza_str: Any) -> str:
 def _search_exact_path(base_path: str, filename: str, statuses: list[str]) -> str | None:
     """Search for exact filename in status folders."""
     for status in statuses:
-        candidate = os.path.join(base_path, status, filename)
-        if os.path.isfile(candidate):
-            return os.path.normpath(candidate)
+        # Try both case variants
+        for s in [status.upper(), status.lower()]:
+            candidate = os.path.join(base_path, s, filename)
+            if os.path.isfile(candidate):
+                return os.path.normpath(candidate)
     return None
 
 
@@ -57,19 +63,17 @@ def _search_in_folder_tree(database_path: str, nome_fs: str, categoria_fs: str) 
         return None
 
     # Search for any PDF containing the employee name
-    for root, dirs, files in os.walk(docs_path):
+    for root, _dirs, files in os.walk(docs_path):
         for file in files:
             if file.lower().endswith(".pdf"):
                 file_lower = file.lower()
                 nome_lower = nome_fs.lower()
                 # Match by name in filename
-                if nome_lower in file_lower:
-                    # If category also matches, prioritize
-                    if categoria_fs.lower() in file_lower:
-                        return os.path.normpath(os.path.join(root, file))
+                if nome_lower in file_lower and categoria_fs.lower() in file_lower:
+                    return os.path.normpath(os.path.join(root, file))
 
     # Fallback: just name match
-    for root, dirs, files in os.walk(docs_path):
+    for root, _dirs, files in os.walk(docs_path):
         for file in files:
             if file.lower().endswith(".pdf") and nome_fs.lower() in file.lower():
                 return os.path.normpath(os.path.join(root, file))

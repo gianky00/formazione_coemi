@@ -50,8 +50,8 @@ class ProactiveService:
             self.analysis_complete = True
             self.last_analysis = datetime.now()
 
-        except Exception as e:
-            print(f"Proactive analysis error: {e}")
+        except Exception:
+            pass
 
     def _analyze_expiring_certificates(self, certificates):
         """Analyze expiring and expired certificates."""
@@ -82,7 +82,7 @@ class ProactiveService:
                     expiring_soon.append(cert_info)
                 elif days_left <= 60:
                     expiring_60.append(cert_info)
-            except:
+            except Exception:
                 continue
 
         # Show notifications
@@ -211,7 +211,7 @@ class ProactiveService:
                             "days_left": days_left,
                         }
                     )
-            except:
+            except Exception:
                 continue
 
         # Find groups with multiple people (potential group training)
@@ -241,9 +241,7 @@ class ProactiveService:
 
     def _format_cert_list(self, certs, total):
         """Format a short list of certificates."""
-        lines = []
-        for c in certs:
-            lines.append(f"• {c['nome']}: {c['categoria']}")
+        lines = [f"• {c['nome']}: {c['categoria']}" for c in certs]
         if total > len(certs):
             lines.append(f"... e altri {total - len(certs)}")
         return "\n".join(lines)
@@ -296,7 +294,7 @@ class ProactiveService:
         try:
             if hasattr(self.controller.current_view, "notebook"):
                 self.controller.current_view.notebook.select(tab_index)
-        except:
+        except Exception:
             pass
 
     def _show_training_plan(self, categoria, employees):

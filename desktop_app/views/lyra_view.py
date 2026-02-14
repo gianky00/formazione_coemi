@@ -8,6 +8,7 @@ import threading
 import tkinter as tk
 from datetime import datetime
 from tkinter import filedialog, messagebox, ttk
+from typing import ClassVar
 
 
 class LyraView(tk.Frame):
@@ -15,7 +16,7 @@ class LyraView(tk.Frame):
     Enhanced AI chat interface with rich formatting and quick actions.
     """
 
-    QUICK_PROMPTS = [
+    QUICK_PROMPTS: ClassVar[list] = [
         {
             "icon": "\U0001f4ca",
             "label": "Riepilogo",
@@ -534,7 +535,7 @@ class LyraView(tk.Frame):
                             expiring_60 += 1
                         else:
                             active += 1
-                    except:
+                    except Exception:
                         active += 1
                 else:
                     active += 1
@@ -643,7 +644,7 @@ class LyraView(tk.Frame):
         in_table = False
         table_rows = []
 
-        for i, line in enumerate(lines):
+        for _i, line in enumerate(lines):
             stripped = line.strip()
 
             # Detect table

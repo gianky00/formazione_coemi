@@ -37,18 +37,23 @@ def test_change_own_password(test_client: TestClient, db_session: Session, enabl
     headers = {"Authorization": f"Bearer {token}"}
 
     # 3. Change Password (Success)
-    payload = {"old_password": old_password, "new_password": new_password}
+    payload = {
+        "old_password": old_password,
+        "new_password": new_password,
+        "confirm_password": new_password,
+    }
     response = test_client.post("/auth/change-password", json=payload, headers=headers)
+
     assert response.status_code == 200
-    assert response.json()["message"] == "Password aggiornata con successo"
+    assert "Password cambiata con successo" in response.json()["message"]
 
     # 4. Verify DB updated
     db_session.refresh(user)
     assert security.verify_password(new_password, user.hashed_password)
 
-    # 5. Verify Old Password no longer works
+    # 5. Verify Old Password no longer works (status 401 now)
     response = test_client.post("/auth/login", data=login_data)
-    assert response.status_code == 400
+    assert response.status_code == 401
 
     # 6. Verify New Password works
     login_data_new = {"username": username, "password": new_password}
@@ -71,7 +76,12 @@ def test_change_password_wrong_old(test_client: TestClient, db_session: Session,
     headers = {"Authorization": f"Bearer {token}"}
 
     # 3. Change Password (Fail)
-    payload = {"old_password": "wrongpassword", "new_password": "newpassword"}
+    payload = {
+        "old_password": "wrongpassword",
+        "new_password": "newpassword",
+        "confirm_password": "newpassword",
+    }
     response = test_client.post("/auth/change-password", json=payload, headers=headers)
+
     assert response.status_code == 400
-    assert "password attuale non è corretta" in response.json()["detail"]
+    assert "Vecchia password errata" in response.json()["detail"]

@@ -6,7 +6,7 @@ from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.models import User
+from app.db.models import BlacklistedToken, User
 from app.db.session import get_db
 from app.schemas.schemas import TokenData
 
@@ -34,6 +34,15 @@ def get_current_user(
     except JWTError as e:
         raise credentials_exception from e
 
+    # Check if token is blacklisted
+    blacklisted = db.query(BlacklistedToken).filter(BlacklistedToken.token == token).first()
+    if blacklisted:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been invalidated (logged out)",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     user = db.query(User).filter(User.username == token_data.username).first()
     if user is None:
         raise credentials_exception
@@ -49,10 +58,21 @@ def get_current_active_user(
 
 def get_current_active_admin(
     current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[Session, Depends(get_db)],
 ) -> User:
     """Verifies that the user has admin privileges."""
     if not current_user.is_admin:
-        raise HTTPException(status_code=400, detail="The user doesn't have enough privileges")
+        from app.utils.audit import log_security_action
+
+        log_security_action(
+            db,
+            current_user,
+            "UNAUTHORIZED_ACCESS",
+            "Tentativo di accesso a risorsa admin",
+            category="AUTH",
+            severity="MEDIUM",
+        )
+        raise HTTPException(status_code=403, detail="The user doesn't have enough privileges")
     return current_user
 
 

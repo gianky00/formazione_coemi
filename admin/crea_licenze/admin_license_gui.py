@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -14,7 +15,7 @@ from cryptography.fernet import Fernet
 LICENSE_SECRET_KEY = b"8kHs_rmwqaRUk1AQLGX65g4AEkWUDapWVsMFUQpN9Ek="
 
 
-def _calculate_sha256(filepath):
+def _calculate_sha256(filepath: str) -> str:
     """Calculates the SHA256 hash of a file."""
     sha256_hash = hashlib.sha256()
     with open(filepath, "rb") as f:
@@ -23,8 +24,17 @@ def _calculate_sha256(filepath):
     return sha256_hash.hexdigest()
 
 
+def open_file(path: str) -> None:
+    if platform.system() == "Windows":
+        os.startfile(path)
+    elif platform.system() == "Darwin":
+        subprocess.Popen(["open", path])
+    else:
+        subprocess.Popen(["xdg-open", path])
+
+
 class LicenseAdminApp:
-    def __init__(self, root):
+    def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("Gestore Licenze (Admin)")
         self.root.geometry("600x480")
@@ -33,12 +43,12 @@ class LicenseAdminApp:
         style = ttk.Style()
         style.theme_use("clam")
         # S1192: Use constant
-        FONT_FAMILY = "Segoe UI"
-        font_style = (FONT_FAMILY, 10)
+        font_family = "Segoe UI"
+        font_style = (font_family, 10)
         style.configure("TLabel", font=font_style)
-        style.configure("TButton", font=(FONT_FAMILY, 10, "bold"))
+        style.configure("TButton", font=(font_family, 10, "bold"))
 
-        ttk.Label(root, text="Generatore Licenza Cliente", font=(FONT_FAMILY, 14, "bold")).pack(
+        ttk.Label(root, text="Generatore Licenza Cliente", font=(font_family, 14, "bold")).pack(
             pady=15
         )
 
@@ -74,7 +84,7 @@ class LicenseAdminApp:
         self.btn_gen = ttk.Button(root, text="GENERA FILE LICENZA", command=self.generate)
         self.btn_gen.pack(fill="x", padx=20, pady=20, ipady=10)
 
-    def paste_disk(self):
+    def paste_disk(self) -> None:
         # S5754: Specify exception or at least be intentional about swallowing
         try:
             self.ent_disk.delete(0, tk.END)
@@ -82,7 +92,7 @@ class LicenseAdminApp:
         except tk.TclError:
             pass  # Clipboard empty or unavailable
 
-    def _prepare_paths(self, client_name, disk_serial):
+    def _prepare_paths(self, client_name: str, disk_serial: str) -> tuple[str, str]:
         """Helper to prepare output paths."""
         if not client_name:
             client_name = disk_serial  # Fallback se non c'è nome
@@ -99,7 +109,9 @@ class LicenseAdminApp:
 
         return client_name, target_dir
 
-    def _generate_encrypted_config(self, disk_serial, expiry, client_name, target_dir):
+    def _generate_encrypted_config(
+        self, disk_serial: str, expiry: str, client_name: str, target_dir: str
+    ) -> str:
         # Format dates to DD/MM/YYYY
         try:
             expiry_obj = date.fromisoformat(expiry)
@@ -127,7 +139,7 @@ class LicenseAdminApp:
 
         return config_path
 
-    def generate(self):
+    def generate(self) -> None:
         # S3776: Refactored
         disk_serial = self.ent_disk.get().strip()
         raw_client_name = self.ent_name.get().strip()
@@ -144,7 +156,7 @@ class LicenseAdminApp:
 
         try:
             # Esegui comando
-            res = subprocess.run(cmd, capture_output=True, text=True)
+            res = subprocess.run(cmd, capture_output=True, text=True, check=False)
             if res.returncode != 0:
                 messagebox.showerror("Errore PyArmor", f"Output errore:\n{res.stderr}")
                 return
@@ -154,7 +166,9 @@ class LicenseAdminApp:
         except Exception as e:
             messagebox.showerror("Eccezione", str(e))
 
-    def _process_generation_success(self, client_name, target_dir, disk_serial, expiry):
+    def _process_generation_success(
+        self, client_name: str, target_dir: str, disk_serial: str, expiry: str
+    ) -> None:
         """Handles post-generation tasks (move, encrypt, manifest)."""
         key_filename = "pyarmor.rkey"
         src_default = os.path.join("dist", key_filename)
@@ -183,7 +197,9 @@ class LicenseAdminApp:
 
         self._show_success_message(client_name, disk_serial, target_dir, key_filename)
 
-    def _generate_manifest(self, target_dir, dst_lic, config_path, key_filename):
+    def _generate_manifest(
+        self, target_dir: str, dst_lic: str, config_path: str, key_filename: str
+    ) -> None:
         manifest = {
             key_filename: _calculate_sha256(dst_lic),
             "config.dat": _calculate_sha256(config_path),
@@ -192,32 +208,10 @@ class LicenseAdminApp:
         with open(manifest_path, "w") as f:
             json.dump(manifest, f, indent=4)
 
-    def _show_success_message(self, client_name, disk_serial, target_dir, key_filename):
-        msg = (
-            f"Licenza GENERATA con successo!\n\n"
-            f"Cliente: {client_name}\n"
-            f"Hardware ID: {disk_serial}\n\n"
-            f"FILE SALVATI IN:\n{target_dir}\n"
-            f"(Troverai '{key_filename}', 'config.dat' e 'manifest.json')\n\n"
-            f"ISTRUZIONI PER L'AUTO-UPDATE:\n"
-            f"1. Apri il repository GitHub privato delle licenze.\n"
-            f"2. Crea una nuova cartella nominandola ESATTAMENTE come l'Hardware ID del cliente.\n"
-            f"3. Carica i 3 file generati ('{key_filename}', 'config.dat', 'manifest.json') in questa nuova cartella."
-        )
-
-
-import platform
-
-
-def open_file(path):
-    if platform.system() == "Windows":
-        os.startfile(path)
-    elif platform.system() == "Darwin":
-        subprocess.Popen(["open", path])
-    else:
-        subprocess.Popen(["xdg-open", path])
-
-        # ... inside _show_success_message
+    def _show_success_message(
+        self, client_name: str, disk_serial: str, target_dir: str, key_filename: str
+    ) -> None:
+        msg = f"Licenza generata con successo per {client_name}!\n\nID: {disk_serial}\nPercorso: {target_dir}"
         messagebox.showinfo("Successo", msg)
         open_file(target_dir)
 

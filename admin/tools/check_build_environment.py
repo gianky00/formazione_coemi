@@ -82,7 +82,7 @@ def check_msvc():
         result = subprocess.run(["cl.exe"], capture_output=True, text=True, timeout=10)
         if "Microsoft (R) C/C++ Optimizing Compiler" in result.stderr:
             lines = result.stderr.split("\n")
-            version_line = [l for l in lines if "Version" in l]
+            version_line = [line for line in lines if "Version" in line]
             if version_line:
                 print(f"   ✅ {version_line[0].strip()}")
                 return True

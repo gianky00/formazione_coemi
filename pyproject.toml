@@ -32,6 +32,7 @@ dependencies = [
     "sentry-sdk[fastapi]",
     "posthog",
     "packaging",
+    "pywin32",
 ]
 
 [project.optional-dependencies]
@@ -55,6 +56,7 @@ dev = [
     "types-python-dateutil",
     "types-PyYAML",
     "pandas-stubs",
+    "playwright",
 ]
 
 [tool.ruff]
@@ -78,7 +80,17 @@ select = [
 ]
 ignore = [
     "E501", # line too long (handled by formatter)
+    "B008", # function call in argument defaults (common in FastAPI)
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"admin/**" = ["T201", "T203", "RUF001"]
+"tools/**" = ["T201"]
+"app/core/config.py" = ["N802"]
+"tests/**" = ["E402", "F811", "N806", "N802", "N803", "SIM117", "SIM115", "SIM103", "E741", "E722"]
+"launcher.py" = ["I001", "E402"]
+"desktop_app/services/toast_service.py" = ["I001"]
+"desktop_app/**" = ["N802", "N803", "N806"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app", "desktop_app"]
@@ -100,6 +112,13 @@ pretty = true
 
 [[tool.mypy.overrides]]
 module = [
+    "desktop_app.*",
+]
+strict = false
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = [
     "google.generativeai.*",
     "apscheduler.*",
     "fpdf2.*",
@@ -118,11 +137,14 @@ extend_exclude = ["tests", "admin", "tools"]
 known_first_party = ["app", "desktop_app"]
 
 [tool.deptry.per_rule_ignores]
-DEP002 = ["ruff", "mypy", "bandit", "deptry", "codespell", "refurb", "vulture", "xenon", "interrogate", "pre-commit", "pytest-cov", "pytest-mock", "pyfakefs", "radon", "types-requests", "types-python-dateutil", "types-PyYAML", "pandas-stubs"]
+DEP002 = ["ruff", "mypy", "bandit", "deptry", "codespell", "refurb", "vulture", "xenon", "interrogate", "pre-commit", "pytest-cov", "pytest-mock", "pyfakefs", "radon", "types-requests", "types-python-dateutil", "types-PyYAML", "pandas-stubs", "pandas", "numpy", "python-multipart", "httpx", "passlib", "user-agents", "posthog", "packaging", "pytest"]
 
 [tool.bandit]
 exclude_dirs = ["tests", "admin", "tools"]
 skips = ["B101"]
+
+[tool.bandit.assert_used]
+skips = ["tests/*"]
 
 [tool.interrogate]
 ignore-init-method = true

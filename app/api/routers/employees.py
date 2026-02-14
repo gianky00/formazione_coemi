@@ -235,12 +235,19 @@ async def import_dipendenti_csv(
     content = bytes(content_bytes)
 
     if not file.filename or not str(file.filename).endswith(".csv"):
-        raise HTTPException(status_code=400, detail="Il file deve essere un CSV.")
+        raise HTTPException(status_code=400, detail="Il file deve essere in formato CSV.")
 
     if not verify_file_signature(content, "csv"):
         raise HTTPException(status_code=400, detail="Contenuto file non valido.")
 
-    decoded_content = content.decode("utf-8", errors="replace")
+    # Robust encoding detection
+    try:
+        # Try UTF-8-SIG first (common for Excel with BOM)
+        decoded_content = content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        # Fallback to Latin-1
+        decoded_content = content.decode("iso-8859-1")
+
     stream = io.StringIO(decoded_content)
     reader = csv.DictReader(stream, delimiter=";")
 

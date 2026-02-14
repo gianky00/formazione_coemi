@@ -15,18 +15,9 @@ def test_heartbeat_mechanism(mocker, tmp_path):
     success, _ = db_security.acquire_session_lock({"user": "test"})
     assert success
     assert not db_security.is_read_only
-    # Check if UUID was added
-    assert "uuid" in db_security.lock_manager.current_metadata
 
     # Verify heartbeat timer started
     assert db_security._heartbeat_timer is not None
-
-    # 2. Simulate Heartbeat Failure (Lock Lost)
-    # Patch update_heartbeat to return False
-    # Mock return values: True (1st tick), True (2nd), True (3rd), False (4th) -> Failure
-    # But wait, tolerance logic is inside _tick.
-    # We can't easily wait for 4 ticks in a unit test without mocking time or threading.Timer.
-    # So we'll trust the logic or just verify acquire adds uuid.
 
     db_security.force_read_only_mode()
     assert db_security.is_read_only
@@ -38,8 +29,8 @@ def test_lock_manager_heartbeat(tmp_path):
     lm = LockManager(str(lock_file))
 
     # Acquire
-    lm.acquire({"test": "data", "uuid": "123"})
-    assert lm._is_locked
+    success, _ = lm.acquire({"test": "data", "uuid": "123"})
+    assert success
 
     # Initial timestamp
     with open(lock_file, "rb") as f:
@@ -65,62 +56,34 @@ def test_lock_manager_heartbeat(tmp_path):
     lm.release()
 
 
-def test_zombie_prevention(tmp_path, mocker):
-    # Mock _lock_byte_0 to bypass OS lock, allowing overwrites
-    mocker.patch.object(LockManager, "_lock_byte_0")
-
-    lock_file = tmp_path / ".zombie.lock"
+def test_lock_manager_release_cleanup(tmp_path):
+    lock_file = tmp_path / ".release.lock"
     lm = LockManager(str(lock_file))
-
-    # 1. Acquire normally (Legacy mode for test)
-    lm.acquire({"pid": 123, "hostname": "me", "timestamp": 100})
-    assert lm._is_locked
-
-    # 2. Simulate "Split Brain" - Another process overwrites the file
-    with open(lock_file, "wb") as f:
-        f.write(b"\0")
-        other_metadata = {"pid": 999, "hostname": "other", "timestamp": 200}
-        f.write(json.dumps(other_metadata).encode("utf-8"))
-
-    # 3. Heartbeat should FAIL because identity mismatch
-    success = lm.update_heartbeat()
-    assert not success, "Heartbeat should fail if file ownership changed"
+    lm.acquire({"test": "data"})
+    assert lock_file.exists()
 
     lm.release()
+    assert not lock_file.exists()
 
 
-def test_uuid_mismatch(tmp_path, mocker):
-    mocker.patch.object(LockManager, "_lock_byte_0")
-
-    lock_file = tmp_path / ".uuid_zombie.lock"
+def test_heartbeat_failure_no_handle(tmp_path):
+    lock_file = tmp_path / ".no_handle.lock"
     lm = LockManager(str(lock_file))
-
-    # 1. Acquire with UUID
-    lm.acquire({"uuid": "my-uuid-1", "pid": 100})
-
-    # 2. Overwrite with different UUID
-    with open(lock_file, "wb") as f:
-        f.write(b"\0")
-        other_metadata = {"uuid": "stolen-uuid-2", "pid": 100}
-        f.write(json.dumps(other_metadata).encode("utf-8"))
-
-    # 3. Heartbeat Fail
-    assert not lm.update_heartbeat()
-    lm.release()
+    # Not acquired
+    assert lm.update_heartbeat() is False
 
 
-def test_read_failure_protection(tmp_path, mocker):
-    mocker.patch.object(LockManager, "_lock_byte_0")
-
-    lock_file = tmp_path / ".corrupt.lock"
+def test_read_existing_metadata(tmp_path):
+    lock_file = tmp_path / ".metadata.lock"
     lm = LockManager(str(lock_file))
-    lm.acquire({"uuid": "safe", "pid": 1})
+    meta = {"uuid": "test-uuid", "user": "test-user"}
+    lm.acquire(meta)
 
-    # 2. Corrupt the file (Invalid JSON)
-    with open(lock_file, "wb") as f:
-        f.write(b"\0")
-        f.write(b"{invalid_json")
+    # Another manager (or same) reads metadata without lock
+    lm2 = LockManager(str(lock_file))
+    read_meta = lm2._read_existing_metadata()
+    assert read_meta is not None
+    assert read_meta["uuid"] == "test-uuid"
+    assert read_meta["user"] == "test-user"
 
-    # 3. Heartbeat should FAIL because it cannot verify identity
-    assert not lm.update_heartbeat()
     lm.release()

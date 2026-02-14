@@ -23,6 +23,7 @@ CATEGORIE_STATICHE: list[str] = [
     "ADDESTRAMENTO",
     "VISITA MEDICA",
     "ABILITAZIONE",
+    "NOMINA",
     "ALTRO",
 ]
 
@@ -74,7 +75,7 @@ def _get_prompt() -> str:
     """
 
 
-@retry(
+@retry(  # type: ignore
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=4, max=10),
 )
@@ -97,9 +98,6 @@ def extract_entities_with_ai(pdf_bytes: bytes) -> dict[str, Any]:
         return {"error": "AI service not configured (API Key missing)"}
 
     try:
-        # For simplicity in this example, we assume we have a helper to get text from bytes
-        # or we pass the bytes directly if using Gemini Multimodal (recommended)
-        # Here we'll simulate text extraction or direct byte passing
         from app.utils.file_security import get_pdf_text_preview
 
         text_content = get_pdf_text_preview(pdf_bytes, max_chars=10000)
@@ -109,13 +107,36 @@ def extract_entities_with_ai(pdf_bytes: bytes) -> dict[str, Any]:
 
         raw_response = _generate_content_with_retry(client.model, _get_prompt(), text_content)
 
-        # Clean JSON markdown if present
-        clean_json = raw_response.strip().replace("```json", "").replace("```", "")
-        data: dict[str, Any] = json.loads(clean_json)
+        # Bug 9: Robust JSON extraction from markdown or text garbage
+        import re
 
-        # Standardize categories
-        if data.get("categoria") not in CATEGORIE_STATICHE:
+        json_match = re.search(r"(\{.*\}|\[.*\])", raw_response, re.DOTALL)
+        if not json_match:
+            return {"error": "Risposta AI non valida (JSON non trovato)"}
+
+        clean_json = json_match.group(1)
+        data_raw = json.loads(clean_json)
+
+        # Bug 2: Handle list response
+        warnings = []
+        if isinstance(data_raw, list):
+            if not data_raw:
+                return {"error": "Risposta AI vuota"}
+            data: dict[str, Any] = data_raw[0]
+            if len(data_raw) > 1:
+                warnings.append(
+                    "L'AI ha rilevato più certificati. È stato processato solo il primo."
+                )
+        else:
+            data = data_raw
+
+        # Bug 10: Allow dynamic categories (keep AI suggestion if not in static list but valid)
+        # We still normalize to 'ALTRO' only if missing or clearly wrong
+        if not data.get("categoria"):
             data["categoria"] = "ALTRO"
+
+        if warnings:
+            data["warnings"] = warnings
 
         return data
 

@@ -1,0 +1,30 @@
+Assuming the corresponding module name of package 'ruff' is 'ruff'. Install the package or configure a package_module_name_map entry to override this behaviour.
+Assuming the corresponding module name of package 'mypy' is 'mypy'. Install the package or configure a package_module_name_map entry to override this behaviour.
+Assuming the corresponding module name of package 'bandit' is 'bandit'. Install the package or configure a package_module_name_map entry to override this behaviour.
+Assuming the corresponding module name of package 'codespell' is 'codespell'. Install the package or configure a package_module_name_map entry to override this behaviour.
+Assuming the corresponding module name of package 'refurb' is 'refurb'. Install the package or configure a package_module_name_map entry to override this behaviour.
+Assuming the corresponding module name of package 'vulture' is 'vulture'. Install the package or configure a package_module_name_map entry to override this behaviour.
+Assuming the corresponding module name of package 'xenon' is 'xenon'. Install the package or configure a package_module_name_map entry to override this behaviour.
+Assuming the corresponding module name of package 'interrogate' is 'interrogate'. Install the package or configure a package_module_name_map entry to override this behaviour.
+Assuming the corresponding module name of package 'pyfakefs' is 'pyfakefs'. Install the package or configure a package_module_name_map entry to override this behaviour.
+Assuming the corresponding module name of package 'radon' is 'radon'. Install the package or configure a package_module_name_map entry to override this behaviour.
+Assuming the corresponding module name of package 'types-requests' is 'types_requests'. Install the package or configure a package_module_name_map entry to override this behaviour.
+Assuming the corresponding module name of package 'types-python-dateutil' is 'types_python_dateutil'. Install the package or configure a package_module_name_map entry to override this behaviour.
+Assuming the corresponding module name of package 'types-PyYAML' is 'types_pyyaml'. Install the package or configure a package_module_name_map entry to override this behaviour.
+Assuming the corresponding module name of package 'pandas-stubs' is 'pandas_stubs'. Install the package or configure a package_module_name_map entry to override this behaviour.
+Scanning 88 files...
+
+desktop_app\services\hardware_id_service.py:17:16: DEP003 'pythoncom' imported but it is a transitive dependency
+guide_frontend\verify_frontend.py:1:1: DEP001 'playwright' imported but missing from the dependency definitions
+pyproject.toml: DEP002 'pandas' defined as a dependency but not used in the codebase
+pyproject.toml: DEP002 'numpy' defined as a dependency but not used in the codebase
+pyproject.toml: DEP002 'python-multipart' defined as a dependency but not used in the codebase
+pyproject.toml: DEP002 'httpx' defined as a dependency but not used in the codebase
+pyproject.toml: DEP002 'passlib' defined as a dependency but not used in the codebase
+pyproject.toml: DEP002 'user-agents' defined as a dependency but not used in the codebase
+pyproject.toml: DEP002 'posthog' defined as a dependency but not used in the codebase
+pyproject.toml: DEP002 'packaging' defined as a dependency but not used in the codebase
+pyproject.toml: DEP002 'pytest' defined as a dependency but not used in the codebase
+Found 11 dependency issues.
+
+For more information, see the documentation: https://deptry.com/

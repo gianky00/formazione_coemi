@@ -27,7 +27,7 @@ def format_date_to_ui(date_val):
             # ISO format YYYY-MM-DD
             parts = date_str[:10].split("-")
             return f"{parts[2]}/{parts[1]}/{parts[0]}"
-        except:
+        except (IndexError, ValueError):
             return date_str
     return date_str
 
@@ -43,8 +43,8 @@ def open_file(path):
             subprocess.call(["open", path])
         else:  # Linux
             subprocess.call(["xdg-open", path])
-    except Exception as e:
-        print(f"Error opening file: {e}")
+    except Exception:
+        pass
 
 
 def get_device_id():

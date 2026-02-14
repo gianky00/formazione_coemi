@@ -233,7 +233,7 @@ class ImportView(tk.Frame):
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 409:
                 self.log(f"SKIP: {os.path.basename(file_path)} -> Già presente.")
-                raise Exception("409: Già presente")
+                raise Exception("409: Già presente") from e
             else:
                 self.log(f"ERRORE HTTP: {os.path.basename(file_path)} -> {e}")
                 raise
@@ -333,8 +333,8 @@ class ImportView(tk.Frame):
                     self.after(0, lambda: self._on_sync_complete(True, message))
                 else:
                     self.after(0, lambda: self._on_sync_complete(False, sync_res.text))
-            except Exception:
-                self.after(0, lambda: self._on_sync_complete(False, str(e)))
+            except Exception as e:
+                self.after(0, lambda e=str(e): self._on_sync_complete(False, str(e)))
 
         thread = threading.Thread(target=sync_task, daemon=True)
         thread.start()

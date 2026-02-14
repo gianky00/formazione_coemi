@@ -177,4 +177,3 @@ class LicenseUpdaterService:
 if __name__ == "__main__":
     # For testing purposes
     hw_id = LicenseUpdaterService.get_hardware_id()
-    print(f"Detected Hardware ID: {hw_id}")

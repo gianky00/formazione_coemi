@@ -10,6 +10,7 @@ import sentry_sdk
 import uvicorn
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
@@ -128,6 +129,15 @@ app = FastAPI(
     docs_url="/api/docs",
     redoc_url="/api/redoc",
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError) -> Any:
+    """Returns 400 instead of 422 for validation errors, for legacy compatibility."""
+    return JSONResponse(
+        status_code=400,
+        content={"detail": str(exc)},
+    )
 
 
 @app.middleware("http")

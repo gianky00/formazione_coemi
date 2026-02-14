@@ -25,7 +25,7 @@ erDiagram
     User ||--o{ AuditLog : "genera"
     Dipendente ||--o{ Certificato : "possiede"
     Corso ||--o{ Certificato : "definisce"
-    
+
     User {
         int id PK
         string username UK "Indexed"

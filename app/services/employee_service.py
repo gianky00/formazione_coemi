@@ -22,8 +22,11 @@ def validate_unique_constraints(
         if existing:
             raise HTTPException(status_code=400, detail="Matricola già esistente.")
 
-    if "email" in update_dict and update_dict["email"] != dipendente.email:
-        if update_dict["email"]:
+        if (
+            "email" in update_dict
+            and update_dict["email"] != dipendente.email
+            and update_dict["email"]
+        ):
             existing_email = (
                 db.query(Dipendente).filter(Dipendente.email == update_dict["email"]).first()
             )
@@ -33,7 +36,7 @@ def validate_unique_constraints(
 
 def handle_new_dipendente(db: Session, warnings: list[str], data: tuple[Any, ...]) -> None:
     """Helper to handle new or ambiguous employee logic during CSV import."""
-    cognome, nome, parsed_data_nascita, badge, parsed_data_assunzione, data_nascita_str = data
+    cognome, nome, parsed_data_nascita, badge, parsed_data_assunzione, _data_nascita_str = data
 
     found_by_identity = False
     if parsed_data_nascita:
@@ -68,22 +71,14 @@ def handle_new_dipendente(db: Session, warnings: list[str], data: tuple[Any, ...
     if not found_by_identity and badge:
         existing = db.query(Dipendente).filter(Dipendente.matricola == badge).first()
         if existing:
-            # Update existing with CSV data if missing and matches name
-            # Python standard string comparison (case-insensitive) instead of .ilike() on instance attribute
-            if (
-                str(existing.nome).lower() == str(nome).lower()
-                and str(existing.cognome).lower() == str(cognome).lower()
-            ):
-                if not existing.data_nascita and parsed_data_nascita:
-                    existing.data_nascita = parsed_data_nascita
-                if not existing.data_assunzione and parsed_data_assunzione:
-                    existing.data_assunzione = parsed_data_assunzione
-                return
-            else:
-                warnings.append(
-                    f"Matricola {badge} già assegnata a {existing.cognome} {existing.nome}. Salto riga per {cognome} {nome}."
-                )
-                return
+            # Update existing with CSV data (Master Identity Update)
+            existing.nome = nome
+            existing.cognome = cognome
+            if parsed_data_nascita:
+                existing.data_nascita = parsed_data_nascita
+            if parsed_data_assunzione:
+                existing.data_assunzione = parsed_data_assunzione
+            return
 
     if not found_by_identity:
         new_dip = Dipendente(
@@ -126,7 +121,9 @@ def process_csv_row(row: dict[str, Any], db: Session, warnings: list[str]) -> No
 
 
 def link_orphaned_certificates_after_import(db: Session) -> int:
-    """Re-links orphaned certificates after a bulk employee import."""
+    """Re-links orphaned certificates after a bulk employee import and syncs files."""
+    from app.services import certificate_service
+
     orphans = db.query(Certificato).filter(Certificato.dipendente_id.is_(None)).all()
     linked_count = 0
     for cert in orphans:
@@ -135,6 +132,10 @@ def link_orphaned_certificates_after_import(db: Session) -> int:
         dob = parse_date_flexible(cert.data_nascita_raw) if cert.data_nascita_raw else None
         match = matcher.find_employee_by_name(db, cert.nome_dipendente_raw, dob)
         if match:
+            # Capture old state for FS sync
+            old_cert_data = certificate_service.get_orphan_cert_data(cert)
             cert.dipendente_id = match.id
             linked_count += 1
+            # Sync file system immediately
+            certificate_service.sync_cert_file_system(cert, old_cert_data, db)
     return linked_count

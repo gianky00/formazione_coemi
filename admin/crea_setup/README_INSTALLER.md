@@ -199,6 +199,5 @@ Al primo avvio, inserire la licenza fornita.
 
 ---
 
-**Ultima modifica**: 2024-12-10  
+**Ultima modifica**: 2024-12-10
 **Versione script**: 2.0.0 (Nuitka)
-

@@ -21,7 +21,7 @@ def create_stats_data(db):
 
     # Certificati
     today = date.today()
-    threshold = today + timedelta(days=settings.ALERT_THRESHOLD_DAYS)
+    today + timedelta(days=settings.ALERT_THRESHOLD_DAYS)
 
     # 1. Valid (Active)
     cert1 = Certificato(

@@ -194,12 +194,12 @@ class AdvancedFilterPopup(tk.Toplevel):
 
     def _load_flat_list(self, values):
         """Load values as flat checkbox list."""
-        unique_values = sorted(set(v for v in values if v and v.lower() != "none"))
+        unique_values = sorted({v for v in values if v and v.lower() != "none"})
         self.all_values = unique_values
 
         # Include empty/none option
         if any(not v or v.lower() == "none" for v in values):
-            unique_values = ["(Vuoto)"] + list(unique_values)
+            unique_values = ["(Vuoto)", *list(unique_values)]
 
         self.checkboxes = {}
         for value in unique_values:
@@ -309,7 +309,7 @@ class AdvancedFilterPopup(tk.Toplevel):
             try:
                 dt = datetime.strptime(str(val).strip(), fmt)
                 return (dt.year, dt.month, dt.day)
-            except:
+            except ValueError:
                 continue
         return None
 
@@ -335,10 +335,10 @@ class AdvancedFilterPopup(tk.Toplevel):
     def _toggle_year(self, year):
         """Toggle all months/days under a year."""
         state = self.year_vars[year].get()
-        for (y, m), var in self.month_vars.items():
+        for (y, _m), var in self.month_vars.items():
             if y == year:
                 var.set(state)
-        for (y, m, d), var in self.day_vars.items():
+        for (y, _m, _d), var in self.day_vars.items():
             if y == year:
                 var.set(state)
 
@@ -346,21 +346,21 @@ class AdvancedFilterPopup(tk.Toplevel):
         """Toggle all days under a month."""
         year, month = month_key
         state = self.month_vars[month_key].get()
-        for (y, m, d), var in self.day_vars.items():
+        for (y, m, _d), var in self.day_vars.items():
             if y == year and m == month:
                 var.set(state)
 
     def _on_day_toggle(self, day_key):
         """Update parent checkboxes when day is toggled."""
-        year, month, day = day_key
+        year, month, _day = day_key
 
         # Check if all days in month are selected
-        month_days = [(y, m, d) for (y, m, d) in self.day_vars.keys() if y == year and m == month]
+        month_days = [(y, m, d) for (y, m, d) in self.day_vars if y == year and m == month]
         all_selected = all(self.day_vars[dk].get() for dk in month_days)
         self.month_vars[(year, month)].set(all_selected)
 
         # Check if all months in year are selected
-        year_months = [(y, m) for (y, m) in self.month_vars.keys() if y == year]
+        year_months = [(y, m) for (y, m) in self.month_vars if y == year]
         all_months_selected = all(self.month_vars[mk].get() for mk in year_months)
         self.year_vars[year].set(all_months_selected)
 
@@ -479,7 +479,7 @@ class FilterableTreeview(ttk.Treeview):
 
     def _show_filter_popup(self, column, display_name):
         """Show filter popup for column."""
-        popup = AdvancedFilterPopup(
+        AdvancedFilterPopup(
             self.winfo_toplevel(),
             self,
             column,
@@ -536,7 +536,7 @@ class FilterableTreeview(ttk.Treeview):
             try:
                 dt = datetime.strptime(str(val).strip(), fmt)
                 return (dt.year, dt.month, dt.day)
-            except:
+            except ValueError:
                 continue
         return None
 
@@ -617,7 +617,7 @@ def setup_filterable_treeview(tree, column_names):
                 try:
                     dt = datetime.strptime(str(value).strip(), fmt)
                     return (dt.year, dt.month, dt.day) in fdata
-                except:
+                except ValueError:
                     continue
             return str(value) in fdata
 

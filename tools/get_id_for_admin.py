@@ -37,7 +37,7 @@ def _get_mac_address():
     try:
         mac = uuid.getnode()
         # Format MAC to a standard hex string
-        return ":".join(("%012X" % mac)[i : i + 2] for i in range(0, 12, 2))
+        return ":".join((f"{mac:012X}")[i : i + 2] for i in range(0, 12, 2))
     except Exception:
         return None
 

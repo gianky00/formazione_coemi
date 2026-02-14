@@ -36,7 +36,7 @@ def test_acquire_session_lock_success(db_manager):
     """Test successful lock acquisition."""
     db_manager.lock_manager.acquire.return_value = (True, None)
 
-    success, owner = db_manager.acquire_session_lock({"username": "test"})
+    success, _owner = db_manager.acquire_session_lock({"username": "test"})
 
     assert success is True
     assert db_manager.is_read_only is False
@@ -77,7 +77,7 @@ def test_save_to_disk_success(db_manager):
     mock_file = MagicMock()
     mock_file.__enter__.return_value = mock_file
 
-    with patch("builtins.open", return_value=mock_file), patch("os.replace") as mock_replace:
+    with patch("builtins.open", return_value=mock_file), patch("os.replace"):
         result = db_manager.save_to_disk()
 
     assert result is True

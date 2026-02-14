@@ -3,14 +3,16 @@ Toast Notification Service for Intelleo.
 Provides non-intrusive notifications that appear in the corner of the screen.
 """
 
+import contextlib
 import tkinter as tk
 from collections import deque
+from typing import ClassVar
 
 
 class ToastNotification(tk.Toplevel):
     """A single toast notification window."""
 
-    TYPES = {
+    TYPES: ClassVar[dict] = {
         "info": {"bg": "#3B82F6", "icon": "i"},
         "success": {"bg": "#10B981", "icon": "✓"},
         "warning": {"bg": "#F59E0B", "icon": "⚠"},
@@ -85,7 +87,7 @@ class ToastNotification(tk.Toplevel):
         # Close button
         close_btn = tk.Label(
             content,
-            text="×",
+            text="×",  # noqa: RUF001
             font=("Segoe UI", 14, "bold"),
             bg=config["bg"],
             fg="white",
@@ -139,10 +141,8 @@ class ToastNotification(tk.Toplevel):
     def close(self):
         if self._fade_id:
             self.after_cancel(self._fade_id)
-        try:
+        with contextlib.suppress(BaseException):
             self.destroy()
-        except:
-            pass
 
 
 class ToastManager:
@@ -201,7 +201,7 @@ class ToastManager:
                 screen_height = toast.winfo_screenheight()
                 y = screen_height - toast.winfo_height() - 60 - offset
                 toast.geometry(f"+{x}+{y}")
-            except:
+            except Exception:
                 pass
 
         # Show queued toasts

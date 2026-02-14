@@ -1,4 +1,5 @@
 import logging
+import threading
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -13,6 +14,9 @@ logger = logging.getLogger(__name__)
 
 DATE_FORMAT_DMY = "%d/%m/%Y"
 
+# Lock to prevent multiple simultaneous email alert checks
+_email_lock = threading.Lock()
+
 
 def safe_text(text: Any) -> str:
     """Standardizes text for PDF generation by removing non-latin characters."""
@@ -21,7 +25,7 @@ def safe_text(text: Any) -> str:
     return str(text).encode("latin-1", "replace").decode("latin-1")
 
 
-class PDF(FPDF):
+class PDF(FPDF):  # type: ignore
     def header(self) -> None:
         # Logo
         # self.image('logo.png', 10, 8, 33)
@@ -78,7 +82,11 @@ def _draw_table_rows(
             cognome = cert.dipendente.cognome or ""
             nome = cert.dipendente.nome or ""
             dipendente_nome = f"{cognome} {nome}".strip()
-        if not dipendente_nome and hasattr(cert, "nome_dipendente_raw") and cert.nome_dipendente_raw:
+        if (
+            not dipendente_nome
+            and hasattr(cert, "nome_dipendente_raw")
+            and cert.nome_dipendente_raw
+        ):
             dipendente_nome = str(cert.nome_dipendente_raw)
         if not dipendente_nome:
             dipendente_nome = "-"
@@ -105,7 +113,9 @@ def _draw_table_rows(
             "L",
         )
         pdf.cell(col_widths[3], 8, safe_text(categoria), 1, 0, "L")
-        pdf.cell(col_widths[4], 8, safe_text(cert.corso.nome_corso if cert.corso else "-"), 1, 0, "L")
+        pdf.cell(
+            col_widths[4], 8, safe_text(cert.corso.nome_corso if cert.corso else "-"), 1, 0, "L"
+        )
         pdf.cell(col_widths[5], 8, data_scadenza, 1, 1, "C")
         row_num += 1
 
@@ -134,7 +144,9 @@ def get_report_data(db: Session) -> tuple[list[Certificato], list[Certificato], 
         .filter(
             Certificato.data_scadenza_calcolata >= today,
             Certificato.data_scadenza_calcolata <= threshold_corsi,
-            Certificato.corso.has(Certificato.corso.property.mapper.class_.categoria_corso != "VISITA MEDICA"),
+            Certificato.corso.has(
+                Certificato.corso.property.mapper.class_.categoria_corso != "VISITA MEDICA"
+            ),
         )
         .order_by(Certificato.data_scadenza_calcolata.asc())
         .all()
@@ -146,7 +158,9 @@ def get_report_data(db: Session) -> tuple[list[Certificato], list[Certificato], 
         .filter(
             Certificato.data_scadenza_calcolata >= today,
             Certificato.data_scadenza_calcolata <= threshold_visite,
-            Certificato.corso.has(Certificato.corso.property.mapper.class_.categoria_corso == "VISITA MEDICA"),
+            Certificato.corso.has(
+                Certificato.corso.property.mapper.class_.categoria_corso == "VISITA MEDICA"
+            ),
         )
         .order_by(Certificato.data_scadenza_calcolata.asc())
         .all()
@@ -165,49 +179,119 @@ def generate_pdf_report_in_memory(
     """
     Generates the PDF report and returns it as bytes.
     """
-    pdf = PDF()
-    pdf.alias_nb_pages()
-    pdf.add_page()
+    try:
+        pdf = PDF()
+        pdf.alias_nb_pages()
+        pdf.add_page()
 
-    col_widths = [10, 20, 50, 35, 55, 20]
-    header = ["#", "Matr.", "Dipendente", "Categoria", "Corso/Visita", "Scadenza"]
+        col_widths = [10, 20, 50, 35, 55, 20]
+        header = ["#", "Matr.", "Dipendente", "Categoria", "Corso/Visita", "Scadenza"]
 
-    # --- SECTION 1: OVERDUE ---
-    if overdue_certificates:
-        pdf.set_font("Arial", "B", 12)
-        pdf.set_text_color(200, 0, 0)
-        pdf.cell(0, 10, "SCADUTI (AZIONI IMMEDIATE RICHIESTE)", 0, 1, "L")
-        pdf.set_text_color(0, 0, 0)
-        _draw_table_header(pdf, header, col_widths, (255, 200, 200))
-        _draw_table_rows(pdf, overdue_certificates, col_widths, header, (255, 200, 200))
-        pdf.ln(10)
+        # --- SECTION 1: OVERDUE ---
+        if overdue_certificates:
+            pdf.set_font("Arial", "B", 12)
+            pdf.set_text_color(200, 0, 0)
+            pdf.cell(0, 10, "SCADUTI (AZIONI IMMEDIATE RICHIESTE)", 0, 1, "L")
+            pdf.set_text_color(0, 0, 0)
+            _draw_table_header(pdf, header, col_widths, (255, 200, 200))
+            _draw_table_rows(pdf, overdue_certificates, col_widths, header, (255, 200, 200))
+            pdf.ln(10)
 
-    # --- SECTION 2: EXPIRING VISITE ---
-    if expiring_visite:
-        pdf.set_font("Arial", "B", 12)
-        pdf.cell(0, 10, f"VISITE MEDICHE IN SCADENZA (PROSSIMI {visite_threshold} GG)", 0, 1, "L")
-        _draw_table_header(pdf, header, col_widths, (255, 255, 200))
-        _draw_table_rows(pdf, expiring_visite, col_widths, header, (255, 255, 200))
-        pdf.ln(10)
+        # --- SECTION 2: EXPIRING VISITE ---
+        if expiring_visite:
+            pdf.set_font("Arial", "B", 12)
+            pdf.cell(
+                0, 10, f"VISITE MEDICHE IN SCADENZA (PROSSIMI {visite_threshold} GG)", 0, 1, "L"
+            )
+            _draw_table_header(pdf, header, col_widths, (255, 255, 200))
+            _draw_table_rows(pdf, expiring_visite, col_widths, header, (255, 255, 200))
+            pdf.ln(10)
 
-    # --- SECTION 3: EXPIRING CORSI ---
-    if expiring_corsi:
-        pdf.set_font("Arial", "B", 12)
-        pdf.cell(0, 10, f"CORSI IN SCADENZA (PROSSIMI {corsi_threshold} GG)", 0, 1, "L")
-        _draw_table_header(pdf, header, col_widths, (200, 255, 200))
-        _draw_table_rows(pdf, expiring_corsi, col_widths, header, (200, 255, 200))
+        # --- SECTION 3: EXPIRING CORSI ---
+        if expiring_corsi:
+            pdf.set_font("Arial", "B", 12)
+            pdf.cell(0, 10, f"CORSI IN SCADENZA (PROSSIMI {corsi_threshold} GG)", 0, 1, "L")
+            _draw_table_header(pdf, header, col_widths, (200, 255, 200))
+            _draw_table_rows(pdf, expiring_corsi, col_widths, header, (200, 255, 200))
 
-    if not overdue_certificates and not expiring_visite and not expiring_corsi:
-        pdf.set_font("Arial", "", 12)
-        pdf.cell(0, 10, "Nessun certificato in scadenza o scaduto rilevato.", 0, 1, "C")
+        if not overdue_certificates and not expiring_visite and not expiring_corsi:
+            pdf.set_font("Arial", "", 12)
+            pdf.cell(0, 10, "Nessun certificato in scadenza o scaduto rilevato.", 0, 1, "C")
 
-    return bytes(pdf.output(dest="S"))
+        return bytes(pdf.output(dest="S"))
+    except Exception as e:
+        logger.error(f"PDF Generation error: {e}")
+        raise ValueError(
+            f"Si è verificato un errore imprevisto durante la generazione del PDF: {e}"
+        ) from e
+
+
+def send_email_notification(
+    pdf_content_bytes: bytes,
+    expired_count: int,
+    visite_count: int,
+    corsi_count: int,
+    visite_threshold: int,
+    corsi_threshold: int,
+) -> bool:
+    """
+    Legacy wrapper for sending email alerts.
+    """
+    from app.utils.security import send_email_with_attachment
+
+    summary = f"""
+    Riepilogo Scadenze Formazione e Visite Mediche:
+    - Certificati SCADUTI: {expired_count}
+    - Visite Mediche in scadenza (prossimi {visite_threshold} gg): {visite_count}
+    - Corsi di formazione in scadenza (prossimi {corsi_threshold} gg): {corsi_count}
+
+    In allegato il report dettagliato in formato PDF.
+    """
+
+    recipients = settings.EMAIL_RECIPIENTS_TO.split(",") if settings.EMAIL_RECIPIENTS_TO else []
+    cc = settings.EMAIL_RECIPIENTS_CC.split(",") if settings.EMAIL_RECIPIENTS_CC else []
+
+    if not recipients:
+        logger.warning("No email recipients configured. Alert not sent.")
+        return False
+
+    return send_email_with_attachment(
+        subject=f"REPORT SCADENZE FORMAZIONE - {datetime.now().strftime('%d/%m/%Y')}",
+        body=summary,
+        to_emails=recipients,
+        cc_emails=cc,
+        attachment_data=pdf_content_bytes,
+        attachment_filename="report_scadenze.pdf",
+    )
+
+
+def send_security_alert_email(subject: str, html_body: str) -> bool:
+    """
+    Sends a security alert email.
+    """
+    from app.utils.security import send_email_with_attachment
+
+    recipients = settings.EMAIL_RECIPIENTS_TO.split(",") if settings.EMAIL_RECIPIENTS_TO else []
+    if not recipients:
+        return False
+
+    # Note: send_email_with_attachment currently sends plain text body.
+    # We might want to improve it to support HTML, but for now we'll strip tags or send as is.
+    return send_email_with_attachment(
+        subject=subject,
+        body=html_body,  # Fallback to plain text for now
+        to_emails=recipients,
+    )
 
 
 def check_and_send_alerts() -> None:
     """
     Checks for expiring certificates and sends email alerts.
     """
+    if not _email_lock.acquire(blocking=False):
+        logger.info("Email alert check already in progress. Skipping.")
+        return
+
     db = SessionLocal()
     try:
         expiring_visite, expiring_corsi, overdue = get_report_data(db)
@@ -225,39 +309,23 @@ def check_and_send_alerts() -> None:
             settings.ALERT_THRESHOLD_DAYS,
         )
 
-        # Prepare summary for email body
-        summary = f"""
-        Riepilogo Scadenze Formazione e Visite Mediche:
-        - Certificati SCADUTI: {len(overdue)}
-        - Visite Mediche in scadenza: {len(expiring_visite)}
-        - Corsi di formazione in scadenza: {len(expiring_corsi)}
+        # Send email alert
+        success = send_email_notification(
+            pdf_content_bytes=pdf_content,
+            expired_count=len(overdue),
+            visite_count=len(expiring_visite),
+            corsi_count=len(expiring_corsi),
+            visite_threshold=settings.ALERT_THRESHOLD_DAYS_VISITE,
+            corsi_threshold=settings.ALERT_THRESHOLD_DAYS,
+        )
 
-        In allegato il report dettagliato in formato PDF.
-        """
-
-        # Send email (using existing settings logic)
-        from app.utils.security import send_email_with_attachment
-
-        recipients = settings.EMAIL_RECIPIENTS_TO.split(",") if settings.EMAIL_RECIPIENTS_TO else []
-        cc = settings.EMAIL_RECIPIENTS_CC.split(",") if settings.EMAIL_RECIPIENTS_CC else []
-
-        if recipients:
-            success = send_email_with_attachment(
-                subject=f"REPORT SCADENZE FORMAZIONE - {datetime.now().strftime('%d/%m/%Y')}",
-                body=summary,
-                to_emails=recipients,
-                cc_emails=cc,
-                attachment_data=pdf_content,
-                attachment_filename="report_scadenze.pdf",
-            )
-            if success:
-                logger.info("Alert email sent successfully.")
-            else:
-                logger.error("Failed to send alert email.")
+        if success:
+            logger.info("Alert email sent successfully.")
         else:
-            logger.warning("No email recipients configured. Alert not sent.")
+            logger.error("Failed to send alert email.")
 
     except Exception as e:
         logger.error(f"Error during alert check: {e}", exc_info=True)
     finally:
         db.close()
+        _email_lock.release()

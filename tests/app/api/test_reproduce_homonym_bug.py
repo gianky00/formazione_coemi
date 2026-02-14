@@ -80,4 +80,4 @@ def test_update_certificato_data_nascita(test_client, db_session):
         assert cert.data_nascita_raw == new_dob
     else:
         # If it fails validation (unexpected field), that's also a fail for the requirement
-        assert False, f"Update failed with status {response.status_code}: {response.text}"
+        raise AssertionError(f"Update failed with status {response.status_code}: {response.text}")

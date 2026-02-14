@@ -1,9 +1,10 @@
-import google.generativeai as genai
-
 # --- CONFIGURAZIONE ---
 import os
+
+import google.generativeai as genai
+
 # Incolla la tua API Key qui sotto tra le virgolette
-api_key = os.getenv("IA_API_KEY", "AIzaSyD_RrlsduwDJpTbbItfg6JH3dmOD0Ym1GU") # NOSONAR
+api_key = os.getenv("IA_API_KEY", "AIzaSyD_RrlsduwDJpTbbItfg6JH3dmOD0Ym1GU")  # NOSONAR
 
 genai.configure(api_key=api_key)
 
@@ -14,10 +15,10 @@ try:
     count = 0
     # Itera su tutti i modelli e filtra quelli che supportano la generazione di testo
     for m in genai.list_models():
-        if 'generateContent' in m.supported_generation_methods:
+        if "generateContent" in m.supported_generation_methods:
             print(f"Nome modello: {m.name}")
             count += 1
-            
+
     if count == 0:
         print("Nessun modello trovato.")
     else:

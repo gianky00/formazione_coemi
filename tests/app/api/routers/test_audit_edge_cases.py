@@ -28,4 +28,4 @@ def test_read_audit_logs_end_date_midnight(test_client, admin_token_headers, db_
     assert res.status_code == 200
     data = res.json()
     assert len(data) >= 1
-    assert any(l["username"] == "late" for l in data)
+    assert any(log["username"] == "late" for log in data)

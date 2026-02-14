@@ -1,3 +1,4 @@
+import contextlib
 from unittest.mock import MagicMock, patch
 
 from app.core import security
@@ -63,9 +64,7 @@ def test_migrate_schema_columns():
 
     # Verify ALTER TABLE calls
     sql_executed = []
-    for call in mock_db.execute.mock_calls:
-        if call.args:
-            sql_executed.append(str(call.args[0]))
+    sql_executed = [str(call.args[0]) for call in mock_db.execute.mock_calls if call.args]
 
     assert any("previous_login" in sql for sql in sql_executed)
 
@@ -75,8 +74,6 @@ def test_get_db_yields_session():
     gen = get_db()
     session = next(gen)
     assert session is not None
-    try:
+    with contextlib.suppress(StopIteration):
         next(gen)
-    except StopIteration:
-        pass
     session.close()

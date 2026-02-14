@@ -82,7 +82,7 @@ def scan_and_archive_orphans(db: Session, database_path: str) -> int:
     orphans_moved = 0
     orphan_dest_base = os.path.join(docs_path, "ORFANI")
 
-    for root, dirs, files in os.walk(docs_path):
+    for root, _dirs, files in os.walk(docs_path):
         if "ORFANI" in root or "ERRORI ANALISI" in root or "CESTINO" in root:
             continue
 
@@ -140,9 +140,8 @@ def organize_expired_files(db: Session) -> None:
     for cert in certificates:
         status = certificate_logic.get_certificate_status(db, cert)
 
-        if status in ["scaduto", "archiviato"]:
-            if archive_certificate_file(db, cert):
-                moved_count += 1
+        if status in ["scaduto", "archiviato"] and archive_certificate_file(db, cert):
+            moved_count += 1
 
     docs_path = os.path.join(database_path, "DOCUMENTI DIPENDENTI")
     if os.path.exists(docs_path):

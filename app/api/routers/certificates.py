@@ -1,6 +1,8 @@
+import logging
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, selectinload
 
 from app.api import deps
@@ -39,8 +41,13 @@ def _build_cert_schema(
         )
     else:
         nome_display = cert.nome_dipendente_raw or "SCONOSCIUTO"
-        matricola_display = "N-A"
+        matricola_display = None
         data_nascita_display = cert.data_nascita_raw
+
+    # Determine failure reason
+    fallimento_ragione = None
+    if not cert.dipendente:
+        fallimento_ragione = "Non trovato in anagrafica (matricola mancante)."
 
     return CertificatoSchema(
         id=int(cert.id),
@@ -54,6 +61,7 @@ def _build_cert_schema(
         if cert.data_scadenza_calcolata
         else None,
         stato_certificato=status,
+        assegnazione_fallita_ragione=fallimento_ragione,
     )
 
 
@@ -71,8 +79,16 @@ def get_certificati(
     if validated is not None:
         from app.db.models import ValidationStatus
 
-        target = ValidationStatus.MANUAL if validated else ValidationStatus.AUTOMATIC
-        query = query.filter(Certificato.stato_validazione == target)
+        if validated:
+            query = query.filter(Certificato.stato_validazione == ValidationStatus.MANUAL)
+        else:
+            # Unvalidated = AUTOMATIC OR Orphaned (missing dipendente_id)
+            query = query.filter(
+                or_(
+                    Certificato.stato_validazione == ValidationStatus.AUTOMATIC,
+                    Certificato.dipendente_id.is_(None),
+                )
+            )
 
     certs = query.all()
     status_map = certificate_logic.get_bulk_certificate_statuses(db, list(certs))
@@ -113,18 +129,32 @@ def create_certificato(
     if certificate_service.check_duplicate_cert(
         db, course.id, certificato.data_rilascio, certificato.dipendente_id, certificato.nome
     ):
-        raise HTTPException(status_code=409, detail="Certificato già presente a sistema.")
+        raise HTTPException(
+            status_code=409, detail="Certificato già presente a sistema (esiste già)."
+        )
 
     from app.db.models import ValidationStatus
+    from app.utils.date_parser import parse_date_flexible
+
+    data_rilascio_dt = parse_date_flexible(certificato.data_rilascio)
+    data_scadenza_dt = (
+        parse_date_flexible(certificato.data_scadenza) if certificato.data_scadenza else None
+    )
 
     new_cert = Certificato(
         dipendente_id=certificato.dipendente_id,
         corso_id=course.id,
-        data_rilascio=certificato.data_rilascio,
-        data_scadenza_calcolata=certificato.data_scadenza,
+        data_rilascio=data_rilascio_dt,
+        data_scadenza_calcolata=data_scadenza_dt,
         stato_validazione=ValidationStatus.MANUAL,
         nome_dipendente_raw=certificato.nome,
+        data_nascita_raw=certificato.data_nascita,
     )
+
+    # Resolve employee link (essential for homonyms)
+    from app.services import matcher
+
+    matcher.match_certificate_to_employee(db, new_cert)
 
     try:
         db.add(new_cert)
@@ -132,6 +162,7 @@ def create_certificato(
         db.refresh(new_cert)
     except Exception as e:
         db.rollback()
+        logging.error(f"Error creating certificate: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
     certificate_service.archive_obsolete_certs(db, new_cert)
@@ -165,6 +196,16 @@ def update_certificato(
     # Keep old data for FS sync
     old_cert_data = certificate_service.get_orphan_cert_data(db_cert)
 
+    # Validate category exists if provided
+    if certificato.categoria:
+        from app.db.models import Corso
+
+        exists = db.query(Corso).filter(Corso.categoria_corso == certificato.categoria).first()
+        if not exists:
+            raise HTTPException(
+                status_code=404, detail=f"Categoria '{certificato.categoria}' non trovata"
+            )
+
     # Update fields
     update_data = certificato.model_dump(exclude_unset=True)
     certificate_service.update_cert_fields(db_cert, update_data, db)
@@ -188,7 +229,7 @@ def update_certificato(
     return _build_cert_schema(db, db_cert)
 
 
-@router.post(
+@router.put(
     "/{certificato_id}/valida",
     response_model=CertificatoSchema,
     dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)],
@@ -233,8 +274,8 @@ def delete_certificato(
     if not db_cert:
         raise HTTPException(status_code=404, detail="Certificato non trovato")
 
-    db.delete(db_cert)
-    db.commit()
+    # Use service logic to archive file and delete from DB
+    certificate_service.delete_certificato_logic(db, db_cert)
 
     log_security_action(
         db,

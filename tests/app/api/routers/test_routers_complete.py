@@ -78,9 +78,9 @@ def test_system_open_action(test_client):
 # --- CONFIG (DB Security Toggle) ---
 def test_toggle_security_mode(test_client, admin_token_headers):
     with patch("app.api.routers.config.db_security") as mock_sec:
-        # Schema expects 'locked', not 'encrypted'
+        # Update path and params to match current router implementation
         res = test_client.post(
-            "/config/db-security/toggle", json={"locked": True}, headers=admin_token_headers
+            "/system-config/toggle-security?enable=true", headers=admin_token_headers
         )
         assert res.status_code == 200
         mock_sec.toggle_security_mode.assert_called_with(True)

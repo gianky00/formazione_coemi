@@ -77,10 +77,10 @@ class NomeClasse:
     """
     Docstring della classe che spiega lo scopo.
     """
-    
+
     def __init__(self, param: str):
         self.param = param
-        
+
     def metodo_pubblico(self) -> bool:
         """
         Docstring del metodo.
@@ -131,7 +131,7 @@ icon_path = get_asset_path("desktop_app/icons/icon.ico")
 ```python
 from app.core.string_obfuscation import deobfuscate_string
 # Valore generato offline
-_API_KEY_OBFUSCATED = "obf:Tm90QVJlYWxLZXk=" 
+_API_KEY_OBFUSCATED = "obf:Tm90QVJlYWxLZXk="
 
 def get_api_key():
     return deobfuscate_string(_API_KEY_OBFUSCATED)

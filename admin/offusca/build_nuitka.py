@@ -273,7 +273,7 @@ def build_frontend() -> bool:
             subprocess.run([npm_cmd, "install"], cwd=FRONTEND_DIR, check=True, capture_output=True)
 
         # Build
-        result = subprocess.run(
+        subprocess.run(
             [npm_cmd, "run", "build"], cwd=FRONTEND_DIR, capture_output=True, text=True, check=True
         )
 
@@ -542,10 +542,6 @@ def compile_with_nuitka(fast_mode: bool = False) -> bool:
             process.terminate()
             process.wait(timeout=5)
         return False
-    except Exception as e:
-        log_error(f"Errore durante compilazione: {e}")
-        return False
-
     except subprocess.TimeoutExpired:
         log_error("Compilazione timeout (>2 ore)")
         return False

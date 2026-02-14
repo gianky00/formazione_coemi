@@ -1,5 +1,12 @@
 import base64
 import binascii
+import logging
+import smtplib
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+logger = logging.getLogger(__name__)
 
 OBFUSCATION_PREFIX = "obf:"
 
@@ -35,3 +42,63 @@ def reveal_string(obfuscated_s: str) -> str:
         # If decoding fails, it might be a normal string that coincidentally
         # started with the prefix. Return it as is.
         return obfuscated_s
+
+
+def send_email_with_attachment(
+    subject: str,
+    body: str,
+    to_emails: list[str],
+    cc_emails: list[str] | None = None,
+    attachment_data: bytes | None = None,
+    attachment_filename: str = "document.pdf",
+) -> bool:
+    """
+    Sends an email with an optional attachment using SMTP.
+    Supports SSL (465) or STARTTLS (587).
+    """
+    from app.core.config import settings
+
+    if not settings.SMTP_HOST or not settings.SMTP_USER:
+        logger.warning("SMTP not configured. Email not sent.")
+        return False
+
+    try:
+        # 1. Create message
+        msg = MIMEMultipart()
+        msg["From"] = settings.SMTP_USER
+        msg["To"] = ", ".join(to_emails)
+        if cc_emails:
+            msg["Cc"] = ", ".join(cc_emails)
+        msg["Subject"] = subject
+
+        msg.attach(MIMEText(body, "plain"))
+
+        # 2. Add attachment
+        if attachment_data:
+            part = MIMEApplication(attachment_data, Name=attachment_filename)
+            part["Content-Disposition"] = f'attachment; filename="{attachment_filename}"'
+            msg.attach(part)
+
+        # 3. Connect and send
+        recipients = to_emails + (cc_emails or [])
+
+        # Determine connection type
+        is_ssl = int(settings.SMTP_PORT) == 465
+
+        if is_ssl:
+            with smtplib.SMTP_SSL(settings.SMTP_HOST, int(settings.SMTP_PORT)) as server:
+                server.login(settings.SMTP_USER, reveal_string(settings.SMTP_PASSWORD))
+                server.sendmail(settings.SMTP_USER, recipients, msg.as_string())
+        else:
+            with smtplib.SMTP(settings.SMTP_HOST, int(settings.SMTP_PORT)) as server:
+                if int(settings.SMTP_PORT) == 587:
+                    server.starttls()
+                server.login(settings.SMTP_USER, reveal_string(settings.SMTP_PASSWORD))
+                server.sendmail(settings.SMTP_USER, recipients, msg.as_string())
+
+        logger.info(f"Email sent to {to_emails}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to send email: {e}", exc_info=True)
+        return False

@@ -116,23 +116,23 @@ Intelleo segue un'architettura **Monolito Modulare Ibrido**.
 ```mermaid
 graph TD
     User[Utente Desktop] --> Launcher[Launcher.py]
-    
+
     subgraph "Runtime Process"
         Launcher -->|Avvia Thread| API[FastAPI Backend :8000]
         Launcher -->|Avvia MainThread| UI[Tkinter Frontend]
     end
-    
+
     subgraph "Data Layer"
         API -->|SQLAlchemy| DBSec[DBSecurityManager]
         DBSec -->|Decrypt in RAM| SQLite[(SQLite In-Memory)]
         DBSec -->|Encrypt on Save| FileDB[database_documenti.db (Disk)]
     end
-    
+
     subgraph "External Services"
         API -->|HTTP| Gemini[Google Gemini AI]
         API -->|SMTP| Email[Server Posta]
     end
-    
+
     UI -->|HTTP Requests| API
     UI -->|Load HTML| Guide[React SPA (Guide)]
 ```

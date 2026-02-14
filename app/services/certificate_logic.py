@@ -20,7 +20,8 @@ def calculate_expiration_date(issue_date: date | None, validity_months: int) -> 
         if isinstance(result, datetime):
             return result.date()
         # relativedelta + date normally returns date, but Mypy can be strict
-        return result  # type: ignore
+        return result
+
     return None
 
 
@@ -59,6 +60,21 @@ def get_certificate_status(db: Session, certificato: Certificato) -> str:
     )
 
     return "archiviato" if newer_cert_exists else "scaduto"
+
+
+def calculate_combined_data(certificato: Certificato) -> None:
+    """
+    Ricalcola la data di scadenza calcolata basandosi sulla data di rilascio
+    e sulla validità del corso, se non impostata manualmente.
+    """
+    if certificato.data_scadenza_manuale:
+        certificato.data_scadenza_calcolata = certificato.data_scadenza_manuale
+    elif certificato.data_rilascio and certificato.corso and certificato.corso.validita_mesi > 0:
+        certificato.data_scadenza_calcolata = calculate_expiration_date(
+            certificato.data_rilascio, certificato.corso.validita_mesi
+        )
+    else:
+        certificato.data_scadenza_calcolata = certificato.data_scadenza_manuale
 
 
 def _determine_initial_status(

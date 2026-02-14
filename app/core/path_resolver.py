@@ -216,46 +216,17 @@ if __name__ == "__main__":
 
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
-    print("\n" + "=" * 60)
-    print("🔍 PATH RESOLUTION DIAGNOSTICS - Intelleo")
-    print("=" * 60)
-
-    print("\n📂 Environment Info:")
-    print(f"   Frozen: {getattr(sys, 'frozen', False)}")
-    print(f"   Has _MEIPASS: {hasattr(sys, '_MEIPASS')}")
-    print(f"   Python: {sys.executable}")
-    print(f"   Platform: {sys.platform}")
-
-    print("\n📁 Resolved Paths:")
-    print(f"   Base Path:     {get_base_path()}")
-    print(f"   User Data:     {get_user_data_path()}")
-    print(f"   License Path:  {get_license_path()}")
-    print(f"   Database Path: {get_database_path()}")
-    print(f"   Logs Path:     {get_logs_path()}")
-
-    print("\n⚛️  Asset Tests:")
-
     # Test Guide HTML
     guide_html = get_asset_path("guide_frontend/dist/index.html")
     guide_status = "✅ EXISTS" if guide_html.exists() else "❌ NOT FOUND"
-    print(f"   Guide HTML: {guide_html}")
-    print(f"   Status: {guide_status}")
 
     # Test Icon
     icon_path = get_asset_path("desktop_app/icons/icon.ico")
     icon_status = "✅ EXISTS" if icon_path.exists() else "❌ NOT FOUND"
-    print(f"   Icon: {icon_path}")
-    print(f"   Status: {icon_status}")
 
     # Test License Files
-    print("\n🔐 License Files Check:")
     lic_path = get_license_path()
     lic_files = ["config.dat", "pyarmor.rkey", "manifest.json"]
     for f in lic_files:
         full_path = lic_path / f
         status = "✅" if full_path.exists() else "❌"
-        print(f"   {status} {f}: {full_path}")
-
-    print("\n" + "=" * 60)
-    print("✅ Path Resolution Diagnostics Complete")
-    print("=" * 60 + "\n")

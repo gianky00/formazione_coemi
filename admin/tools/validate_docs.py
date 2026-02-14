@@ -178,9 +178,11 @@ def check_required_sections() -> list:
         "dist/nuitka",
     ]
 
-    for section in required_sections:
-        if section.lower() not in content:
-            missing.append({"file": "BUILD_INSTRUCTIONS.md", "missing": section})
+    missing = [
+        {"file": "BUILD_INSTRUCTIONS.md", "missing": section}
+        for section in required_sections
+        if section.lower() not in content
+    ]
 
     return missing
 

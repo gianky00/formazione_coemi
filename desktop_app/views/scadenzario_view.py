@@ -200,7 +200,7 @@ class ScadenzarioView(tk.Frame):
                 val = x[0][col_idx]
                 try:
                     return int(val) if val != "N/D" else 99999
-                except:
+                except ValueError:
                     return 99999
 
             items.sort(key=sort_key, reverse=self.sort_reverse)
@@ -210,7 +210,7 @@ class ScadenzarioView(tk.Frame):
                 reverse=self.sort_reverse,
             )
 
-        for idx, (vals, item) in enumerate(items):
+        for idx, (_vals, item) in enumerate(items):
             self.tree.move(item, "", idx)
 
         # Update heading to show sort direction
@@ -237,9 +237,9 @@ class ScadenzarioView(tk.Frame):
                 )
                 if self.winfo_exists():
                     self.after(0, lambda: self._update_data(new_data))
-            except Exception:
+            except Exception as e:
                 if self.winfo_exists():
-                    self.after(0, lambda: messagebox.showerror("Errore", str(e)))
+                    self.after(0, lambda e=str(e): messagebox.showerror("Errore", str(e)))
 
         threading.Thread(target=fetch, daemon=True).start()
 
@@ -263,7 +263,7 @@ class ScadenzarioView(tk.Frame):
 
         # Update category combobox
         current_cat = self.combo_categoria.get()
-        cat_values = ["Tutte"] + sorted(categories)
+        cat_values = ["Tutte", *sorted(categories)]
         self.combo_categoria["values"] = cat_values
         if current_cat not in cat_values:
             self.combo_categoria.set("Tutte")
@@ -337,7 +337,7 @@ class ScadenzarioView(tk.Frame):
                     dt = datetime.strptime(scadenza_str, "%d/%m/%Y").date()
                     delta = (dt - today).days
                     days_str = str(delta)
-                except:
+                except Exception:
                     pass
             else:
                 scadenza_str = ""  # Empty cell instead of "NESSUNA"

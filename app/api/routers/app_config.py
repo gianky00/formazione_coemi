@@ -9,7 +9,7 @@ from app.api import deps
 from app.core.config import get_user_data_dir, settings
 from app.db.models import User
 
-router = APIRouter()
+router = APIRouter(prefix="/app_config", tags=["app_config"])
 
 
 class AppConfigSchema(BaseModel):

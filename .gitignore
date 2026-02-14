@@ -37,6 +37,7 @@ MANIFEST
 .csv
 
 # Unit test / coverage
+reports/
 htmlcov/
 .tox/
 .nox/

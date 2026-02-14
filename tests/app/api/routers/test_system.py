@@ -15,7 +15,9 @@ def test_optimize_endpoint_async():
 
     # Patch dependencies global because it's imported inside function
     with patch("app.core.db_security.db_security") as mock_security:
-        result = system.optimize_system(background_tasks=mock_bg_tasks, db=mock_db)
+        result = system.optimize_system(
+            background_tasks=mock_bg_tasks, db=mock_db, current_user=MagicMock()
+        )
 
         # Verify DB optimize called
         mock_security.optimize_database.assert_called_once()

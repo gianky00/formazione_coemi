@@ -44,7 +44,7 @@ class SecureKey:
         # Generate a random nonce for runtime memory protection
         self._nonce = os.urandom(len(key_bytes))
         # Store key XOR nonce (not plaintext in memory)
-        self._blob = bytes(a ^ b for a, b in zip(key_bytes, self._nonce))
+        self._blob = bytes(a ^ b for a, b in zip(key_bytes, self._nonce, strict=False))
 
     @property
     def value(self) -> bytes:
@@ -54,7 +54,7 @@ class SecureKey:
         Decryption happens on-the-fly each time.
         Callers should use the value immediately and let it go out of scope.
         """
-        return bytes(a ^ b for a, b in zip(self._blob, self._nonce))
+        return bytes(a ^ b for a, b in zip(self._blob, self._nonce, strict=False))
 
 
 def _initialize_secure_store() -> SecureKey:

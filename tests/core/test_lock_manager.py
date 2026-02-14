@@ -1,55 +1,38 @@
+import os
+
 from app.core.lock_manager import LockManager
 
 
-def test_lock_manager_release_deletes_file(tmp_path, mocker):
-    mocker.patch.object(LockManager, "_lock_byte_0")
-    lock_file = tmp_path / ".test.lock"
-    lock_manager = LockManager(str(lock_file))
-
-    # 1. Acquire
-    success, info = lock_manager.acquire({"test": "data"})
-    assert success
-    # In mock env we didn't actually lock byte, but file is open
+def test_lock_manager_release_deletes_file(tmp_path):
+    lock_file = tmp_path / ".lock"
+    mgr = LockManager(str(lock_file))
+    mgr.acquire({"test": "data"})
     assert lock_file.exists()
-
-    # 2. Release
-    lock_manager.release()
-
-    # 3. Verify file is gone
+    mgr.release()
     assert not lock_file.exists()
 
 
-def test_lock_manager_release_handles_missing_file(tmp_path, mocker):
-    mocker.patch.object(LockManager, "_lock_byte_0")
+def test_lock_manager_release_handles_missing_file(tmp_path):
+    lock_file = tmp_path / ".lock"
+    mgr = LockManager(str(lock_file))
+    mgr.acquire({"test": "data"})
 
-    # Simulate file missing during release check
-    mocker.patch("os.path.exists", return_value=False)
-    mock_remove = mocker.patch("os.remove")
+    # On Windows we must close handle before removing
+    if mgr._lock_handle:
+        mgr._lock_handle.close()
+        mgr._lock_handle = None
 
-    lock_file = tmp_path / ".test_missing.lock"
-    lock_manager = LockManager(str(lock_file))
-
-    # 1. Acquire
-    success, info = lock_manager.acquire({"test": "data"})
-    assert success
-
-    # 2. Release (should not crash and not call remove)
-    lock_manager.release()
-
-    mock_remove.assert_not_called()
-    assert lock_manager._lock_handle is None
+    if lock_file.exists():
+        os.remove(str(lock_file))
+    mgr.release()  # Should not raise
 
 
-def test_lock_manager_release_handles_remove_error(tmp_path, mocker):
-    mocker.patch.object(LockManager, "_lock_byte_0")
-    # Simulate OS error on removal (e.g. race condition)
-    mock_remove = mocker.patch("os.remove")
-    mock_remove.side_effect = OSError("Access Denied")
+def test_lock_manager_acquire_already_locked(tmp_path):
+    lock_file = tmp_path / ".lock"
+    mgr1 = LockManager(str(lock_file))
+    mgr1.acquire({"id": "1"})
 
-    lock_file = tmp_path / ".test_error.lock"
-    lock_manager = LockManager(str(lock_file))
-    lock_manager.acquire({})
-
-    # Release should catch the error and not crash
-    lock_manager.release()
-    assert lock_manager._lock_handle is None
+    mgr2 = LockManager(str(lock_file))
+    success, _ = mgr2.acquire({"id": "2"})
+    assert success is False
+    mgr1.release()

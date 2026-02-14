@@ -1,0 +1,53 @@
+trim trailing whitespace.................................................Passed
+fix end of files.........................................................Passed
+check yaml...............................................................Passed
+check for added large files..............................................Passed
+check for merge conflicts................................................Passed
+debug statements (python)................................................Passed
+ruff (legacy alias)......................................................Failed
+- hook id: ruff
+- exit code: 1
+
+PERF401 Use a list comprehension to create a transformed list
+  --> tests\app\db\test_db_infrastructure.py:69:13
+   |
+67 |     for call in mock_db.execute.mock_calls:
+68 |         if call.args:
+69 |             sql_executed.append(str(call.args[0]))
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+70 |
+71 |     assert any("previous_login" in sql for sql in sql_executed)
+   |
+help: Replace for loop with list comprehension
+
+E721 Use `is` and `is not` for type comparisons, or `isinstance()` for isinstance checks
+  --> tests\app\services\test_certificate_logic.py:28:12
+   |
+26 |     expiration_date = calculate_expiration_date(issue_date, validity_months)
+27 |     # This assertion should fail before the fix because it will return a datetime object
+28 |     assert type(expiration_date) == date
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+
+B018 Found useless attribute access. Either assign it to a variable or remove it.
+   --> tests\app\services\test_certificate_logic.py:247:5
+    |
+245 |     # Per sicurezza, usiamo date relative a 'today' per il test robusto,
+246 |     # ma per seguire lo scenario utente usiamo date fisse future per l'ultimo.
+247 |     date.today().year
+    |     ^^^^^^^^^^^^^^^^^
+248 |     # Se siamo nel 2025 o dopo, questo funziona. Se siamo nel 2024, 2025 ├¿ futuro.
+249 |     # Forziamo date relative per garantire il test passi sempre.
+    |
+
+Found 3 errors.
+
+ruff format..............................................................Passed
+mypy.....................................................................Passed
+deptry...................................................................Failed
+- hook id: deptry
+- exit code: 1
+
+Executable `deptry` not found
+
+bandit...................................................................Passed

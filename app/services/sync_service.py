@@ -46,16 +46,16 @@ def clean_all_empty_folders(root_path: str) -> None:
     logging.info(f"Cleaning empty folders in {root_path}...")
     removed_count = 0
 
-    for dirpath, dirnames, filenames in os.walk(root_path, topdown=False):
-        try:
+    for dirpath, _dirnames, _filenames in os.walk(root_path, topdown=False):
+        import contextlib
+
+        with contextlib.suppress(OSError):
             if not os.listdir(dirpath):
                 if os.path.normpath(dirpath) == os.path.normpath(root_path):
                     continue
 
                 os.rmdir(dirpath)
                 removed_count += 1
-        except OSError:
-            pass
 
     logging.info(f"Cleaned {removed_count} empty folders.")
 
@@ -134,7 +134,12 @@ def archive_certificate_file(db: Session, cert: Certificato) -> bool:
         else None,
     }
 
-    current_path = find_document(database_path, cert_data)
+    # Try to use existing file_path from DB first
+    current_path = None
+    if cert.file_path and os.path.exists(cert.file_path):
+        current_path = cert.file_path
+    else:
+        current_path = find_document(database_path, cert_data)
 
     if current_path and os.path.exists(current_path):
         expected_path = construct_certificate_path(database_path, cert_data, status="STORICO")
@@ -143,9 +148,10 @@ def archive_certificate_file(db: Session, cert: Certificato) -> bool:
     return False
 
 
-def link_orphaned_certificates(db: Session, dipendente: Dipendente) -> int:
+def link_orphaned_certificates(db: Session, dipendente: Dipendente | None = None) -> int:
     """
-    Scans for orphaned certificates that match the given employee and links them.
+    Scans for orphaned certificates that match the given employee (if any) and links them.
+    If dipendente is None, it checks all orphans for any employee match.
     """
     orphans = (
         db.query(Certificato)
@@ -161,14 +167,21 @@ def link_orphaned_certificates(db: Session, dipendente: Dipendente) -> int:
             continue
 
         dob_raw = parse_date_flexible(str(cert.data_nascita_raw)) if cert.data_nascita_raw else None
-        if dob_raw and dipendente.data_nascita and dob_raw != dipendente.data_nascita:
-            continue
 
-        match = matcher.find_employee_by_name(db, str(cert.nome_dipendente_raw), dob_raw)
-
-        if match and match.id == dipendente.id:
-            _link_and_move_orphan(db, cert, dipendente, database_path)
-            linked_count += 1
+        # If specific employee provided, check only for him
+        if dipendente:
+            if dob_raw and dipendente.data_nascita and dob_raw != dipendente.data_nascita:
+                continue
+            match = matcher.find_employee_by_name(db, str(cert.nome_dipendente_raw), dob_raw)
+            if match and match.id == dipendente.id:
+                _link_and_move_orphan(db, cert, dipendente, database_path)
+                linked_count += 1
+        else:
+            # Global check
+            match = matcher.find_employee_by_name(db, str(cert.nome_dipendente_raw), dob_raw)
+            if match:
+                _link_and_move_orphan(db, cert, match, database_path)
+                linked_count += 1
 
     return linked_count
 

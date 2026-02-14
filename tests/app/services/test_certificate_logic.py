@@ -25,7 +25,7 @@ def test_calculate_expiration_date_returns_date_object():
     validity_months = 12
     expiration_date = calculate_expiration_date(issue_date, validity_months)
     # This assertion should fail before the fix because it will return a datetime object
-    assert type(expiration_date) == date
+    assert isinstance(expiration_date, date)
 
 
 def test_calculate_expiration_none():
@@ -244,7 +244,7 @@ def test_user_scenario_chain_ending_valid(db_session: Session):
     # Assumiamo che 'oggi' sia prima del 2027.
     # Per sicurezza, usiamo date relative a 'today' per il test robusto,
     # ma per seguire lo scenario utente usiamo date fisse future per l'ultimo.
-    today_year = date.today().year
+    _ = date.today().year
     # Se siamo nel 2025 o dopo, questo funziona. Se siamo nel 2024, 2025 è futuro.
     # Forziamo date relative per garantire il test passi sempre.
 
@@ -389,7 +389,6 @@ def test_certificate_status_visita_medica_threshold(db_session):
     db_session.commit()
 
     # Threshold is 30 days for VISITA MEDICA
-    threshold = settings.ALERT_THRESHOLD_DAYS_VISITE
 
     # Expiring in 45 days (outside 30 but inside 60)
     # Should be "attivo" because threshold is 30

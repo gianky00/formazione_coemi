@@ -1,3 +1,4 @@
+import contextlib
 import logging
 
 import geoip2.database
@@ -41,21 +42,22 @@ class GeoLocationService:
         try:
             reader = cls.get_reader()
             if not reader:
-                return "Unknown (No DB)"
+                return "Unknown"
 
             response: City = reader.city(ip_address)
-            city = response.city.name or "Unknown City"
-            country = response.country.name or "Unknown Country"
-            return f"{city}, {country}"
+            city = response.city.name
+            country = response.country.name or "Unknown"
+
+            if city:
+                return f"{city}, {country}"
+            return country
         except Exception:
-            return "Unknown Location"
+            return "Unknown"
 
     @classmethod
     def close(cls) -> None:
         """Chiude il database GeoLite2."""
         if cls._reader:
-            try:
+            with contextlib.suppress(Exception):
                 cls._reader.close()
-            except Exception:
-                pass
             cls._reader = None
