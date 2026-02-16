@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.core import security
 from app.core.config import settings
-from app.db.models import Corso, User
-from app.db.session import SessionLocal
+from app.db.models import AuditLog, Base, BlacklistedToken, Certificato, Corso, Dipendente, User
+from app.db.session import SessionLocal, engine
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +61,10 @@ def migrate_schema(db: Session) -> None:
         ("dipendenti", "data_assunzione", "DATE", False),
         ("dipendenti", "mansione", "VARCHAR", False),
         ("dipendenti", "categoria_reparto", "VARCHAR", False),
+        ("certificati", "nome_dipendente_raw", "VARCHAR", False),
+        ("certificati", "data_nascita_raw", "VARCHAR", False),
+        ("certificati", "data_scadenza_manuale", "DATE", False),
+        ("certificati", "data_scadenza_calcolata", "DATE", False),
     ]
 
     for table, col, col_type, is_idx in tables_configs:
@@ -183,6 +187,9 @@ def seed_database(db: Session | None = None) -> None:
     """
     Main entry point for database seeding and migration.
     """
+    # Ensure tables exist
+    Base.metadata.create_all(bind=engine)
+
     own_session = False
     if db is None:
         db = SessionLocal()
