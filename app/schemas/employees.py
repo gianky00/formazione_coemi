@@ -1,6 +1,7 @@
 import re
 from datetime import date
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from .certificates import CertificatoSchema
 
 class DipendenteSchema(BaseModel):
     id: int
@@ -14,6 +15,9 @@ class DipendenteSchema(BaseModel):
     data_assunzione: date | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+class DipendenteDetailSchema(DipendenteSchema):
+    certificati: list[CertificatoSchema] = []
 
 class DipendenteCreateSchema(BaseModel):
     matricola: str | None = Field(None, min_length=1)
