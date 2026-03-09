@@ -11,6 +11,11 @@ class UserBase(BaseModel):
 class UserCreateSchema(UserBase):
     password: str | None = None
 
+class UserPasswordUpdateSchema(BaseModel):
+    old_password: str
+    new_password: str
+    confirm_password: str
+
 class UserUpdateSchema(BaseModel):
     username: str | None = None
     account_name: str | None = None
