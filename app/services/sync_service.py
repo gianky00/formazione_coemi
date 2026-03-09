@@ -245,7 +245,7 @@ def _process_sync_cert(
     }
 
     status = status_map.get(int(cert.id), "attivo")
-    target_status = "ATTIVO" if status in ["attivo", "in_scadenza"] else "STORICO"
+    target_status = "ATTIVO" if status in ("attivo", "in_scadenza") else "STORICO"
 
     expected_path = construct_certificate_path(database_path, cert_data, status=target_status)
     current_path = find_document(database_path, cert_data)

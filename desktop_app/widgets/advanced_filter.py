@@ -3,6 +3,8 @@ Advanced Column Filter Widget for Intelleo.
 Provides Excel-like filtering with multi-select, search, and date tree grouping.
 """
 
+import functools
+import functools
 import tkinter as tk
 from collections import defaultdict
 from datetime import datetime
@@ -199,7 +201,7 @@ class AdvancedFilterPopup(tk.Toplevel):
 
         # Include empty/none option
         if any(not v or v.lower() == "none" for v in values):
-            unique_values = ["(Vuoto)", *list(unique_values)]
+            unique_values = ["(Vuoto)", *unique_values.copy()]
 
         self.checkboxes = {}
         for value in unique_values:
@@ -247,8 +249,9 @@ class AdvancedFilterPopup(tk.Toplevel):
                 year_frame,
                 text=f"\u25bc {year}",
                 variable=year_var,
-                command=lambda y=year: self._toggle_year(y),
+                command=functools.partial(self._toggle_year, year),
             )
+
             year_cb.pack(anchor="w", padx=5)
 
             # Month container (collapsible)
@@ -268,7 +271,7 @@ class AdvancedFilterPopup(tk.Toplevel):
                     month_frame,
                     text=f"\u25b8 {month_name}",
                     variable=month_var,
-                    command=lambda mk=month_key: self._toggle_month(mk),
+                    command=functools.partial(self._toggle_month, month_key),
                 )
                 month_cb.pack(anchor="w", padx=5)
 
@@ -285,8 +288,9 @@ class AdvancedFilterPopup(tk.Toplevel):
                         day_container,
                         text=f"{day:02d}",
                         variable=day_var,
-                        command=lambda dk=day_key: self._on_day_toggle(dk),
+                        command=functools.partial(self._on_day_toggle, day_key),
                     )
+
                     day_cb.pack(anchor="w", padx=5)
 
                     self.checkboxes[day_key] = day_var
@@ -517,7 +521,7 @@ class FilterableTreeview(ttk.Treeview):
             return str_val in filter_data
 
         elif filter_type == "date":
-            if not value or str(value).lower() in ["none", "nessuna", ""]:
+            if not value or str(value).lower() in ("none", "nessuna", ""):
                 return "(Vuoto)" in filter_data
 
             # Parse the date
@@ -604,16 +608,16 @@ def setup_filterable_treeview(tree, column_names):
 
         if ftype == "values":
             str_val = str(value) if value else "(Vuoto)"
-            if not value or str(value).lower() in ["none", "nessuna"]:
+            if not value or str(value).lower() in ("none", "nessuna"):
                 str_val = "(Vuoto)"
             return str_val in fdata
 
         elif ftype == "date":
-            if not value or str(value).lower() in ["none", "nessuna", ""]:
+            if not value or str(value).lower() in ("none", "nessuna", ""):
                 return "(Vuoto)" in fdata
 
             # Parse date
-            for fmt in ["%d/%m/%Y", "%Y-%m-%d"]:
+            for fmt in ("%d/%m/%Y", "%Y-%m-%d"):
                 try:
                     dt = datetime.strptime(str(value).strip(), fmt)
                     return (dt.year, dt.month, dt.day) in fdata

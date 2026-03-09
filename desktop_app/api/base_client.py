@@ -1,14 +1,18 @@
-import os
-import requests
 import logging
+import os
+
+import requests
+
 from desktop_app.utils import get_device_id
 
 logger = logging.getLogger(__name__)
+
 
 class BaseAPIClient:
     """
     Classe base per gestire sessione, token e richieste HTTP comuni.
     """
+
     def __init__(self):
         self.base_url = os.environ.get("API_URL", "http://localhost:8000/api/v1")
         self.access_token = None
@@ -28,21 +32,21 @@ class BaseAPIClient:
         if not endpoint.startswith("/"):
             endpoint = f"/{endpoint}"
         url = f"{self.base_url}{endpoint}"
-        
+
         # Merge headers
         headers = kwargs.pop("headers", {})
         headers.update(self._get_headers())
-        
+
         # Set default timeout
         kwargs.setdefault("timeout", 30)
-        
+
         try:
             response = requests.request(method, url, headers=headers, **kwargs)
             response.raise_for_status()
             if response.status_code == 204:
                 return True
             return response.json()
-        except requests.exceptions.HTTPError as e:
+        except requests.exceptions.HTTPError:
             logger.error(f"HTTP Error {response.status_code} on {endpoint}: {response.text}")
             raise
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:

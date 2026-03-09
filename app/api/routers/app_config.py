@@ -95,7 +95,7 @@ async def update_mutable_config(
         update_data = new_settings.model_dump(exclude_unset=True)
 
         filtered_data = {
-            k: v for k, v in update_data.items() if k not in ["account_name", "gender"]
+            k: v for k, v in update_data.items() if k not in ("account_name", "gender")
         }
 
         if not filtered_data:

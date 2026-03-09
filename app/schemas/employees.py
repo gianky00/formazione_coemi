@@ -1,7 +1,10 @@
 import re
 from datetime import date
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 from .certificates import CertificatoSchema
+
 
 class DipendenteSchema(BaseModel):
     id: int
@@ -16,8 +19,10 @@ class DipendenteSchema(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class DipendenteDetailSchema(DipendenteSchema):
     certificati: list[CertificatoSchema] = []
+
 
 class DipendenteCreateSchema(BaseModel):
     matricola: str | None = Field(None, min_length=1)
@@ -35,6 +40,7 @@ class DipendenteCreateSchema(BaseModel):
         if v and not re.match(r"^[a-zA-Z\s']+$", v):
             raise ValueError("Nome e cognome possono contenere solo lettere, spazi e apostrofi.")
         return v
+
 
 class DipendenteUpdateSchema(BaseModel):
     matricola: str | None = Field(None, min_length=1)

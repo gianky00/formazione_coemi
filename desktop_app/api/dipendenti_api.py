@@ -1,5 +1,7 @@
 import os
+
 from desktop_app.api.base_client import BaseAPIClient
+
 
 class DipendentiAPI:
     def __init__(self, client: BaseAPIClient):
@@ -24,7 +26,7 @@ class DipendentiAPI:
         MAX_CSV_SIZE = 5 * 1024 * 1024
         if os.path.getsize(file_path) > MAX_CSV_SIZE:
             raise ValueError("File troppo grande (>5MB)")
-            
+
         with open(file_path, "rb") as f:
             files = {"file": (os.path.basename(file_path), f, "text/csv")}
             return self.client.post("/dipendenti/import-csv", files=files, timeout=300)

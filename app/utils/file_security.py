@@ -65,7 +65,7 @@ def get_pdf_text_preview(pdf_bytes: bytes, max_chars: int = 10000) -> str:
         # Very basic extraction: find text within PDF operators (simplified)
         # In a real scenario, use PyMuPDF or pypdf.
         # For now, we extract printable ASCII strings as a heuristic.
-        text = "".join(chr(b) if 32 <= b <= 126 or b in [10, 13] else " " for b in pdf_bytes)
+        text = "".join(chr(b) if 32 <= b <= 126 or b in (10, 13) else " " for b in pdf_bytes)
         # Clean up multiple spaces
         text = re.sub(r"\s+", " ", text)
         return text[:max_chars].strip()

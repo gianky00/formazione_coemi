@@ -1,5 +1,6 @@
 from desktop_app.api.base_client import BaseAPIClient
 
+
 class SystemAPI:
     def __init__(self, client: BaseAPIClient):
         self.client = client

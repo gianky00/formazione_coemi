@@ -60,13 +60,18 @@ def draw_spectacular_background(painter, width, height, is_dark=True):
             y = random.uniform(0, height)
             s = random.uniform(0.5, 2.5)
             opacity = random.randint(100, 255)
-            painter.setBrush(QColor(147, 197, 253, opacity) if random.random() > 0.8 else QColor(255, 255, 255, opacity))
+            painter.setBrush(
+                QColor(147, 197, 253, opacity)
+                if random.random() > 0.8
+                else QColor(255, 255, 255, opacity)
+            )
             painter.drawEllipse(QPointF(x, y), s, s)
     else:
         painter.fillRect(0, 0, width, height, Qt.white)
 
     draw_tech_grid(painter, width, height, is_dark)
-    if is_dark: draw_neural_network(painter, width, height)
+    if is_dark:
+        draw_neural_network(painter, width, height)
 
 
 def draw_tech_grid(painter, width, height, is_dark):
@@ -80,7 +85,8 @@ def draw_tech_grid(painter, width, height, is_dark):
     for i in range(cols):
         for j in range(rows):
             x, y = i * dx, j * dy
-            if i % 2 == 1: y += dy / 2
+            if i % 2 == 1:
+                y += dy / 2
             _draw_hexagon(painter, x, y, size)
 
 
@@ -89,21 +95,27 @@ def _draw_hexagon(painter, x, y, size):
     for k in range(6):
         angle_rad = math.pi / 180 * (60 * k)
         px, py = x + size * math.cos(angle_rad), y + size * math.sin(angle_rad)
-        if k == 0: path.moveTo(px, py)
-        else: path.lineTo(px, py)
+        if k == 0:
+            path.moveTo(px, py)
+        else:
+            path.lineTo(px, py)
     path.closeSubpath()
     painter.drawPath(path)
 
 
 def draw_neural_network(painter, width, height):
     random.seed(55)
-    nodes = [QPointF(random.uniform(0, width), random.uniform(0, height)) for _ in range(int((width * height) / 3500))]
+    nodes = [
+        QPointF(random.uniform(0, width), random.uniform(0, height))
+        for _ in range(int((width * height) / 3500))
+    ]
     pen = QPen(QColor(56, 189, 248, 40))
     painter.setPen(pen)
     for i, p1 in enumerate(nodes):
         for j, p2 in enumerate(nodes):
-            if i >= j: continue
-            dist = math.sqrt((p1.x() - p2.x())**2 + (p1.y() - p2.y())**2)
+            if i >= j:
+                continue
+            dist = math.sqrt((p1.x() - p2.x()) ** 2 + (p1.y() - p2.y()) ** 2)
             if dist < 90:
                 pen.setColor(QColor(56, 189, 248, int((1 - dist / 90) * 90)))
                 painter.setPen(pen)
@@ -134,7 +146,7 @@ def create_slide(filepath, text, subtext, width=800, height=600, logo_pixmap=Non
         painter.setBrush(Qt.white)
         painter.drawRoundedRect(box, 15, 15)
         painter.drawPixmap(x, y, scaled)
-    
+
     center_y = height // 2
     painter.setFont(QFont("Segoe UI", 48, QFont.Bold))
     rect_main = QRect(40, center_y - 120, width - 80, 240)
@@ -142,7 +154,7 @@ def create_slide(filepath, text, subtext, width=800, height=600, logo_pixmap=Non
     painter.drawText(rect_main.translated(4, 4), Qt.AlignCenter | Qt.TextWordWrap, text)
     painter.setPen(Qt.white)
     painter.drawText(rect_main, Qt.AlignCenter | Qt.TextWordWrap, text)
-    
+
     painter.setFont(QFont("Segoe UI", 24, QFont.Light))
     painter.setPen(QColor(125, 211, 252))
     rect_sub = QRect(40, center_y + 80, width - 80, 100)
@@ -153,7 +165,9 @@ def create_slide(filepath, text, subtext, width=800, height=600, logo_pixmap=Non
 
 def create_assets():
     _ = QApplication(sys.argv)
-    assets_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "desktop_app", "assets"))
+    assets_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "desktop_app", "assets")
+    )
     os.makedirs(assets_dir, exist_ok=True)
     logo_path = os.path.join(assets_dir, "logo.png")
     logo = QPixmap(logo_path) if os.path.exists(logo_path) else None
@@ -166,7 +180,8 @@ def create_assets():
     if logo:
         scaled = logo.scaledToWidth(220, Qt.SmoothTransformation)
         x, y = (wiz_size.width() - scaled.width()) // 2, (wiz_size.height() - scaled.height()) // 2
-        p.setBrush(QColor(0, 0, 0, 80)); p.setPen(Qt.NoPen)
+        p.setBrush(QColor(0, 0, 0, 80))
+        p.setPen(Qt.NoPen)
         p.drawRoundedRect(x - 20 + 4, y - 20 + 6, scaled.width() + 40, scaled.height() + 40, 20, 20)
         p.setBrush(Qt.white)
         p.drawRoundedRect(x - 20, y - 20, scaled.width() + 40, scaled.height() + 40, 20, 20)
@@ -180,13 +195,28 @@ def create_assets():
     p.fillRect(small_img.rect(), Qt.white)
     draw_tech_grid(p, small_size.width(), small_size.height(), is_dark=False)
     if logo:
-        scaled = logo.scaled(small_size.width() - 10, small_size.height() - 10, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        p.drawPixmap((small_size.width() - scaled.width()) // 2, (small_size.height() - scaled.height()) // 2, scaled)
+        scaled = logo.scaled(
+            small_size.width() - 10,
+            small_size.height() - 10,
+            Qt.KeepAspectRatio,
+            Qt.SmoothTransformation,
+        )
+        p.drawPixmap(
+            (small_size.width() - scaled.width()) // 2,
+            (small_size.height() - scaled.height()) // 2,
+            scaled,
+        )
     p.end()
     small_img.save(os.path.join(assets_dir, "installer_small.bmp"), "BMP")
 
-    slides = [("slide_1.bmp", "INTELLIGENZA ARTIFICIALE", "Supporto all'Estrazione Dati"), ("slide_2.bmp", "SCADENZARIO", "Monitoraggio Scadenze"), ("slide_3.bmp", "VALIDAZIONE DATI", "Controllo Conformità")]
-    for f, t, s in slides: create_slide(os.path.join(assets_dir, f), t, s, logo_pixmap=logo)
+    slides = [
+        ("slide_1.bmp", "INTELLIGENZA ARTIFICIALE", "Supporto all'Estrazione Dati"),
+        ("slide_2.bmp", "SCADENZARIO", "Monitoraggio Scadenze"),
+        ("slide_3.bmp", "VALIDAZIONE DATI", "Controllo Conformità"),
+    ]
+    for f, t, s in slides:
+        create_slide(os.path.join(assets_dir, f), t, s, logo_pixmap=logo)
+
 
 if __name__ == "__main__":
     create_assets()

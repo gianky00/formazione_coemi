@@ -140,7 +140,7 @@ def organize_expired_files(db: Session) -> None:
     for cert in certificates:
         status = certificate_logic.get_certificate_status(db, cert)
 
-        if status in ["scaduto", "archiviato"] and archive_certificate_file(db, cert):
+        if status in ("scaduto", "archiviato") and archive_certificate_file(db, cert):
             moved_count += 1
 
     docs_path = os.path.join(database_path, "DOCUMENTI DIPENDENTI")

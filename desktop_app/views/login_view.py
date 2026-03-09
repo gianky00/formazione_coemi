@@ -1,12 +1,16 @@
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QCursor
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
-    QPushButton, QFrame, QSizePolicy, QSpacerItem
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt, QTimer, Signal, Slot
-from PySide6.QtGui import QFont, QCursor
 
 from app import __version__ as app_version
-from desktop_app.services.license_manager import LicenseManager
 from desktop_app.utils.worker import Worker
 
 
@@ -18,12 +22,12 @@ class LoginView(QWidget):
 
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
-        
+
         # Center container
         self.container = QFrame()
         self.container.setObjectName("LoginContainer")
         self.container.setFixedSize(400, 450)
-        
+
         container_layout = QVBoxLayout(self.container)
         container_layout.setContentsMargins(40, 40, 40, 40)
         container_layout.setSpacing(15)
@@ -38,7 +42,7 @@ class LoginView(QWidget):
         self.lbl_subtitle.setObjectName("LoginSubtitle")
         self.lbl_subtitle.setAlignment(Qt.AlignCenter)
         container_layout.addWidget(self.lbl_subtitle)
-        
+
         container_layout.addSpacing(20)
 
         # Fields
@@ -69,8 +73,12 @@ class LoginView(QWidget):
 
         # Centering
         h_layout = QHBoxLayout()
-        h_layout.addStretch(); h_layout.addWidget(self.container); h_layout.addStretch()
-        main_layout.addStretch(); main_layout.addLayout(h_layout); main_layout.addStretch()
+        h_layout.addStretch()
+        h_layout.addWidget(self.container)
+        h_layout.addStretch()
+        main_layout.addStretch()
+        main_layout.addLayout(h_layout)
+        main_layout.addStretch()
 
         # Footer
         footer = QLabel(f"Versione: {app_version}")
@@ -94,7 +102,7 @@ class LoginView(QWidget):
         worker.signals.result.connect(self.controller.on_login_success)
         worker.signals.error.connect(self._on_login_error)
         worker.signals.finished.connect(lambda: self._set_loading(False))
-        
+
         # Execute in Pool
         self.controller.thread_pool.start(worker)
 
@@ -106,7 +114,8 @@ class LoginView(QWidget):
     def _on_login_error(self, error_tuple):
         _, value, _ = error_tuple
         msg = str(value)
-        if "401" in msg: msg = "Credenziali non valide."
+        if "401" in msg:
+            msg = "Credenziali non valide."
         self.lbl_status.setText(msg)
         self.lbl_status.setStyleSheet("color: red;")
         self.entry_pass.clear()

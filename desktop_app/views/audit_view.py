@@ -1,11 +1,20 @@
 import threading
+
+from PySide6.QtCore import Signal, Slot
+from PySide6.QtGui import QBrush, QColor, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-    QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, 
-    QMessageBox, QFrame, QAbstractItemView
+    QAbstractItemView,
+    QComboBox,
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt, Signal, Slot
-from PySide6.QtGui import QKeySequence, QShortcut, QColor, QBrush
 
 
 class AuditView(QWidget):
@@ -31,7 +40,7 @@ class AuditView(QWidget):
         toolbar.setFixedHeight(60)
         toolbar.setStyleSheet("background-color: #F3F4F6; border: none;")
         t_layout = QHBoxLayout(toolbar)
-        
+
         btn_refresh = QPushButton("Aggiorna")
         btn_refresh.clicked.connect(self.refresh_data)
         t_layout.addWidget(btn_refresh)
@@ -51,12 +60,14 @@ class AuditView(QWidget):
         # Table
         self.table = QTableWidget()
         self.table.setColumnCount(6)
-        self.table.setHorizontalHeaderLabels(["Data/Ora", "Utente", "Azione", "Dettagli", "IP Address", "Severità"])
+        self.table.setHorizontalHeaderLabels(
+            ["Data/Ora", "Utente", "Azione", "Dettagli", "IP Address", "Severità"]
+        )
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
         self.table.horizontalHeader().setStretchLastSection(True)
-        
+
         layout.addWidget(self.table)
 
     def setup_shortcuts(self):
@@ -68,7 +79,9 @@ class AuditView(QWidget):
             try:
                 data = self.controller.api_client.get_audit_logs(limit=500)
                 self.data_signal.emit(data)
-            except: pass
+            except Exception:
+                pass
+
         threading.Thread(target=fetch, daemon=True).start()
 
     @Slot(list)
@@ -79,7 +92,7 @@ class AuditView(QWidget):
     def filter_data(self):
         cat = self.combo_cat.currentText()
         self.table.setRowCount(0)
-        
+
         count = 0
         for log in self.data:
             if cat != "TUTTI" and log.get("category") != cat:
@@ -87,11 +100,13 @@ class AuditView(QWidget):
 
             row = self.table.rowCount()
             self.table.insertRow(row)
-            
+
             severity = log.get("severity", "LOW")
             bg_color = None
-            if severity == "CRITICAL": bg_color = QColor("#FECACA")
-            elif severity == "MEDIUM": bg_color = QColor("#FED7AA")
+            if severity == "CRITICAL":
+                bg_color = QColor("#FECACA")
+            elif severity == "MEDIUM":
+                bg_color = QColor("#FED7AA")
 
             cols = [
                 log.get("timestamp"),
@@ -99,14 +114,15 @@ class AuditView(QWidget):
                 log.get("action"),
                 log.get("details"),
                 log.get("ip_address"),
-                severity
+                severity,
             ]
-            
+
             for i, val in enumerate(cols):
                 q_item = QTableWidgetItem(str(val))
-                if bg_color: q_item.setBackground(QBrush(bg_color))
+                if bg_color:
+                    q_item.setBackground(QBrush(bg_color))
                 self.table.setItem(row, i, q_item)
-            
+
             count += 1
-        
+
         self.lbl_count.setText(f"{count} log")

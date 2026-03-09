@@ -1,11 +1,12 @@
 from typing import Annotated, Any
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.api import deps
 from app.core.config import settings
-from app.db.session import get_db
 from app.db.models import User as UserModel
+from app.db.session import get_db
 from app.schemas import (
     DipendenteCreateSchema,
     DipendenteDetailSchema,
@@ -18,8 +19,10 @@ from app.utils.file_security import verify_file_signature
 
 router = APIRouter(prefix="/dipendenti", tags=["employees"])
 
+
 def get_employee_service(db: Annotated[Session, Depends(get_db)]) -> EmployeeService:
     return EmployeeService(db)
+
 
 @router.get("", response_model=list[DipendenteSchema])
 def get_dipendenti(
@@ -53,8 +56,11 @@ def create_dipendente(
     """Crea un nuovo dipendente."""
     new_dip = service.create(dipendente)
     log_security_action(
-        service.db, current_user, "DIPENDENTE_CREATE",
-        f"Creato dipendente {new_dip.cognome} {new_dip.nome}", category="DATA"
+        service.db,
+        current_user,
+        "DIPENDENTE_CREATE",
+        f"Creato dipendente {new_dip.cognome} {new_dip.nome}",
+        category="DATA",
     )
     return new_dip
 
@@ -73,8 +79,11 @@ def update_dipendente(
     """Aggiorna i dati di un dipendente."""
     updated = service.update(dipendente_id, dipendente_data)
     log_security_action(
-        service.db, current_user, "DIPENDENTE_UPDATE",
-        f"Aggiornato dipendente ID {dipendente_id}", category="DATA"
+        service.db,
+        current_user,
+        "DIPENDENTE_UPDATE",
+        f"Aggiornato dipendente ID {dipendente_id}",
+        category="DATA",
     )
     return updated
 
@@ -91,8 +100,11 @@ def delete_dipendente(
     """Elimina un dipendente dal sistema."""
     service.delete(dipendente_id)
     log_security_action(
-        service.db, current_user, "DIPENDENTE_DELETE",
-        f"Eliminato dipendente ID {dipendente_id}", category="DATA"
+        service.db,
+        current_user,
+        "DIPENDENTE_DELETE",
+        f"Eliminato dipendente ID {dipendente_id}",
+        category="DATA",
     )
     return {"message": "Dipendente eliminato con successo"}
 
@@ -117,10 +129,13 @@ async def import_dipendenti_csv(
         raise HTTPException(status_code=400, detail="Contenuto file non valido.")
 
     result = service.import_csv(content)
-    
+
     log_security_action(
-        service.db, current_user, "DIPENDENTE_IMPORT",
-        f"Importato CSV: {file.filename}. Orfani collegati: {result['linked_count']}", category="DATA"
+        service.db,
+        current_user,
+        "DIPENDENTE_IMPORT",
+        f"Importato CSV: {file.filename}. Orfani collegati: {result['linked_count']}",
+        category="DATA",
     )
 
     return {

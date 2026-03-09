@@ -5,11 +5,14 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from PySide6.QtCore import QThreadPool, QTimer
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QMessageBox, QFileDialog, 
-    QVBoxLayout, QWidget, QStackedWidget
+    QApplication,
+    QFileDialog,
+    QMainWindow,
+    QMessageBox,
+    QStackedWidget,
 )
-from PySide6.QtCore import Qt, QTimer, QThreadPool
 
 from app import __version__ as app_version
 from app.core.config import settings
@@ -28,11 +31,11 @@ from desktop_app.views.login_view import LoginView
 class ApplicationController(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        
+
         self.setWindowTitle("Intelleo")
         self.resize(1024, 768)
         self.setMinimumSize(800, 600)
-        
+
         # Central Widget for View Management
         self.central_stack = QStackedWidget()
         self.setCentralWidget(self.central_stack)
@@ -52,7 +55,7 @@ class ApplicationController(QMainWindow):
         self.inactivity_timer.setSingleShot(True)
         self.inactivity_timer.timeout.connect(self._on_inactivity)
         self.INACTIVITY_TIMEOUT_MS = 3600 * 1000  # 1 hour
-        
+
         # Install Event Filter for inactivity
         QApplication.instance().installEventFilter(self)
 
@@ -60,7 +63,8 @@ class ApplicationController(QMainWindow):
         # Reset timer on any interaction
         try:
             from PySide6.QtCore import QEvent
-            if event and event.type() in [QEvent.MouseButtonPress, QEvent.KeyPress, QEvent.Wheel]:
+
+            if event and event.type() in (QEvent.MouseButtonPress, QEvent.KeyPress, QEvent.Wheel):
                 self._reset_inactivity_timer()
         except Exception:
             pass
@@ -93,20 +97,27 @@ class ApplicationController(QMainWindow):
         checker.check_for_updates(on_update)
 
     def _prompt_update(self, version: str, url: str) -> None:
-        if QMessageBox.question(
-            self, "Aggiornamento Disponibile", 
-            f"Nuova versione {version} disponibile. Scaricare ora?",
-            QMessageBox.Yes | QMessageBox.No
-        ) == QMessageBox.Yes:
+        if (
+            QMessageBox.question(
+                self,
+                "Aggiornamento Disponibile",
+                f"Nuova versione {version} disponibile. Scaricare ora?",
+                QMessageBox.Yes | QMessageBox.No,
+            )
+            == QMessageBox.Yes
+        ):
             import webbrowser
+
             webbrowser.open(url)
 
     def _check_license(self) -> bool:
         try:
-            data = LicenseManager.get_license_data()
+            LicenseManager.get_license_data()
             return True
         except Exception as e:
-            QMessageBox.critical(self, "Errore Licenza", f"Impossibile avviare l'applicazione:\n{e}")
+            QMessageBox.critical(
+                self, "Errore Licenza", f"Impossibile avviare l'applicazione:\n{e}"
+            )
             return False
 
     def _check_database(self) -> bool:
@@ -119,14 +130,14 @@ class ApplicationController(QMainWindow):
 
     def _prompt_db_recovery(self, current_path: Path | None) -> bool:
         msg = f"Il database non è stato trovato al percorso:\n{current_path}\n\nÈ necessario selezionare un database esistente o crearne uno nuovo."
-        
+
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Database Mancante")
         msg_box.setText(msg)
         select_btn = msg_box.addButton("Seleziona Esistente", QMessageBox.AcceptRole)
         create_btn = msg_box.addButton("Crea Nuovo", QMessageBox.RejectRole)
         msg_box.addButton(QMessageBox.Cancel)
-        
+
         msg_box.exec()
         clicked = msg_box.clickedButton()
 
@@ -138,7 +149,9 @@ class ApplicationController(QMainWindow):
                 self._update_db_setting(path)
                 return True
         elif clicked == create_btn:
-            dir_path = QFileDialog.getExistingDirectory(self, "Seleziona Cartella per Nuovo Database")
+            dir_path = QFileDialog.getExistingDirectory(
+                self, "Seleziona Cartella per Nuovo Database"
+            )
             if dir_path:
                 new_path = os.path.join(dir_path, "database_documenti.db")
                 self._initialize_new_database(new_path)
@@ -150,7 +163,8 @@ class ApplicationController(QMainWindow):
     def _update_db_setting(self, path: str) -> None:
         settings.save_mutable_settings({"DATABASE_PATH": str(path)})
         QMessageBox.information(
-            self, "Riavvio Richiesto",
+            self,
+            "Riavvio Richiesto",
             "La configurazione del database è cambiata. L'applicazione verrà riavviata.",
         )
         self._restart_app()
@@ -164,6 +178,7 @@ class ApplicationController(QMainWindow):
 
             from sqlalchemy import create_engine
             from sqlalchemy.orm import sessionmaker
+
             from app.db.models import Base
             from app.db.seeding import seed_database
 
@@ -190,12 +205,15 @@ class ApplicationController(QMainWindow):
 
     def show_dashboard(self) -> None:
         from desktop_app.views.dashboard_view import DashboardView
+
         dashboard_view = DashboardView(self)
         self.central_stack.addWidget(dashboard_view)
         self.central_stack.setCurrentWidget(dashboard_view)
 
         # Voice Welcome
-        name = self.api_client.user_info.get("account_name", "") if self.api_client.user_info else ""
+        name = (
+            self.api_client.user_info.get("account_name", "") if self.api_client.user_info else ""
+        )
         self.voice_service.speak(f"Benvenuto {name}")
 
         self.proactive_service = ProactiveService(
@@ -210,7 +228,8 @@ class ApplicationController(QMainWindow):
         if is_read_only:
             owner_str = str(lock_owner) if lock_owner else "un altro utente"
             QMessageBox.warning(
-                self, "Modalità Sola Lettura",
+                self,
+                "Modalità Sola Lettura",
                 f"Il database è attualmente bloccato da {owner_str}.\n"
                 "L'applicazione funzionerà in modalità limitata (niente modifiche).",
             )
@@ -225,17 +244,26 @@ class ApplicationController(QMainWindow):
         self.show_login()
 
     def closeEvent(self, event) -> None:
-        if QMessageBox.question(
-            self, "Esci", "Vuoi davvero uscire?",
-            QMessageBox.Yes | QMessageBox.No
-        ) == QMessageBox.Yes:
+        if (
+            QMessageBox.question(
+                self, "Esci", "Vuoi davvero uscire?", QMessageBox.Yes | QMessageBox.No
+            )
+            == QMessageBox.Yes
+        ):
             self.logout()
             self.voice_service.cleanup()
             event.accept()
         else:
             event.ignore()
 
-    def show_toast(self, title: str, message: str, toast_type: str = "info", duration: int = 5000, on_click: Any = None) -> None:
+    def show_toast(
+        self,
+        title: str,
+        message: str,
+        toast_type: str = "info",
+        duration: int = 5000,
+        on_click: Any = None,
+    ) -> None:
         if self.toast_manager:
             self.toast_manager.show(title, message, toast_type, duration, on_click)
 
@@ -253,13 +281,14 @@ class ApplicationController(QMainWindow):
 def load_stylesheet(app: QApplication) -> None:
     """Carica il foglio di stile globale (QSS)."""
     from app.core.path_resolver import get_asset_path
+
     try:
         qss_path = get_asset_path("styles/main.qss")
         if qss_path.exists():
-            with open(qss_path, "r", encoding="utf-8") as f:
+            with open(qss_path, encoding="utf-8") as f:
                 app.setStyleSheet(f.read())
-    except Exception as e:
-        print(f"Errore caricamento stili: {e}")
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":
@@ -267,7 +296,7 @@ if __name__ == "__main__":
     # Style (Fusion for modern look)
     app.setStyle("Fusion")
     load_stylesheet(app)
-    
+
     controller = ApplicationController()
     controller.start()
     sys.exit(app.exec())

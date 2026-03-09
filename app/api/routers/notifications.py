@@ -32,7 +32,7 @@ def export_report(db: Annotated[Session, Depends(get_db)]) -> Response:
         )
 
         return Response(
-            content=bytes(pdf_bytes),
+            content=pdf_bytes,
             media_type="application/pdf",
             headers={"Content-Disposition": "attachment; filename=report_scadenze.pdf"},
         )

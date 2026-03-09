@@ -106,7 +106,7 @@ class DBSecurityManager:
         reason = ""
 
         try:
-            with open(self.lock_path, "rb") as f:
+            with self.lock_path.open("rb") as f:
                 f.seek(1)
                 data = f.read()
                 if not data:
@@ -215,8 +215,7 @@ class DBSecurityManager:
             "pid": os.getpid(),
             "hostname": socket.gethostname(),
             "timestamp": time.time(),
-            **user_info,
-        }
+        } | user_info
 
         success, owner_info = self.lock_manager.acquire(metadata)
 
@@ -249,7 +248,7 @@ class DBSecurityManager:
         self.create_backup()
 
         try:
-            with open(self.db_path, "rb") as f:
+            with self.db_path.open("rb") as f:
                 content = f.read()
         except Exception as e:
             raise RuntimeError(f"Could not read database file: {e}") from e
@@ -287,14 +286,15 @@ class DBSecurityManager:
 
         return self.active_connection
 
-    @retry(  # type: ignore
+    @retry(
+
         stop=stop_after_attempt(5),
         wait=wait_fixed(2),
         retry=retry_if_exception_type(PermissionError),
     )
     def _safe_write(self, data: bytes) -> None:
         swp_path = self.db_path.with_suffix(".swp")
-        with open(swp_path, "wb") as f:
+        with swp_path.open("wb") as f:
             f.write(data)
 
         if os.name == "nt" and self.db_path.exists():
@@ -371,7 +371,7 @@ class DBSecurityManager:
             return False
 
         try:
-            with open(target, "rb") as f:
+            with target.open("rb") as f:
                 content = f.read()
 
             if content.startswith(self._HEADER):

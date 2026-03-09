@@ -6,13 +6,17 @@ import subprocess
 import threading
 import time
 import uuid
-from typing import Any
 
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
-    QApplication, QDialog, QVBoxLayout, QLabel, QProgressBar, 
-    QPushButton, QHBoxLayout, QMessageBox
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QVBoxLayout,
 )
-from PySide6.QtCore import Qt, QTimer, Signal, Slot, QObject
 
 from app.core.path_resolver import get_asset_path as _get_asset_path
 from desktop_app.services.license_manager import LicenseManager
@@ -72,25 +76,21 @@ def clean_text_for_display(text: str) -> str:
 class TaskRunner(QDialog):
     """
     Qt version of TaskRunner.
-    Runs a task in a separate thread while showing a modal blocking dialog.
     """
+
     def __init__(self, parent, title="Elaborazione...", message="Attendere prego..."):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.setFixedSize(300, 150)
         self.setWindowModality(Qt.WindowModal)
-        # Remove close button
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowCloseButtonHint)
-        
         layout = QVBoxLayout(self)
         self.lbl = QLabel(message)
         self.lbl.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.lbl)
-        
         self.pb = QProgressBar()
-        self.pb.setRange(0, 0) # Indeterminate
+        self.pb.setRange(0, 0)
         layout.addWidget(self.pb)
-        
         self.queue = queue.Queue()
 
     def run(self, target, *args, **kwargs):
@@ -101,16 +101,11 @@ class TaskRunner(QDialog):
             except Exception as e:
                 self.queue.put(("error", e))
 
-        thread = threading.Thread(target=thread_target, daemon=True)
-        thread.start()
-
-        # Poll queue
+        threading.Thread(target=thread_target, daemon=True).start()
         timer = QTimer(self)
         timer.timeout.connect(self._poll_queue)
         timer.start(100)
-
         self.exec()
-
         if not self.queue.empty():
             status, payload = self.queue.get()
             if status == "success":
@@ -127,28 +122,23 @@ class TaskRunner(QDialog):
 class ProgressTaskRunner(QDialog):
     """
     Qt version of ProgressTaskRunner.
-    Runs a batch task with a determinate progress bar and ETA estimation.
     """
+
     def __init__(self, parent, title="Elaborazione...", message="Attendere prego..."):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.setFixedSize(400, 220)
         self.setWindowModality(Qt.WindowModal)
-        
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
-        
         self.lbl_msg = QLabel(message)
         self.lbl_msg.setStyleSheet("font-weight: bold;")
         layout.addWidget(self.lbl_msg)
-        
         self.lbl_status = QLabel("Preparazione...")
         layout.addWidget(self.lbl_status)
-        
         self.pb = QProgressBar()
         self.pb.setRange(0, 100)
         layout.addWidget(self.pb)
-        
         time_layout = QHBoxLayout()
         self.lbl_elapsed = QLabel("Trascorso: 0:00")
         self.lbl_remaining = QLabel("Rimanente: --:--")
@@ -156,11 +146,9 @@ class ProgressTaskRunner(QDialog):
         time_layout.addStretch()
         time_layout.addWidget(self.lbl_remaining)
         layout.addLayout(time_layout)
-        
         self.btn_cancel = QPushButton("Annulla")
         self.btn_cancel.clicked.connect(self._on_cancel)
         layout.addWidget(self.btn_cancel, 0, Qt.AlignCenter)
-
         self.queue = queue.Queue()
         self.progress_queue = queue.Queue()
         self.start_time = None
@@ -168,38 +156,33 @@ class ProgressTaskRunner(QDialog):
 
     def run(self, target, items, *args, **kwargs):
         total = len(items)
-        if total == 0: return []
-        
+        if total == 0:
+            return []
         self.start_time = time.time()
-        
+
         def thread_target():
-            results = []
-            errors = []
+            results, errors = [], []
             try:
                 for i, item in enumerate(items):
-                    if self.cancelled: break
+                    if self.cancelled:
+                        break
                     try:
-                        self.progress_queue.put((i, total, f"Elaborazione {i+1}/{total}..."))
+                        self.progress_queue.put((i, total, f"Elaborazione {i + 1}/{total}..."))
                         result = target(item, *args, **kwargs)
                         results.append({"success": True, "result": result, "item": item})
                     except Exception as e:
                         results.append({"success": False, "error": str(e), "item": item})
                         errors.append(str(e))
-                
                 self.progress_queue.put((total, total, "Completato!"))
                 self.queue.put(("success", {"results": results, "errors": errors}))
             except Exception as e:
                 self.queue.put(("error", e))
 
-        thread = threading.Thread(target=thread_target, daemon=True)
-        thread.start()
-
+        threading.Thread(target=thread_target, daemon=True).start()
         timer = QTimer(self)
         timer.timeout.connect(self._poll_queue)
         timer.start(100)
-
         self.exec()
-
         if not self.queue.empty():
             status, payload = self.queue.get()
             if status == "success":
@@ -209,30 +192,28 @@ class ProgressTaskRunner(QDialog):
         return {"results": [], "errors": ["Operazione annullata"]}
 
     def _on_cancel(self):
-        if QMessageBox.question(self, "Conferma", "Annullare l'operazione in corso?") == QMessageBox.Yes:
+        if QMessageBox.question(self, "Conferma", "Annullare?") == QMessageBox.Yes:
             self.cancelled = True
             self.btn_cancel.setEnabled(False)
-            self.lbl_status.setText("Annullamento in corso...")
+            self.lbl_status.setText("Annullamento...")
 
     def _poll_queue(self):
         while not self.progress_queue.empty():
             current, total, status = self.progress_queue.get()
-            pct = int((current / total * 100)) if total > 0 else 0
-            self.pb.setValue(pct)
+            self.pb.setValue(int(current / total * 100))
             self.lbl_status.setText(status)
-            
             elapsed = time.time() - self.start_time
             self.lbl_elapsed.setText(f"Trascorso: {self._format_time(elapsed)}")
             if current > 0:
-                avg = elapsed / current
-                rem = avg * (total - current)
-                self.lbl_remaining.setText(f"Rimanente: {self._format_time(rem)}")
-
+                self.lbl_remaining.setText(
+                    f"Rimanente: {self._format_time((elapsed / current) * (total - current))}"
+                )
         if not self.queue.empty():
             self.accept()
 
     def _format_time(self, seconds):
-        if seconds < 0: return "--:--"
+        if seconds < 0:
+            return "--:--"
         m, s = divmod(int(seconds), 60)
         h, m = divmod(m, 60)
         return f"{h}:{m:02d}:{s:02d}" if h > 0 else f"{m}:{s:02d}"

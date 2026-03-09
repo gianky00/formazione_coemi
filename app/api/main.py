@@ -61,7 +61,7 @@ async def _read_file_securely(file: UploadFile, max_size: int) -> bytes:
 
 def _normalize_extracted_dates(extracted_data: dict[str, Any]) -> None:
     """Standardizes date formats in the AI-extracted data."""
-    for key in ["data_nascita", "data_rilascio", "data_scadenza"]:
+    for key in ("data_nascita", "data_rilascio", "data_scadenza"):
         val = extracted_data.get(key)
         if not val or str(val).lower() == "none":
             extracted_data[key] = None

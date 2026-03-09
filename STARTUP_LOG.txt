@@ -1,0 +1,152 @@
+Requirement already satisfied: PySide6>=6.6.0 in .\Lib\site-packages (from -r requirements.txt (line 2)) (6.10.2)
+Requirement already satisfied: pyarmor in .\Lib\site-packages (from -r requirements.txt (line 4)) (9.2.3)
+Requirement already satisfied: nuitka>=2.0.0 in .\Lib\site-packages (from -r requirements.txt (line 5)) (4.0.1)
+Requirement already satisfied: zstandard>=0.22.0 in .\Lib\site-packages (from -r requirements.txt (line 6)) (0.25.0)
+Requirement already satisfied: ordered-set>=4.1.0 in .\Lib\site-packages (from -r requirements.txt (line 7)) (4.1.0)
+Requirement already satisfied: pydantic-settings>=2.0.0 in .\Lib\site-packages (from -r requirements.txt (line 8)) (2.13.0)
+Requirement already satisfied: fastapi==0.121.2 in .\Lib\site-packages (from -r requirements.txt (line 9)) (0.121.2)
+Requirement already satisfied: uvicorn==0.38.0 in .\Lib\site-packages (from -r requirements.txt (line 10)) (0.38.0)
+Requirement already satisfied: sqlalchemy==2.0.44 in .\Lib\site-packages (from -r requirements.txt (line 11)) (2.0.44)
+Requirement already satisfied: pydantic==2.12.4 in .\Lib\site-packages (from -r requirements.txt (line 12)) (2.12.4)
+Requirement already satisfied: pandas==2.3.3 in .\Lib\site-packages (from -r requirements.txt (line 13)) (2.3.3)
+Requirement already satisfied: numpy in .\Lib\site-packages (from -r requirements.txt (line 14)) (2.4.2)
+Requirement already satisfied: google-generativeai==0.8.5 in .\Lib\site-packages (from -r requirements.txt (line 15)) (0.8.5)
+Requirement already satisfied: python-dateutil==2.9.0.post0 in .\Lib\site-packages (from -r requirements.txt (line 16)) (2.9.0.post0)
+Requirement already satisfied: requests==2.32.5 in .\Lib\site-packages (from -r requirements.txt (line 17)) (2.32.5)
+Requirement already satisfied: python-multipart==0.0.20 in .\Lib\site-packages (from -r requirements.txt (line 18)) (0.0.20)
+Requirement already satisfied: protobuf==4.25.3 in .\Lib\site-packages (from -r requirements.txt (line 19)) (4.25.3)
+Requirement already satisfied: pytest==9.0.1 in .\Lib\site-packages (from -r requirements.txt (line 21)) (9.0.1)
+Requirement already satisfied: pytest-cov in .\Lib\site-packages (from -r requirements.txt (line 22)) (7.0.0)
+Requirement already satisfied: httpx==0.28.1 in .\Lib\site-packages (from -r requirements.txt (line 23)) (0.28.1)
+Requirement already satisfied: pytest-mock==3.15.1 in .\Lib\site-packages (from -r requirements.txt (line 24)) (3.15.1)
+Requirement already satisfied: fpdf2==2.8.5 in .\Lib\site-packages (from -r requirements.txt (line 25)) (2.8.5)
+Requirement already satisfied: apscheduler==3.10.4 in .\Lib\site-packages (from -r requirements.txt (line 26)) (3.10.4)
+Requirement already satisfied: tenacity in .\Lib\site-packages (from -r requirements.txt (line 27)) (9.1.4)
+Requirement already satisfied: bcrypt in .\Lib\site-packages (from -r requirements.txt (line 28)) (5.0.0)
+Requirement already satisfied: cryptography in .\Lib\site-packages (from -r requirements.txt (line 29)) (46.0.5)
+Requirement already satisfied: geoip2 in .\Lib\site-packages (from -r requirements.txt (line 32)) (5.2.0)
+Requirement already satisfied: user-agents in .\Lib\site-packages (from -r requirements.txt (line 33)) (2.2.0)
+Requirement already satisfied: wmi in .\Lib\site-packages (from -r requirements.txt (line 34)) (1.5.1)
+Requirement already satisfied: pyttsx3 in .\Lib\site-packages (from -r requirements.txt (line 35)) (2.99)
+Requirement already satisfied: psutil in .\Lib\site-packages (from -r requirements.txt (line 36)) (7.2.2)
+Requirement already satisfied: platformdirs in .\Lib\site-packages (from -r requirements.txt (line 37)) (4.9.2)
+Requirement already satisfied: posthog in .\Lib\site-packages (from -r requirements.txt (line 39)) (7.8.6)
+Requirement already satisfied: packaging in .\Lib\site-packages (from -r requirements.txt (line 40)) (26.0)
+Requirement already satisfied: passlib[bcrypt] in .\Lib\site-packages (from -r requirements.txt (line 30)) (1.7.4)
+Requirement already satisfied: python-jose[cryptography] in .\Lib\site-packages (from -r requirements.txt (line 31)) (3.5.0)
+Requirement already satisfied: sentry-sdk[fastapi] in .\Lib\site-packages (from -r requirements.txt (line 38)) (2.52.0)
+Requirement already satisfied: starlette<0.50.0,>=0.40.0 in .\Lib\site-packages (from fastapi==0.121.2->-r requirements.txt (line 9)) (0.49.3)
+Requirement already satisfied: typing-extensions>=4.8.0 in .\Lib\site-packages (from fastapi==0.121.2->-r requirements.txt (line 9)) (4.15.0)
+Requirement already satisfied: annotated-doc>=0.0.2 in .\Lib\site-packages (from fastapi==0.121.2->-r requirements.txt (line 9)) (0.0.4)
+Requirement already satisfied: annotated-types>=0.6.0 in .\Lib\site-packages (from pydantic==2.12.4->-r requirements.txt (line 12)) (0.7.0)
+Requirement already satisfied: pydantic-core==2.41.5 in .\Lib\site-packages (from pydantic==2.12.4->-r requirements.txt (line 12)) (2.41.5)
+Requirement already satisfied: typing-inspection>=0.4.2 in .\Lib\site-packages (from pydantic==2.12.4->-r requirements.txt (line 12)) (0.4.2)
+Requirement already satisfied: click>=7.0 in .\Lib\site-packages (from uvicorn==0.38.0->-r requirements.txt (line 10)) (8.3.1)
+Requirement already satisfied: h11>=0.8 in .\Lib\site-packages (from uvicorn==0.38.0->-r requirements.txt (line 10)) (0.16.0)
+Requirement already satisfied: greenlet>=1 in .\Lib\site-packages (from sqlalchemy==2.0.44->-r requirements.txt (line 11)) (3.3.1)
+Requirement already satisfied: pytz>=2020.1 in .\Lib\site-packages (from pandas==2.3.3->-r requirements.txt (line 13)) (2025.2)
+Requirement already satisfied: tzdata>=2022.7 in .\Lib\site-packages (from pandas==2.3.3->-r requirements.txt (line 13)) (2025.3)
+Requirement already satisfied: google-ai-generativelanguage==0.6.15 in .\Lib\site-packages (from google-generativeai==0.8.5->-r requirements.txt (line 15)) (0.6.15)
+Requirement already satisfied: google-api-core in .\Lib\site-packages (from google-generativeai==0.8.5->-r requirements.txt (line 15)) (2.29.0)
+Requirement already satisfied: google-api-python-client in .\Lib\site-packages (from google-generativeai==0.8.5->-r requirements.txt (line 15)) (2.190.0)
+Requirement already satisfied: google-auth>=2.15.0 in .\Lib\site-packages (from google-generativeai==0.8.5->-r requirements.txt (line 15)) (2.49.0.dev0)
+Requirement already satisfied: tqdm in .\Lib\site-packages (from google-generativeai==0.8.5->-r requirements.txt (line 15)) (4.67.3)
+Requirement already satisfied: six>=1.5 in .\Lib\site-packages (from python-dateutil==2.9.0.post0->-r requirements.txt (line 16)) (1.17.0)
+Requirement already satisfied: charset_normalizer<4,>=2 in .\Lib\site-packages (from requests==2.32.5->-r requirements.txt (line 17)) (3.4.4)
+Requirement already satisfied: idna<4,>=2.5 in .\Lib\site-packages (from requests==2.32.5->-r requirements.txt (line 17)) (3.11)
+Requirement already satisfied: urllib3<3,>=1.21.1 in .\Lib\site-packages (from requests==2.32.5->-r requirements.txt (line 17)) (2.6.3)
+Requirement already satisfied: certifi>=2017.4.17 in .\Lib\site-packages (from requests==2.32.5->-r requirements.txt (line 17)) (2026.1.4)
+Requirement already satisfied: colorama>=0.4 in .\Lib\site-packages (from pytest==9.0.1->-r requirements.txt (line 21)) (0.4.6)
+Requirement already satisfied: iniconfig>=1.0.1 in .\Lib\site-packages (from pytest==9.0.1->-r requirements.txt (line 21)) (2.3.0)
+Requirement already satisfied: pluggy<2,>=1.5 in .\Lib\site-packages (from pytest==9.0.1->-r requirements.txt (line 21)) (1.6.0)
+Requirement already satisfied: pygments>=2.7.2 in .\Lib\site-packages (from pytest==9.0.1->-r requirements.txt (line 21)) (2.19.2)
+Requirement already satisfied: anyio in .\Lib\site-packages (from httpx==0.28.1->-r requirements.txt (line 23)) (4.12.1)
+Requirement already satisfied: httpcore==1.* in .\Lib\site-packages (from httpx==0.28.1->-r requirements.txt (line 23)) (1.0.9)
+Requirement already satisfied: defusedxml in .\Lib\site-packages (from fpdf2==2.8.5->-r requirements.txt (line 25)) (0.7.1)
+Requirement already satisfied: Pillow!=9.2.*,>=8.3.2 in .\Lib\site-packages (from fpdf2==2.8.5->-r requirements.txt (line 25)) (12.1.1)
+Requirement already satisfied: fonttools>=4.34.0 in .\Lib\site-packages (from fpdf2==2.8.5->-r requirements.txt (line 25)) (4.61.1)
+Requirement already satisfied: tzlocal!=3.*,>=2.0 in .\Lib\site-packages (from apscheduler==3.10.4->-r requirements.txt (line 26)) (5.3.1)
+Requirement already satisfied: proto-plus<2.0.0dev,>=1.22.3 in .\Lib\site-packages (from google-ai-generativelanguage==0.6.15->google-generativeai==0.8.5->-r requirements.txt (line 15)) (1.27.1)
+Requirement already satisfied: googleapis-common-protos<2.0.0,>=1.56.2 in .\Lib\site-packages (from google-api-core->google-generativeai==0.8.5->-r requirements.txt (line 15)) (1.72.0)
+Requirement already satisfied: grpcio<2.0.0,>=1.33.2 in .\Lib\site-packages (from google-api-core[grpc]!=2.0.*,!=2.1.*,!=2.10.*,!=2.2.*,!=2.3.*,!=2.4.*,!=2.5.*,!=2.6.*,!=2.7.*,!=2.8.*,!=2.9.*,<3.0.0dev,>=1.34.1->google-ai-generativelanguage==0.6.15->google-generativeai==0.8.5->-r requirements.txt (line 15)) (1.78.0)
+Requirement already satisfied: grpcio-status<2.0.0,>=1.33.2 in .\Lib\site-packages (from google-api-core[grpc]!=2.0.*,!=2.1.*,!=2.10.*,!=2.2.*,!=2.3.*,!=2.4.*,!=2.5.*,!=2.6.*,!=2.7.*,!=2.8.*,!=2.9.*,<3.0.0dev,>=1.34.1->google-ai-generativelanguage==0.6.15->google-generativeai==0.8.5->-r requirements.txt (line 15)) (1.62.3)
+Requirement already satisfied: pyasn1-modules>=0.2.1 in .\Lib\site-packages (from google-auth>=2.15.0->google-generativeai==0.8.5->-r requirements.txt (line 15)) (0.4.2)
+Requirement already satisfied: shiboken6==6.10.2 in .\Lib\site-packages (from PySide6>=6.6.0->-r requirements.txt (line 2)) (6.10.2)
+Requirement already satisfied: PySide6_Essentials==6.10.2 in .\Lib\site-packages (from PySide6>=6.6.0->-r requirements.txt (line 2)) (6.10.2)
+Requirement already satisfied: PySide6_Addons==6.10.2 in .\Lib\site-packages (from PySide6>=6.6.0->-r requirements.txt (line 2)) (6.10.2)
+Requirement already satisfied: pyarmor.cli.core~=8.1.0 in .\Lib\site-packages (from pyarmor->-r requirements.txt (line 4)) (8.1.0)
+Requirement already satisfied: python-dotenv>=0.21.0 in .\Lib\site-packages (from pydantic-settings>=2.0.0->-r requirements.txt (line 8)) (1.2.1)
+Requirement already satisfied: coverage>=7.10.6 in .\Lib\site-packages (from coverage[toml]>=7.10.6->pytest-cov->-r requirements.txt (line 22)) (7.13.4)
+Requirement already satisfied: cffi>=2.0.0 in .\Lib\site-packages (from cryptography->-r requirements.txt (line 29)) (2.0.0)
+Requirement already satisfied: ecdsa!=0.15 in .\Lib\site-packages (from python-jose[cryptography]->-r requirements.txt (line 31)) (0.19.1)
+Requirement already satisfied: rsa!=4.1.1,!=4.4,<5.0,>=4.0 in .\Lib\site-packages (from python-jose[cryptography]->-r requirements.txt (line 31)) (4.9.1)
+Requirement already satisfied: pyasn1>=0.5.0 in .\Lib\site-packages (from python-jose[cryptography]->-r requirements.txt (line 31)) (0.6.2)
+Requirement already satisfied: aiohttp<4.0.0,>=3.6.2 in .\Lib\site-packages (from geoip2->-r requirements.txt (line 32)) (3.13.3)
+Requirement already satisfied: maxminddb<4.0.0,>=3.0.0 in .\Lib\site-packages (from geoip2->-r requirements.txt (line 32)) (3.0.0)
+Requirement already satisfied: aiohappyeyeballs>=2.5.0 in .\Lib\site-packages (from aiohttp<4.0.0,>=3.6.2->geoip2->-r requirements.txt (line 32)) (2.6.1)
+Requirement already satisfied: aiosignal>=1.4.0 in .\Lib\site-packages (from aiohttp<4.0.0,>=3.6.2->geoip2->-r requirements.txt (line 32)) (1.4.0)
+Requirement already satisfied: attrs>=17.3.0 in .\Lib\site-packages (from aiohttp<4.0.0,>=3.6.2->geoip2->-r requirements.txt (line 32)) (25.4.0)
+Requirement already satisfied: frozenlist>=1.1.1 in .\Lib\site-packages (from aiohttp<4.0.0,>=3.6.2->geoip2->-r requirements.txt (line 32)) (1.8.0)
+Requirement already satisfied: multidict<7.0,>=4.5 in .\Lib\site-packages (from aiohttp<4.0.0,>=3.6.2->geoip2->-r requirements.txt (line 32)) (6.7.1)
+Requirement already satisfied: propcache>=0.2.0 in .\Lib\site-packages (from aiohttp<4.0.0,>=3.6.2->geoip2->-r requirements.txt (line 32)) (0.4.1)
+Requirement already satisfied: yarl<2.0,>=1.17.0 in .\Lib\site-packages (from aiohttp<4.0.0,>=3.6.2->geoip2->-r requirements.txt (line 32)) (1.22.0)
+Requirement already satisfied: ua-parser>=0.10.0 in .\Lib\site-packages (from user-agents->-r requirements.txt (line 33)) (1.0.1)
+Requirement already satisfied: pywin32 in .\Lib\site-packages (from wmi->-r requirements.txt (line 34)) (311)
+Requirement already satisfied: comtypes in .\Lib\site-packages (from pyttsx3->-r requirements.txt (line 35)) (1.4.15)
+Requirement already satisfied: pypiwin32 in .\Lib\site-packages (from pyttsx3->-r requirements.txt (line 35)) (223)
+Requirement already satisfied: backoff>=1.10.0 in .\Lib\site-packages (from posthog->-r requirements.txt (line 39)) (2.2.1)
+Requirement already satisfied: distro>=1.5.0 in .\Lib\site-packages (from posthog->-r requirements.txt (line 39)) (1.9.0)
+Requirement already satisfied: pycparser in .\Lib\site-packages (from cffi>=2.0.0->cryptography->-r requirements.txt (line 29)) (3.0)
+Requirement already satisfied: ua-parser-builtins in .\Lib\site-packages (from ua-parser>=0.10.0->user-agents->-r requirements.txt (line 33)) (202602)
+Requirement already satisfied: httplib2<1.0.0,>=0.19.0 in .\Lib\site-packages (from google-api-python-client->google-generativeai==0.8.5->-r requirements.txt (line 15)) (0.31.2)
+Requirement already satisfied: google-auth-httplib2<1.0.0,>=0.2.0 in .\Lib\site-packages (from google-api-python-client->google-generativeai==0.8.5->-r requirements.txt (line 15)) (0.3.0)
+Requirement already satisfied: uritemplate<5,>=3.0.1 in .\Lib\site-packages (from google-api-python-client->google-generativeai==0.8.5->-r requirements.txt (line 15)) (4.2.0)
+Requirement already satisfied: pyparsing<4,>=3.1 in .\Lib\site-packages (from httplib2<1.0.0,>=0.19.0->google-api-python-client->google-generativeai==0.8.5->-r requirements.txt (line 15)) (3.3.2)
+2026-03-09 14:33:10,731 [INFO] launcher: Avvio sistema Intelleo...
+INFO:     Started server process [1608]
+INFO:     Waiting for application startup.
+2026-03-09 14:33:16,953 [INFO] app.core.db_security: Backup created: \\192.168.0.138\sicura\Intelleo\Backups\database_documenti_09-03-2026_ore_14-33.bak
+2026-03-09 14:33:18,248 [INFO] app.core.db_security: Deleted old backup: database_documenti_09-03-2026_ore_13-17.bak
+2026-03-09 14:33:18,836 [INFO] app.core.db_security: Loading ENCRYPTED database into memory.
+2026-03-09 14:33:19,121 [INFO] apscheduler.scheduler: Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-09 14:33:19,121 [INFO] apscheduler.scheduler: Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-09 14:33:19,123 [INFO] apscheduler.scheduler: Added job "check_and_send_alerts" to job store "default"
+2026-03-09 14:33:19,123 [INFO] apscheduler.scheduler: Added job "run_maintenance_task" to job store "default"
+2026-03-09 14:33:19,123 [INFO] apscheduler.scheduler: Scheduler started
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+2026-03-09 14:33:19,571 [INFO] comtypes.client._code_cache: Imported existing <module 'comtypes.gen' from 'C:\\Users\\Coemi\\Desktop\\SCRIPT\\formazione_coemi\\Lib\\site-packages\\comtypes\\gen\\__init__.py'>
+2026-03-09 14:33:19,572 [INFO] comtypes.client._code_cache: Using writeable comtypes cache directory: 'C:\Users\Coemi\Desktop\SCRIPT\formazione_coemi\Lib\site-packages\comtypes\gen'
+2026-03-09 14:44:32,524 [INFO] app.core.db_security: Session lock acquired. Write access enabled.
+INFO:     127.0.0.1:60245 - "POST /api/v1/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53156 - "GET /api/v1/certificati?validated=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:53156 - "GET /api/v1/certificati/?validated=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53157 - "GET /api/v1/certificati?validated=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:53157 - "GET /api/v1/certificati/?validated=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53158 - "GET /api/v1/dipendenti HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53159 - "GET /api/v1/app_config/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53162 - "GET /api/v1/users/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53166 - "GET /api/v1/audit/?skip=0&limit=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53167 - "GET /api/v1/certificati?validated=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:53167 - "GET /api/v1/certificati/?validated=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53169 - "GET /api/v1/certificati?validated=false HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:53169 - "GET /api/v1/certificati/?validated=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53175 - "GET /api/v1/dipendenti HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53176 - "GET /api/v1/certificati?validated=false HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:53176 - "GET /api/v1/certificati/?validated=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53178 - "GET /api/v1/certificati?validated=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:53178 - "GET /api/v1/certificati/?validated=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53179 - "GET /api/v1/certificati?validated=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:53179 - "GET /api/v1/certificati/?validated=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53180 - "GET /api/v1/dipendenti HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53181 - "GET /api/v1/dipendenti HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64203 - "GET /api/v1/certificati?validated=false HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:64203 - "GET /api/v1/certificati/?validated=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50987 - "GET /api/v1/dipendenti HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50867 - "GET /api/v1/dipendenti HTTP/1.1" 200 OK
+2026-03-09 14:45:49,457 [WARNING] app.core.path_resolver: Asset non trovato: C:\Users\Coemi\Desktop\SCRIPT\formazione_coemi\guide\index.html
+2026-03-09 14:46:00,710 [INFO] app.core.db_security: Database state saved to disk.
+INFO:     127.0.0.1:65483 - "POST /api/v1/auth/logout HTTP/1.1" 200 OK
+Sentry is attempting to send 2 pending events
+Waiting up to 2 seconds
+Press Ctrl-Break to quit

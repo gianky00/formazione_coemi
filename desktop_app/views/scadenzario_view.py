@@ -1,11 +1,16 @@
 import threading
 from datetime import datetime
+
+from PySide6.QtCore import Qt, Signal, Slot
+from PySide6.QtGui import QColor, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-    QMessageBox, QFrame, QFileDialog
+    QFileDialog,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt, Signal, Slot, QPoint
-from PySide6.QtGui import QKeySequence, QShortcut, QColor, QBrush
 
 from desktop_app.utils import TaskRunner, open_file
 from desktop_app.widgets.data_table import DataTable
@@ -19,7 +24,7 @@ class ScadenzarioView(QWidget):
         super().__init__(controller)
         self.controller = controller
         self.data = []
-        
+
         self.setup_ui()
         self.setup_shortcuts()
         self.data_signal.connect(self._update_data)
@@ -34,7 +39,7 @@ class ScadenzarioView(QWidget):
         self.search_bar.add_filter("Categoria", "categoria", ["Tutte"])
         self.search_bar.add_filter("Stato", "stato", ["Tutti", "Valido", "In Scadenza", "Scaduto"])
         self.search_bar.add_refresh_button()
-        
+
         btn_export = QPushButton("Esporta PDF")
         btn_export.setProperty("class", "PrimaryButton")
         btn_export.clicked.connect(self.export_pdf)
@@ -58,7 +63,9 @@ class ScadenzarioView(QWidget):
 
         # Table
         self.table = DataTable(self)
-        self.table.set_columns(["Dipendente", "Documento", "Categoria", "Scadenza", "Giorni Rimanenti"])
+        self.table.set_columns(
+            ["Dipendente", "Documento", "Categoria", "Scadenza", "Giorni Rimanenti"]
+        )
         layout.addWidget(self.table)
 
         self.lbl_count = QLabel("")
@@ -71,18 +78,30 @@ class ScadenzarioView(QWidget):
     def refresh_data(self):
         def fetch():
             try:
-                new_data = self.controller.api_client.get("certificati", params={"validated": "true"})
+                new_data = self.controller.api_client.get(
+                    "certificati", params={"validated": "true"}
+                )
                 self.data_signal.emit(new_data)
-            except: pass
+            except Exception:
+                pass
+
         threading.Thread(target=fetch, daemon=True).start()
 
     @Slot(list)
     def _update_data(self, new_data):
         self.data = new_data
-        categories = sorted(set(str(item.get("categoria", "")).upper() for item in self.data if item.get("categoria")))
+        categories = sorted(
+            {
+                str(item.get("categoria", "")).upper()
+                for item in self.data
+                if item.get("categoria")
+            }
+        )
         combo = self.search_bar.combos["categoria"]
         combo.blockSignals(True)
-        combo.clear(); combo.addItem("Tutte"); combo.addItems(categories)
+        combo.clear()
+        combo.addItem("Tutte")
+        combo.addItems(categories)
         combo.blockSignals(False)
         self.filter_data()
 
@@ -94,21 +113,31 @@ class ScadenzarioView(QWidget):
         today = datetime.now().date()
         filtered = []
         for item in self.data:
-            if cat_filter != "Tutte" and str(item.get("categoria") or "").upper() != cat_filter.upper(): continue
-            
+            if (
+                cat_filter != "Tutte"
+                and str(item.get("categoria") or "").upper() != cat_filter.upper()
+            ):
+                continue
+
             stato = item.get("stato_certificato")
             tag = "valido"
-            if stato == "scaduto": tag = "scaduto"
-            elif stato == "in_scadenza": tag = "in_scadenza"
+            if stato == "scaduto":
+                tag = "scaduto"
+            elif stato == "in_scadenza":
+                tag = "in_scadenza"
 
             if status_filter != "tutti":
-                if status_filter == "in scadenza" and tag != "in_scadenza": continue
-                if status_filter == "scaduto" and tag != "scaduto": continue
-                if status_filter == "valido" and tag != "valido": continue
+                if status_filter == "in scadenza" and tag != "in_scadenza":
+                    continue
+                if status_filter == "scaduto" and tag != "scaduto":
+                    continue
+                if status_filter == "valido" and tag != "valido":
+                    continue
 
-            txt = f"{item.get('nome','')} {item.get('corso','')}".lower()
-            if query and query not in txt: continue
-            
+            txt = f"{item.get('nome', '')} {item.get('corso', '')}".lower()
+            if query and query not in txt:
+                continue
+
             # Days remaining helper
             scad_str = item.get("data_scadenza") or ""
             item["giorni_rimanenti"] = ""
@@ -116,8 +145,9 @@ class ScadenzarioView(QWidget):
                 try:
                     dt = datetime.strptime(scad_str, "%d/%m/%Y").date()
                     item["giorni_rimanenti"] = str((dt - today).days)
-                except: pass
-            
+                except Exception:
+                    pass
+
             filtered.append(item)
 
         mapping = ["nome", "corso", "categoria", "data_scadenza", "giorni_rimanenti"]
@@ -126,25 +156,35 @@ class ScadenzarioView(QWidget):
 
     def _get_row_color(self, item):
         s = item.get("stato_certificato")
-        if s == "scaduto": return QColor("#FECACA")
-        if s == "in_scadenza": return QColor("#FED7AA")
-        if s == "attivo": return QColor("#BBF7D0")
+        if s == "scaduto":
+            return QColor("#FECACA")
+        if s == "in_scadenza":
+            return QColor("#FED7AA")
+        if s == "attivo":
+            return QColor("#BBF7D0")
         return None
 
     def export_pdf(self):
         path, _ = QFileDialog.getSaveFileName(self, "Esporta PDF", "report.pdf", "PDF (*.pdf)")
         if path:
             try:
+
                 def task():
                     res = self.controller.api_client.get("notifications/export-report")
-                    with open(path, "wb") as f: f.write(res.content)
+                    with open(path, "wb") as f:
+                        f.write(res.content)
+
                 TaskRunner(self, "Esportazione").run(task)
                 open_file(path)
-            except Exception as e: QMessageBox.critical(self, "Errore", str(e))
+            except Exception as e:
+                QMessageBox.critical(self, "Errore", str(e))
 
     def send_email(self):
         if QMessageBox.question(self, "Conferma", "Inviare report?") == QMessageBox.Yes:
             try:
-                TaskRunner(self, "Invio Email").run(lambda: self.controller.api_client.post("notifications/send-manual-alert"))
+                TaskRunner(self, "Invio Email").run(
+                    lambda: self.controller.api_client.post("notifications/send-manual-alert")
+                )
                 QMessageBox.information(self, "OK", "Inviato.")
-            except Exception as e: QMessageBox.critical(self, "Errore", str(e))
+            except Exception as e:
+                QMessageBox.critical(self, "Errore", str(e))

@@ -1,8 +1,10 @@
 from datetime import datetime
+
 from pydantic import BaseModel, Field, field_validator
 
 DATE_FORMAT_DMY: str = "%d/%m/%Y"
 DATE_ERROR_MSG: str = "Formato data non valido. Usare DD/MM/YYYY."
+
 
 class CertificatoSchema(BaseModel):
     id: int
@@ -16,6 +18,7 @@ class CertificatoSchema(BaseModel):
     stato_certificato: str
     assegnazione_fallita_ragione: str | None = None
 
+
 class CertificatoCreazioneSchema(BaseModel):
     nome: str = Field(..., min_length=1)
     data_nascita: str | None = None
@@ -28,23 +31,30 @@ class CertificatoCreazioneSchema(BaseModel):
     @field_validator("nome")
     @classmethod
     def validate_full_name(cls, v: str) -> str:
-        if v and len(v.strip().split()) < 2: raise ValueError("Formato nome non valido")
+        if v and len(v.strip().split()) < 2:
+            raise ValueError("Formato nome non valido")
         return v
 
     @field_validator("data_rilascio")
     @classmethod
     def validate_data_rilascio(cls, v: str) -> str:
-        try: datetime.strptime(v, DATE_FORMAT_DMY)
-        except ValueError: raise ValueError(DATE_ERROR_MSG)
+        try:
+            datetime.strptime(v, DATE_FORMAT_DMY)
+        except ValueError:
+            raise ValueError(DATE_ERROR_MSG) from None
         return v
 
     @field_validator("data_scadenza")
     @classmethod
     def validate_data_scadenza(cls, v: str | None) -> str | None:
-        if v is None or not v.strip() or v.strip().lower() == "none": return None
-        try: datetime.strptime(v, DATE_FORMAT_DMY)
-        except ValueError: raise ValueError(DATE_ERROR_MSG)
+        if v is None or not v.strip() or v.strip().lower() == "none":
+            return None
+        try:
+            datetime.strptime(v, DATE_FORMAT_DMY)
+        except ValueError:
+            raise ValueError(DATE_ERROR_MSG) from None
         return v
+
 
 class CertificatoAggiornamentoSchema(BaseModel):
     nome: str | None = None
@@ -57,13 +67,17 @@ class CertificatoAggiornamentoSchema(BaseModel):
     @field_validator("nome")
     @classmethod
     def validate_full_name(cls, v: str | None) -> str | None:
-        if v is not None and len(v.strip().split()) < 2: raise ValueError("Formato nome non valido")
+        if v is not None and len(v.strip().split()) < 2:
+            raise ValueError("Formato nome non valido")
         return v
 
     @field_validator("data_rilascio", "data_scadenza")
     @classmethod
     def validate_dates(cls, v: str | None) -> str | None:
-        if v is None or not v.strip() or v.strip().lower() == "none": return None
-        try: datetime.strptime(v, DATE_FORMAT_DMY)
-        except ValueError: raise ValueError(DATE_ERROR_MSG)
+        if v is None or not v.strip() or v.strip().lower() == "none":
+            return None
+        try:
+            datetime.strptime(v, DATE_FORMAT_DMY)
+        except ValueError:
+            raise ValueError(DATE_ERROR_MSG) from None
         return v

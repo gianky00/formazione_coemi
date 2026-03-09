@@ -1,5 +1,6 @@
 from desktop_app.api.base_client import BaseAPIClient
 
+
 class CertificatiAPI:
     def __init__(self, client: BaseAPIClient):
         self.client = client

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core import security
 from app.core.config import settings
-from app.db.models import AuditLog, Base, BlacklistedToken, Certificato, Corso, Dipendente, User
+from app.db.models import Base, Corso, User
 from app.db.session import SessionLocal, engine
 
 logger = logging.getLogger(__name__)

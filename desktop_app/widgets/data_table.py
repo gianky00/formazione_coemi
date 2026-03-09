@@ -1,20 +1,20 @@
-from PySide6.QtWidgets import (
-    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QMenu
-)
-from PySide6.QtCore import Qt, Signal, QPoint
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtCore import QPoint, Qt, Signal
+from PySide6.QtGui import QBrush
+from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QTableWidget, QTableWidgetItem
+
 
 class DataTable(QTableWidget):
     """
     Widget tabella riutilizzabile con funzionalità standard di Intelleo.
     """
+
     row_double_clicked = Signal(dict)
     context_menu_requested = Signal(QPoint, dict)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._setup_defaults()
-        self.raw_data = [] # Mantiene il riferimento ai dati originali per riga
+        self.raw_data = []  # Mantiene il riferimento ai dati originali per riga
         self.itemDoubleClicked.connect(self._on_double_click)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self._on_context_menu)
@@ -41,24 +41,25 @@ class DataTable(QTableWidget):
         """
         self.setRowCount(0)
         self.raw_data = data_list
-        
+
         for row_idx, item in enumerate(data_list):
             self.insertRow(row_idx)
             bg_color = color_callback(item) if color_callback else None
-            
+
             for col_idx, key in enumerate(column_mapping):
                 val = str(item.get(key, ""))
-                if val.lower() == "none": val = ""
-                
+                if val.lower() == "none":
+                    val = ""
+
                 q_item = QTableWidgetItem(val)
                 if bg_color:
                     q_item.setBackground(QBrush(bg_color))
-                
+
                 self.setItem(row_idx, col_idx, q_item)
 
     def get_selected_data(self) -> list[dict]:
         """Ritorna la lista dei dati associati alle righe selezionate."""
-        rows = sorted(set(index.row() for index in self.selectedIndexes()))
+        rows = sorted({index.row() for index in self.selectedIndexes()})
         return [self.raw_data[r] for r in rows if r < len(self.raw_data)]
 
     def _on_double_click(self, item):

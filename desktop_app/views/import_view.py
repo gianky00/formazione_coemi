@@ -1,17 +1,20 @@
 import os
-import shutil
-import requests
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-    QTextEdit, QFileDialog, QMessageBox, QFrame
-)
-from PySide6.QtCore import Qt, QTimer, Signal, Slot
-from PySide6.QtGui import QFont, QTextCursor
 
-from app.core.config import settings
-from app.services.document_locator import construct_certificate_path
-from app.services.sync_service import get_unique_filename
-from desktop_app.utils import ProgressTaskRunner, TaskRunner
+import requests
+from PySide6.QtCore import Qt, Signal, Slot
+from PySide6.QtGui import QTextCursor
+from PySide6.QtWidgets import (
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
+
+from desktop_app.utils import ProgressTaskRunner
 
 
 class ImportView(QWidget):
@@ -20,7 +23,7 @@ class ImportView(QWidget):
     def __init__(self, controller):
         super().__init__(controller)
         self.controller = controller
-        
+
         self.setup_ui()
         self.log_signal.connect(self._safe_log)
 
@@ -36,7 +39,7 @@ class ImportView(QWidget):
 
         # Controls Frame
         controls_layout = QHBoxLayout()
-        
+
         self.btn_file = QPushButton("📄 Seleziona File PDF")
         self.btn_file.setCursor(Qt.PointingHandCursor)
         self.btn_file.clicked.connect(self.select_file)
@@ -58,7 +61,7 @@ class ImportView(QWidget):
 
         # Log Area
         lbl_log = QLabel("Log Operazioni:")
-        lbl_log.setStyleSheet("font-weight: bold;") 
+        lbl_log.setStyleSheet("font-weight: bold;")
         layout.addWidget(lbl_log)
 
         self.log_text = QTextEdit()
@@ -79,11 +82,16 @@ class ImportView(QWidget):
     def _safe_log(self, message):
         color = "#D4D4D4"
         msg_upper = message.upper()
-        if any(x in msg_upper for x in ["OK:", "SUCCESSO", "COMPLETAT"]): color = "#4ADE80"
-        elif any(x in msg_upper for x in ["ERRORE", "ERRORI"]): color = "#F87171"
-        elif "SKIP:" in msg_upper: color = "#A78BFA"
-        elif "AVVISO:" in msg_upper: color = "#FBBF24"
-        elif "---" in msg_upper: color = "#22D3EE"
+        if any(x in msg_upper for x in ("OK:", "SUCCESSO", "COMPLETAT")):
+            color = "#4ADE80"
+        elif any(x in msg_upper for x in ("ERRORE", "ERRORI")):
+            color = "#F87171"
+        elif "SKIP:" in msg_upper:
+            color = "#A78BFA"
+        elif "AVVISO:" in msg_upper:
+            color = "#FBBF24"
+        elif "---" in msg_upper:
+            color = "#22D3EE"
 
         html_msg = f'<span style="color: {color};">{message}</span><br>'
         self.log_text.append(html_msg)
@@ -94,19 +102,20 @@ class ImportView(QWidget):
 
     def select_file(self):
         path, _ = QFileDialog.getOpenFileName(self, "Seleziona File PDF", "", "PDF Files (*.pdf)")
-        if path: self.run_analysis(path)
+        if path:
+            self.run_analysis(path)
 
     def select_folder(self):
         path = QFileDialog.getExistingDirectory(self, "Seleziona Cartella")
-        if path: self.run_analysis(path)
+        if path:
+            self.run_analysis(path)
 
     def run_analysis(self, path):
         self.log(f"Avvio analisi su: {path}")
         files = [path] if os.path.isfile(path) else []
         if not files:
             for root, _, filenames in os.walk(path):
-                for f in filenames:
-                    if f.lower().endswith(".pdf"): files.append(os.path.join(root, f))
+                files.extend(os.path.join(root, f) for f in filenames if f.lower().endswith(".pdf"))
 
         if not files:
             QMessageBox.warning(self, "Attenzione", "Nessun file PDF trovato.")
@@ -118,7 +127,9 @@ class ImportView(QWidget):
             success = sum(1 for r in result.get("results", []) if r.get("success"))
             errors = len(result.get("errors", []))
             self.log(f"--- ANALISI TERMINATA: {success} Successi, {errors} Errori ---")
-            QMessageBox.information(self, "Completato", f"Analisi terminata con {success} successi.")
+            QMessageBox.information(
+                self, "Completato", f"Analisi terminata con {success} successi."
+            )
         except Exception as e:
             QMessageBox.critical(self, "Errore", str(e))
 
@@ -126,15 +137,25 @@ class ImportView(QWidget):
         url = f"{self.controller.api_client.base_url}/upload-pdf/"
         with open(file_path, "rb") as f:
             files_dict = {"file": (os.path.basename(file_path), f, "application/pdf")}
-            res = requests.post(url, files=files_dict, headers=self.controller.api_client._get_headers(), timeout=120)
+            res = requests.post(
+                url,
+                files=files_dict,
+                headers=self.controller.api_client._get_headers(),
+                timeout=120,
+            )
             res.raise_for_status()
-        
+
         entities = res.json().get("entities", {})
-        payload = {k: entities.get(k) for k in ["nome", "corso", "categoria", "data_rilascio", "data_scadenza"]}
-        
+        payload = {
+            k: entities.get(k)
+            for k in ("nome", "corso", "categoria", "data_rilascio", "data_scadenza")
+        }
+
         create_url = f"{self.controller.api_client.base_url}/certificati/"
-        requests.post(create_url, json=payload, headers=self.controller.api_client._get_headers()).raise_for_status()
-        
+        requests.post(
+            create_url, json=payload, headers=self.controller.api_client._get_headers()
+        ).raise_for_status()
+
         self.log(f"OK: {os.path.basename(file_path)} -> {entities.get('nome')}")
         return {"file": file_path, "nome": entities.get("nome")}
 
@@ -144,4 +165,5 @@ class ImportView(QWidget):
             try:
                 self.controller.api_client.import_dipendenti_csv(path)
                 QMessageBox.information(self, "Successo", "Importazione CSV completata.")
-            except Exception as e: QMessageBox.critical(self, "Errore", str(e))
+            except Exception as e:
+                QMessageBox.critical(self, "Errore", str(e))

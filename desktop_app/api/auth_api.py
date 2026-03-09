@@ -1,4 +1,8 @@
+import builtins
+import contextlib
+
 from desktop_app.api.base_client import BaseAPIClient
+
 
 class AuthAPI:
     def __init__(self, client: BaseAPIClient):
@@ -11,10 +15,8 @@ class AuthAPI:
 
     def logout(self):
         if self.client.access_token:
-            try:
+            with contextlib.suppress(builtins.BaseException):
                 self.client.post("/auth/logout", timeout=5)
-            except:
-                pass
         self.client.access_token = None
         self.client.user_info = None
 

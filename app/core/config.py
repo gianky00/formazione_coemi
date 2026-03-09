@@ -78,7 +78,7 @@ def _migrate_settings_keys(target_path: Path) -> None:
         return
 
     try:
-        with open(target_path, encoding="utf-8") as f:
+        with target_path.open("r", encoding="utf-8") as f:
             data = json.load(f)
 
         changed = False
@@ -102,13 +102,12 @@ def _migrate_settings_keys(target_path: Path) -> None:
                 changed = True
 
         if changed:
-            with open(target_path, "w", encoding="utf-8") as f:
+            with target_path.open("w", encoding="utf-8") as f:
                 json.dump(data, f, indent=4)
             logging.info("Migrated settings keys.")
 
     except Exception as e:
         logging.error(f"Failed to migrate settings keys: {e}")
-
 
 def migrate_legacy_settings(target_path: Path) -> None:
     """
@@ -166,7 +165,7 @@ class MutableSettings:
             return
 
         try:
-            with open(self.settings_path, encoding="utf-8") as f:
+            with self.settings_path.open("r", encoding="utf-8") as f:
                 self._data = json.load(f)
             # Ensure all keys from defaults are present
             changed = False
@@ -192,7 +191,7 @@ class MutableSettings:
 
     def save(self) -> None:
         """Saves the current settings to the JSON file."""
-        with open(self.settings_path, "w", encoding="utf-8") as f:
+        with self.settings_path.open("w", encoding="utf-8") as f:
             json.dump(self._data, f, indent=4)
 
     def as_dict(self) -> dict[str, Any]:
@@ -308,7 +307,7 @@ class SettingsManager:
             return None
         db_path_str = str(db_path)
         # If it's a file (ends with .db or similar), use parent folder
-        if db_path_str.lower().endswith(".db") or os.path.isfile(db_path_str):
+        if db_path_str.lower().endswith(".db") or Path(db_path_str).is_file():
             return os.path.dirname(db_path_str)
         return db_path_str
 

@@ -1,12 +1,19 @@
 import logging
 import sys
 import webbrowser
+
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-    QTabWidget, QFrame, QMessageBox
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt, QTimer, QEvent
-from PySide6.QtGui import QFont, QShortcut, QKeySequence
 
 from app import __version__ as app_version
 from app.core.path_resolver import get_asset_path
@@ -32,7 +39,7 @@ class DashboardView(QWidget):
     def __init__(self, controller):
         super().__init__(controller)
         self.controller = controller
-        
+
         self.setup_ui()
         self.setup_shortcuts()
 
@@ -52,20 +59,22 @@ class DashboardView(QWidget):
         self.lbl_title = QLabel("Intelleo")
         self.lbl_title.setObjectName("HeaderTitle")
         header_layout.addWidget(self.lbl_title)
-        
+
         header_layout.addStretch()
 
         # User Info
         user_info = self.controller.api_client.user_info or {}
         username = user_info.get("account_name") or user_info.get("username") or "Utente"
-        
+
         self.lbl_user = QLabel(f"👤 {username}")
         self.lbl_user.setStyleSheet("color: white; font-size: 11pt;")
         header_layout.addWidget(self.lbl_user)
 
         # Notification Bell
         if NotificationBell and hasattr(self.controller, "notification_center"):
-            self.notification_bell = NotificationBell(self.controller.notification_center, self._show_notification_panel)
+            self.notification_bell = NotificationBell(
+                self.controller.notification_center, self._show_notification_panel
+            )
             header_layout.addWidget(self.notification_bell)
 
         # Guide Button
@@ -92,8 +101,10 @@ class DashboardView(QWidget):
             self.warning_banner.setFixedHeight(35)
             banner_layout = QHBoxLayout(self.warning_banner)
             banner_layout.setContentsMargins(0, 0, 0, 0)
-            
-            lbl_warning = QLabel("⚠ MODALITÀ SOLA LETTURA - Il database è bloccato da un altro utente")
+
+            lbl_warning = QLabel(
+                "⚠ MODALITÀ SOLA LETTURA - Il database è bloccato da un altro utente"
+            )
             lbl_warning.setObjectName("StatusLabel")
             lbl_warning.setAlignment(Qt.AlignCenter)
             banner_layout.addWidget(lbl_warning)
@@ -101,7 +112,7 @@ class DashboardView(QWidget):
 
         # Tabs
         self.tabs = QTabWidget()
-        
+
         # Instantiate Tabs
         self.tab_import = ImportView(self.controller)
         self.tab_validation = ValidationView(self.controller)
@@ -121,7 +132,7 @@ class DashboardView(QWidget):
         self.tabs.addTab(self.tab_config, "Configurazione")
 
         self.tabs.currentChanged.connect(self.on_tab_changed)
-        
+
         content_layout = QVBoxLayout()
         content_layout.setContentsMargins(10, 10, 10, 5)
         content_layout.addWidget(self.tabs)
@@ -132,17 +143,17 @@ class DashboardView(QWidget):
         self.footer.setFixedHeight(30)
         footer_layout = QHBoxLayout(self.footer)
         footer_layout.setContentsMargins(15, 0, 15, 0)
-        
+
         lbl_version = QLabel(f"v{app_version}")
         lbl_version.setStyleSheet("color: #6B7280; font-size: 9pt;")
         footer_layout.addWidget(lbl_version)
         footer_layout.addStretch()
-        
+
         main_layout.addWidget(self.footer)
 
     def setup_shortcuts(self):
         for i in range(7):
-            shortcut = QShortcut(QKeySequence(f"Ctrl+{i+1}"), self)
+            shortcut = QShortcut(QKeySequence(f"Ctrl+{i + 1}"), self)
             shortcut.activated.connect(lambda idx=i: self.tabs.setCurrentIndex(idx))
         QShortcut(QKeySequence("F1"), self).activated.connect(self.open_guide)
         QShortcut(QKeySequence("Ctrl+Q"), self).activated.connect(self.controller.logout)
@@ -154,7 +165,9 @@ class DashboardView(QWidget):
 
     def _show_notification_panel(self):
         if NotificationPanel and hasattr(self.controller, "notification_center"):
-            panel = NotificationPanel(self.notification_bell, self.controller.notification_center, self.controller)
+            panel = NotificationPanel(
+                self.notification_bell, self.controller.notification_center, self.controller
+            )
             panel.show()
 
     def open_guide(self):
@@ -166,9 +179,13 @@ class DashboardView(QWidget):
                 if path.exists():
                     found_uri = path.absolute().as_uri()
                     break
-            except Exception: continue
+            except Exception:
+                continue
 
-        if found_uri: webbrowser.open(found_uri)
+        if found_uri:
+            webbrowser.open(found_uri)
         else:
-            if not getattr(sys, "frozen", False): webbrowser.open("http://localhost:5173")
-            else: QMessageBox.information(self, "Guida", "La guida interattiva non è disponibile.")
+            if not getattr(sys, "frozen", False):
+                webbrowser.open("http://localhost:5173")
+            else:
+                QMessageBox.information(self, "Guida", "La guida interattiva non è disponibile.")

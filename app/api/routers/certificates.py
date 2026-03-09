@@ -1,33 +1,36 @@
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api import deps
-from app.db.session import get_db
 from app.db.models import User as UserModel
+from app.db.session import get_db
 from app.schemas import (
     CertificatoAggiornamentoSchema,
     CertificatoCreazioneSchema,
     CertificatoSchema,
 )
-from app.services.certificate_service import CertificateService
 from app.services.certificate_logic import get_bulk_certificate_statuses
+from app.services.certificate_service import CertificateService
 from app.utils.audit import log_security_action
 
 router = APIRouter(prefix="/certificati", tags=["certificates"])
 
+
 def get_cert_service(db: Annotated[Session, Depends(get_db)]) -> CertificateService:
     return CertificateService(db)
+
 
 @router.get("/", response_model=list[CertificatoSchema])
 def get_certificati(
     service: Annotated[CertificateService, Depends(get_cert_service)],
-    validated: Optional[bool] = Query(None),
+    validated: bool | None = None,
     license_ok: Annotated[bool, Depends(deps.verify_license)] = True,
 ) -> Any:
     """Ritorna l'elenco dei certificati."""
     certs = service.get_all(validated)
-    status_map = get_bulk_certificate_statuses(service.db, list(certs))
+    status_map = get_bulk_certificate_statuses(service.db, certs.copy())
     return [service.build_schema(c, status_map) for c in certs]
 
 
@@ -54,8 +57,11 @@ def create_certificato(
     """Crea un nuovo certificato."""
     new_cert = service.create(certificato)
     log_security_action(
-        service.db, current_user, "CERT_CREATE",
-        f"Creato certificato ID {new_cert.id} per {new_cert.nome_dipendente_raw}", category="DATA"
+        service.db,
+        current_user,
+        "CERT_CREATE",
+        f"Creato certificato ID {new_cert.id} per {new_cert.nome_dipendente_raw}",
+        category="DATA",
     )
     return service.build_schema(new_cert)
 
@@ -71,8 +77,11 @@ def update_certificato(
     """Aggiorna un certificato esistente."""
     updated = service.update(certificato_id, certificato_data)
     log_security_action(
-        service.db, current_user, "CERT_UPDATE",
-        f"Aggiornato certificato ID {certificato_id}", category="DATA"
+        service.db,
+        current_user,
+        "CERT_UPDATE",
+        f"Aggiornato certificato ID {certificato_id}",
+        category="DATA",
     )
     return service.build_schema(updated)
 
@@ -87,8 +96,11 @@ def valida_certificato(
     """Valida manualmente un certificato."""
     validated = service.validate(certificato_id)
     log_security_action(
-        service.db, current_user, "CERT_VALIDATE",
-        f"Validato certificato ID {certificato_id}", category="DATA"
+        service.db,
+        current_user,
+        "CERT_VALIDATE",
+        f"Validato certificato ID {certificato_id}",
+        category="DATA",
     )
     return service.build_schema(validated)
 
@@ -103,7 +115,10 @@ def delete_certificato(
     """Elimina un certificato."""
     service.delete(certificato_id)
     log_security_action(
-        service.db, current_user, "CERT_DELETE",
-        f"Eliminato certificato ID {certificato_id}", category="DATA"
+        service.db,
+        current_user,
+        "CERT_DELETE",
+        f"Eliminato certificato ID {certificato_id}",
+        category="DATA",
     )
     return {"message": "Certificato eliminato con successo"}

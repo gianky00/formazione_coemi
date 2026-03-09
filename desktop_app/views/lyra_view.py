@@ -1,24 +1,72 @@
-import re
 import threading
 from datetime import datetime
+from typing import ClassVar
+
+from PySide6.QtCore import Qt, Signal, Slot
+from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-    QTextEdit, QScrollArea, QFrame, QFileDialog, QMessageBox,
-    QSizePolicy, QSpacerItem, QTextBrowser
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QTextBrowser,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt, QTimer, Signal, Slot, QSize
-from PySide6.QtGui import QFont, QTextCursor, QColor
+
 
 class LyraView(QWidget):
-    QUICK_PROMPTS = [
-        {"icon": "📊", "label": "Riepilogo", "prompt": "Fammi un riepilogo completo della situazione attuale...", "color": "#3B82F6"},
-        {"icon": "⚠", "label": "Scadenze", "prompt": "Quali certificati scadranno nei prossimi 30 giorni?...", "color": "#F59E0B"},
-        {"icon": "📅", "label": "Piano", "prompt": "Suggerisci un piano di formazione...", "color": "#10B981"},
-        {"icon": "👥", "label": "Incompleti", "prompt": "Quali dipendenti hanno dati incompleti?...", "color": "#8B5CF6"},
-        {"icon": "📈", "label": "Statistiche", "prompt": "Mostrami statistiche dettagliate...", "color": "#06B6D4"},
-        {"icon": "🔍", "label": "Audit", "prompt": "Analizza gli ultimi log di audit...", "color": "#EF4444"},
-        {"icon": "📝", "label": "Report", "prompt": "Genera un report completo...", "color": "#EC4899"},
-        {"icon": "💡", "label": "Consigli", "prompt": "Quali azioni immediate consigli?...", "color": "#F97316"},
+    QUICK_PROMPTS: ClassVar[list[dict[str, str]]] = [
+        {
+            "icon": "📊",
+            "label": "Riepilogo",
+            "prompt": "Fammi un riepilogo completo della situazione attuale...",
+            "color": "#3B82F6",
+        },
+        {
+            "icon": "⚠",
+            "label": "Scadenze",
+            "prompt": "Quali certificati scadranno nei prossimi 30 giorni?...",
+            "color": "#F59E0B",
+        },
+        {
+            "icon": "📅",
+            "label": "Piano",
+            "prompt": "Suggerisci un piano di formazione...",
+            "color": "#10B981",
+        },
+        {
+            "icon": "👥",
+            "label": "Incompleti",
+            "prompt": "Quali dipendenti hanno dati incompleti?...",
+            "color": "#8B5CF6",
+        },
+        {
+            "icon": "📈",
+            "label": "Statistiche",
+            "prompt": "Mostrami statistiche dettagliate...",
+            "color": "#06B6D4",
+        },
+        {
+            "icon": "🔍",
+            "label": "Audit",
+            "prompt": "Analizza gli ultimi log di audit...",
+            "color": "#EF4444",
+        },
+        {
+            "icon": "📝",
+            "label": "Report",
+            "prompt": "Genera un report completo...",
+            "color": "#EC4899",
+        },
+        {
+            "icon": "💡",
+            "label": "Consigli",
+            "prompt": "Quali azioni immediate consigli?...",
+            "color": "#F97316",
+        },
     ]
 
     chat_signal = Signal(str, bool)
@@ -41,30 +89,32 @@ class LyraView(QWidget):
         sidebar.setObjectName("SidebarFrame")
         sidebar.setFixedWidth(220)
         s_layout = QVBoxLayout(sidebar)
-        
+
         s_header = QLabel("✨ Lyra IA")
-        s_header.setObjectName("HeaderFrame") # reusing header style
+        s_header.setObjectName("HeaderFrame")  # reusing header style
         s_header.setAlignment(Qt.AlignCenter)
-        s_header.setStyleSheet("color: white; font-weight: bold; border-radius: 4px; padding: 10px;")
+        s_header.setStyleSheet(
+            "color: white; font-weight: bold; border-radius: 4px; padding: 10px;"
+        )
         s_layout.addWidget(s_header)
 
         s_layout.addWidget(QLabel("Azioni Rapide:"))
-        
+
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setStyleSheet("border: none;")
         scroll_content = QWidget()
         scroll_layout = QVBoxLayout(scroll_content)
         scroll_layout.setContentsMargins(0, 0, 0, 0)
-        
+
         for q in self.QUICK_PROMPTS:
             btn = QPushButton(f"{q['icon']} {q['label']}")
             btn.setProperty("class", "QuickPromptButton")
             btn.setStyleSheet(f"background-color: {q['color']};")
             btn.setCursor(Qt.PointingHandCursor)
-            btn.clicked.connect(lambda chk=False, p=q['prompt']: self._send_prompt(p))
+            btn.clicked.connect(lambda chk=False, p=q["prompt"]: self._send_prompt(p))
             scroll_layout.addWidget(btn)
-        
+
         scroll_layout.addStretch()
         scroll.setWidget(scroll_content)
         s_layout.addWidget(scroll)
@@ -78,7 +128,7 @@ class LyraView(QWidget):
         # Chat
         container = QWidget()
         c_layout = QVBoxLayout(container)
-        
+
         self.txt_history = QTextBrowser()
         c_layout.addWidget(self.txt_history)
 
@@ -90,7 +140,7 @@ class LyraView(QWidget):
         self.entry_msg.setFixedHeight(80)
         self.entry_msg.setStyleSheet("border: none;")
         i_layout.addWidget(self.entry_msg)
-        
+
         btn_row = QHBoxLayout()
         self.lbl_loading = QLabel("")
         btn_row.addWidget(self.lbl_loading)
@@ -100,7 +150,7 @@ class LyraView(QWidget):
         self.btn_send.clicked.connect(self._send_current_msg)
         btn_row.addWidget(self.btn_send)
         i_layout.addLayout(btn_row)
-        
+
         c_layout.addWidget(input_frame)
         main_layout.addWidget(container)
 
@@ -113,10 +163,12 @@ class LyraView(QWidget):
 
     def _send_current_msg(self):
         msg = self.entry_msg.toPlainText().strip()
-        if msg: self._send_prompt(msg)
+        if msg:
+            self._send_prompt(msg)
 
     def _send_prompt(self, prompt):
-        if self.is_loading: return
+        if self.is_loading:
+            return
         self.entry_msg.clear()
         self._append_message("Tu", prompt, "#1E3A8A")
         self.loading_signal.emit(True)
@@ -135,8 +187,10 @@ class LyraView(QWidget):
             self.history.append({"role": "user", "content": message})
             self.history.append({"role": "model", "content": reply})
             self.chat_signal.emit(reply, False)
-        except Exception as e: self.chat_signal.emit(str(e), True)
-        finally: self.loading_signal.emit(False)
+        except Exception as e:
+            self.chat_signal.emit(str(e), True)
+        finally:
+            self.loading_signal.emit(False)
 
     @Slot(str, bool)
     def _on_response_received(self, text, is_error):
@@ -150,4 +204,5 @@ class LyraView(QWidget):
         self.history = []
         self._show_welcome_message()
 
-    def refresh_data(self): pass
+    def refresh_data(self):
+        pass

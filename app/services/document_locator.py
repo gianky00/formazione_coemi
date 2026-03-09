@@ -1,6 +1,8 @@
 import glob
 import os
+from contextlib import suppress
 from datetime import date, datetime
+from pathlib import Path
 from typing import Any
 
 from app.utils.file_security import sanitize_filename
@@ -16,15 +18,13 @@ def _format_file_scadenza(data_scadenza_str: Any) -> str:
         and str(data_scadenza_str).lower() != "none"
         and str(data_scadenza_str).strip() != ""
     ):
-        try:
+        with suppress(ValueError, TypeError):
             # Handle both string and date objects
             if isinstance(data_scadenza_str, date):
                 date_obj = data_scadenza_str
             else:
                 date_obj = datetime.strptime(str(data_scadenza_str), DATE_FORMAT_PYTHON).date()
             return date_obj.strftime("%d_%m_%Y")  # Use standard with underscore for industrial
-        except (ValueError, TypeError):
-            pass
     return "no scadenza"
 
 
@@ -32,9 +32,9 @@ def _search_exact_path(base_path: str, filename: str, statuses: list[str]) -> st
     """Search for exact filename in status folders."""
     for status in statuses:
         # Try both case variants
-        for s in [status.upper(), status.lower()]:
+        for s in (status.upper(), status.lower()):
             candidate = os.path.join(base_path, s, filename)
-            if os.path.isfile(candidate):
+            if Path(candidate).is_file():
                 return os.path.normpath(candidate)
     return None
 
@@ -45,7 +45,7 @@ def _search_partial_match(
     """Search for files matching partial pattern (name and category)."""
     for status in statuses:
         status_path = os.path.join(base_path, status)
-        if not os.path.isdir(status_path):
+        if not Path(status_path).is_dir():
             continue
         # Search for files containing the name and category
         pattern = os.path.join(status_path, f"*{nome_fs}*{categoria_fs}*.pdf")
@@ -59,7 +59,7 @@ def _search_partial_match(
 def _search_in_folder_tree(database_path: str, nome_fs: str, categoria_fs: str) -> str | None:
     """Deep search in the entire DOCUMENTI DIPENDENTI tree."""
     docs_path = os.path.join(database_path, "DOCUMENTI DIPENDENTI")
-    if not os.path.isdir(docs_path):
+    if not Path(docs_path).is_dir():
         return None
 
     # Search for any PDF containing the employee name

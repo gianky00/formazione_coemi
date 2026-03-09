@@ -98,7 +98,7 @@ class ToastNotification(tk.Toplevel):
 
         # Bind click event
         if on_click:
-            for widget in [self.frame, content, icon_label, title_label, msg_label, text_frame]:
+            for widget in (self.frame, content, icon_label, title_label, msg_label, text_frame):
                 widget.bind("<Button-1>", lambda e: self._handle_click())
 
         # Position window

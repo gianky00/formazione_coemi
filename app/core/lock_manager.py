@@ -36,7 +36,7 @@ class LockManager:
             self.lock_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Open file
-            self._lock_handle = open(self.lock_path, "wb+")  # noqa: SIM115
+            self._lock_handle = self.lock_path.open("wb+")  # noqa: SIM115
 
             # Apply OS-level lock (Non-blocking)
             if fcntl:
@@ -75,7 +75,7 @@ class LockManager:
         with contextlib.suppress(Exception):
             if not self.lock_path.exists():
                 return None
-            with open(self.lock_path, "rb") as f:
+            with self.lock_path.open("rb") as f:
                 f.seek(1)
                 data = f.read()
                 if data:

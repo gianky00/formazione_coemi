@@ -29,7 +29,7 @@ class LicenseChecker:
             return True
 
         # 3. Check current working directory
-        cwd = os.getcwd()
+        cwd = str(Path.cwd())
         if os.path.exists(os.path.join(cwd, "pyarmor.rkey")):
             return True
-        return bool(os.path.exists(os.path.join(cwd, "Licenza", "pyarmor.rkey")))
+        return os.path.exists(os.path.join(cwd, "Licenza", "pyarmor.rkey"))

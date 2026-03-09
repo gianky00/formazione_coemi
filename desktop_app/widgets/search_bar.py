@@ -1,29 +1,29 @@
-from PySide6.QtWidgets import (
-    QWidget, QHBoxLayout, QLineEdit, QLabel, QComboBox, QPushButton
-)
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QWidget
+
 
 class SearchBar(QWidget):
     """
     Widget standard per la ricerca e i filtri nelle tabelle.
     """
+
     text_changed = Signal(str)
-    filter_changed = Signal(str, str) # key, value
+    filter_changed = Signal(str, str)  # key, value
     refresh_requested = Signal()
 
     def __init__(self, placeholder="Cerca...", parent=None):
         super().__init__(parent)
         self.layout = QHBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
-        
+
         # Search Input
         self.layout.addWidget(QLabel("Cerca:"))
         self.entry_search = QLineEdit()
         self.entry_search.setPlaceholderText(placeholder)
-        self.entry_search.textChanged.connect(lambda t: self.text_changed.emit(t))
+        self.entry_search.textChanged.connect(self.text_changed.emit)
         self.layout.addWidget(self.entry_search)
-        
-        self.combos = {} # Mantiene i filtri aggiuntivi (es. Categoria, Stato)
+
+        self.combos = {}  # Mantiene i filtri aggiuntivi (es. Categoria, Stato)
 
     def add_filter(self, label: str, key: str, options: list[str]):
         """Aggiunge un menu a tendina per filtrare una specifica chiave."""
