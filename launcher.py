@@ -183,6 +183,41 @@ def verify_license_files() -> bool:
     return all((lic_dir / f).exists() for f in required)
 
 
+def crash_handler(etype, value, tb_obj):
+    """Gestore globale per i crash dell'applicazione."""
+    import datetime
+    import traceback
+    
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    error_msg = "".join(traceback.format_exception(etype, value, tb_obj))
+    
+    crash_info = f"""
+============================================================
+CRASH REPORT - {timestamp}
+============================================================
+Versione: {getattr(sys, 'version', 'N/D')}
+Sistema: {sys.platform}
+PYTHONPATH: {os.environ.get('PYTHONPATH', 'N/D')}
+
+ERRORE:
+{error_msg}
+============================================================
+"""
+    # Scrittura su file immediata
+    try:
+        with open("CRASH_REPORT.txt", "a", encoding="utf-8") as f:
+            f.write(crash_info)
+    except Exception:
+        pass
+        
+    # Mostra l'errore anche in console
+    print(crash_info, file=sys.stderr)
+    sys.exit(1)
+
+# Registra il gestore
+sys.excepthook = crash_handler
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--analyze", help="Path")
@@ -216,12 +251,18 @@ def main() -> None:
     if not ready:
         sys.exit(1)
 
-    # 3. Start Tkinter Frontend
+    # 3. Start PySide6 Frontend
     try:
+        from PySide6.QtWidgets import QApplication
         from desktop_app.main import ApplicationController
 
-        app = ApplicationController()
-        app.start()
+        qt_app = QApplication(sys.argv)
+        qt_app.setStyle("Fusion")
+        
+        controller = ApplicationController()
+        controller.start()
+        
+        sys.exit(qt_app.exec())
     except Exception:
         tb.print_exc()
         sys.exit(1)

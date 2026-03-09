@@ -1,12 +1,23 @@
 import logging
 import sys
-import tkinter as tk
 import webbrowser
-from tkinter import messagebox, ttk
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
+    QTabWidget, QFrame, QMessageBox
+)
+from PySide6.QtCore import Qt, QTimer, QEvent
+from PySide6.QtGui import QFont, QShortcut, QKeySequence
 
 from app import __version__ as app_version
 from app.core.path_resolver import get_asset_path
-from desktop_app.services.notification_center import NotificationBell, NotificationPanel
+# Assumendo che NotificationBell e NotificationPanel siano stati o saranno migrati
+# Per ora usiamo dei placeholder o carichiamo se esistono
+try:
+    from desktop_app.services.notification_center import NotificationBell, NotificationPanel
+except ImportError:
+    NotificationBell = None
+    NotificationPanel = None
+
 from desktop_app.views.config_view import ConfigView
 from desktop_app.views.database_view import DatabaseView
 from desktop_app.views.dipendenti_view import DipendentiView
@@ -18,159 +29,178 @@ from desktop_app.views.validation_view import ValidationView
 logger = logging.getLogger(__name__)
 
 
-class DashboardView(tk.Frame):
-    def __init__(self, parent, controller):
-        super().__init__(parent)
+class DashboardView(QWidget):
+    def __init__(self, controller):
+        super().__init__(controller)
         self.controller = controller
-        self.configure(bg="#F3F4F6")
+        self.setStyleSheet("background-color: #F3F4F6;")
 
         self.setup_ui()
-        self.setup_keyboard_shortcuts()
+        self.setup_shortcuts()
 
     def setup_ui(self):
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
         # Header
-        header = tk.Frame(self, bg="#1E3A8A", height=60)
-        header.pack(fill="x")
-        header.pack_propagate(False)
+        self.header = QFrame()
+        self.header.setFixedHeight(70)
+        self.header.setStyleSheet("background-color: #1E3A8A; border: none;")
+        header_layout = QHBoxLayout(self.header)
+        header_layout.setContentsMargins(20, 0, 20, 0)
 
-        # Logo/Title - increased font size
-        lbl_title = tk.Label(
-            header, text="Intelleo", font=("Segoe UI", 18, "bold"), bg="#1E3A8A", fg="white"
-        )
-        lbl_title.pack(side="left", padx=20, pady=10)
+        # Logo/Title
+        self.lbl_title = QLabel("Intelleo")
+        self.lbl_title.setStyleSheet("font-size: 24px; font-weight: bold; color: white; border: none;")
+        header_layout.addWidget(self.lbl_title)
+        
+        header_layout.addStretch()
 
-        # User Info - increased font size
+        # User Info
         user_info = self.controller.api_client.user_info or {}
         username = user_info.get("account_name") or user_info.get("username") or "Utente"
+        
+        self.lbl_user = QLabel(f"  {username}")
+        self.lbl_user.setStyleSheet("font-size: 14px; color: white; border: none;")
+        header_layout.addWidget(self.lbl_user)
 
-        lbl_user = tk.Label(
-            header, text=f"  {username}", font=("Segoe UI", 11), bg="#1E3A8A", fg="white"
-        )
-        lbl_user.pack(side="right", padx=10, pady=10)
+        # Notification Bell (Placeholder/Actual)
+        if NotificationBell and hasattr(self.controller, "notification_center"):
+            self.notification_bell = NotificationBell(self.controller.notification_center, self._show_notification_panel)
+            header_layout.addWidget(self.notification_bell)
 
-        # Logout Button - increased font size
-        btn_logout = tk.Button(
-            header,
-            text="Esci",
-            bg="#DC2626",
-            fg="white",
-            relief="flat",
-            font=("Segoe UI", 10),
-            command=self.controller.logout,
-        )
-        btn_logout.pack(side="right", padx=5, pady=10)
+        # Guide Button
+        self.btn_guide = QPushButton("Guida")
+        self.btn_guide.setCursor(Qt.PointingHandCursor)
+        self.btn_guide.setStyleSheet("""
+            QPushButton {
+                background-color: #059669;
+                color: white;
+                font-weight: bold;
+                padding: 8px 15px;
+                border-radius: 4px;
+                border: none;
+            }
+            QPushButton:hover { background-color: #047857; }
+        """)
+        self.btn_guide.clicked.connect(self.open_guide)
+        header_layout.addWidget(self.btn_guide)
 
-        # Guide Button - increased font size
-        btn_guide = tk.Button(
-            header,
-            text="Guida",
-            bg="#059669",
-            fg="white",
-            relief="flat",
-            font=("Segoe UI", 10),
-            command=self.open_guide,
-        )
-        btn_guide.pack(side="right", padx=10, pady=10)
+        # Logout Button
+        self.btn_logout = QPushButton("Esci")
+        self.btn_logout.setCursor(Qt.PointingHandCursor)
+        self.btn_logout.setStyleSheet("""
+            QPushButton {
+                background-color: #DC2626;
+                color: white;
+                font-weight: bold;
+                padding: 8px 15px;
+                border-radius: 4px;
+                border: none;
+            }
+            QPushButton:hover { background-color: #B91C1C; }
+        """)
+        self.btn_logout.clicked.connect(self.controller.logout)
+        header_layout.addWidget(self.btn_logout)
 
-        # Notification Bell
-        if hasattr(self.controller, "notification_center") and self.controller.notification_center:
-            self.notification_bell = NotificationBell(
-                header, self.controller.notification_center, on_click=self._show_notification_panel
-            )
-            self.notification_bell.pack(side="right", padx=5)
+        main_layout.addWidget(self.header)
 
-        # Read-Only Warning Banner (if applicable)
+        # Read-Only Warning Banner
         if user_info.get("read_only"):
-            warning_frame = tk.Frame(self, bg="#FEF3C7", height=30)
-            warning_frame.pack(fill="x")
-            tk.Label(
-                warning_frame,
-                text="MODALITA SOLA LETTURA - Il database e bloccato da un altro utente",
-                bg="#FEF3C7",
-                fg="#92400E",
-                font=("Segoe UI", 9, "bold"),
-            ).pack(pady=5)
+            self.warning_banner = QFrame()
+            self.warning_banner.setFixedHeight(35)
+            self.warning_banner.setStyleSheet("background-color: #FEF3C7; border: none;")
+            banner_layout = QHBoxLayout(self.warning_banner)
+            banner_layout.setContentsMargins(0, 0, 0, 0)
+            
+            lbl_warning = QLabel("MODALITÀ SOLA LETTURA - Il database è bloccato da un altro utente")
+            lbl_warning.setAlignment(Qt.AlignCenter)
+            lbl_warning.setStyleSheet("color: #92400E; font-weight: bold; font-size: 12px; border: none;")
+            banner_layout.addWidget(lbl_warning)
+            main_layout.addWidget(self.warning_banner)
 
-        # Footer with version
-        footer = tk.Frame(self, bg="#F3F4F6", height=25)
-        footer.pack(side="bottom", fill="x")
-        footer.pack_propagate(False)
+        # Tabs (Notebook equivalent)
+        self.tabs = QTabWidget()
+        self.tabs.setStyleSheet("""
+            QTabWidget::pane { border: 1px solid #D1D5DB; top: -1px; background: white; }
+            QTabBar::tab {
+                background: #E5E7EB;
+                border: 1px solid #D1D5DB;
+                padding: 10px 20px;
+                margin-right: 2px;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                font-weight: bold;
+            }
+            QTabBar::tab:selected { background: white; border-bottom-color: white; }
+            QTabBar::tab:hover { background: #F9FAFB; }
+        """)
+        
+        # Instantiate Tabs
+        self.tab_import = ImportView(self.controller)
+        self.tab_validation = ValidationView(self.controller)
+        self.tab_database = DatabaseView(self.controller)
+        self.tab_scadenzario = ScadenzarioView(self.controller)
+        self.tab_dipendenti = DipendentiView(self.controller)
+        self.tab_lyra = LyraView(self.controller)
+        self.tab_config = ConfigView(self.controller)
 
-        lbl_version = tk.Label(
-            footer, text=f"v{app_version}", font=("Segoe UI", 9), bg="#F3F4F6", fg="#6B7280"
-        )
-        lbl_version.pack(side="left", padx=15, pady=3)
+        # Add Tabs
+        self.tabs.addTab(self.tab_import, "Importa")
+        self.tabs.addTab(self.tab_validation, "Convalida")
+        self.tabs.addTab(self.tab_database, "Database")
+        self.tabs.addTab(self.tab_scadenzario, "Scadenzario")
+        self.tabs.addTab(self.tab_dipendenti, "Dipendenti")
+        self.tabs.addTab(self.tab_lyra, "Lyra IA")
+        self.tabs.addTab(self.tab_config, "Configurazione")
 
-        # Notebook (Tabs)
-        self.notebook = ttk.Notebook(self)
-        self.notebook.pack(fill="both", expand=True, padx=10, pady=(10, 5))
+        self.tabs.currentChanged.connect(self.on_tab_changed)
+        
+        content_layout = QVBoxLayout()
+        content_layout.setContentsMargins(10, 10, 10, 5)
+        content_layout.addWidget(self.tabs)
+        main_layout.addLayout(content_layout)
 
-        # Create tabs
-        self.tab_import = ImportView(self.notebook, self.controller)
-        self.tab_validation = ValidationView(self.notebook, self.controller)
-        self.tab_database = DatabaseView(self.notebook, self.controller)
-        self.tab_scadenzario = ScadenzarioView(self.notebook, self.controller)
-        self.tab_dipendenti = DipendentiView(self.notebook, self.controller)
-        self.tab_lyra = LyraView(self.notebook, self.controller)
-        self.tab_config = ConfigView(self.notebook, self.controller)
+        # Footer
+        self.footer = QFrame()
+        self.footer.setFixedHeight(30)
+        footer_layout = QHBoxLayout(self.footer)
+        footer_layout.setContentsMargins(15, 0, 15, 0)
+        
+        lbl_version = QLabel(f"v{app_version}")
+        lbl_version.setStyleSheet("color: #6B7280; font-size: 11px; border: none;")
+        footer_layout.addWidget(lbl_version)
+        footer_layout.addStretch()
+        
+        main_layout.addWidget(self.footer)
 
-        # Add tabs to notebook (order: Importa, Convalida, Database, Scadenzario, Dipendenti, Lyra IA, Configurazione)
-        self.notebook.add(self.tab_import, text=" Importa")
-        self.notebook.add(self.tab_validation, text=" Convalida")
-        self.notebook.add(self.tab_database, text=" Database")
-        self.notebook.add(self.tab_scadenzario, text=" Scadenzario")
-        self.notebook.add(self.tab_dipendenti, text=" Dipendenti")
-        self.notebook.add(self.tab_lyra, text=" Lyra IA")
-        self.notebook.add(self.tab_config, text=" Configurazione")
-
-        # Tab Change Event - Refresh data when switching tabs
-        self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed)
-
-        # No auto-refresh for import tab (first tab)
-
-    def setup_keyboard_shortcuts(self):
-        """Setup global keyboard shortcuts."""
-        # Tab navigation with Ctrl+1-7 (Importa, Convalida, Database, Scadenzario, Dipendenti, Lyra IA, Config)
-        self.bind_all("<Control-Key-1>", lambda e: self.notebook.select(0))  # Importa
-        self.bind_all("<Control-Key-2>", lambda e: self.notebook.select(1))  # Convalida
-        self.bind_all("<Control-Key-3>", lambda e: self.notebook.select(2))  # Database
-        self.bind_all("<Control-Key-4>", lambda e: self.notebook.select(3))  # Scadenzario
-        self.bind_all("<Control-Key-5>", lambda e: self.notebook.select(4))  # Dipendenti
-        self.bind_all("<Control-Key-6>", lambda e: self.notebook.select(5))  # Lyra IA
-        self.bind_all("<Control-Key-7>", lambda e: self.notebook.select(6))  # Configurazione
-
+    def setup_shortcuts(self):
+        # Ctrl+1-7 to switch tabs
+        for i in range(7):
+            shortcut = QShortcut(QKeySequence(f"Ctrl+{i+1}"), self)
+            shortcut.activated.connect(lambda idx=i: self.tabs.setCurrentIndex(idx))
+            
         # F1 for guide
-        self.bind_all("<F1>", lambda e: self.open_guide())
-
+        shortcut_f1 = QShortcut(QKeySequence("F1"), self)
+        shortcut_f1.activated.connect(self.open_guide)
+        
         # Ctrl+Q to logout
-        self.bind_all("<Control-q>", lambda e: self.controller.logout())
+        shortcut_q = QShortcut(QKeySequence("Ctrl+Q"), self)
+        shortcut_q.activated.connect(self.controller.logout)
 
-    def on_tab_changed(self, event):
-        """Refreshes the data of the selected tab."""
-        selected_tab = self.notebook.select()
-        tab_widget = self.notebook.nametowidget(selected_tab)
-
+    def on_tab_changed(self, index):
+        tab_widget = self.tabs.widget(index)
         if hasattr(tab_widget, "refresh_data"):
             tab_widget.refresh_data()
 
     def _show_notification_panel(self):
-        """Show the notification panel dropdown."""
-        if hasattr(self.controller, "notification_center") and self.controller.notification_center:
-            NotificationPanel(
-                self.notification_bell, self.controller.notification_center, self.controller
-            )
+        if NotificationPanel and hasattr(self.controller, "notification_center"):
+            panel = NotificationPanel(self.notification_bell, self.controller.notification_center, self.controller)
+            panel.show()
 
     def open_guide(self):
-        """
-        Locates and opens the interactive guide in the system browser.
-        Uses path_resolver for universal compatibility.
-        """
-        # Try different locations via path_resolver
-        candidates = [
-            "guide/index.html",  # Nuitka frozen mapping
-            "guide_frontend/dist/index.html",  # Dev/Manual mapping
-        ]
-
+        candidates = ["guide/index.html", "guide_frontend/dist/index.html"]
         found_uri = None
         for rel_path in candidates:
             try:
@@ -184,13 +214,11 @@ class DashboardView(tk.Frame):
         if found_uri:
             webbrowser.open(found_uri)
         else:
-            # Last fallback: Try opening Vite dev server if local
             if not getattr(sys, "frozen", False):
                 webbrowser.open("http://localhost:5173")
             else:
-                # Silently log instead of showing error (guide is optional)
                 logger.debug("Guida interattiva non trovata")
-                messagebox.showinfo(
-                    "Guida",
-                    "La guida interattiva non e disponibile.\nContattare l'assistenza tecnica per maggiori informazioni.",
+                QMessageBox.information(
+                    self, "Guida",
+                    "La guida interattiva non è disponibile.\nContattare l'assistenza tecnica per maggiori informazioni.",
                 )

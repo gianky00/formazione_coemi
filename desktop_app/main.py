@@ -2,10 +2,14 @@ import contextlib
 import os
 import sqlite3
 import sys
-import tkinter as tk
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
 from typing import Any
+
+from PySide6.QtWidgets import (
+    QApplication, QMainWindow, QMessageBox, QFileDialog, 
+    QVBoxLayout, QWidget, QStackedWidget
+)
+from PySide6.QtCore import Qt, QTimer
 
 from app import __version__ as app_version
 from app.core.config import settings
@@ -17,48 +21,51 @@ from desktop_app.services.toast_service import ToastManager
 from desktop_app.services.update_checker import UpdateChecker
 from desktop_app.services.voice_service import VoiceService
 
-# Import Config/Dipendenti Views
+# Import View
 from desktop_app.views.login_view import LoginView
 
-# Dashboard imported deferred
 
-
-class ApplicationController:
+class ApplicationController(QMainWindow):
     def __init__(self) -> None:
-        self.root = tk.Tk()
-        self.root.title("Intelleo")
-        self.root.geometry("1024x768")
-        self.root.minsize(800, 600)
+        super().__init__()
+        
+        self.setWindowTitle("Intelleo")
+        self.resize(1024, 768)
+        self.setMinimumSize(800, 600)
+        
+        # Central Widget for View Management
+        self.central_stack = QStackedWidget()
+        self.setCentralWidget(self.central_stack)
 
-        # Maximize window on startup (show taskbar)
-        self.root.state("zoomed")
-
-        # Style Configuration
-        self.style = ttk.Style()
-        self.style.theme_use("clam")
-
-        # Configure fonts
-        default_font = ("Segoe UI", 10)
-        self.root.option_add("*Font", default_font)
+        # Maximize window on startup
+        self.showMaximized()
 
         self.api_client = APIClient()
         self.voice_service = VoiceService()
-        self.current_view: Any = None
-        self.toast_manager = ToastManager(self.root)
+        self.toast_manager = ToastManager(self)
         self.notification_center = NotificationCenter(self)
-        self.proactive_service: Any = None  # Will be initialized after login
+        self.proactive_service: Any = None
 
         # Inactivity Timer
-        self.inactivity_timer: str | None = None
+        self.inactivity_timer = QTimer(self)
+        self.inactivity_timer.setSingleShot(True)
+        self.inactivity_timer.timeout.connect(self._on_inactivity)
         self.INACTIVITY_TIMEOUT_MS = 3600 * 1000  # 1 hour
-        self.root.bind_all("<Any-KeyPress>", self._reset_inactivity_timer)
-        self.root.bind_all("<Any-ButtonPress>", self._reset_inactivity_timer)
+        
+        # Install Event Filter for inactivity
+        QApplication.instance().installEventFilter(self)
 
-        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+    def eventFilter(self, obj, event):
+        # Reset timer on any interaction
+        try:
+            from PySide6.QtCore import QEvent
+            if event and event.type() in [QEvent.MouseButtonPress, QEvent.KeyPress, QEvent.Wheel]:
+                self._reset_inactivity_timer()
+        except Exception:
+            pass
+        return super().eventFilter(obj, event)
 
     def start(self) -> None:
-        self.root.withdraw()  # Hide root during checks
-
         # 1. License Check
         if not self._check_license():
             sys.exit(1)
@@ -70,38 +77,35 @@ class ApplicationController:
         # 3. Update Check (Async)
         self._check_updates()
 
-        self.root.deiconify()  # Show root
+        self.show()
         self.show_login()
         self._reset_inactivity_timer()
-        self.root.mainloop()
 
     def _check_updates(self) -> None:
         checker = UpdateChecker(app_version)
 
         def on_update(has_update: bool, version: str, url: str) -> None:
             if has_update:
-                self.root.after(0, lambda: self._prompt_update(version, url))
+                # Use QTimer to ensure UI thread interaction
+                QTimer.singleShot(0, lambda: self._prompt_update(version, url))
 
         checker.check_for_updates(on_update)
 
     def _prompt_update(self, version: str, url: str) -> None:
-        if messagebox.askyesno(
-            "Aggiornamento Disponibile", f"Nuova versione {version} disponibile. Scaricare ora?"
-        ):
+        if QMessageBox.question(
+            self, "Aggiornamento Disponibile", 
+            f"Nuova versione {version} disponibile. Scaricare ora?",
+            QMessageBox.Yes | QMessageBox.No
+        ) == QMessageBox.Yes:
             import webbrowser
-
             webbrowser.open(url)
 
     def _check_license(self) -> bool:
-        # Physical check
         try:
             data = LicenseManager.get_license_data()
-            if not data:
-                # If reading failed, try to regenerate/update or fail
-                pass
             return True
         except Exception as e:
-            messagebox.showerror("Errore Licenza", f"Impossibile avviare l'applicazione:\n{e}")
+            QMessageBox.critical(self, "Errore Licenza", f"Impossibile avviare l'applicazione:\n{e}")
             return False
 
     def _check_database(self) -> bool:
@@ -114,19 +118,26 @@ class ApplicationController:
 
     def _prompt_db_recovery(self, current_path: Path | None) -> bool:
         msg = f"Il database non è stato trovato al percorso:\n{current_path}\n\nÈ necessario selezionare un database esistente o crearne uno nuovo."
-        response = messagebox.askyesno(
-            "Database Mancante", msg + "\n\nSì = Seleziona Esistente\nNo = Crea Nuovo"
-        )
+        
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Database Mancante")
+        msg_box.setText(msg)
+        select_btn = msg_box.addButton("Seleziona Esistente", QMessageBox.AcceptRole)
+        create_btn = msg_box.addButton("Crea Nuovo", QMessageBox.RejectRole)
+        msg_box.addButton(QMessageBox.Cancel)
+        
+        msg_box.exec()
+        clicked = msg_box.clickedButton()
 
-        if response:  # Yes -> Browse
-            path = filedialog.askopenfilename(
-                title="Seleziona Database", filetypes=[("SQLite DB", "*.db"), ("All Files", "*.*")]
+        if clicked == select_btn:
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Seleziona Database", "", "SQLite DB (*.db);;All Files (*)"
             )
             if path:
                 self._update_db_setting(path)
                 return True
-        else:  # No -> Create
-            dir_path = filedialog.askdirectory(title="Seleziona Cartella per Nuovo Database")
+        elif clicked == create_btn:
+            dir_path = QFileDialog.getExistingDirectory(self, "Seleziona Cartella per Nuovo Database")
             if dir_path:
                 new_path = os.path.join(dir_path, "database_documenti.db")
                 self._initialize_new_database(new_path)
@@ -137,8 +148,8 @@ class ApplicationController:
 
     def _update_db_setting(self, path: str) -> None:
         settings.save_mutable_settings({"DATABASE_PATH": str(path)})
-        messagebox.showinfo(
-            "Riavvio Richiesto",
+        QMessageBox.information(
+            self, "Riavvio Richiesto",
             "La configurazione del database è cambiata. L'applicazione verrà riavviata.",
         )
         self._restart_app()
@@ -152,7 +163,6 @@ class ApplicationController:
 
             from sqlalchemy import create_engine
             from sqlalchemy.orm import sessionmaker
-
             from app.db.models import Base
             from app.db.seeding import seed_database
 
@@ -164,9 +174,8 @@ class ApplicationController:
             db = SessionLocal()
             seed_database(db)
             db.close()
-
         except Exception as e:
-            messagebox.showerror("Errore Creazione", f"Impossibile creare il database:\n{e}")
+            QMessageBox.critical(self, "Errore Creazione", f"Impossibile creare il database:\n{e}")
             sys.exit(1)
 
     def _restart_app(self) -> None:
@@ -174,42 +183,33 @@ class ApplicationController:
         os.execl(python, python, *sys.argv)
 
     def show_login(self) -> None:
-        if self.current_view:
-            self.current_view.destroy()
-
-        self.current_view = LoginView(self.root, self)
-        self.current_view.pack(fill="both", expand=True)
+        login_view = LoginView(self)
+        self.central_stack.addWidget(login_view)
+        self.central_stack.setCurrentWidget(login_view)
 
     def show_dashboard(self) -> None:
-        if self.current_view:
-            self.current_view.destroy()
-
         from desktop_app.views.dashboard_view import DashboardView
-
-        self.current_view = DashboardView(self.root, self)
-        self.current_view.pack(fill="both", expand=True)
+        dashboard_view = DashboardView(self)
+        self.central_stack.addWidget(dashboard_view)
+        self.central_stack.setCurrentWidget(dashboard_view)
 
         # Voice Welcome
-        name = (
-            self.api_client.user_info.get("account_name", "") if self.api_client.user_info else ""
-        )
+        name = self.api_client.user_info.get("account_name", "") if self.api_client.user_info else ""
         self.voice_service.speak(f"Benvenuto {name}")
 
-        # Initialize and run proactive analysis
         self.proactive_service = ProactiveService(
             self, self.toast_manager, self.notification_center
         )
         self.proactive_service.run_startup_analysis()
 
     def on_login_success(self, user_info: dict[str, Any]) -> None:
-        # 503 Fix: Check Read Only Status
         is_read_only = user_info.get("read_only", False)
         lock_owner = user_info.get("lock_owner")
 
         if is_read_only:
             owner_str = str(lock_owner) if lock_owner else "un altro utente"
-            messagebox.showwarning(
-                "Modalità Sola Lettura",
+            QMessageBox.warning(
+                self, "Modalità Sola Lettura",
                 f"Il database è attualmente bloccato da {owner_str}.\n"
                 "L'applicazione funzionerà in modalità limitata (niente modifiche).",
             )
@@ -223,40 +223,37 @@ class ApplicationController:
             self.api_client.logout()
         self.show_login()
 
-    def on_close(self) -> None:
-        if messagebox.askokcancel("Esci", "Vuoi davvero uscire?"):
+    def closeEvent(self, event) -> None:
+        if QMessageBox.question(
+            self, "Esci", "Vuoi davvero uscire?",
+            QMessageBox.Yes | QMessageBox.No
+        ) == QMessageBox.Yes:
             self.logout()
             self.voice_service.cleanup()
-            self.root.destroy()
-            sys.exit(0)
+            event.accept()
+        else:
+            event.ignore()
 
-    # --- Toast Notifications ---
-    def show_toast(
-        self,
-        title: str,
-        message: str,
-        toast_type: str = "info",
-        duration: int = 5000,
-        on_click: Any = None,
-    ) -> None:
-        """Show a toast notification."""
+    def show_toast(self, title: str, message: str, toast_type: str = "info", duration: int = 5000, on_click: Any = None) -> None:
         if self.toast_manager:
             self.toast_manager.show(title, message, toast_type, duration, on_click)
 
-    # --- Inactivity ---
-    def _reset_inactivity_timer(self, event: Any = None) -> None:
-        if self.inactivity_timer:
-            self.root.after_cancel(self.inactivity_timer)
-        self.inactivity_timer = self.root.after(self.INACTIVITY_TIMEOUT_MS, self._on_inactivity)
+    def _reset_inactivity_timer(self) -> None:
+        self.inactivity_timer.start(self.INACTIVITY_TIMEOUT_MS)
 
     def _on_inactivity(self) -> None:
-        if isinstance(self.current_view, LoginView):
-            return  # Don't timeout on login screen
-
-        messagebox.showwarning("Sessione Scaduta", "Disconnessione per inattività.")
+        # Check if we are already in login view
+        if isinstance(self.centralWidget().currentWidget(), LoginView):
+            return
+        QMessageBox.warning(self, "Sessione Scaduta", "Disconnessione per inattività.")
         self.logout()
 
 
 if __name__ == "__main__":
-    app = ApplicationController()
-    app.start()
+    app = QApplication(sys.argv)
+    # Style (Fusion for modern look)
+    app.setStyle("Fusion")
+    
+    controller = ApplicationController()
+    controller.start()
+    sys.exit(app.exec())

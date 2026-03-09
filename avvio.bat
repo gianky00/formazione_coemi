@@ -26,4 +26,3 @@ ECHO Avvio tramite Launcher (Supporto Concorrenza)...
 python launcher.py
 
 ECHO Script terminato.
-pause

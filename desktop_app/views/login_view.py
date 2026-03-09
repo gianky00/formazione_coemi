@@ -1,143 +1,184 @@
 import threading
-import tkinter as tk
-from tkinter import ttk
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
+    QPushButton, QFrame, QSizePolicy, QSpacerItem
+)
+from PySide6.QtCore import Qt, QTimer, Signal, Slot
+from PySide6.QtGui import QFont, QCursor
 
 from app import __version__ as app_version
 from desktop_app.services.license_manager import LicenseManager
 
 
-class LoginView(tk.Frame):
-    def __init__(self, parent, controller):
-        super().__init__(parent)
-        self.controller = controller
-        self.configure(bg="#F0F8FF")  # Light blue background
+class LoginView(QWidget):
+    # Signals for thread-safe UI updates
+    login_success = Signal(dict)
+    login_failure = Signal(str)
 
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.controller = controller
+        
+        # Style
+        self.setStyleSheet("background-color: #F0F8FF;")
+        
         self.setup_ui()
+        
+        # Connect signals
+        self.login_success.connect(self.controller.on_login_success)
+        self.login_failure.connect(self._on_login_failed)
 
     def setup_ui(self):
+        main_layout = QVBoxLayout(self)
+        
         # Center container
-        container = tk.Frame(self, bg="white", padx=40, pady=40, relief="raised", borderwidth=1)
-        container.place(relx=0.5, rely=0.5, anchor="center")
+        self.container = QFrame()
+        self.container.setStyleSheet("""
+            QFrame {
+                background-color: white;
+                border: 1px solid #D1D5DB;
+                border-radius: 8px;
+            }
+        """)
+        self.container.setFixedSize(400, 450)
+        
+        container_layout = QVBoxLayout(self.container)
+        container_layout.setContentsMargins(40, 40, 40, 40)
+        container_layout.setSpacing(15)
 
         # Logo/Title
-        lbl_title = tk.Label(
-            container, text="Intelleo", font=("Segoe UI", 24, "bold"), bg="white", fg="#1E3A8A"
-        )
-        lbl_title.pack(pady=(0, 10))
+        self.lbl_title = QLabel("Intelleo")
+        self.lbl_title.setAlignment(Qt.AlignCenter)
+        self.lbl_title.setStyleSheet("font-size: 32px; font-weight: bold; color: #1E3A8A; border: none;")
+        container_layout.addWidget(self.lbl_title)
 
-        lbl_subtitle = tk.Label(
-            container,
-            text="Predict. Validate. Automate.",
-            font=("Segoe UI", 10, "italic"),
-            bg="white",
-            fg="#6B7280",
-        )
-        lbl_subtitle.pack(pady=(0, 20))
+        self.lbl_subtitle = QLabel("Predict. Validate. Automate.")
+        self.lbl_subtitle.setAlignment(Qt.AlignCenter)
+        self.lbl_subtitle.setStyleSheet("font-size: 14px; font-style: italic; color: #6B7280; border: none;")
+        container_layout.addWidget(self.lbl_subtitle)
+        
+        container_layout.addSpacing(20)
 
         # Username
-        lbl_user = tk.Label(
-            container, text="Username", bg="white", font=("Segoe UI", 10, "bold"), anchor="w"
-        )
-        lbl_user.pack(fill="x", pady=(10, 5))
-        self.entry_user = ttk.Entry(container, width=30)
-        self.entry_user.pack(pady=5)
-        self.entry_user.focus_set()
+        lbl_user = QLabel("Username")
+        lbl_user.setStyleSheet("font-weight: bold; color: #374151; border: none;")
+        container_layout.addWidget(lbl_user)
+        
+        self.entry_user = QLineEdit()
+        self.entry_user.setPlaceholderText("Inserisci username")
+        self.entry_user.setStyleSheet("padding: 10px; border: 1px solid #D1D5DB; border-radius: 4px;")
+        container_layout.addWidget(self.entry_user)
 
         # Password
-        lbl_pass = tk.Label(
-            container, text="Password", bg="white", font=("Segoe UI", 10, "bold"), anchor="w"
-        )
-        lbl_pass.pack(fill="x", pady=(10, 5))
-        self.entry_pass = ttk.Entry(container, show="*", width=30)
-        self.entry_pass.pack(pady=5)
-        self.entry_pass.bind("<Return>", lambda e: self.do_login())
+        lbl_pass = QLabel("Password")
+        lbl_pass.setStyleSheet("font-weight: bold; color: #374151; border: none;")
+        container_layout.addWidget(lbl_pass)
+        
+        self.entry_pass = QLineEdit()
+        self.entry_pass.setEchoMode(QLineEdit.Password)
+        self.entry_pass.setPlaceholderText("Inserisci password")
+        self.entry_pass.setStyleSheet("padding: 10px; border: 1px solid #D1D5DB; border-radius: 4px;")
+        self.entry_pass.returnPressed.connect(self.do_login)
+        container_layout.addWidget(self.entry_pass)
 
         # Button
-        self.btn_login = tk.Button(
-            container,
-            text="ACCEDI",
-            bg="#1D4ED8",
-            fg="white",
-            font=("Segoe UI", 11, "bold"),
-            relief="flat",
-            padx=20,
-            pady=10,
-            command=self.do_login,
-            cursor="hand2",
-        )
-        self.btn_login.pack(pady=20, fill="x")
+        self.btn_login = QPushButton("ACCEDI")
+        self.btn_login.setCursor(QCursor(Qt.PointingHandCursor))
+        self.btn_login.setStyleSheet("""
+            QPushButton {
+                background-color: #1D4ED8;
+                color: white;
+                font-weight: bold;
+                padding: 12px;
+                border-radius: 4px;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #1E40AF;
+            }
+            QPushButton:disabled {
+                background-color: #9CA3AF;
+            }
+        """)
+        self.btn_login.clicked.connect(self.do_login)
+        container_layout.addWidget(self.btn_login)
 
         # Status Label
-        self.lbl_status = tk.Label(container, text="", bg="white", fg="red")
-        self.lbl_status.pack()
+        self.lbl_status = QLabel("")
+        self.lbl_status.setAlignment(Qt.AlignCenter)
+        self.lbl_status.setStyleSheet("color: red; border: none;")
+        container_layout.addWidget(self.lbl_status)
+
+        # Centering the container in the main view
+        h_spacer_layout = QHBoxLayout()
+        h_spacer_layout.addStretch()
+        h_spacer_layout.addWidget(self.container)
+        h_spacer_layout.addStretch()
+        
+        main_layout.addStretch()
+        main_layout.addLayout(h_spacer_layout)
+        main_layout.addStretch()
 
         # --- License Info Footer ---
-        footer_frame = tk.Frame(self, bg="#F0F8FF")
-        footer_frame.pack(side="bottom", fill="x", pady=10, padx=10)
-
+        footer_layout = QHBoxLayout()
+        footer_layout.setContentsMargins(10, 10, 10, 10)
+        
         try:
             lic_data = LicenseManager.get_license_data()
             if lic_data:
-                # Use correct keys from admin_license_gui.py
                 client_name = lic_data.get("Cliente", "N/D")
                 expiry = lic_data.get("Scadenza Licenza", "N/D")
                 hwid = lic_data.get("Hardware ID", "N/D")
-
                 info_text = f"Cliente: {client_name} | Scadenza: {expiry} | HWID: {hwid} | Versione: {app_version}"
-                lbl_lic = tk.Label(
-                    footer_frame, text=info_text, bg="#F0F8FF", fg="#6B7280", font=("Segoe UI", 8)
-                )
-                lbl_lic.pack(side="right")
             else:
-                raise ValueError("No data")
+                info_text = f"Versione: {app_version}"
         except Exception:
-            tk.Label(
-                footer_frame, text=f"Versione: {app_version}", bg="#F0F8FF", fg="#6B7280"
-            ).pack(side="right")
+            info_text = f"Versione: {app_version}"
+            
+        lbl_lic = QLabel(info_text)
+        lbl_lic.setStyleSheet("color: #6B7280; font-size: 11px;")
+        footer_layout.addStretch()
+        footer_layout.addWidget(lbl_lic)
+        
+        main_layout.addLayout(footer_layout)
 
     def do_login(self):
-        username = self.entry_user.get().strip()
-        password = self.entry_pass.get().strip()
+        username = self.entry_user.text().strip()
+        password = self.entry_pass.text().strip()
 
         if not username or not password:
-            self.lbl_status.config(text="Inserisci username e password")
+            self.lbl_status.setText("Inserisci username e password")
             return
 
-        # Disable UI to prevent double-submit
-        self.entry_user.config(state="disabled")
-        self.entry_pass.config(state="disabled")
-        self.btn_login.config(state="disabled", cursor="watch")
+        # Disable UI
+        self.entry_user.setEnabled(False)
+        self.entry_pass.setEnabled(False)
+        self.btn_login.setEnabled(False)
+        
+        self.lbl_status.setText("Connessione in corso...")
+        self.lbl_status.setStyleSheet("color: blue; border: none;")
 
-        self.lbl_status.config(text="Connessione in corso...", fg="blue")
-        self.update_idletasks()
-
-        # Perform login in a separate thread
-        threading.Thread(target=self._login_thread, args=(username, password), daemon=True).start()
+        # Threading for login
+        thread = threading.Thread(target=self._login_thread, args=(username, password), daemon=True)
+        thread.start()
 
     def _login_thread(self, username, password):
         try:
-            # Login call
             token_data = self.controller.api_client.login(username, password)
-
-            # Additional info fetch
-            self.controller.api_client.set_token(token_data)
-
-            # Back to UI thread -> Success
-            self.after(0, lambda: self.controller.on_login_success(token_data))
-
+            self.login_success.emit(token_data)
         except Exception as e:
             error_msg = str(e)
             if "401" in error_msg:
                 error_msg = "Credenziali non valide."
             elif "ConnectionError" in str(type(e).__name__):
                 error_msg = "Impossibile connettersi al server."
+            self.login_failure.emit(error_msg)
 
-            # Back to UI thread -> Failure (Re-enable UI)
-            def on_fail():
-                self.lbl_status.config(text=error_msg, fg="red")
-                self.entry_user.config(state="normal")
-                self.entry_pass.config(state="normal")
-                self.btn_login.config(state="normal", cursor="hand2")
-                self.entry_pass.delete(0, "end")
-
-            self.after(0, on_fail)
+    @Slot(str)
+    def _on_login_failed(self, error_msg):
+        self.lbl_status.setText(error_msg)
+        self.lbl_status.setStyleSheet("color: red; border: none;")
+        self.entry_user.setEnabled(True)
+        self.entry_pass.setEnabled(True)
+        self.btn_login.setEnabled(True)
+        self.entry_pass.clear()
