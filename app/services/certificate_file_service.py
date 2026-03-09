@@ -27,8 +27,7 @@ def handle_file_rename(
         parts = []
         if matricola != "N-A":
             parts.append(str(matricola))
-        parts.append(nome)
-        parts.append(categoria)
+        parts.extend((nome, categoria))
         if scadenza:
             parts.append(scadenza)
 

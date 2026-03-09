@@ -66,10 +66,7 @@ def _initialize_secure_store() -> SecureKey:
     """
     # Deobfuscate the static key (XOR + Base64 decode)
     plaintext_key = deobfuscate_string(_FERNET_KEY_OBFUSCATED)
-    key_bytes = plaintext_key.encode("ascii")
-
-    # Wrap in SecureKey for runtime protection
-    return SecureKey(key_bytes)
+    return SecureKey(plaintext_key.encode("ascii"))
 
 
 # Initialize the secure storage at module load

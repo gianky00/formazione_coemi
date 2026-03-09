@@ -78,31 +78,8 @@ def obfuscate_string(plaintext: str, key: int = _XOR_KEY) -> str:
 
 
 def deobfuscate_string(obfuscated: str, key: int = _XOR_KEY) -> str:
-    """
-    Deoffusca una stringa a runtime.
-
-    Il processo inverso:
-    1. Decodifica da Base64
-    2. Applica XOR con stessa chiave (XOR è simmetrico)
-    3. Converte bytes in stringa UTF-8
-
-    Args:
-        obfuscated: Stringa Base64 offuscata
-        key: Chiave XOR (deve essere la stessa usata per offuscare)
-
-    Returns:
-        Stringa originale in chiaro
-
-    Example:
-        >>> obfuscated = "NjY8PgMRFBYcHRsKCAoJCw=="
-        >>> plaintext = deobfuscate_string(obfuscated)
-        >>> print(plaintext)
-        MY_API_KEY_123
-    """
     decoded = base64.b64decode(obfuscated.encode("ascii"))
-    xored = xor_bytes(decoded, key)
-    plaintext = xored.decode("utf-8")
-    return plaintext
+    return xor_bytes(decoded, key).decode("utf-8")
 
 
 def obfuscate_bytes(plaintext_bytes: bytes, key: int = _XOR_KEY) -> str:
@@ -116,9 +93,7 @@ def obfuscate_bytes(plaintext_bytes: bytes, key: int = _XOR_KEY) -> str:
     Returns:
         Stringa Base64 dei bytes XORati
     """
-    xored = xor_bytes(plaintext_bytes, key)
-    encoded = base64.b64encode(xored).decode("ascii")
-    return encoded
+    return base64.b64encode(xor_bytes(plaintext_bytes, key)).decode("ascii")
 
 
 def deobfuscate_bytes(obfuscated: str, key: int = _XOR_KEY) -> bytes:
@@ -132,9 +107,7 @@ def deobfuscate_bytes(obfuscated: str, key: int = _XOR_KEY) -> bytes:
     Returns:
         Bytes originali
     """
-    decoded = base64.b64decode(obfuscated.encode("ascii"))
-    xored = xor_bytes(decoded, key)
-    return xored
+    return xor_bytes(base64.b64decode(obfuscated.encode("ascii")), key)
 
 
 # =============================================================================

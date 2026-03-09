@@ -30,11 +30,7 @@ def verify_file_signature(file_content: bytes, file_type: str) -> bool:
                 file_content.decode("latin-1")
                 readable = True
 
-        if not readable:
-            return False
-
-        # Heuristic: check for null bytes which are rare in valid CSVs
-        return b"\x00" not in file_content
+        return readable and b"\x00" not in file_content
 
     return False
 
@@ -47,8 +43,7 @@ def sanitize_filename(filename: str) -> str:
     if not filename:
         return ""
     # Replace invalid chars and spaces with _
-    sanitized = re.sub(r'[<>:"/\\|?*\s]', "_", filename)
-    return sanitized.strip("_")
+    return re.sub(r'[<>:"/\\|?*\s]', "_", filename).strip("_")
 
 
 def get_pdf_text_preview(pdf_bytes: bytes, max_chars: int = 10000) -> str:

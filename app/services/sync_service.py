@@ -20,7 +20,7 @@ def remove_empty_folders(path: str, root_path: str | None = None) -> None:
     """
     Recursively removes empty folders starting from the given path and moving upwards.
     """
-    if not os.path.isdir(path):
+    if not Path(path).is_dir():
         return
 
     if root_path and os.path.normpath(path) == os.path.normpath(root_path):
@@ -40,7 +40,7 @@ def clean_all_empty_folders(root_path: str) -> None:
     """
     Recursively scans the directory tree and removes empty directories.
     """
-    if not os.path.isdir(root_path):
+    if not Path(root_path).is_dir():
         return
 
     logging.info(f"Cleaning empty folders in {root_path}...")

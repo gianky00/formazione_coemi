@@ -1,3 +1,4 @@
+from contextlib import suppress
 from datetime import date, datetime
 
 from dateutil import parser as dateutil_parser
@@ -30,10 +31,8 @@ def parse_date_flexible(date_str: str) -> date | None:
             continue
 
     # Robust fallback for other formats
-    try:
+    with suppress(ValueError, TypeError, OverflowError):
         dt = dateutil_parser.parse(date_str, dayfirst=True)
         return dt.date()
-    except (ValueError, TypeError, OverflowError):
-        pass
 
     return None

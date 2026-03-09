@@ -92,7 +92,7 @@ def find_document(database_path: str, cert_data: dict[str, Any]) -> str | None:
     matricola = cert_data.get("matricola")
     # Robust Matricola check for unvalidated files (often None or N/D or N-A)
     matricola_str = str(matricola).strip().lower()
-    if not matricola or matricola_str == "" or matricola_str == "none" or matricola_str == "n/d":
+    if not matricola or matricola_str in ("", "none", "n/d"):
         matricola = "N-A"
 
     categoria = str(cert_data.get("categoria") or "ALTRO")

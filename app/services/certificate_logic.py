@@ -116,9 +116,8 @@ def _fetch_latest_dates(
         .group_by(Certificato.dipendente_id, Corso.categoria_corso)
     )
 
-    latest_results = stmt.all()
     # Ensure correct typing for the map
-    return {(int(r.dipendente_id), str(r.categoria_corso)): r.max_rilascio for r in latest_results}
+    return {(int(r.dipendente_id), str(r.categoria_corso)): r.max_rilascio for r in stmt.all()}
 
 
 def get_bulk_certificate_statuses(db: Session, certificati: list[Certificato]) -> dict[int, str]:

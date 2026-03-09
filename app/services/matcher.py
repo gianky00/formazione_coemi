@@ -58,16 +58,16 @@ def find_employee_by_name(
         part1 = " ".join(nome_parts[:i])
         part2 = " ".join(nome_parts[i:])
 
-        # Matches Nome=part1 AND Cognome=part2
-        conditions.append((Dipendente.nome.ilike(part1)) & (Dipendente.cognome.ilike(part2)))
-        # Matches Nome=part2 AND Cognome=part1
-        conditions.append((Dipendente.nome.ilike(part2)) & (Dipendente.cognome.ilike(part1)))
+        # Matches Nome=part1 AND Cognome=part2, or vice versa
+        conditions.extend((
+            (Dipendente.nome.ilike(part1)) & (Dipendente.cognome.ilike(part2)),
+            (Dipendente.nome.ilike(part2)) & (Dipendente.cognome.ilike(part1))
+        ))
 
     if not conditions:
         return None
 
-    query = db.query(Dipendente).filter(or_(*conditions))
-    matches = query.all()
+    matches = db.query(Dipendente).filter(or_(*conditions)).all()
 
     if not matches:
         return None
@@ -84,7 +84,7 @@ def find_employee_by_name(
         # allora c'è ambiguità o mismatch.
         # Se filtrando per data ne troviamo 0, ma avevamo candidati per nome,
         # significa che il nome corrisponde ma la data no -> Probabilmente non è lui.
-        if len(filtered_by_dob) == 0:
+        if not filtered_by_dob:
             # Nessuna corrispondenza esatta con nome E data
             return None
 

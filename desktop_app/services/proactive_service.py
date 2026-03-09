@@ -27,7 +27,9 @@ class ProactiveService:
 
     def _analyze_all(self):
         """Perform comprehensive analysis of all data."""
-        try:
+        from contextlib import suppress
+        
+        with suppress(Exception):
             # Small delay to let dashboard load
             import time
 
@@ -50,8 +52,6 @@ class ProactiveService:
             self.analysis_complete = True
             self.last_analysis = datetime.now()
 
-        except Exception:
-            pass
 
     def _analyze_expiring_certificates(self, certificates):
         """Analyze expiring and expired certificates."""

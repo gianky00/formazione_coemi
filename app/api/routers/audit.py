@@ -112,7 +112,7 @@ def read_audit_logs(
         query = query.filter(AuditLog.timestamp >= start_date)
     if end_date:
         # If end_date is at midnight, assume it means "until the end of this day"
-        if end_date.hour == 0 and end_date.minute == 0 and end_date.second == 0:
+        if end_date.hour == end_date.minute == end_date.second == 0:
             end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
         query = query.filter(AuditLog.timestamp <= end_date)
 

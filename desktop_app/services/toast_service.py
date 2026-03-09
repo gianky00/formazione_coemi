@@ -194,15 +194,15 @@ class ToastManager:
         self.active_toasts = [t for t in self.active_toasts if t.winfo_exists()]
 
         # Reposition remaining toasts
+        from contextlib import suppress
+        
         for i, toast in enumerate(self.active_toasts):
-            try:
+            with suppress(Exception):
                 offset = i * (self.toast_height + self.toast_gap)
                 x = toast.winfo_x()
                 screen_height = toast.winfo_screenheight()
                 y = screen_height - toast.winfo_height() - 60 - offset
                 toast.geometry(f"+{x}+{y}")
-            except Exception:
-                pass
 
         # Show queued toasts
         while self.queue and len(self.active_toasts) < self.max_visible:
