@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.api import deps
 from app.db.models import AuditLog, User as UserModel
 from app.db.session import get_db
-from app.schemas.schemas import AuditLogSchema
+from app.schemas import AuditLogSchema
 from app.utils.audit import log_security_action
 
 router = APIRouter(prefix="/audit", tags=["audit"])

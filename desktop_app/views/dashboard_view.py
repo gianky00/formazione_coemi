@@ -10,8 +10,7 @@ from PySide6.QtGui import QFont, QShortcut, QKeySequence
 
 from app import __version__ as app_version
 from app.core.path_resolver import get_asset_path
-# Assumendo che NotificationBell e NotificationPanel siano stati o saranno migrati
-# Per ora usiamo dei placeholder o carichiamo se esistono
+
 try:
     from desktop_app.services.notification_center import NotificationBell, NotificationPanel
 except ImportError:
@@ -33,8 +32,7 @@ class DashboardView(QWidget):
     def __init__(self, controller):
         super().__init__(controller)
         self.controller = controller
-        self.setStyleSheet("background-color: #F3F4F6;")
-
+        
         self.setup_ui()
         self.setup_shortcuts()
 
@@ -45,14 +43,14 @@ class DashboardView(QWidget):
 
         # Header
         self.header = QFrame()
+        self.header.setObjectName("HeaderFrame")
         self.header.setFixedHeight(70)
-        self.header.setStyleSheet("background-color: #1E3A8A; border: none;")
         header_layout = QHBoxLayout(self.header)
         header_layout.setContentsMargins(20, 0, 20, 0)
 
         # Logo/Title
         self.lbl_title = QLabel("Intelleo")
-        self.lbl_title.setStyleSheet("font-size: 24px; font-weight: bold; color: white; border: none;")
+        self.lbl_title.setObjectName("HeaderTitle")
         header_layout.addWidget(self.lbl_title)
         
         header_layout.addStretch()
@@ -61,46 +59,27 @@ class DashboardView(QWidget):
         user_info = self.controller.api_client.user_info or {}
         username = user_info.get("account_name") or user_info.get("username") or "Utente"
         
-        self.lbl_user = QLabel(f"  {username}")
-        self.lbl_user.setStyleSheet("font-size: 14px; color: white; border: none;")
+        self.lbl_user = QLabel(f"👤 {username}")
+        self.lbl_user.setStyleSheet("color: white; font-size: 11pt;")
         header_layout.addWidget(self.lbl_user)
 
-        # Notification Bell (Placeholder/Actual)
+        # Notification Bell
         if NotificationBell and hasattr(self.controller, "notification_center"):
             self.notification_bell = NotificationBell(self.controller.notification_center, self._show_notification_panel)
             header_layout.addWidget(self.notification_bell)
 
         # Guide Button
         self.btn_guide = QPushButton("Guida")
+        self.btn_guide.setObjectName("GuideButton")
+        self.btn_guide.setProperty("class", "SuccessButton")
         self.btn_guide.setCursor(Qt.PointingHandCursor)
-        self.btn_guide.setStyleSheet("""
-            QPushButton {
-                background-color: #059669;
-                color: white;
-                font-weight: bold;
-                padding: 8px 15px;
-                border-radius: 4px;
-                border: none;
-            }
-            QPushButton:hover { background-color: #047857; }
-        """)
         self.btn_guide.clicked.connect(self.open_guide)
         header_layout.addWidget(self.btn_guide)
 
         # Logout Button
         self.btn_logout = QPushButton("Esci")
+        self.btn_logout.setProperty("class", "DangerButton")
         self.btn_logout.setCursor(Qt.PointingHandCursor)
-        self.btn_logout.setStyleSheet("""
-            QPushButton {
-                background-color: #DC2626;
-                color: white;
-                font-weight: bold;
-                padding: 8px 15px;
-                border-radius: 4px;
-                border: none;
-            }
-            QPushButton:hover { background-color: #B91C1C; }
-        """)
         self.btn_logout.clicked.connect(self.controller.logout)
         header_layout.addWidget(self.btn_logout)
 
@@ -109,33 +88,19 @@ class DashboardView(QWidget):
         # Read-Only Warning Banner
         if user_info.get("read_only"):
             self.warning_banner = QFrame()
+            self.warning_banner.setObjectName("StatusBanner")
             self.warning_banner.setFixedHeight(35)
-            self.warning_banner.setStyleSheet("background-color: #FEF3C7; border: none;")
             banner_layout = QHBoxLayout(self.warning_banner)
             banner_layout.setContentsMargins(0, 0, 0, 0)
             
-            lbl_warning = QLabel("MODALITÀ SOLA LETTURA - Il database è bloccato da un altro utente")
+            lbl_warning = QLabel("⚠ MODALITÀ SOLA LETTURA - Il database è bloccato da un altro utente")
+            lbl_warning.setObjectName("StatusLabel")
             lbl_warning.setAlignment(Qt.AlignCenter)
-            lbl_warning.setStyleSheet("color: #92400E; font-weight: bold; font-size: 12px; border: none;")
             banner_layout.addWidget(lbl_warning)
             main_layout.addWidget(self.warning_banner)
 
-        # Tabs (Notebook equivalent)
+        # Tabs
         self.tabs = QTabWidget()
-        self.tabs.setStyleSheet("""
-            QTabWidget::pane { border: 1px solid #D1D5DB; top: -1px; background: white; }
-            QTabBar::tab {
-                background: #E5E7EB;
-                border: 1px solid #D1D5DB;
-                padding: 10px 20px;
-                margin-right: 2px;
-                border-top-left-radius: 4px;
-                border-top-right-radius: 4px;
-                font-weight: bold;
-            }
-            QTabBar::tab:selected { background: white; border-bottom-color: white; }
-            QTabBar::tab:hover { background: #F9FAFB; }
-        """)
         
         # Instantiate Tabs
         self.tab_import = ImportView(self.controller)
@@ -169,25 +134,18 @@ class DashboardView(QWidget):
         footer_layout.setContentsMargins(15, 0, 15, 0)
         
         lbl_version = QLabel(f"v{app_version}")
-        lbl_version.setStyleSheet("color: #6B7280; font-size: 11px; border: none;")
+        lbl_version.setStyleSheet("color: #6B7280; font-size: 9pt;")
         footer_layout.addWidget(lbl_version)
         footer_layout.addStretch()
         
         main_layout.addWidget(self.footer)
 
     def setup_shortcuts(self):
-        # Ctrl+1-7 to switch tabs
         for i in range(7):
             shortcut = QShortcut(QKeySequence(f"Ctrl+{i+1}"), self)
             shortcut.activated.connect(lambda idx=i: self.tabs.setCurrentIndex(idx))
-            
-        # F1 for guide
-        shortcut_f1 = QShortcut(QKeySequence("F1"), self)
-        shortcut_f1.activated.connect(self.open_guide)
-        
-        # Ctrl+Q to logout
-        shortcut_q = QShortcut(QKeySequence("Ctrl+Q"), self)
-        shortcut_q.activated.connect(self.controller.logout)
+        QShortcut(QKeySequence("F1"), self).activated.connect(self.open_guide)
+        QShortcut(QKeySequence("Ctrl+Q"), self).activated.connect(self.controller.logout)
 
     def on_tab_changed(self, index):
         tab_widget = self.tabs.widget(index)
@@ -208,17 +166,9 @@ class DashboardView(QWidget):
                 if path.exists():
                     found_uri = path.absolute().as_uri()
                     break
-            except Exception:
-                continue
+            except Exception: continue
 
-        if found_uri:
-            webbrowser.open(found_uri)
+        if found_uri: webbrowser.open(found_uri)
         else:
-            if not getattr(sys, "frozen", False):
-                webbrowser.open("http://localhost:5173")
-            else:
-                logger.debug("Guida interattiva non trovata")
-                QMessageBox.information(
-                    self, "Guida",
-                    "La guida interattiva non è disponibile.\nContattare l'assistenza tecnica per maggiori informazioni.",
-                )
+            if not getattr(sys, "frozen", False): webbrowser.open("http://localhost:5173")
+            else: QMessageBox.information(self, "Guida", "La guida interattiva non è disponibile.")

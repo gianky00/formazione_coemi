@@ -422,10 +422,8 @@ sequenceDiagram
 
 ## 7. Changelog API
 
-### v1.0.0 (Corrente)
-*   **Feature**: Introduzione endpoint `/chat` con contesto RAG.
-*   **Security**: Implementazione `db_security` con crittografia Fernet e In-Memory SQLite.
-*   **Feature**: Endpoint `/dipendenti/import-csv` con logica "Upsert" e collegamento orfani.
-*   **Feature**: Sistema di Audit Log completo.
-*   **Fix**: Gestione robusta dei lock file e modalità Read-Only.
-*   **Fix**: Migrazione a `gemini-2.5-pro` per l'estrazione dati.
+### v1.1.0 (Refactoring)
+*   **Architettura**: Scomposizione dei router in Service Layer (`app/services/`).
+*   **Modelli**: Modularizzazione degli schemi Pydantic in `app/schemas/` per dominio.
+*   **Frontend**: Migrazione completa da Tkinter a PySide6 con architettura Controller-View e QSS centralizzato.
+*   **Threading**: Implementazione di `QThreadPool` e `Worker` per operazioni asincrone non bloccanti.

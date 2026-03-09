@@ -2,15 +2,16 @@ import os
 import threading
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-    QLineEdit, QComboBox, QTableWidget, QTableWidgetItem, 
-    QHeaderView, QMenu, QMessageBox, QFrame, QAbstractItemView
+    QMenu, QMessageBox, QFrame
 )
-from PySide6.QtCore import Qt, QTimer, Signal, Slot
-from PySide6.QtGui import QAction, QKeySequence, QShortcut, QColor, QBrush
+from PySide6.QtCore import Qt, Signal, Slot, QPoint
+from PySide6.QtGui import QAction, QKeySequence, QShortcut, QColor
 
 from app.core.config import settings
 from app.services.document_locator import find_document
 from desktop_app.utils import ProgressTaskRunner, open_file
+from desktop_app.widgets.data_table import DataTable
+from desktop_app.widgets.search_bar import SearchBar
 from desktop_app.views.edit_certificato_dialog import EditCertificatoDialog
 
 
@@ -18,11 +19,10 @@ class DatabaseView(QWidget):
     data_signal = Signal(list)
 
     def __init__(self, controller):
-        super().__init__()
+        super().__init__(controller)
         self.controller = controller
         self.data = []
-        self.setStyleSheet("background-color: #F3F4F6;")
-
+        
         self.setup_ui()
         self.setup_shortcuts()
         self.data_signal.connect(self._update_data)
@@ -30,76 +30,44 @@ class DatabaseView(QWidget):
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(10, 10, 10, 10)
 
-        # Toolbar
-        toolbar = QFrame()
-        toolbar.setFixedHeight(60)
-        toolbar.setStyleSheet("background-color: #F3F4F6; border: none;")
-        t_layout = QHBoxLayout(toolbar)
+        # 1. Search Bar
+        self.search_bar = SearchBar("Filtra per nome, corso...", self)
+        self.search_bar.add_filter("Categoria", "categoria", ["Tutte"])
+        self.search_bar.add_filter("Stato", "stato", ["Tutti", "Attivo", "In Scadenza", "Scaduto"])
+        self.search_bar.add_refresh_button()
         
-        t_layout.addWidget(QLabel("Cerca:"))
-        self.entry_search = QLineEdit()
-        self.entry_search.setPlaceholderText("Filtra per nome, corso...")
-        self.entry_search.textChanged.connect(self.filter_data)
-        t_layout.addWidget(self.entry_search)
+        self.search_bar.text_changed.connect(self.filter_data)
+        self.search_bar.filter_changed.connect(lambda k, v: self.filter_data())
+        self.search_bar.refresh_requested.connect(self.refresh_data)
+        
+        layout.addWidget(self.search_bar)
 
-        t_layout.addWidget(QLabel("Categoria:"))
-        self.combo_categoria = QComboBox()
-        self.combo_categoria.addItem("Tutte")
-        self.combo_categoria.currentTextChanged.connect(self.filter_data)
-        t_layout.addWidget(self.combo_categoria)
-
-        t_layout.addWidget(QLabel("Stato:"))
-        self.combo_status = QComboBox()
-        self.combo_status.addItems(["Tutti", "Attivo", "In Scadenza", "Scaduto"])
-        self.combo_status.currentTextChanged.connect(self.filter_data)
-        t_layout.addWidget(self.combo_status)
-
-        btn_refresh = QPushButton("Aggiorna")
-        btn_refresh.clicked.connect(self.refresh_data)
-        t_layout.addWidget(btn_refresh)
-
-        t_layout.addStretch()
-        self.lbl_count = QLabel("")
-        t_layout.addWidget(self.lbl_count)
-
-        layout.addWidget(toolbar)
-
-        # Table
-        self.table = QTableWidget()
-        self.table.setColumnCount(7)
-        self.table.setHorizontalHeaderLabels(["ID", "Dipendente", "Documento", "Categoria", "Rilascio", "Scadenza", "Stato"])
-        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.table.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.table.customContextMenuRequested.connect(self.show_context_menu)
-        self.table.doubleClicked.connect(self.open_file)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
-        self.table.horizontalHeader().setStretchLastSection(True)
+        # 2. Table
+        self.table = DataTable(self)
+        self.table.set_columns(["ID", "Dipendente", "Documento", "Categoria", "Rilascio", "Scadenza", "Stato"])
+        self.table.row_double_clicked.connect(self.open_file)
+        self.table.context_menu_requested.connect(self.show_context_menu)
         
         layout.addWidget(self.table)
+
+        # Footer count
+        self.lbl_count = QLabel("")
+        layout.addWidget(self.lbl_count)
 
     def setup_shortcuts(self):
         QShortcut(QKeySequence("F5"), self, self.refresh_data)
         QShortcut(QKeySequence("Del"), self, self.delete_item)
         QShortcut(QKeySequence("F2"), self, self.edit_item)
-        QShortcut(QKeySequence("Ctrl+A"), self, self.table.selectAll)
-        QShortcut(QKeySequence("Ctrl+F"), self, self.entry_search.setFocus)
 
-    def show_context_menu(self, pos):
+    def show_context_menu(self, pos, cert):
         menu = QMenu(self)
-        action_open_pdf = menu.addAction("Apri File PDF")
-        action_open_folder = menu.addAction("Apri Cartella")
+        menu.addAction("Apri File PDF", lambda: self.open_file(cert))
+        menu.addAction("Apri Cartella", lambda: self.open_folder(cert))
         menu.addSeparator()
-        action_edit = menu.addAction("Modifica Dati")
-        action_delete = menu.addAction("Elimina")
-
-        action_open_pdf.triggered.connect(self.open_file)
-        action_open_folder.triggered.connect(self.open_folder)
-        action_edit.triggered.connect(self.edit_item)
-        action_delete.triggered.connect(self.delete_item)
-
+        menu.addAction("Modifica Dati", lambda: self.edit_item(cert))
+        menu.addAction("Elimina", lambda: self.delete_item(cert))
         menu.exec(self.table.viewport().mapToGlobal(pos))
 
     def refresh_data(self):
@@ -114,125 +82,72 @@ class DatabaseView(QWidget):
     def _update_data(self, new_data):
         self.data = new_data
         
-        # Update categories
-        categories = set(str(item.get("categoria", "")).upper() for item in self.data if item.get("categoria"))
-        self.combo_categoria.blockSignals(True)
-        current = self.combo_categoria.currentText()
-        self.combo_categoria.clear()
-        self.combo_categoria.addItem("Tutte")
-        self.combo_categoria.addItems(sorted(categories))
-        self.combo_categoria.setCurrentText(current if current in categories or current == "Tutte" else "Tutte")
-        self.combo_categoria.blockSignals(False)
+        # Update categories in search bar
+        categories = sorted(set(str(item.get("categoria", "")).upper() for item in self.data if item.get("categoria")))
+        combo = self.search_bar.combos["categoria"]
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem("Tutte")
+        combo.addItems(categories)
+        combo.blockSignals(False)
 
         self.filter_data()
 
     def filter_data(self):
-        query = self.entry_search.text().lower()
-        status_filter = self.combo_status.currentText().lower()
-        cat_filter = self.combo_categoria.currentText()
+        query = self.search_bar.entry_search.text().lower()
+        cat_filter = self.search_bar.combos["categoria"].currentText()
+        status_filter = self.search_bar.combos["stato"].currentText().lower()
 
-        self.table.setRowCount(0)
-        count = 0
+        filtered = []
         for item in self.data:
-            nome = str(item.get("nome") or "").lower()
-            corso = str(item.get("corso") or "").lower()
-            categoria = str(item.get("categoria") or "").lower()
             stato = str(item.get("stato_certificato") or "").lower()
-
-            if cat_filter != "Tutte" and str(item.get("categoria") or "").upper() != cat_filter.upper():
-                continue
+            if cat_filter != "Tutte" and str(item.get("categoria") or "").upper() != cat_filter.upper(): continue
             if status_filter != "tutti":
                 if status_filter == "in scadenza" and stato != "in_scadenza": continue
                 if status_filter == "scaduto" and stato != "scaduto": continue
                 if status_filter == "attivo" and stato != "attivo": continue
-            if query and query not in nome and query not in corso and query not in categoria:
-                continue
+            
+            txt = f"{item.get('nome','')} {item.get('corso','')}".lower()
+            if query and query not in txt: continue
+            filtered.append(item)
 
-            row = self.table.rowCount()
-            self.table.insertRow(row)
-            
-            # Colors
-            bg_color = None
-            if stato == "scaduto": bg_color = QColor("#FECACA")
-            elif stato == "in_scadenza": bg_color = QColor("#FED7AA")
-            elif stato == "attivo": bg_color = QColor("#BBF7D0")
+        # Load into table
+        mapping = ["id", "nome", "corso", "categoria", "data_rilascio", "data_scadenza", "stato_certificato"]
+        self.table.load_data(filtered, mapping, color_callback=self._get_row_color)
+        self.lbl_count.setText(f"{len(filtered)} certificati")
 
-            cols = [
-                str(item.get("id")),
-                item.get("nome") or "N/D",
-                item.get("corso") or "N/D",
-                item.get("categoria") or "ALTRO",
-                item.get("data_rilascio") or "",
-                item.get("data_scadenza") or "NESSUNA",
-                stato.replace("_", " ").upper()
-            ]
-            
-            for i, val in enumerate(cols):
-                q_item = QTableWidgetItem(val)
-                if bg_color: q_item.setBackground(QBrush(bg_color))
-                self.table.setItem(row, i, q_item)
-            
-            count += 1
+    def _get_row_color(self, item):
+        stato = str(item.get("stato_certificato") or "").lower()
+        if stato == "scaduto": return QColor("#FECACA")
+        if stato == "in_scadenza": return QColor("#FED7AA")
+        if stato == "attivo": return QColor("#BBF7D0")
+        return None
+
+    def open_file(self, cert):
+        if not settings.DOCUMENTS_FOLDER: return
+        path = find_document(settings.DOCUMENTS_FOLDER, cert)
+        if path and os.path.exists(path): open_file(path)
+        else: QMessageBox.warning(self, "Attenzione", "File non trovato.")
+
+    def open_folder(self, cert):
+        if not settings.DOCUMENTS_FOLDER: return
+        path = find_document(settings.DOCUMENTS_FOLDER, cert)
+        open_file(os.path.dirname(path) if path and os.path.exists(path) else settings.DOCUMENTS_FOLDER)
+
+    def edit_item(self, cert=None):
+        if not cert:
+            selected = self.table.get_selected_data()
+            if not selected: return
+            cert = selected[0]
         
-        self.lbl_count.setText(f"{count} certificati")
-
-    def open_file(self):
-        row = self.table.currentRow()
-        if row < 0: return
-        cert_id = self.table.item(row, 0).text()
-        cert = next((x for x in self.data if str(x["id"]) == cert_id), None)
-        if not cert: return
-
-        db_path = settings.DOCUMENTS_FOLDER
-        if not db_path:
-            QMessageBox.critical(self, "Errore", "Percorso Database non configurato.")
-            return
-
-        search_data = {"nome": cert.get("nome"), "matricola": cert.get("matricola"), "categoria": cert.get("categoria"), "data_scadenza": cert.get("data_scadenza")}
-        path = find_document(db_path, search_data)
-        if path and os.path.exists(path):
-            open_file(path)
-        else:
-            QMessageBox.warning(self, "Attenzione", f"File PDF non trovato per {search_data['nome']}")
-
-    def open_folder(self):
-        row = self.table.currentRow()
-        if row < 0: return
-        cert_id = self.table.item(row, 0).text()
-        cert = next((x for x in self.data if str(x["id"]) == cert_id), None)
-        if not cert: return
-
-        db_path = settings.DOCUMENTS_FOLDER
-        if not db_path: return
-
-        search_data = {"nome": cert.get("nome"), "matricola": cert.get("matricola"), "categoria": cert.get("categoria"), "data_scadenza": cert.get("data_scadenza")}
-        path = find_document(db_path, search_data)
-        if path and os.path.exists(path):
-            open_file(os.path.dirname(path))
-        else:
-            open_file(db_path)
-
-    def edit_item(self):
-        row = self.table.currentRow()
-        if row < 0: return
-        cert_id = self.table.item(row, 0).text()
-        cert = next((x for x in self.data if str(x["id"]) == cert_id), None)
-        if not cert: return
-        
-        dialog = EditCertificatoDialog(self, self.controller, cert)
-        if dialog.exec():
+        if EditCertificatoDialog(self, self.controller, cert).exec():
             self.refresh_data()
 
-    def delete_item(self):
-        rows = sorted(set(index.row() for index in self.table.selectedIndexes()), reverse=True)
-        if not rows: return
-        if QMessageBox.question(self, "Conferma", f"Eliminare {len(rows)} certificati?") != QMessageBox.Yes:
-            return
-
-        cert_ids = [self.table.item(r, 0).text() for r in rows]
-        runner = ProgressTaskRunner(self, "Eliminazione", "Eliminazione in corso...")
-        try:
-            runner.run(self.controller.api_client.delete_certificato, cert_ids)
+    def delete_item(self, cert=None):
+        selected = [cert] if cert else self.table.get_selected_data()
+        if not selected: return
+        
+        if QMessageBox.question(self, "Conferma", f"Eliminare {len(selected)} certificati?") == QMessageBox.Yes:
+            ids = [str(s["id"]) for s in selected]
+            ProgressTaskRunner(self).run(self.controller.api_client.delete_certificato, ids)
             self.refresh_data()
-        except Exception as e:
-            QMessageBox.critical(self, "Errore", str(e))

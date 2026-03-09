@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.schemas import CertificatoCreazioneSchema as CertificatoCreateSchema
+from app.schemas import CertificatoCreazioneSchema as CertificatoCreateSchema
 
 
 def test_certificato_create_schema_valid():

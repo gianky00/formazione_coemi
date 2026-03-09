@@ -1,141 +1,205 @@
-from typing import Any
-
+from typing import Any, List, Optional
+import csv
+import io
 from fastapi import HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
+from sqlalchemy import or_
 
 from app.db.models import Certificato, Dipendente
-from app.services import matcher
+from app.services import matcher, certificate_logic, sync_service
 from app.utils.date_parser import parse_date_flexible
+from app.schemas import (
+    DipendenteCreateSchema,
+    DipendenteUpdateSchema,
+    DipendenteDetailSchema,
+    CertificatoSchema
+)
 
+DATE_FORMAT_DMY: str = "%d/%m/%Y"
 
-def validate_unique_constraints(
-    db: Session, dipendente: Dipendente, update_dict: dict[str, Any]
-) -> None:
-    """Checks for duplicate matricola or email before update."""
-    if "matricola" in update_dict and update_dict["matricola"] != dipendente.matricola:
-        mat = str(update_dict["matricola"])
-        if not mat or not mat.strip():
-            raise HTTPException(
-                status_code=400, detail="La matricola non può essere vuota o solo spazi."
+class EmployeeService:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def get_all(self) -> List[Dipendente]:
+        """Ritorna l'elenco di tutti i dipendenti."""
+        return self.db.query(Dipendente).all()
+
+    def get_by_id(self, dipendente_id: int) -> Optional[Dipendente]:
+        """Ritorna un dipendente per ID."""
+        return self.db.get(Dipendente, dipendente_id)
+
+    def get_detail(self, dipendente_id: int) -> DipendenteDetailSchema:
+        """Ritorna i dettagli di un dipendente inclusi i certificati con stato calcolato."""
+        dipendente = (
+            self.db.query(Dipendente)
+            .options(selectinload(Dipendente.certificati).selectinload(Certificato.corso))
+            .filter(Dipendente.id == dipendente_id)
+            .first()
+        )
+
+        if not dipendente:
+            raise HTTPException(status_code=404, detail="Dipendente non trovato")
+
+        # Calcolo stato per tutti i certificati
+        status_map = certificate_logic.get_bulk_certificate_statuses(self.db, list(dipendente.certificati))
+
+        cert_schemas = []
+        for cert in dipendente.certificati:
+            if not cert.corso:
+                continue
+
+            status = status_map.get(int(cert.id), "attivo")
+            cert_schemas.append(
+                CertificatoSchema(
+                    id=int(cert.id),
+                    nome=f"{dipendente.cognome} {dipendente.nome}",
+                    data_nascita=dipendente.data_nascita.strftime(DATE_FORMAT_DMY) if dipendente.data_nascita else None,
+                    matricola=dipendente.matricola,
+                    corso=cert.corso.nome_corso,
+                    categoria=cert.corso.categoria_corso or "General",
+                    data_rilascio=cert.data_rilascio.strftime(DATE_FORMAT_DMY),
+                    data_scadenza=cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY) if cert.data_scadenza_calcolata else None,
+                    stato_certificato=status,
+                )
             )
-        existing = db.query(Dipendente).filter(Dipendente.matricola == mat).first()
-        if existing:
-            raise HTTPException(status_code=400, detail="Matricola già esistente.")
 
-        if (
-            "email" in update_dict
-            and update_dict["email"] != dipendente.email
-            and update_dict["email"]
-        ):
-            existing_email = (
-                db.query(Dipendente).filter(Dipendente.email == update_dict["email"]).first()
-            )
-            if existing_email:
+        return DipendenteDetailSchema(
+            id=int(dipendente.id),
+            matricola=dipendente.matricola,
+            nome=dipendente.nome,
+            cognome=dipendente.cognome,
+            data_nascita=dipendente.data_nascita,
+            email=dipendente.email,
+            categoria_reparto=dipendente.categoria_reparto,
+            data_assunzione=dipendente.data_assunzione,
+            certificati=cert_schemas,
+        )
+
+    def create(self, data: DipendenteCreateSchema) -> Dipendente:
+        """Crea un nuovo dipendente con validazioni."""
+        if data.matricola:
+            if not data.matricola.strip():
+                raise HTTPException(status_code=400, detail="La matricola non può essere vuota.")
+            if self.db.query(Dipendente).filter(Dipendente.matricola == data.matricola).first():
+                raise HTTPException(status_code=400, detail="Matricola già esistente.")
+
+        if data.email:
+            if self.db.query(Dipendente).filter(Dipendente.email == data.email).first():
                 raise HTTPException(status_code=400, detail="Email già esistente.")
 
+        new_dipendente = Dipendente(**data.model_dump())
+        self.db.add(new_dipendente)
+        self.db.commit()
+        self.db.refresh(new_dipendente)
 
-def handle_new_dipendente(db: Session, warnings: list[str], data: tuple[Any, ...]) -> None:
-    """Helper to handle new or ambiguous employee logic during CSV import."""
-    cognome, nome, parsed_data_nascita, badge, parsed_data_assunzione, _data_nascita_str = data
+        # Link potential orphan certificates
+        sync_service.link_orphaned_certificates(self.db, new_dipendente)
+        self.db.commit()
+        return new_dipendente
 
-    found_by_identity = False
-    if parsed_data_nascita:
-        matches = (
-            db.query(Dipendente)
-            .filter(
-                Dipendente.nome.ilike(nome),
-                Dipendente.cognome.ilike(cognome),
-                Dipendente.data_nascita == parsed_data_nascita,
-            )
-            .all()
-        )
-        if matches:
-            found_by_identity = True
-            if len(matches) > 1:
-                warnings.append(
-                    f"Ambiguità trovata per {cognome} {nome}: più dipendenti con stessa data nascita. Salto aggiornamento matricola."
-                )
-            else:
-                m = matches[0]
-                # Update matricola if different or missing
-                if badge and m.matricola != badge:
-                    old_badge = m.matricola
-                    m.matricola = badge
-                    warnings.append(
-                        f"Aggiornata matricola per {cognome} {nome}: {old_badge} -> {badge}"
-                    )
-                # Update hiring date if missing
-                if parsed_data_assunzione and not m.data_assunzione:
-                    m.data_assunzione = parsed_data_assunzione
+    def update(self, dipendente_id: int, data: DipendenteUpdateSchema) -> Dipendente:
+        """Aggiorna un dipendente esistente."""
+        dipendente = self.get_by_id(dipendente_id)
+        if not dipendente:
+            raise HTTPException(status_code=404, detail="Dipendente non trovato")
 
-    if not found_by_identity and badge:
-        existing = db.query(Dipendente).filter(Dipendente.matricola == badge).first()
-        if existing:
-            # Update existing with CSV data (Master Identity Update)
-            existing.nome = nome
-            existing.cognome = cognome
-            if parsed_data_nascita:
-                existing.data_nascita = parsed_data_nascita
-            if parsed_data_assunzione:
-                existing.data_assunzione = parsed_data_assunzione
-            return
+        update_dict = data.model_dump(exclude_unset=True)
+        self._validate_unique_constraints(dipendente, update_dict)
 
-    if not found_by_identity:
-        new_dip = Dipendente(
-            nome=nome,
-            cognome=cognome,
-            matricola=badge,
-            data_nascita=parsed_data_nascita,
-            data_assunzione=parsed_data_assunzione,
-        )
-        db.add(new_dip)
+        for key, value in update_dict.items():
+            setattr(dipendente, key, value)
 
+        self.db.commit()
+        self.db.refresh(dipendente)
 
-def process_csv_row(row: dict[str, Any], db: Session, warnings: list[str]) -> None:
-    """Processes a single row from the employees CSV."""
-    # Handle variations in header names (underscore vs space)
-    nome = (row.get("Nome") or row.get("nome") or "").strip()
-    cognome = (row.get("Cognome") or row.get("cognome") or "").strip()
-    badge = (
-        row.get("Badge") or row.get("badge") or row.get("Matricola") or row.get("matricola") or ""
-    ).strip() or None
+        # Re-link certificates if name changed
+        sync_service.link_orphaned_certificates(self.db, dipendente)
+        self.db.commit()
+        return dipendente
 
-    data_nascita_str = (row.get("Data di nascita") or row.get("Data_nascita") or "").strip()
-    data_assunzione_str = (
-        row.get("Data di assunzione") or row.get("Data_assunzione") or ""
-    ).strip()
+    def delete(self, dipendente_id: int) -> None:
+        """Elimina un dipendente."""
+        dipendente = self.get_by_id(dipendente_id)
+        if not dipendente:
+            raise HTTPException(status_code=404, detail="Dipendente non trovato")
+        self.db.delete(dipendente)
+        self.db.commit()
 
-    if not nome or not cognome:
-        return
+    def import_csv(self, content: bytes) -> dict:
+        """Importa dipendenti da contenuto CSV."""
+        try:
+            decoded = content.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            decoded = content.decode("iso-8859-1")
 
-    parsed_data_nascita = parse_date_flexible(data_nascita_str) if data_nascita_str else None
-    parsed_data_assunzione = (
-        parse_date_flexible(data_assunzione_str) if data_assunzione_str else None
-    )
+        stream = io.StringIO(decoded)
+        reader = csv.DictReader(stream, delimiter=";")
+        warnings = []
+        rows_processed = 0
+        
+        for row in reader:
+            self._process_csv_row(row, warnings)
+            rows_processed += 1
+            if rows_processed % 50 == 0:
+                self.db.commit()
+        
+        self.db.commit()
+        linked_count = self.link_orphaned_certificates_after_import()
+        if linked_count > 0:
+            self.db.commit()
+            
+        return {"linked_count": linked_count, "warnings": warnings}
 
-    handle_new_dipendente(
-        db,
-        warnings,
-        (cognome, nome, parsed_data_nascita, badge, parsed_data_assunzione, data_nascita_str),
-    )
+    def _validate_unique_constraints(self, dipendente: Dipendente, update_dict: dict) -> None:
+        if "matricola" in update_dict and update_dict["matricola"] != dipendente.matricola:
+            if self.db.query(Dipendente).filter(Dipendente.matricola == update_dict["matricola"]).first():
+                raise HTTPException(status_code=400, detail="Matricola già esistente.")
+        if "email" in update_dict and update_dict["email"] != dipendente.email and update_dict["email"]:
+            if self.db.query(Dipendente).filter(Dipendente.email == update_dict["email"]).first():
+                raise HTTPException(status_code=400, detail="Email già esistente.")
 
+    def _process_csv_row(self, row: dict, warnings: list) -> None:
+        nome = (row.get("Nome") or row.get("nome") or "").strip()
+        cognome = (row.get("Cognome") or row.get("cognome") or "").strip()
+        badge = (row.get("Badge") or row.get("Matricola") or row.get("matricola") or "").strip() or None
+        
+        if not nome or not cognome: return
 
-def link_orphaned_certificates_after_import(db: Session) -> int:
-    """Re-links orphaned certificates after a bulk employee import and syncs files."""
-    from app.services import certificate_service
+        dob = parse_date_flexible(row.get("Data di nascita") or row.get("Data_nascita") or "")
+        hiring = parse_date_flexible(row.get("Data di assunzione") or row.get("Data_assunzione") or "")
 
-    orphans = db.query(Certificato).filter(Certificato.dipendente_id.is_(None)).all()
-    linked_count = 0
-    for cert in orphans:
-        if not cert.nome_dipendente_raw:
-            continue
-        dob = parse_date_flexible(cert.data_nascita_raw) if cert.data_nascita_raw else None
-        match = matcher.find_employee_by_name(db, cert.nome_dipendente_raw, dob)
+        # Logic to find or create
+        match = None
+        if dob:
+            match = self.db.query(Dipendente).filter(
+                Dipendente.nome.ilike(nome), 
+                Dipendente.cognome.ilike(cognome), 
+                Dipendente.data_nascita == dob
+            ).first()
+        
+        if not match and badge:
+            match = self.db.query(Dipendente).filter(Dipendente.matricola == badge).first()
+
         if match:
-            # Capture old state for FS sync
-            old_cert_data = certificate_service.get_orphan_cert_data(cert)
-            cert.dipendente_id = match.id
-            linked_count += 1
-            # Sync file system immediately
-            certificate_service.sync_cert_file_system(cert, old_cert_data, db)
-    return linked_count
+            match.nome, match.cognome = nome, cognome
+            if dob: match.data_nascita = dob
+            if hiring: match.data_assunzione = hiring
+            if badge: match.matricola = badge
+        else:
+            self.db.add(Dipendente(nome=nome, cognome=cognome, matricola=badge, data_nascita=dob, data_assunzione=hiring))
+
+    def link_orphaned_certificates_after_import(self) -> int:
+        from app.services import certificate_service
+        orphans = self.db.query(Certificato).filter(Certificato.dipendente_id.is_(None)).all()
+        linked = 0
+        for cert in orphans:
+            if not cert.nome_dipendente_raw: continue
+            dob = parse_date_flexible(cert.data_nascita_raw) if cert.data_nascita_raw else None
+            match = matcher.find_employee_by_name(self.db, cert.nome_dipendente_raw, dob)
+            if match:
+                old_data = certificate_service.get_orphan_cert_data(cert)
+                cert.dipendente_id = match.id
+                linked += 1
+                certificate_service.sync_cert_file_system(cert, old_data, self.db)
+        return linked

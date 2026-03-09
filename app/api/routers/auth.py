@@ -11,7 +11,7 @@ from app.core.config import settings
 from app.core.db_security import db_security
 from app.db.models import BlacklistedToken, User
 from app.db.session import get_db
-from app.schemas.schemas import Token, UserPasswordUpdateSchema, UserSchema
+from app.schemas import Token, UserPasswordUpdateSchema, UserSchema
 from app.utils.audit import log_security_action
 
 router = APIRouter(prefix="/auth", tags=["auth"])

@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QMessageBox, QFileDialog, 
     QVBoxLayout, QWidget, QStackedWidget
 )
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QThreadPool
 
 from app import __version__ as app_version
 from app.core.config import settings
@@ -41,6 +41,7 @@ class ApplicationController(QMainWindow):
         self.showMaximized()
 
         self.api_client = APIClient()
+        self.thread_pool = QThreadPool.globalInstance()
         self.voice_service = VoiceService()
         self.toast_manager = ToastManager(self)
         self.notification_center = NotificationCenter(self)
@@ -249,10 +250,23 @@ class ApplicationController(QMainWindow):
         self.logout()
 
 
+def load_stylesheet(app: QApplication) -> None:
+    """Carica il foglio di stile globale (QSS)."""
+    from app.core.path_resolver import get_asset_path
+    try:
+        qss_path = get_asset_path("styles/main.qss")
+        if qss_path.exists():
+            with open(qss_path, "r", encoding="utf-8") as f:
+                app.setStyleSheet(f.read())
+    except Exception as e:
+        print(f"Errore caricamento stili: {e}")
+
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     # Style (Fusion for modern look)
     app.setStyle("Fusion")
+    load_stylesheet(app)
     
     controller = ApplicationController()
     controller.start()

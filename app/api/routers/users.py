@@ -7,7 +7,7 @@ from app.api import deps
 from app.core import security
 from app.db.models import User
 from app.db.session import get_db
-from app.schemas.schemas import UserCreateSchema, UserSchema, UserUpdateSchema
+from app.schemas import UserCreateSchema, UserSchema, UserUpdateSchema
 from app.utils.audit import log_security_action
 
 router = APIRouter(prefix="/users", tags=["users"])

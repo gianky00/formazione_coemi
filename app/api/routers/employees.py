@@ -1,98 +1,43 @@
-import csv
-import io
 from typing import Annotated, Any
-
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 
 from app.api import deps
 from app.core.config import settings
-from app.db.models import Certificato, Dipendente, User as UserModel
 from app.db.session import get_db
-from app.schemas.schemas import (
-    CertificatoSchema,
+from app.db.models import User as UserModel
+from app.schemas import (
     DipendenteCreateSchema,
     DipendenteDetailSchema,
     DipendenteSchema,
     DipendenteUpdateSchema,
 )
-from app.services import certificate_logic, employee_service
-from app.services.sync_service import link_orphaned_certificates
+from app.services.employee_service import EmployeeService
 from app.utils.audit import log_security_action
 from app.utils.file_security import verify_file_signature
 
 router = APIRouter(prefix="/dipendenti", tags=["employees"])
 
-DATE_FORMAT_DMY: str = "%d/%m/%Y"
-STR_DIP_NON_TROVATO: str = "Dipendente non trovato"
-
+def get_employee_service(db: Annotated[Session, Depends(get_db)]) -> EmployeeService:
+    return EmployeeService(db)
 
 @router.get("", response_model=list[DipendenteSchema])
 def get_dipendenti(
-    db: Annotated[Session, Depends(get_db)],
+    service: Annotated[EmployeeService, Depends(get_employee_service)],
     license_ok: Annotated[bool, Depends(deps.verify_license)],
 ) -> Any:
     """Ritorna l'elenco di tutti i dipendenti."""
-    return db.query(Dipendente).all()
+    return service.get_all()
 
 
 @router.get("/{dipendente_id}", response_model=DipendenteDetailSchema)
 def get_dipendente_detail(
     dipendente_id: int,
-    db: Annotated[Session, Depends(get_db)],
+    service: Annotated[EmployeeService, Depends(get_employee_service)],
     license_ok: Annotated[bool, Depends(deps.verify_license)],
 ) -> Any:
-    """Ritorna i dettagli di un singolo dipendente, inclusi i certificati con relativo stato."""
-    dipendente = (
-        db.query(Dipendente)
-        .options(selectinload(Dipendente.certificati).selectinload(Certificato.corso))
-        .filter(Dipendente.id == dipendente_id)
-        .first()
-    )
-
-    if not dipendente:
-        raise HTTPException(status_code=404, detail=STR_DIP_NON_TROVATO)
-
-    # Calcolo stato per tutti i certificati
-    status_map = certificate_logic.get_bulk_certificate_statuses(db, list(dipendente.certificati))
-
-    cert_schemas = []
-    for cert in dipendente.certificati:
-        if not cert.corso:
-            continue
-
-        status = status_map.get(int(cert.id), "attivo")
-
-        cert_schemas.append(
-            CertificatoSchema(
-                id=int(cert.id),
-                nome=f"{dipendente.cognome} {dipendente.nome}",
-                data_nascita=dipendente.data_nascita.strftime(DATE_FORMAT_DMY)
-                if dipendente.data_nascita
-                else None,
-                matricola=dipendente.matricola,
-                corso=cert.corso.nome_corso,
-                categoria=cert.corso.categoria_corso or "General",
-                data_rilascio=cert.data_rilascio.strftime(DATE_FORMAT_DMY),
-                data_scadenza=cert.data_scadenza_calcolata.strftime(DATE_FORMAT_DMY)
-                if cert.data_scadenza_calcolata
-                else None,
-                stato_certificato=status,
-            )
-        )
-
-    return DipendenteDetailSchema(
-        id=int(dipendente.id),
-        matricola=dipendente.matricola,
-        nome=dipendente.nome,
-        cognome=dipendente.cognome,
-        data_nascita=dipendente.data_nascita,
-        email=dipendente.email,
-        categoria_reparto=dipendente.categoria_reparto,
-        data_assunzione=dipendente.data_assunzione,
-        certificati=cert_schemas,
-    )
+    """Ritorna i dettagli di un singolo dipendente."""
+    return service.get_detail(dipendente_id)
 
 
 @router.post(
@@ -102,48 +47,16 @@ def get_dipendente_detail(
 )
 def create_dipendente(
     dipendente: DipendenteCreateSchema,
-    db: Annotated[Session, Depends(get_db)],
+    service: Annotated[EmployeeService, Depends(get_employee_service)],
     current_user: Annotated[UserModel, Depends(deps.get_current_user)],
 ) -> Any:
-    """Crea un nuovo dipendente e tenta di collegare certificati orfani."""
-    if dipendente.matricola:
-        if not dipendente.matricola.strip():
-            raise HTTPException(status_code=400, detail="La matricola non può essere vuota.")
-        existing = db.query(Dipendente).filter(Dipendente.matricola == dipendente.matricola).first()
-        if existing:
-            raise HTTPException(status_code=400, detail="Matricola già esistente.")
-
-    if dipendente.email:
-        existing_email = db.query(Dipendente).filter(Dipendente.email == dipendente.email).first()
-        if existing_email:
-            raise HTTPException(status_code=400, detail="Email già esistente.")
-
-    new_dipendente = Dipendente(
-        matricola=dipendente.matricola,
-        nome=dipendente.nome,
-        cognome=dipendente.cognome,
-        data_nascita=dipendente.data_nascita,
-        email=dipendente.email,
-        mansione=dipendente.mansione,
-        categoria_reparto=dipendente.categoria_reparto,
-        data_assunzione=dipendente.data_assunzione,
-    )
-    db.add(new_dipendente)
-    db.commit()
-    db.refresh(new_dipendente)
-
-    # Link potential orphan certificates
-    link_orphaned_certificates(db, new_dipendente)
-    db.commit()
-
+    """Crea un nuovo dipendente."""
+    new_dip = service.create(dipendente)
     log_security_action(
-        db,
-        current_user,
-        "DIPENDENTE_CREATE",
-        f"Creato dipendente {dipendente.cognome} {dipendente.nome}",
-        category="DATA",
+        service.db, current_user, "DIPENDENTE_CREATE",
+        f"Creato dipendente {new_dip.cognome} {new_dip.nome}", category="DATA"
     )
-    return new_dipendente
+    return new_dip
 
 
 @router.put(
@@ -154,35 +67,16 @@ def create_dipendente(
 def update_dipendente(
     dipendente_id: int,
     dipendente_data: DipendenteUpdateSchema,
-    db: Annotated[Session, Depends(get_db)],
+    service: Annotated[EmployeeService, Depends(get_employee_service)],
     current_user: Annotated[UserModel, Depends(deps.get_current_user)],
 ) -> Any:
-    """Aggiorna i dati di un dipendente e ricollega certificati orfani se necessario."""
-    dipendente = db.get(Dipendente, dipendente_id)
-    if not dipendente:
-        raise HTTPException(status_code=404, detail=STR_DIP_NON_TROVATO)
-
-    update_dict = dipendente_data.model_dump(exclude_unset=True)
-    employee_service.validate_unique_constraints(db, dipendente, update_dict)
-
-    for key, value in update_dict.items():
-        setattr(dipendente, key, value)
-
-    db.commit()
-    db.refresh(dipendente)
-
-    # Link potential orphan certificates (if name changed)
-    link_orphaned_certificates(db, dipendente)
-    db.commit()
-
+    """Aggiorna i dati di un dipendente."""
+    updated = service.update(dipendente_id, dipendente_data)
     log_security_action(
-        db,
-        current_user,
-        "DIPENDENTE_UPDATE",
-        f"Aggiornato dipendente ID {dipendente_id}",
-        category="DATA",
+        service.db, current_user, "DIPENDENTE_UPDATE",
+        f"Aggiornato dipendente ID {dipendente_id}", category="DATA"
     )
-    return dipendente
+    return updated
 
 
 @router.delete(
@@ -191,21 +85,15 @@ def update_dipendente(
 )
 def delete_dipendente(
     dipendente_id: int,
-    db: Annotated[Session, Depends(get_db)],
+    service: Annotated[EmployeeService, Depends(get_employee_service)],
     current_user: Annotated[UserModel, Depends(deps.get_current_user)],
 ) -> Any:
     """Elimina un dipendente dal sistema."""
-    dipendente = db.get(Dipendente, dipendente_id)
-    if not dipendente:
-        raise HTTPException(status_code=404, detail=STR_DIP_NON_TROVATO)
-
-    log_details = (
-        f"Eliminato dipendente {dipendente.cognome} {dipendente.nome} (ID {dipendente_id})"
+    service.delete(dipendente_id)
+    log_security_action(
+        service.db, current_user, "DIPENDENTE_DELETE",
+        f"Eliminato dipendente ID {dipendente_id}", category="DATA"
     )
-    db.delete(dipendente)
-    db.commit()
-
-    log_security_action(db, current_user, "DIPENDENTE_DELETE", log_details, category="DATA")
     return {"message": "Dipendente eliminato con successo"}
 
 
@@ -213,75 +101,29 @@ def delete_dipendente(
     "/import-csv", dependencies=[Depends(deps.check_write_permission), Depends(deps.verify_license)]
 )
 async def import_dipendenti_csv(
-    db: Annotated[Session, Depends(get_db)],
+    service: Annotated[EmployeeService, Depends(get_employee_service)],
     current_user: Annotated[UserModel, Depends(deps.get_current_user)],
     file: UploadFile = File(...),
 ) -> Any:
-    """Importa dipendenti da un file CSV e ricollega certificati orfani."""
-    max_csv_size = settings.MAX_CSV_SIZE
-
-    content_bytes = bytearray()
-    while True:
-        chunk = await file.read(1024 * 1024)
-        if not chunk:
-            break
-        content_bytes.extend(chunk)
-        if len(content_bytes) > max_csv_size:
-            raise HTTPException(
-                status_code=413,
-                detail=f"File troppo grande. Limite: {max_csv_size // (1024 * 1024)}MB.",
-            )
-
-    content = bytes(content_bytes)
-
+    """Importa dipendenti da un file CSV."""
     if not file.filename or not str(file.filename).endswith(".csv"):
         raise HTTPException(status_code=400, detail="Il file deve essere in formato CSV.")
+
+    content = await file.read()
+    if len(content) > settings.MAX_CSV_SIZE:
+        raise HTTPException(status_code=413, detail="File troppo grande.")
 
     if not verify_file_signature(content, "csv"):
         raise HTTPException(status_code=400, detail="Contenuto file non valido.")
 
-    # Robust encoding detection
-    try:
-        # Try UTF-8-SIG first (common for Excel with BOM)
-        decoded_content = content.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        # Fallback to Latin-1
-        decoded_content = content.decode("iso-8859-1")
-
-    stream = io.StringIO(decoded_content)
-    reader = csv.DictReader(stream, delimiter=";")
-
-    warnings: list[str] = []
-    batch_size = 50
-    rows_processed = 0
-
-    try:
-        for row in reader:
-            employee_service.process_csv_row(row, db, warnings)
-            rows_processed += 1
-            if rows_processed % batch_size == 0:
-                db.commit()
-        db.commit()
-    except IntegrityError as e:
-        db.rollback()
-        raise HTTPException(status_code=400, detail=f"Errore integrità: {e!s}") from e
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Errore importazione: {e!s}") from e
-
-    linked_count = employee_service.link_orphaned_certificates_after_import(db)
-    if linked_count > 0:
-        db.commit()
-
+    result = service.import_csv(content)
+    
     log_security_action(
-        db,
-        current_user,
-        "DIPENDENTE_CREATE",
-        f"Importato CSV: {file.filename}. Orfani collegati: {linked_count}",
-        category="DATA",
+        service.db, current_user, "DIPENDENTE_IMPORT",
+        f"Importato CSV: {file.filename}. Orfani collegati: {result['linked_count']}", category="DATA"
     )
 
     return {
-        "message": f"Importazione completata. {linked_count} certificati orfani collegati.",
-        "warnings": warnings,
+        "message": f"Importazione completata. {result['linked_count']} orfani collegati.",
+        "warnings": result["warnings"],
     }

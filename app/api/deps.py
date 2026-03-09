@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.models import BlacklistedToken, User
 from app.db.session import get_db
-from app.schemas.schemas import TokenData
+from app.schemas import TokenData
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.ALGORITHM}/auth/login")
 

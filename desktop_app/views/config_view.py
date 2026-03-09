@@ -16,28 +16,14 @@ class ConfigView(QWidget):
     def __init__(self, controller):
         super().__init__(controller)
         self.controller = controller
-        self.setStyleSheet("background-color: #F3F4F6;")
-
         layout = QVBoxLayout(self)
         self.tabs = QTabWidget()
-        self.tabs.setStyleSheet("""
-            QTabWidget::pane { border: 1px solid #D1D5DB; top: -1px; background: white; }
-            QTabBar::tab { padding: 8px 20px; font-weight: bold; background: #E5E7EB; border: 1px solid #D1D5DB; }
-            QTabBar::tab:selected { background: white; border-bottom-color: white; }
-        """)
-
-        self.tab_settings = SettingsTab(self.controller)
-        self.tab_users = UsersTab(self.controller)
-        self.tab_audit = AuditView(self.controller)
-
-        self.tabs.addTab(self.tab_settings, "Impostazioni")
-        self.tabs.addTab(self.tab_users, "Gestione Utenti")
-        self.tabs.addTab(self.tab_audit, "Audit Log")
-
+        self.tabs.addTab(SettingsTab(self.controller), "Impostazioni")
+        self.tabs.addTab(UsersTab(self.controller), "Gestione Utenti")
+        self.tabs.addTab(AuditView(self.controller), "Audit Log")
         layout.addWidget(self.tabs)
 
-    def refresh_data(self):
-        pass
+    def refresh_data(self): pass
 
 
 class SettingsTab(QScrollArea):
@@ -46,113 +32,48 @@ class SettingsTab(QScrollArea):
         self.controller = controller
         self.setWidgetResizable(True)
         self.setStyleSheet("border: none;")
-        
         self.content = QWidget()
-        self.content.setStyleSheet("background-color: white;")
         self.setWidget(self.content)
-        
         self.setup_ui()
         self.load_settings()
 
     def setup_ui(self):
         layout = QVBoxLayout(self.content)
         layout.setContentsMargins(30, 30, 30, 30)
-        layout.setSpacing(10)
-
         self.form = QFormLayout()
-        self.form.setLabelAlignment(Qt.AlignRight)
         self.form.setSpacing(15)
 
-        # Paths
         self._add_header(layout, "Percorsi Sistema")
-        self.edit_db = QLineEdit()
-        self.edit_db.setReadOnly(True)
+        self.edit_db = QLineEdit(); self.edit_db.setReadOnly(True)
         self.form.addRow("Percorso Database:", self.edit_db)
 
-        # AI
         self._add_header(layout, "Integrazione AI")
-        self.edit_gemini_analysis = QLineEdit()
-        self.edit_gemini_analysis.setEchoMode(QLineEdit.Password)
+        self.edit_gemini_analysis = QLineEdit(); self.edit_gemini_analysis.setEchoMode(QLineEdit.Password)
         self.form.addRow("Gemini API Key (Analisi):", self.edit_gemini_analysis)
-        
-        self.edit_gemini_chat = QLineEdit()
-        self.edit_gemini_chat.setEchoMode(QLineEdit.Password)
+        self.edit_gemini_chat = QLineEdit(); self.edit_gemini_chat.setEchoMode(QLineEdit.Password)
         self.form.addRow("Gemini API Key (Chat):", self.edit_gemini_chat)
-        
         self.check_voice = QCheckBox("Abilita Assistente Vocale")
         self.form.addRow("", self.check_voice)
 
-        # Email
-        self._add_header(layout, "Configurazione Email (SMTP)")
-        
-        preset_layout = QHBoxLayout()
-        btn_gmail = QPushButton("Gmail")
-        btn_gmail.clicked.connect(lambda: self.apply_preset("gmail"))
-        btn_outlook = QPushButton("Outlook")
-        btn_outlook.clicked.connect(lambda: self.apply_preset("outlook"))
-        preset_layout.addWidget(btn_gmail)
-        preset_layout.addWidget(btn_outlook)
-        preset_layout.addStretch()
-        self.form.addRow("Preset:", preset_layout)
-
-        self.edit_server = QLineEdit()
-        self.form.addRow("Server SMTP:", self.edit_server)
-        self.edit_port = QLineEdit()
-        self.form.addRow("Porta:", self.edit_port)
-        self.edit_email = QLineEdit()
-        self.form.addRow("Email Mittente:", self.edit_email)
-        self.edit_password = QLineEdit()
-        self.edit_password.setEchoMode(QLineEdit.Password)
-        self.form.addRow("Password (App Pwd):", self.edit_password)
-
-        btn_test = QPushButton("Invia Email di Prova")
-        btn_test.clicked.connect(self.test_email)
-        btn_test.setFixedWidth(150)
-        self.form.addRow("", btn_test)
-
-        # Thresholds
-        self._add_header(layout, "Scadenze e Avvisi")
-        self.edit_alert_days = QLineEdit()
-        self.form.addRow("Giorni Preavviso (Generale):", self.edit_alert_days)
-        self.edit_alert_visite = QLineEdit()
-        self.form.addRow("Giorni Preavviso (Visite):", self.edit_alert_visite)
+        self._add_header(layout, "Configurazione Email")
+        self.edit_server = QLineEdit(); self.form.addRow("Server SMTP:", self.edit_server)
+        self.edit_port = QLineEdit(); self.form.addRow("Porta:", self.edit_port)
+        self.edit_email = QLineEdit(); self.form.addRow("Email Mittente:", self.edit_email)
+        self.edit_password = QLineEdit(); self.edit_password.setEchoMode(QLineEdit.Password)
+        self.form.addRow("Password:", self.edit_password)
 
         layout.addLayout(self.form)
-
-        # Maintenance
-        self._add_header(layout, "Manutenzione")
-        btn_maint = QPushButton("Esegui Backup e Manutenzione")
-        btn_maint.setStyleSheet("background-color: #F59E0B; color: white; font-weight: bold; padding: 10px;")
-        btn_maint.clicked.connect(self.trigger_maintenance)
-        layout.addWidget(btn_maint)
-
-        layout.addSpacing(30)
-
-        # Save Button
+        
         self.btn_save = QPushButton("SALVA TUTTO")
-        self.btn_save.setStyleSheet("background-color: #1D4ED8; color: white; font-weight: bold; font-size: 14px; padding: 15px;")
+        self.btn_save.setProperty("class", "PrimaryButton")
         self.btn_save.clicked.connect(self.save_settings)
         layout.addWidget(self.btn_save)
-        
         layout.addStretch()
 
     def _add_header(self, layout, text):
         lbl = QLabel(text)
-        lbl.setStyleSheet("font-size: 16px; font-weight: bold; color: #1E3A8A; margin-top: 20px;")
+        lbl.setProperty("class", "SectionHeader")
         layout.addWidget(lbl)
-        line = QFrame()
-        line.setFrameShape(QFrame.HLine)
-        line.setFrameShadow(QFrame.Sunken)
-        line.setStyleSheet("color: #D1D5DB;")
-        layout.addWidget(line)
-
-    def apply_preset(self, provider):
-        if provider == "gmail":
-            self.edit_server.setText("smtp.gmail.com")
-            self.edit_port.setText("587")
-        elif provider == "outlook":
-            self.edit_server.setText("smtp.office365.com")
-            self.edit_port.setText("587")
 
     def load_settings(self):
         try:
@@ -164,8 +85,6 @@ class SettingsTab(QScrollArea):
             self.edit_server.setText(data.get("SMTP_SERVER", ""))
             self.edit_port.setText(str(data.get("SMTP_PORT", "587")))
             self.edit_email.setText(data.get("SMTP_USERNAME", ""))
-            self.edit_alert_days.setText(str(data.get("ALERT_THRESHOLD_DAYS", 60)))
-            self.edit_alert_visite.setText(str(data.get("ALERT_THRESHOLD_DAYS_VISITE", 30)))
         except: pass
 
     def save_settings(self):
@@ -177,52 +96,28 @@ class SettingsTab(QScrollArea):
             "SMTP_PORT": int(self.edit_port.text()) if self.edit_port.text().isdigit() else 587,
             "SMTP_USERNAME": self.edit_email.text(),
             "SMTP_PASSWORD": self.edit_password.text(),
-            "ALERT_THRESHOLD_DAYS": int(self.edit_alert_days.text()) if self.edit_alert_days.text().isdigit() else 60,
-            "ALERT_THRESHOLD_DAYS_VISITE": int(self.edit_alert_visite.text()) if self.edit_alert_visite.text().isdigit() else 30,
         }
-        
-        runner = TaskRunner(self, "Salvataggio", "Salvataggio in corso...")
         try:
-            runner.run(lambda: self.controller.api_client.update_mutable_config(data))
+            TaskRunner(self, "Salvataggio").run(lambda: self.controller.api_client.update_mutable_config(data))
             local_settings.save_mutable_settings(data)
             QMessageBox.information(self, "Successo", "Impostazioni salvate.")
-        except Exception as e: QMessageBox.critical(self, "Errore", str(e))
-
-    def test_email(self):
-        try:
-            url = f"{self.controller.api_client.base_url}/notifications/test-email"
-            requests.post(url, json={"email": self.edit_email.text()}, headers=self.controller.api_client._get_headers())
-            QMessageBox.information(self, "Inviata", "Email di prova inviata.")
-        except Exception as e: QMessageBox.critical(self, "Errore", str(e))
-
-    def trigger_maintenance(self):
-        try:
-            self.controller.api_client.trigger_maintenance()
-            QMessageBox.information(self, "Avviata", "Manutenzione avviata in background.")
         except Exception as e: QMessageBox.critical(self, "Errore", str(e))
 
 
 class UsersTab(QWidget):
     def __init__(self, controller):
-        super().__init__()
+        super().__init__(controller)
         self.controller = controller
-        self.setStyleSheet("background-color: white;")
         self.setup_ui()
         self.refresh_users()
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-
         toolbar = QHBoxLayout()
         btn_new = QPushButton("Nuovo Utente")
-        btn_new.setStyleSheet("background-color: #10B981; color: white; font-weight: bold; padding: 8px;")
+        btn_new.setProperty("class", "SuccessButton")
         btn_new.clicked.connect(self.add_user)
         toolbar.addWidget(btn_new)
-        
-        btn_refresh = QPushButton("Aggiorna")
-        btn_refresh.clicked.connect(self.refresh_users)
-        toolbar.addWidget(btn_refresh)
         toolbar.addStretch()
         layout.addLayout(toolbar)
 
@@ -253,63 +148,45 @@ class UsersTab(QWidget):
 
     def on_edit_user(self):
         row = self.table.currentRow()
-        if row < 0: return
-        uid = self.table.item(row, 0).text()
-        uname = self.table.item(row, 1).text()
-        is_adm = (self.table.item(row, 2).text() == "Admin")
-        if UserDialog(self, self.controller, uid, uname, is_adm).exec(): self.refresh_users()
+        if row >= 0:
+            uid, uname = self.table.item(row, 0).text(), self.table.item(row, 1).text()
+            is_adm = (self.table.item(row, 2).text() == "Admin")
+            if UserDialog(self, self.controller, uid, uname, is_adm).exec(): self.refresh_users()
 
 
 class UserDialog(QDialog):
     def __init__(self, parent, controller, user_id=None, username="", is_admin=False):
         super().__init__(parent)
-        self.controller = controller
-        self.user_id = user_id
-        self.setWindowTitle("Utente" if user_id else "Nuovo Utente")
+        self.controller, self.user_id = controller, user_id
+        self.setWindowTitle("Utente")
         self.setFixedWidth(350)
         self.setup_ui(username, is_admin)
 
     def setup_ui(self, username, is_admin):
         layout = QVBoxLayout(self)
         form = QFormLayout()
-        
         self.edit_user = QLineEdit(username)
-        self.edit_pass = QLineEdit()
-        self.edit_pass.setEchoMode(QLineEdit.Password)
-        self.check_admin = QCheckBox("Amministratore")
-        self.check_admin.setChecked(is_admin)
-        
+        self.edit_pass = QLineEdit(); self.edit_pass.setEchoMode(QLineEdit.Password)
+        self.check_admin = QCheckBox("Amministratore"); self.check_admin.setChecked(is_admin)
         form.addRow("Username:", self.edit_user)
         form.addRow("Password:", self.edit_pass)
-        if self.user_id:
-            form.addRow("", QLabel("(Lasciare vuoto per non cambiare)"))
         form.addRow("", self.check_admin)
-        
         layout.addLayout(form)
         
         btn_box = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         if self.user_id:
-            btn_del = QPushButton("ELIMINA")
-            btn_del.setStyleSheet("background-color: red; color: white;")
-            btn_del.clicked.connect(self.delete_user)
-            layout.addWidget(btn_del)
-            
+            btn_del = QPushButton("ELIMINA"); btn_del.setProperty("class", "DangerButton")
+            btn_del.clicked.connect(self.delete_user); layout.addWidget(btn_del)
         btn_box.accepted.connect(self.save)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
 
     def save(self):
         data = {"username": self.edit_user.text(), "is_admin": self.check_admin.isChecked()}
-        pwd = self.edit_pass.text()
+        if self.edit_pass.text(): data["password"] = self.edit_pass.text()
         try:
-            if self.user_id:
-                if pwd: data["password"] = pwd
-                self.controller.api_client.update_user(self.user_id, data)
-            else:
-                if not pwd: 
-                    QMessageBox.warning(self, "Errore", "Password richiesta")
-                    return
-                self.controller.api_client.create_user(data["username"], pwd, is_admin=data["is_admin"])
+            if self.user_id: self.controller.api_client.update_user(self.user_id, data)
+            else: self.controller.api_client.create_user(data["username"], data.get("password", ""), is_admin=data["is_admin"])
             self.accept()
         except Exception as e: QMessageBox.critical(self, "Errore", str(e))
 
