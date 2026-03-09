@@ -102,51 +102,49 @@ Requirement already satisfied: httplib2<1.0.0,>=0.19.0 in .\Lib\site-packages (f
 Requirement already satisfied: google-auth-httplib2<1.0.0,>=0.2.0 in .\Lib\site-packages (from google-api-python-client->google-generativeai==0.8.5->-r requirements.txt (line 15)) (0.3.0)
 Requirement already satisfied: uritemplate<5,>=3.0.1 in .\Lib\site-packages (from google-api-python-client->google-generativeai==0.8.5->-r requirements.txt (line 15)) (4.2.0)
 Requirement already satisfied: pyparsing<4,>=3.1 in .\Lib\site-packages (from httplib2<1.0.0,>=0.19.0->google-api-python-client->google-generativeai==0.8.5->-r requirements.txt (line 15)) (3.3.2)
-2026-03-09 14:33:10,731 [INFO] launcher: Avvio sistema Intelleo...
-INFO:     Started server process [1608]
+2026-03-09 16:14:07,873 [INFO] launcher: Avvio sistema Intelleo...
+INFO:     Started server process [15160]
 INFO:     Waiting for application startup.
-2026-03-09 14:33:16,953 [INFO] app.core.db_security: Backup created: \\192.168.0.138\sicura\Intelleo\Backups\database_documenti_09-03-2026_ore_14-33.bak
-2026-03-09 14:33:18,248 [INFO] app.core.db_security: Deleted old backup: database_documenti_09-03-2026_ore_13-17.bak
-2026-03-09 14:33:18,836 [INFO] app.core.db_security: Loading ENCRYPTED database into memory.
-2026-03-09 14:33:19,121 [INFO] apscheduler.scheduler: Adding job tentatively -- it will be properly scheduled when the scheduler starts
-2026-03-09 14:33:19,121 [INFO] apscheduler.scheduler: Adding job tentatively -- it will be properly scheduled when the scheduler starts
-2026-03-09 14:33:19,123 [INFO] apscheduler.scheduler: Added job "check_and_send_alerts" to job store "default"
-2026-03-09 14:33:19,123 [INFO] apscheduler.scheduler: Added job "run_maintenance_task" to job store "default"
-2026-03-09 14:33:19,123 [INFO] apscheduler.scheduler: Scheduler started
+2026-03-09 16:14:15,464 [INFO] app.core.db_security: Backup created: \\192.168.0.138\sicura\Intelleo\Backups\database_documenti_09-03-2026_ore_16-14.bak
+2026-03-09 16:14:17,653 [INFO] app.core.db_security: Deleted old backup: database_documenti_09-03-2026_ore_13-13.bak
+2026-03-09 16:14:19,179 [INFO] app.core.db_security: Loading ENCRYPTED database into memory.
+2026-03-09 16:14:19,469 [INFO] apscheduler.scheduler: Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-09 16:14:19,469 [INFO] apscheduler.scheduler: Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-09 16:14:19,471 [INFO] apscheduler.scheduler: Added job "check_and_send_alerts" to job store "default"
+2026-03-09 16:14:19,471 [INFO] apscheduler.scheduler: Added job "run_maintenance_task" to job store "default"
+2026-03-09 16:14:19,472 [INFO] apscheduler.scheduler: Scheduler started
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-2026-03-09 14:33:19,571 [INFO] comtypes.client._code_cache: Imported existing <module 'comtypes.gen' from 'C:\\Users\\Coemi\\Desktop\\SCRIPT\\formazione_coemi\\Lib\\site-packages\\comtypes\\gen\\__init__.py'>
-2026-03-09 14:33:19,572 [INFO] comtypes.client._code_cache: Using writeable comtypes cache directory: 'C:\Users\Coemi\Desktop\SCRIPT\formazione_coemi\Lib\site-packages\comtypes\gen'
-2026-03-09 14:44:32,524 [INFO] app.core.db_security: Session lock acquired. Write access enabled.
-INFO:     127.0.0.1:60245 - "POST /api/v1/auth/login HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53156 - "GET /api/v1/certificati?validated=true HTTP/1.1" 307 Temporary Redirect
-INFO:     127.0.0.1:53156 - "GET /api/v1/certificati/?validated=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53157 - "GET /api/v1/certificati?validated=true HTTP/1.1" 307 Temporary Redirect
-INFO:     127.0.0.1:53157 - "GET /api/v1/certificati/?validated=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53158 - "GET /api/v1/dipendenti HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53159 - "GET /api/v1/app_config/config HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53162 - "GET /api/v1/users/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53166 - "GET /api/v1/audit/?skip=0&limit=500 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53167 - "GET /api/v1/certificati?validated=true HTTP/1.1" 307 Temporary Redirect
-INFO:     127.0.0.1:53167 - "GET /api/v1/certificati/?validated=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53169 - "GET /api/v1/certificati?validated=false HTTP/1.1" 307 Temporary Redirect
-INFO:     127.0.0.1:53169 - "GET /api/v1/certificati/?validated=false HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53175 - "GET /api/v1/dipendenti HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53176 - "GET /api/v1/certificati?validated=false HTTP/1.1" 307 Temporary Redirect
-INFO:     127.0.0.1:53176 - "GET /api/v1/certificati/?validated=false HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53178 - "GET /api/v1/certificati?validated=true HTTP/1.1" 307 Temporary Redirect
-INFO:     127.0.0.1:53178 - "GET /api/v1/certificati/?validated=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53179 - "GET /api/v1/certificati?validated=true HTTP/1.1" 307 Temporary Redirect
-INFO:     127.0.0.1:53179 - "GET /api/v1/certificati/?validated=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53180 - "GET /api/v1/dipendenti HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53181 - "GET /api/v1/dipendenti HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64203 - "GET /api/v1/certificati?validated=false HTTP/1.1" 307 Temporary Redirect
-INFO:     127.0.0.1:64203 - "GET /api/v1/certificati/?validated=false HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50987 - "GET /api/v1/dipendenti HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50867 - "GET /api/v1/dipendenti HTTP/1.1" 200 OK
-2026-03-09 14:45:49,457 [WARNING] app.core.path_resolver: Asset non trovato: C:\Users\Coemi\Desktop\SCRIPT\formazione_coemi\guide\index.html
-2026-03-09 14:46:00,710 [INFO] app.core.db_security: Database state saved to disk.
-INFO:     127.0.0.1:65483 - "POST /api/v1/auth/logout HTTP/1.1" 200 OK
-Sentry is attempting to send 2 pending events
+2026-03-09 16:14:20,192 [INFO] comtypes.client._code_cache: Imported existing <module 'comtypes.gen' from 'C:\\Users\\Coemi\\Desktop\\SCRIPT\\formazione_coemi\\Lib\\site-packages\\comtypes\\gen\\__init__.py'>
+2026-03-09 16:14:20,193 [INFO] comtypes.client._code_cache: Using writeable comtypes cache directory: 'C:\Users\Coemi\Desktop\SCRIPT\formazione_coemi\Lib\site-packages\comtypes\gen'
+2026-03-09 16:14:27,615 [INFO] app.core.db_security: Session lock acquired. Write access enabled.
+INFO:     127.0.0.1:61816 - "POST /api/v1/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61824 - "GET /api/v1/dipendenti HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61825 - "GET /api/v1/certificati?validated=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:61826 - "GET /api/v1/certificati?validated=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:61826 - "GET /api/v1/certificati/?validated=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61825 - "GET /api/v1/certificati/?validated=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61827 - "GET /api/v1/app_config/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55196 - "GET /api/v1/users/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55330 - "GET /api/v1/audit/?skip=0&limit=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55333 - "GET /api/v1/certificati?validated=false HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:55333 - "GET /api/v1/certificati/?validated=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55334 - "GET /api/v1/certificati?validated=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:55334 - "GET /api/v1/certificati/?validated=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55336 - "GET /api/v1/certificati?validated=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:55336 - "GET /api/v1/certificati/?validated=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55338 - "GET /api/v1/certificati?validated=false HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:55338 - "GET /api/v1/certificati/?validated=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55339 - "GET /api/v1/certificati?validated=false HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:55339 - "GET /api/v1/certificati/?validated=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55341 - "GET /api/v1/dipendenti HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55344 - "GET /api/v1/certificati?validated=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:55344 - "GET /api/v1/certificati/?validated=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49215 - "GET /api/v1/certificati?validated=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:49215 - "GET /api/v1/certificati/?validated=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49216 - "GET /api/v1/dipendenti HTTP/1.1" 200 OK
+2026-03-09 16:15:01,049 [INFO] app.core.db_security: Database state saved to disk.
+INFO:     127.0.0.1:49218 - "POST /api/v1/auth/logout HTTP/1.1" 200 OK
+Sentry is attempting to send 3 pending events
 Waiting up to 2 seconds
 Press Ctrl-Break to quit

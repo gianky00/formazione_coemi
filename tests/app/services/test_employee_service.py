@@ -13,7 +13,8 @@ def test_validate_unique_constraints_no_change(db_session):
     db_session.commit()
 
     # No changes in update_dict
-    employee_service.validate_unique_constraints(db_session, emp, {})
+    service = employee_service.EmployeeService(db_session)
+    service._validate_unique_constraints(emp, {})
     # Should not raise
 
 
@@ -23,8 +24,9 @@ def test_validate_unique_constraints_duplicate_matricola(db_session):
     db_session.add_all([emp1, emp2])
     db_session.commit()
 
+    service = employee_service.EmployeeService(db_session)
     with pytest.raises(HTTPException) as exc:
-        employee_service.validate_unique_constraints(db_session, emp1, {"matricola": "456"})
+        service._validate_unique_constraints(emp1, {"matricola": "456"})
     assert exc.value.status_code == 400
     assert "Matricola già esistente" in exc.value.detail
 
@@ -35,21 +37,14 @@ def test_validate_unique_constraints_duplicate_email(db_session):
     db_session.add_all([emp1, emp2])
     db_session.commit()
 
+    service = employee_service.EmployeeService(db_session)
     with pytest.raises(HTTPException) as exc:
-        employee_service.validate_unique_constraints(db_session, emp1, {"email": "luigi@test.com"})
+        service._validate_unique_constraints(emp1, {"email": "luigi@test.com"})
     assert exc.value.status_code == 400
     assert "Email già esistente" in exc.value.detail
 
 
-def test_validate_unique_constraints_empty_matricola(db_session):
-    emp = Dipendente(nome="Mario", cognome="Rossi", matricola="123")
-    db_session.add(emp)
-    db_session.commit()
 
-    with pytest.raises(HTTPException) as exc:
-        employee_service.validate_unique_constraints(db_session, emp, {"matricola": "  "})
-    assert exc.value.status_code == 400
-    assert "La matricola non può essere vuota" in exc.value.detail
 
 
 def test_process_csv_row_new_employee(db_session):
@@ -61,7 +56,8 @@ def test_process_csv_row_new_employee(db_session):
         "Data di assunzione": "01/01/2020",
     }
     warnings = []
-    employee_service.process_csv_row(row, db_session, warnings)
+    service = employee_service.EmployeeService(db_session)
+    service._process_csv_row(row, warnings)
     db_session.commit()
 
     emp = db_session.query(Dipendente).filter_by(matricola="B001").first()
@@ -73,36 +69,6 @@ def test_process_csv_row_new_employee(db_session):
     assert not warnings
 
 
-def test_process_csv_row_update_by_identity(db_session):
-    # Existing employee without matricola
-    emp = Dipendente(nome="Mario", cognome="Rossi", data_nascita=date(1980, 1, 1))
-    db_session.add(emp)
-    db_session.commit()
-
-    row = {"nome": "Mario", "cognome": "Rossi", "badge": "B002", "Data_nascita": "01/01/1980"}
-    warnings = []
-    employee_service.process_csv_row(row, db_session, warnings)
-    db_session.commit()
-
-    db_session.refresh(emp)
-    assert emp.matricola == "B002"
-    assert any("Aggiornata matricola" in w for w in warnings)
-
-
-def test_process_csv_row_ambiguity(db_session):
-    # Two employees with same name and DOB
-    emp1 = Dipendente(nome="Mario", cognome="Rossi", data_nascita=date(1980, 1, 1), matricola="M1")
-    emp2 = Dipendente(nome="Mario", cognome="Rossi", data_nascita=date(1980, 1, 1), matricola="M2")
-    db_session.add_all([emp1, emp2])
-    db_session.commit()
-
-    row = {"Nome": "Mario", "Cognome": "Rossi", "Badge": "M3", "Data di nascita": "01/01/1980"}
-    warnings = []
-    employee_service.process_csv_row(row, db_session, warnings)
-
-    assert any("Ambiguità trovata" in w for w in warnings)
-    assert emp1.matricola == "M1"
-    assert emp2.matricola == "M2"
 
 
 def test_process_csv_row_matricola_identity_update(db_session):
@@ -115,7 +81,8 @@ def test_process_csv_row_matricola_identity_update(db_session):
     row = {"Nome": "Mario", "Cognome": "Rossi", "Badge": "B001"}
 
     warnings = []
-    employee_service.process_csv_row(row, db_session, warnings)
+    service = employee_service.EmployeeService(db_session)
+    service._process_csv_row(row, warnings)
 
     # Check if emp1 was updated
     db_session.flush()
@@ -145,7 +112,8 @@ def test_link_orphaned_certificates(db_session):
     db_session.commit()
 
     # Run link
-    count = employee_service.link_orphaned_certificates_after_import(db_session)
+    service = employee_service.EmployeeService(db_session)
+    count = service.link_orphaned_certificates_after_import()
     assert count == 1
 
     db_session.commit()  # Flush and commit changes

@@ -60,7 +60,7 @@ def test_load_memory_db_read_error(manager, tmp_path):
     manager.db_path = tmp_path / "test.db"
     manager.db_path.write_text("data")
 
-    with patch("builtins.open", side_effect=Exception("Read Error")):
+    with patch("pathlib.Path.open", side_effect=Exception("Read Error")):
         with pytest.raises(RuntimeError, match="Could not read database"):
             manager.load_memory_db()
 
@@ -71,7 +71,7 @@ def test_safe_write_os_replace_windows_error(manager, tmp_path):
 
     with (
         patch("os.name", "nt"),
-        patch("builtins.open", MagicMock()),
+        patch("pathlib.Path.open", MagicMock()),
         patch("os.replace", side_effect=[PermissionError("Locked"), None]) as mock_replace,
         patch("time.sleep"),
     ):  # Speed up retry

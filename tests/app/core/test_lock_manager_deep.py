@@ -39,7 +39,7 @@ def test_acquire_collision(mock_path):
 
 def test_acquire_open_failure(mock_path):
     mgr = LockManager(mock_path)
-    with patch("builtins.open", side_effect=PermissionError("Locked")):
+    with patch("pathlib.Path.open", side_effect=PermissionError("Locked")):
         success, _owner = mgr.acquire({"uuid": "1"})
         assert success is False
 

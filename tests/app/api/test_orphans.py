@@ -38,7 +38,7 @@ def test_orphans_visibility(test_client, db_session):
             found = True
             assert (
                 cert["assegnazione_fallita_ragione"]
-                == "Non trovato in anagrafica (matricola mancante)."
+                == "Mancata associazione anagrafica"
             )
             assert cert["categoria"] == "ATEX"
 
@@ -75,7 +75,7 @@ def test_csv_import_links_orphans(test_client, db_session):
     files = {"file": ("dipendenti.csv", content_bytes, "text/csv")}
     response = test_client.post("/dipendenti/import-csv", files=files)
     assert response.status_code == 200
-    assert "1 certificati orfani collegati" in response.json()["message"]
+    assert "1 orfani collegati" in response.json()["message"]
 
     # 4. Verify the certificate is now linked
     # Reload the object from session

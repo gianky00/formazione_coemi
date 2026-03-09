@@ -77,7 +77,7 @@ def test_save_to_disk_success(db_manager):
     mock_file = MagicMock()
     mock_file.__enter__.return_value = mock_file
 
-    with patch("builtins.open", return_value=mock_file), patch("os.replace"):
+    with patch("pathlib.Path.open", return_value=mock_file), patch("os.replace"):
         result = db_manager.save_to_disk()
 
     assert result is True
@@ -107,7 +107,7 @@ def test_stale_lock_recovery_active_process(db_manager, monkeypatch):
 
     with (
         patch("pathlib.Path.exists", return_value=True),
-        patch("builtins.open", return_value=mock_file),
+        patch("pathlib.Path.open", return_value=mock_file),
         patch("psutil.pid_exists", return_value=True),
         patch("psutil.Process") as mock_proc_cls,
     ):
@@ -131,7 +131,7 @@ def test_stale_lock_recovery_dead_process(db_manager, monkeypatch):
 
     with (
         patch("pathlib.Path.exists", return_value=True),
-        patch("builtins.open", return_value=mock_file),
+        patch("pathlib.Path.open", return_value=mock_file),
         patch("psutil.pid_exists", return_value=False),
     ):
         with patch.object(db_manager, "_force_remove_lock") as mock_remove:

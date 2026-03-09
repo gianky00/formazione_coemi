@@ -43,13 +43,10 @@ class TestDBSecurityFailures(unittest.TestCase):
         self.mock_exists.return_value = True
 
         # Mock opening the lock file with corrupt JSON
-        with patch("builtins.open", mock_open(read_data=b"L{invalid_json")):
+        with patch("pathlib.Path.open", mock_open(read_data=b"L{invalid_json")):
             # Patch os.remove on the module to ensure we catch the call
-            with patch.object(db_security_module.os, "remove") as m_remove:
-                # Initialize manager (triggering the check)
+            with patch.object(db_security_module.DBSecurityManager, "_force_remove_lock") as m_remove:
                 DBSecurityManager()
-
-                # Verify removal was attempted
                 m_remove.assert_called()
 
     def test_stale_lock_recovery_dead_pid(self):
@@ -58,9 +55,9 @@ class TestDBSecurityFailures(unittest.TestCase):
         lock_data = json.dumps({"pid": 99999}).encode("utf-8")
         mock_file_content = b"L" + lock_data
 
-        with patch("builtins.open", mock_open(read_data=mock_file_content)):
+        with patch("pathlib.Path.open", mock_open(read_data=mock_file_content)):
             with patch.object(db_security_module.psutil, "pid_exists", return_value=False):
-                with patch.object(db_security_module.os, "remove") as m_remove:
+                with patch.object(db_security_module.DBSecurityManager, "_force_remove_lock") as m_remove:
                     DBSecurityManager()
                     m_remove.assert_called()
 
@@ -70,11 +67,11 @@ class TestDBSecurityFailures(unittest.TestCase):
         lock_data = json.dumps({"pid": 1234}).encode("utf-8")
         mock_file_content = b"L" + lock_data
 
-        with patch("builtins.open", mock_open(read_data=mock_file_content)):
+        with patch("pathlib.Path.open", mock_open(read_data=mock_file_content)):
             with patch.object(db_security_module.psutil, "pid_exists", return_value=True):
                 with patch.object(db_security_module.psutil, "Process") as m_proc:
                     m_proc.return_value.name.return_value = "chrome.exe"
-                    with patch.object(db_security_module.os, "remove") as m_remove:
+                    with patch.object(db_security_module.DBSecurityManager, "_force_remove_lock") as m_remove:
                         DBSecurityManager()
                         m_remove.assert_called()
 
@@ -83,11 +80,11 @@ class TestDBSecurityFailures(unittest.TestCase):
         lock_data = json.dumps({"pid": 1234}).encode("utf-8")
         mock_file_content = b"L" + lock_data
 
-        with patch("builtins.open", mock_open(read_data=mock_file_content)):
+        with patch("pathlib.Path.open", mock_open(read_data=mock_file_content)):
             with patch.object(db_security_module.psutil, "pid_exists", return_value=True):
                 with patch.object(db_security_module.psutil, "Process") as m_proc:
                     m_proc.return_value.name.return_value = "python.exe"
-                    with patch.object(db_security_module.os, "remove") as m_remove:
+                    with patch.object(db_security_module.DBSecurityManager, "_force_remove_lock") as m_remove:
                         DBSecurityManager()
                         m_remove.assert_not_called()
 
@@ -122,9 +119,9 @@ class TestDBSecurityFailures(unittest.TestCase):
         mgr = DBSecurityManager()
         mgr.db_path = MagicMock(exists=lambda: True)
 
-        with patch("builtins.open", side_effect=PermissionError("Access Denied")):
-            with self.assertRaises(RuntimeError):
-                mgr.load_memory_db()
+        mgr.db_path.open = MagicMock(side_effect=PermissionError("Access Denied"))
+        with self.assertRaises(RuntimeError):
+            mgr.load_memory_db()
 
     def test_load_memory_db_decryption_failure(self):
         """Test handling of invalid decryption."""
@@ -134,7 +131,7 @@ class TestDBSecurityFailures(unittest.TestCase):
         # Mock file with header
         encrypted_content = mgr._HEADER + b"some_junk_bytes"
 
-        with patch("builtins.open", mock_open(read_data=encrypted_content)):
+        with patch("pathlib.Path.open", mock_open(read_data=encrypted_content)):
             # Mock fernet to raise error
             mgr.fernet.decrypt = MagicMock(side_effect=InvalidToken)
             with self.assertRaises(ValueError):
@@ -158,7 +155,7 @@ class TestDBSecurityFailures(unittest.TestCase):
         mgr.active_connection.serialize.return_value = b"db_data"
         mgr.db_path = Path("/tmp/mock_data/db.db")
 
-        with patch("builtins.open", mock_open()):
+        with patch("pathlib.Path.open", mock_open()):
             with patch.object(db_security_module.os, "replace") as m_replace:
                 # First 2 calls fail, 3rd succeeds
                 m_replace.side_effect = [PermissionError, PermissionError, None]
@@ -172,7 +169,7 @@ class TestDBSecurityFailures(unittest.TestCase):
         """Test integrity check fails on corrupt internal data."""
         mgr = DBSecurityManager()
 
-        with patch("builtins.open", mock_open(read_data=b"NOT_A_DB_HEADER")):
+        with patch("pathlib.Path.open", mock_open(read_data=b"NOT_A_DB_HEADER")):
             with patch("sqlite3.connect") as m_connect:
                 mock_conn = MagicMock()
                 mock_cursor = MagicMock()

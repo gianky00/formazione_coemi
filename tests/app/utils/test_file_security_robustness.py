@@ -5,7 +5,7 @@ def test_sanitize_filename_basic():
     assert sanitize_filename("test.pdf") == "test.pdf"
     assert sanitize_filename("test/../file.pdf") == "test_.._file.pdf"
     assert sanitize_filename('viva l"italia?.pdf') == "viva_l_italia_.pdf"
-    assert sanitize_filename("<tag>:*|") == "_tag____"
+    assert sanitize_filename("<tag>:*|") == "tag"
     assert sanitize_filename("   spaced   ") == "spaced"
     assert sanitize_filename("") == ""
     assert sanitize_filename(None) == ""

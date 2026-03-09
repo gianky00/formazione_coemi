@@ -110,7 +110,7 @@ def test_remove_empty_folders_safety():
     """
     with (
         patch("os.rmdir") as mock_rmdir,
-        patch("os.path.isdir", return_value=True),
+        patch("pathlib.Path.is_dir", return_value=True),
         patch("os.listdir"),
     ):
         # Setup mocks

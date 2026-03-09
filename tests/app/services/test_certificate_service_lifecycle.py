@@ -34,7 +34,8 @@ def test_archive_obsolete_certs_integration(db_session):
     db_session.commit()
 
     # Execute archiving
-    certificate_service.archive_obsolete_certs(db_session, c2)
+    service = certificate_service.CertificateService(db_session)
+    service._archive_obsolete(c2)
 
     # Verify status (indirectly via logic or manual check if we add state)
     # The current logic just moves files.
@@ -60,7 +61,8 @@ def test_update_cert_fields_matching(db_session):
 
     # Update name to match MARIO ROSSI
     update_data = {"nome": "MARIO ROSSI"}
-    certificate_service.update_cert_fields(cert, update_data, db_session)
+    service = certificate_service.CertificateService(db_session)
+    service._update_fields(cert, update_data)
 
     assert cert.dipendente_id == emp.id
 

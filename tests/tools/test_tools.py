@@ -23,6 +23,9 @@ def test_create_assets(mock_qt_env):
         patch("os.path.exists", return_value=True),
         patch("os.path.abspath", return_value="/tmp/"),
         patch("os.path.join", side_effect=lambda *args: "/".join(args)),
+        patch("tools.prepare_installer_assets.Qt.NoBrush", 0, create=True),
+        patch("tools.prepare_installer_assets.Qt.white", 1, create=True),
+        patch("tools.prepare_installer_assets.Qt.TextWordWrap", 2, create=True),
     ):
         from tools.prepare_installer_assets import create_assets
 

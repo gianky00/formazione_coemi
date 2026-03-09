@@ -22,7 +22,7 @@ def test_duplicate_certificate_conflict(test_client, db_session):
     # 2. Try to create the exact same certificate again
     response2 = test_client.post("/certificati/", json=payload)
     assert response2.status_code == 409
-    assert "esiste già" in response2.json()["detail"]
+    assert "già presente" in response2.json()["detail"]
 
 
 def test_homonym_resolution(test_client, db_session):
@@ -108,7 +108,7 @@ def test_csv_size_limit(test_client):
     files = {"file": ("large.csv", large_content, "text/csv")}
     resp = test_client.post("/dipendenti/import-csv", files=files)
     assert resp.status_code == 413
-    assert "5MB" in resp.json()["detail"]
+    assert "troppo grande" in resp.json()["detail"]
 
 
 def test_pdf_size_limit(test_client):
