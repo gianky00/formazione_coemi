@@ -30,7 +30,7 @@ class ChatService:
         context_parts = [
             "Statistiche Globali:",
             f"- Totale Dipendenti: {emp_count}",
-            f"- Totale Documenti: {cert_count}"
+            f"- Totale Documenti: {cert_count}",
         ]
 
         # 2. Identify if the user is asking about a specific employee
@@ -41,12 +41,11 @@ class ChatService:
         words = [w for w in clean_query.split() if len(w) > 3]
         if words:
             # Search for employees matching those words
-            emp_filters = []
+            emp_filters: list[Any] = []
             for word in words:
-                emp_filters.extend((
-                    Dipendente.nome.ilike(f"%{word}%"),
-                    Dipendente.cognome.ilike(f"%{word}%")
-                ))
+                emp_filters.extend(
+                    (Dipendente.nome.ilike(f"%{word}%"), Dipendente.cognome.ilike(f"%{word}%"))
+                )
 
             employees = db.query(Dipendente).filter(or_(*emp_filters)).limit(3).all()
 
@@ -78,10 +77,12 @@ class ChatService:
         expired_count = (
             db.query(Certificato).filter(Certificato.data_scadenza_calcolata < date.today()).count()
         )
-        context_parts.extend((
-            f"\nDOCUMENTI SCADUTI (Top {min(expired_count, 5)}):",
-            f"\nUtente attuale: {user.username} (Admin: {user.is_admin})"
-        ))
+        context_parts.extend(
+            (
+                f"\nDOCUMENTI SCADUTI (Top {min(expired_count, 5)}):",
+                f"\nUtente attuale: {user.username} (Admin: {user.is_admin})",
+            )
+        )
 
         return "\n".join(context_parts)
 

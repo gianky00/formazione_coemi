@@ -91,11 +91,7 @@ class ScadenzarioView(QWidget):
     def _update_data(self, new_data):
         self.data = new_data
         categories = sorted(
-            {
-                str(item.get("categoria", "")).upper()
-                for item in self.data
-                if item.get("categoria")
-            }
+            {str(item.get("categoria", "")).upper() for item in self.data if item.get("categoria")}
         )
         combo = self.search_bar.combos["categoria"]
         combo.blockSignals(True)

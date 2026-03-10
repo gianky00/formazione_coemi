@@ -12,12 +12,12 @@ logger = logging.getLogger(__name__)
 try:
     import fcntl
 except ImportError:
-    fcntl = None  # type: ignore
-
+    fcntl = None
 try:
     import msvcrt
 except ImportError:
-    msvcrt = None  # type: ignore
+    msvcrt = None
+
 
 
 class LockManager:
@@ -36,7 +36,7 @@ class LockManager:
             self.lock_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Open file
-            self._lock_handle = self.lock_path.open("wb+")  # noqa: SIM115
+            self._lock_handle = self.lock_path.open("wb+")
 
             # Apply OS-level lock (Non-blocking)
             if fcntl:

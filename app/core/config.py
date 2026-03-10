@@ -109,6 +109,7 @@ def _migrate_settings_keys(target_path: Path) -> None:
     except Exception as e:
         logging.error(f"Failed to migrate settings keys: {e}")
 
+
 def migrate_legacy_settings(target_path: Path) -> None:
     """
     Checks for settings.json in legacy temporary locations and moves it to the target path.

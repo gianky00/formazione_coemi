@@ -1,5 +1,6 @@
-import pytest
 from datetime import date
+
+import pytest
 
 from app.db.models import Certificato, Corso, Dipendente, ValidationStatus
 

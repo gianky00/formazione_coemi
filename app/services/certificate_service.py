@@ -122,7 +122,9 @@ class CertificateService:
         self.db.delete(cert)
         self.db.commit()
 
-    def build_schema(self, cert: Certificato, status_map: dict[int, str] | None = None) -> CertificatoSchema:
+    def build_schema(
+        self, cert: Certificato, status_map: dict[int, str] | None = None
+    ) -> CertificatoSchema:
         """Helper per trasformare il modello in schema."""
         status = (
             status_map.get(int(cert.id), "attivo")
@@ -202,7 +204,9 @@ class CertificateService:
             self.db.refresh(course)
         return course
 
-    def _check_duplicate(self, course_id: int, rilascio: Any, dip_id: int | None, nome: str | None) -> bool:
+    def _check_duplicate(
+        self, course_id: int, rilascio: Any, dip_id: int | None, nome: str | None
+    ) -> bool:
         dt = parse_date_flexible(str(rilascio))
         query = self.db.query(Certificato).filter(
             Certificato.corso_id == course_id, Certificato.data_rilascio == dt
@@ -246,17 +250,21 @@ class CertificateService:
             self.db.commit()
 
     def _update_fields(self, cert: Certificato, data: dict[str, Any]) -> None:
-        if "nome" in data: cert.nome_dipendente_raw = data["nome"]
-        if "data_nascita" in data: cert.data_nascita_raw = data["data_nascita"]
+        if "nome" in data:
+            cert.nome_dipendente_raw = data["nome"]
+        if "data_nascita" in data:
+            cert.data_nascita_raw = data["data_nascita"]
         if "corso" in data or "categoria" in data:
             cat = data.get("categoria", cert.corso.categoria_corso if cert.corso else "ALTRO")
             name = data.get("corso", cert.corso.nome_corso if cert.corso else "Corso")
             cert.corso_id = self._get_or_create_course(cat, name).id
         if "data_rilascio" in data:
             dt = parse_date_flexible(data["data_rilascio"])
-            if dt: cert.data_rilascio = dt
+            if dt:
+                cert.data_rilascio = dt
 
         if "data_scadenza" in data:
             cert.data_scadenza_manuale = parse_date_flexible(data["data_scadenza"])
+
         certificate_logic.calculate_combined_data(cert)
         matcher.match_certificate_to_employee(self.db, cert)

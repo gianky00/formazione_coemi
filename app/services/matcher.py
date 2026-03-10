@@ -1,4 +1,5 @@
 from datetime import date
+from typing import Any
 
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -51,7 +52,7 @@ def find_employee_by_name(
         return None
 
     # Optimization: One query with multiple OR conditions
-    conditions = []
+    conditions: list[Any] = []
 
     # Try all possible splits
     for i in range(1, len(nome_parts)):
@@ -59,10 +60,12 @@ def find_employee_by_name(
         part2 = " ".join(nome_parts[i:])
 
         # Matches Nome=part1 AND Cognome=part2, or vice versa
-        conditions.extend((
-            (Dipendente.nome.ilike(part1)) & (Dipendente.cognome.ilike(part2)),
-            (Dipendente.nome.ilike(part2)) & (Dipendente.cognome.ilike(part1))
-        ))
+        conditions.extend(
+            (
+                (Dipendente.nome.ilike(part1)) & (Dipendente.cognome.ilike(part2)),
+                (Dipendente.nome.ilike(part2)) & (Dipendente.cognome.ilike(part1)),
+            )
+        )
 
     if not conditions:
         return None

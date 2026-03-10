@@ -1,6 +1,7 @@
-import pytest
 import os
 from datetime import datetime
+
+import pytest
 
 from app.db.models import Certificato, Corso, ValidationStatus
 
@@ -52,7 +53,7 @@ def test_csv_import_moves_orphan_file(test_client, db_session, test_dirs):
     # In the current implementation of handle_file_rename, it moves to database_path / status
     # status for 2030 is 'attivo'
     new_name = "M999_Bianchi_Mario_ANTINCENDIO_01012030.pdf"
-    expected_new_path = test_dirs / "attivo" / new_name
+    test_dirs / "attivo" / new_name
 
     pass
     assert not os.path.exists(str(file_path))

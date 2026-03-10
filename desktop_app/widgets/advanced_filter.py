@@ -4,7 +4,6 @@ Provides Excel-like filtering with multi-select, search, and date tree grouping.
 """
 
 import functools
-import functools
 import tkinter as tk
 from collections import defaultdict
 from datetime import datetime

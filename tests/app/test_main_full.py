@@ -26,7 +26,7 @@ async def test_lifespan_success():
         # Patch dependencies in app.main
         with (
             patch("app.core.db_security.DBSecurityManager.load_memory_db") as mock_sec,
-            patch("app.main.seed_database") as mock_seed,
+            patch("app.main.seed_database"),
             patch("app.main.genai") as mock_genai,
             patch("app.main.settings") as mock_settings,
         ):
@@ -76,7 +76,9 @@ async def test_lifespan_seeding_failure():
 
 def test_startup_error_middleware():
     app.state.startup_error = "Broken"
-    with patch("app.main.lifespan"): client = TestClient(app)
+    with patch("app.main.lifespan"):
+        client = TestClient(app)
+
     # Health check is exempt from 503 if we want to see the error
     response = client.get("/api/v1/health")
     assert response.status_code == 503
@@ -87,7 +89,7 @@ def test_startup_error_middleware():
 def test_maintenance_task():
     with (
         patch("app.main.SessionLocal") as mock_session_cls,
-        patch("app.main.organize_expired_files") as mock_org,
+        patch("app.main.organize_expired_files"),
     ):
         mock_db = mock_session_cls.return_value
         run_maintenance_task()
@@ -106,7 +108,9 @@ def test_maintenance_task_failure():
 def test_startup_error_middleware_ok():
     if hasattr(app.state, "startup_error"):
         delattr(app.state, "startup_error")
-    with patch("app.main.lifespan"): client = TestClient(app)
+    with patch("app.main.lifespan"):
+        client = TestClient(app)
+
     response = client.get("/api/v1/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"

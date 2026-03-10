@@ -10,6 +10,7 @@ sys.modules["PySide6.QtWidgets"] = MagicMock()
 
 import launcher
 
+
 class TestLauncherCoverage(unittest.TestCase):
     def test_is_port_in_use(self):
         with patch("socket.socket") as mock_sock_cls:
@@ -46,6 +47,7 @@ class TestLauncherCoverage(unittest.TestCase):
                     # Verify controller was started
                     mock_controller.return_value.start.assert_called_once()
                     mock_exit.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

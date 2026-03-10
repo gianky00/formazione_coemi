@@ -44,9 +44,6 @@ def test_validate_unique_constraints_duplicate_email(db_session):
     assert "Email già esistente" in exc.value.detail
 
 
-
-
-
 def test_process_csv_row_new_employee(db_session):
     row = {
         "Nome": "Mario",
@@ -67,8 +64,6 @@ def test_process_csv_row_new_employee(db_session):
     assert emp.data_nascita == date(1980, 1, 1)
     assert emp.data_assunzione == date(2020, 1, 1)
     assert not warnings
-
-
 
 
 def test_process_csv_row_matricola_identity_update(db_session):

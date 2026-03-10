@@ -287,7 +287,6 @@ class DBSecurityManager:
         return self.active_connection
 
     @retry(
-
         stop=stop_after_attempt(5),
         wait=wait_fixed(2),
         retry=retry_if_exception_type(PermissionError),

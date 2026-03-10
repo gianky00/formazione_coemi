@@ -7,6 +7,7 @@ class SystemAction(BaseModel):
     action: str
     payload: dict[str, Any] | None = {}
 
+
 class MutableSettingsSchema(BaseModel):
     DATABASE_PATH: str | None = None
     GEMINI_API_KEY_ANALYSIS: str | None = None
@@ -18,6 +19,7 @@ class MutableSettingsSchema(BaseModel):
     SMTP_PASSWORD: str | None = None
     ALERT_THRESHOLD_DAYS: int = 60
     ALERT_THRESHOLD_DAYS_VISITE: int = 30
+
 
 class SystemStatusSchema(BaseModel):
     status: str

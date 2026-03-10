@@ -1,6 +1,6 @@
-from typing import Any
 import csv
 import io
+from typing import Any
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session, selectinload
@@ -155,8 +155,16 @@ class EmployeeService:
 
         return {"linked_count": linked_count, "warnings": warnings}
 
-    def _validate_unique_constraints(self, dipendente: Dipendente, update_dict: dict[str, Any]) -> None:
-        if "matricola" in update_dict and update_dict["matricola"] != dipendente.matricola and self.db.query(Dipendente).filter(Dipendente.matricola == update_dict["matricola"]).first():
+    def _validate_unique_constraints(
+        self, dipendente: Dipendente, update_dict: dict[str, Any]
+    ) -> None:
+        if (
+            "matricola" in update_dict
+            and update_dict["matricola"] != dipendente.matricola
+            and self.db.query(Dipendente)
+            .filter(Dipendente.matricola == update_dict["matricola"])
+            .first()
+        ):
             raise HTTPException(status_code=400, detail="Matricola già esistente.")
         if (
             "email" in update_dict
@@ -217,6 +225,7 @@ class EmployeeService:
 
     def link_orphaned_certificates_after_import(self) -> int:
         from app.services.certificate_service import CertificateService
+
         cert_service = CertificateService(self.db)
         orphans = self.db.query(Certificato).filter(Certificato.dipendente_id.is_(None)).all()
         linked = 0
@@ -231,4 +240,3 @@ class EmployeeService:
                 linked += 1
                 cert_service.sync_file_system(cert, old_data)
         return linked
-

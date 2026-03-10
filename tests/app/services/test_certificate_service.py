@@ -43,7 +43,8 @@ def test_validate_cert_input_invalid_name(db_session):
 
     # La validazione nome avviene nei validator Pydantic dello schema o durante validazione specifica?
     # _validate_input controlla solo la presenza. Se vogliamo testare il formato nome non valido per _validate_input:
-    pass # Pydantic validates this now.
+    pass  # Pydantic validates this now.
+
 
 def test_check_duplicate_cert(db_session: Session):
     course = Corso(nome_corso="Test", categoria_corso="CAT", validita_mesi=12)

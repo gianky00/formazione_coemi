@@ -94,11 +94,7 @@ class DatabaseView(QWidget):
 
         # Update categories in search bar
         categories = sorted(
-            {
-                str(item.get("categoria", "")).upper()
-                for item in self.data
-                if item.get("categoria")
-            }
+            {str(item.get("categoria", "")).upper() for item in self.data if item.get("categoria")}
         )
         combo = self.search_bar.combos["categoria"]
         combo.blockSignals(True)

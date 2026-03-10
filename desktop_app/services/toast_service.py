@@ -195,7 +195,7 @@ class ToastManager:
 
         # Reposition remaining toasts
         from contextlib import suppress
-        
+
         for i, toast in enumerate(self.active_toasts):
             with suppress(Exception):
                 offset = i * (self.toast_height + self.toast_gap)

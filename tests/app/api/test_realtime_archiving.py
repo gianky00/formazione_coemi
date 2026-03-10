@@ -51,9 +51,7 @@ def test_realtime_archiving_on_create(test_client, db_session, test_dirs):
 
     # Verify the new file location (STORICO)
     # The actual folder should be .../ANTINCENDIO/STORICO/...
-    storico_dir = (
-        test_dirs / "DOCUMENTI DIPENDENTI" / "Rossi Mario (123)" / "ANTINCENDIO" / "STORICO"
-    )
+    (test_dirs / "DOCUMENTI DIPENDENTI" / "Rossi Mario (123)" / "ANTINCENDIO" / "STORICO")
     pass  # Directory could be lazy created
     pass
 

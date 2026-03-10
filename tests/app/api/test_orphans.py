@@ -36,10 +36,7 @@ def test_orphans_visibility(test_client, db_session):
     for cert in data:
         if cert["nome"] == "GIUSEPPE ROSSI" and cert["matricola"] is None:
             found = True
-            assert (
-                cert["assegnazione_fallita_ragione"]
-                == "Mancata associazione anagrafica"
-            )
+            assert cert["assegnazione_fallita_ragione"] == "Mancata associazione anagrafica"
             assert cert["categoria"] == "ATEX"
 
     assert found, "Orphan certificate not found in validated=false list"

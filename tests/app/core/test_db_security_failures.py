@@ -45,7 +45,9 @@ class TestDBSecurityFailures(unittest.TestCase):
         # Mock opening the lock file with corrupt JSON
         with patch("pathlib.Path.open", mock_open(read_data=b"L{invalid_json")):
             # Patch os.remove on the module to ensure we catch the call
-            with patch.object(db_security_module.DBSecurityManager, "_force_remove_lock") as m_remove:
+            with patch.object(
+                db_security_module.DBSecurityManager, "_force_remove_lock"
+            ) as m_remove:
                 DBSecurityManager()
                 m_remove.assert_called()
 
@@ -57,7 +59,9 @@ class TestDBSecurityFailures(unittest.TestCase):
 
         with patch("pathlib.Path.open", mock_open(read_data=mock_file_content)):
             with patch.object(db_security_module.psutil, "pid_exists", return_value=False):
-                with patch.object(db_security_module.DBSecurityManager, "_force_remove_lock") as m_remove:
+                with patch.object(
+                    db_security_module.DBSecurityManager, "_force_remove_lock"
+                ) as m_remove:
                     DBSecurityManager()
                     m_remove.assert_called()
 
@@ -71,7 +75,9 @@ class TestDBSecurityFailures(unittest.TestCase):
             with patch.object(db_security_module.psutil, "pid_exists", return_value=True):
                 with patch.object(db_security_module.psutil, "Process") as m_proc:
                     m_proc.return_value.name.return_value = "chrome.exe"
-                    with patch.object(db_security_module.DBSecurityManager, "_force_remove_lock") as m_remove:
+                    with patch.object(
+                        db_security_module.DBSecurityManager, "_force_remove_lock"
+                    ) as m_remove:
                         DBSecurityManager()
                         m_remove.assert_called()
 
@@ -84,7 +90,9 @@ class TestDBSecurityFailures(unittest.TestCase):
             with patch.object(db_security_module.psutil, "pid_exists", return_value=True):
                 with patch.object(db_security_module.psutil, "Process") as m_proc:
                     m_proc.return_value.name.return_value = "python.exe"
-                    with patch.object(db_security_module.DBSecurityManager, "_force_remove_lock") as m_remove:
+                    with patch.object(
+                        db_security_module.DBSecurityManager, "_force_remove_lock"
+                    ) as m_remove:
                         DBSecurityManager()
                         m_remove.assert_not_called()
 
